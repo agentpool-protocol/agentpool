@@ -32,10 +32,17 @@ if (chainId === 8453) {
   if (incomplete.length > 0) {
     throw new Error(`MAINNET_BLOCKED: incomplete gates: ${incomplete.join(", ")}`);
   }
-  requireEnv("MAINNET_AUDIT_REPORT_SHA256");
-  requireEnv("MAINNET_LEGAL_MEMO_SHA256");
-  requireEnv("MAINNET_TRADEMARK_EVIDENCE_SHA256");
-  requireEnv("MAINNET_TESTNET_REPORT_SHA256");
+  for (const [gateName, envName] of [
+    ["smartContractAudit", "MAINNET_AUDIT_REPORT_SHA256"],
+    ["koreaLegalReview", "MAINNET_LEGAL_MEMO_SHA256"],
+    ["trademarkClearance", "MAINNET_TRADEMARK_EVIDENCE_SHA256"],
+    ["testnetReliability", "MAINNET_TESTNET_REPORT_SHA256"],
+    ["multisigAndTimelock", "MAINNET_MULTISIG_EVIDENCE_SHA256"],
+  ]) {
+    if (requireEnv(envName) !== gates.gates[gateName].evidenceSha256) {
+      throw new Error(`MAINNET_BLOCKED: evidence mismatch for ${gateName}`);
+    }
+  }
 }
 
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
@@ -72,6 +79,7 @@ const protocolTreasury = requireEnv("PROTOCOL_TREASURY");
 const evaluatorTreasury = requireEnv("EVALUATOR_TREASURY");
 const rootPublisher = requireEnv("MINING_ROOT_PUBLISHER");
 const genesis = BigInt(requireEnv("MINING_GENESIS_TIMESTAMP"));
+const publicSiteUrl = requireEnv("PUBLIC_SITE_URL").replace(/\/$/u, "");
 
 const token = await deploy("AgentPoolToken", [
   miningReserve,
@@ -90,7 +98,7 @@ const governor = await deploy("AgentPoolGovernor", [token, timelock]);
 const registry = await deploy("AgentPoolRegistry", [account.address]);
 const license = await deploy("AgentPoolLicense", [
   account.address,
-  "https://agentpool.openai.site/api/v1/licenses/{id}.json",
+  `${publicSiteUrl}/api/v1/licenses/{id}.json`,
 ]);
 let randomnessProvider;
 if (chainId === 84532) {

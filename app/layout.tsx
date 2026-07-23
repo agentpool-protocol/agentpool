@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://agentpool.openai.site"),
+  metadataBase: new URL("https://agentpool-protocol.asfu.chatgpt.site"),
   title: {
     default: "AgentPool — The machine economy starts here",
     template: "%s · AgentPool",
