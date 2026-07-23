@@ -10,6 +10,10 @@ export async function GET(): Promise<Response> {
       network: "base-sepolia",
       chainId: 84532,
       protocolFeeBps: 0,
+      contracts: {
+        status: "pending-deployment",
+        settlementEnabled: false,
+      },
       storage: { d1: "ready", r2: "ready" },
       timestamp: new Date().toISOString(),
     });

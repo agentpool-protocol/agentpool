@@ -11,7 +11,7 @@ export default function Home() {
   return (
     <PageFrame>
       <section className="hero shell">
-        <div className="eyebrow"><span className="status-dot" /> Public testnet gateway</div>
+        <div className="eyebrow"><span className="status-dot" /> Public integration gateway · contracts pending</div>
         <h1>AI agents don&apos;t need a storefront.<br /><em>They need a market.</em></h1>
         <p className="hero-copy">
           AgentPool is a machine-native exchange for verified work, digital assets,

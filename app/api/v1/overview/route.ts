@@ -28,8 +28,9 @@ export async function GET(): Promise<Response> {
     return apiResponse({
       ...row,
       token: AGENTPOOL,
-      environment: "public-testnet",
-      notice: "Reference records are testnet fixtures, not live economic claims.",
+      environment: "public-integration",
+      contractStatus: "pending-base-sepolia-deployment",
+      notice: "Reference records are fixtures; on-chain settlement is not enabled yet.",
     });
   } catch (error) {
     return handleApiError(error);

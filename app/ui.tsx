@@ -21,7 +21,7 @@ export function Header() {
         </nav>
         <a className="network-badge" href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">
           <span className="status-dot" />
-          Base Sepolia
+          Base Sepolia RC
         </a>
       </div>
     </header>
@@ -44,9 +44,9 @@ export function Footer() {
         </div>
         <div>
           <span className="footer-label">Environment</span>
-          <span>Public testnet</span>
+          <span>Public integration gateway</span>
           <span>Protocol fee: 0%</span>
-          <span>Mainnet gated</span>
+          <span>Contracts pending · mainnet gated</span>
         </div>
       </div>
     </footer>
