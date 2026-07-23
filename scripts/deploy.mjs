@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   createPublicClient,
   createWalletClient,
+  getAddress,
   http,
   keccak256,
   parseEther,
@@ -15,13 +16,17 @@ import { privateKeyToAccount } from "viem/accounts";
 
 const root = process.cwd();
 const chainId = Number(process.env.AGENTPOOL_CHAIN_ID ?? "84532");
-const chain = chainId === 8453 ? base : chainId === 84532 ? baseSepolia : null;
-if (!chain) throw new Error("AGENTPOOL_CHAIN_ID must be 84532 or 8453");
 
 function requireEnv(name) {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+const rpcUrl = requireEnv("AGENTPOOL_RPC_URL");
+const chain = chainId === 8453 ? base : chainId === 84532 ? baseSepolia : null;
+if (!chain) {
+  throw new Error("AGENTPOOL_CHAIN_ID must be 84532 or 8453");
 }
 
 if (chainId === 8453) {
@@ -46,7 +51,7 @@ if (chainId === 8453) {
 }
 
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
-const transport = http(requireEnv("AGENTPOOL_RPC_URL"));
+const transport = http(rpcUrl);
 const wallet = createWalletClient({ account, chain, transport });
 const publicClient = createPublicClient({ chain, transport });
 
@@ -71,15 +76,49 @@ async function deploy(name, args = []) {
 }
 
 const miningReserve = account.address;
-const operatorWallet = requireEnv("OPERATOR_WALLET");
-const ecosystemTreasury = requireEnv("ECOSYSTEM_TREASURY");
-const liquidityTreasury = requireEnv("LIQUIDITY_TREASURY");
-const securityTreasury = requireEnv("SECURITY_TREASURY");
-const protocolTreasury = requireEnv("PROTOCOL_TREASURY");
-const evaluatorTreasury = requireEnv("EVALUATOR_TREASURY");
-const rootPublisher = requireEnv("MINING_ROOT_PUBLISHER");
+const operatorWallet = getAddress(requireEnv("OPERATOR_WALLET"));
+const ecosystemTreasury = getAddress(requireEnv("ECOSYSTEM_TREASURY"));
+const liquidityTreasury = getAddress(requireEnv("LIQUIDITY_TREASURY"));
+const securityTreasury = getAddress(requireEnv("SECURITY_TREASURY"));
+const protocolTreasury = getAddress(requireEnv("PROTOCOL_TREASURY"));
+const evaluatorTreasury = getAddress(requireEnv("EVALUATOR_TREASURY"));
+const rootPublisher = getAddress(requireEnv("MINING_ROOT_PUBLISHER"));
 const genesis = BigInt(requireEnv("MINING_GENESIS_TIMESTAMP"));
 const publicSiteUrl = requireEnv("PUBLIC_SITE_URL").replace(/\/$/u, "");
+new URL(publicSiteUrl);
+
+const roleAddresses = [
+  operatorWallet,
+  ecosystemTreasury,
+  liquidityTreasury,
+  securityTreasury,
+  protocolTreasury,
+  evaluatorTreasury,
+  rootPublisher,
+];
+if (new Set(roleAddresses.map((address) => address.toLowerCase())).size !== roleAddresses.length) {
+  throw new Error("Operator, treasury, evaluator, and publisher addresses must be distinct");
+}
+if (roleAddresses.some((address) => address.toLowerCase() === account.address.toLowerCase())) {
+  throw new Error("The temporary deployer/mining reserve must not also hold an operating role");
+}
+
+const connectedChainId = await publicClient.getChainId();
+if (connectedChainId !== chainId) {
+  throw new Error(`RPC chain mismatch: expected ${chainId}, received ${connectedChainId}`);
+}
+const deployerBalance = await publicClient.getBalance({ address: account.address });
+const minimumBalance = BigInt(
+  process.env.MIN_DEPLOYER_BALANCE_WEI ?? parseEther("0.01").toString(),
+);
+if (deployerBalance < minimumBalance) {
+  throw new Error(
+    `DEPLOYER_BALANCE_TOO_LOW: ${deployerBalance} wei; minimum ${minimumBalance} wei`,
+  );
+}
+console.log(
+  `Preflight OK: ${chain.name} (${chainId}), deployer ${account.address}, balance ${deployerBalance} wei`,
+);
 
 const token = await deploy("AgentPoolToken", [
   miningReserve,
@@ -104,9 +143,10 @@ let randomnessProvider;
 if (chainId === 84532) {
   randomnessProvider = await deploy("MockRandomnessProvider");
 } else {
-  randomnessProvider = requireEnv("CHAINLINK_VRF_ADAPTER");
-  if (randomnessProvider.toLowerCase().includes("mock")) {
-    throw new Error("MAINNET_BLOCKED: mock randomness provider");
+  randomnessProvider = getAddress(requireEnv("CHAINLINK_VRF_ADAPTER"));
+  const providerCode = await publicClient.getCode({ address: randomnessProvider });
+  if (!providerCode || providerCode === "0x") {
+    throw new Error("MAINNET_BLOCKED: VRF adapter has no deployed bytecode");
   }
 }
 const oracle = await deploy("AgentPoolWorkOracle", [
@@ -161,7 +201,10 @@ const transferHash = await wallet.writeContract({
   functionName: "transfer",
   args: [miningVault, parseEther("500000000")],
 });
-await publicClient.waitForTransactionReceipt({ hash: transferHash });
+const transferReceipt = await publicClient.waitForTransactionReceipt({ hash: transferHash });
+if (transferReceipt.status !== "success") {
+  throw new Error(`Funding mining vault failed: ${transferHash}`);
+}
 
 for (const [name, address] of [
   ["AgentPoolRegistry", registry],

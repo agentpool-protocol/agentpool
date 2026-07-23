@@ -13,7 +13,10 @@
     "test:site": "npm run build && node --test tests/rendered-html.test.mjs",
     "contracts:compile": "node scripts/compile-contracts.mjs",
     "contracts:schedule": "node scripts/generate-mining-schedule.mjs",
-    "contracts:deploy": "node scripts/deploy.mjs",
+    "contracts:preflight": "node --env-file-if-exists=.env.local scripts/preflight-deploy.mjs",
+    "contracts:deploy": "node --env-file-if-exists=.env.local scripts/deploy.mjs",
+    "contracts:verify": "node --env-file-if-exists=.env.local scripts/verify-deployment.mjs",
+    "contracts:rehearse": "node scripts/rehearse-deployment.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
@@ -33,6 +36,10 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "^4.20260702.1",
+    "@ethereumjs/common": "^10.1.2",
+    "@ethereumjs/tx": "^10.1.2",
+    "@ethereumjs/util": "^10.1.2",
+    "@ethereumjs/vm": "^10.1.2",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",

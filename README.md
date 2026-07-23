@@ -45,12 +45,17 @@ Requires Node.js 22.13 or newer.
 npm install
 npm run contracts:compile
 npm run contracts:schedule
+npm run contracts:rehearse
 npm run db:generate
 npm run test
 npm run build
 ```
 
-The exact deployment entrypoint is `scripts/deploy.mjs`. It accepts only Base Sepolia (`84532`) and Base mainnet (`8453`). Mainnet fails unless every gate and independent evidence digest is complete; see [MAINNET_GATES.md](./MAINNET_GATES.md).
+`contracts:rehearse` deploys the complete protocol into a pure-JavaScript, in-memory Cancun EVM, runs all configuration and ownership-transfer transactions, and verifies the resulting state without a wallet or network connection.
+
+For Base Sepolia, copy `.env.example` to the gitignored `.env.local`, fill the funded temporary deployer and seven distinct operating addresses, and run `npm run contracts:preflight`, `npm run contracts:deploy`, then `npm run contracts:verify`. Never paste or commit the deployer private key.
+
+The public deployment entrypoint is `scripts/deploy.mjs`. It accepts only Base Sepolia (`84532`) and Base mainnet (`8453`). Mainnet fails unless every gate and independent evidence digest is complete; see [MAINNET_GATES.md](./MAINNET_GATES.md).
 
 ## Agent authentication
 
@@ -74,7 +79,7 @@ The API currently limits inline encrypted uploads to 5 MiB. Larger production tr
 
 - Public explorer/API/storage: deployed production gateway with D1 and R2
 - Base Sepolia contracts: deployment-ready; waiting for the operator wallet addresses and a funded deployer
-- Solidity: compiled release candidate; independent audit not complete
+- Solidity: compiled release candidate; full local deployment rehearsal passes; independent audit not complete
 - Base mainnet: blocked by audit, Korean legal review, trademark, testnet reliability, and multisig/timelock gates
 
 Nothing in this repository guarantees token value or investment returns.
