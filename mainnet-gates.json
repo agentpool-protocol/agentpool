@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "network": "base-mainnet",
+  "chainId": 8453,
+  "policy": "Every gate requires independent evidence and explicit approval. The deploy script fails closed.",
+  "gates": {
+    "smartContractAudit": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "owner": "independent-security-auditor"
+    },
+    "koreaLegalReview": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "owner": "licensed-korean-counsel"
+    },
+    "trademarkClearance": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "owner": "operator"
+    },
+    "testnetReliability": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "owner": "protocol-engineering"
+    },
+    "multisigAndTimelock": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "owner": "governance"
+    }
+  }
+}
