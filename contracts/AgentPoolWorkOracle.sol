@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IAgentPoolResolver} from "./interfaces/IAgentPoolResolver.sol";
 import {IAgentPoolEscrow} from "./interfaces/IAgentPoolEscrow.sol";
+import {IAgentPoolRegistry} from "./interfaces/IAgentPoolRegistry.sol";
 import {IRandomnessProvider} from "./interfaces/IRandomnessProvider.sol";
 
 /// @notice Five-evaluator commit/reveal disputes with a minimum of three reveals.
@@ -25,10 +26,12 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
     }
 
     IAgentPoolEscrow public escrow;
+    IAgentPoolRegistry public immutable registry;
     IRandomnessProvider public randomnessProvider;
     address public evaluatorTreasury;
     address[] public eligibleEvaluators;
     mapping(address => bool) public isEligible;
+    mapping(address => bool) public isKnownEvaluator;
     mapping(uint256 => Dispute) public disputes;
     mapping(uint256 => uint256) public requestToDispute;
     mapping(uint256 => address[EVALUATOR_COUNT]) public selectedEvaluators;
@@ -50,9 +53,16 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
 
     constructor(
         address governance,
+        IAgentPoolRegistry registry_,
         IRandomnessProvider randomnessProvider_,
         address evaluatorTreasury_
     ) Ownable(governance) {
+        if (
+            address(registry_) == address(0) ||
+            address(randomnessProvider_) == address(0) ||
+            evaluatorTreasury_ == address(0)
+        ) revert Unauthorized();
+        registry = registry_;
         randomnessProvider = randomnessProvider_;
         evaluatorTreasury = evaluatorTreasury_;
     }
@@ -63,9 +73,13 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
     }
 
     function setEvaluator(address evaluator, bool eligible) external onlyOwner {
-        if (eligible && !isEligible[evaluator]) {
-            isEligible[evaluator] = true;
+        if (evaluator == address(0)) revert Unauthorized();
+        if (eligible && !isKnownEvaluator[evaluator]) {
+            isKnownEvaluator[evaluator] = true;
             eligibleEvaluators.push(evaluator);
+        }
+        if (eligible) {
+            isEligible[evaluator] = true;
         } else if (!eligible) {
             isEligible[evaluator] = false;
         }
@@ -74,6 +88,19 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
     function setEvaluatorTreasury(address treasury) external onlyOwner {
         if (treasury == address(0)) revert Unauthorized();
         evaluatorTreasury = treasury;
+    }
+
+    function proposeOutcome(
+        uint256 jobId,
+        bytes32 verifierId,
+        IAgentPoolEscrow.Outcome outcome
+    ) external {
+        if (!registry.isAuthorizedVerifier(verifierId, msg.sender)) revert Unauthorized();
+        escrow.proposeOutcome(jobId, verifierId, outcome);
+    }
+
+    function finalizeUnchallenged(uint256 jobId) external {
+        escrow.finalizeUnchallenged(jobId, evaluatorTreasury);
     }
 
     function openDispute(uint256 jobId) external returns (uint256 disputeId) {
@@ -93,17 +120,26 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
         Dispute storage dispute = disputes[disputeId];
         if (dispute.jobId == 0 || dispute.selected) revert InvalidPhase();
 
+        uint256 activeCount = _activeEvaluatorCount();
+        address[] memory candidates = new address[](activeCount);
+        uint256 candidateCount;
+        for (uint256 index = 0; index < eligibleEvaluators.length; index++) {
+            address candidate = eligibleEvaluators[index];
+            if (isEligible[candidate]) candidates[candidateCount++] = candidate;
+        }
+
         address[EVALUATOR_COUNT] memory selected;
-        uint256 cursor;
-        uint256 nonce;
-        while (cursor < EVALUATOR_COUNT) {
-            address candidate = eligibleEvaluators[
-                uint256(keccak256(abi.encode(randomWord, nonce++))) % eligibleEvaluators.length
-            ];
-            if (!isEligible[candidate] || isSelected[disputeId][candidate]) continue;
+        for (uint256 cursor = 0; cursor < EVALUATOR_COUNT; cursor++) {
+            uint256 selectedIndex = cursor +
+                (
+                    uint256(keccak256(abi.encode(randomWord, cursor))) %
+                    (activeCount - cursor)
+                );
+            address candidate = candidates[selectedIndex];
+            candidates[selectedIndex] = candidates[cursor];
+            candidates[cursor] = candidate;
             selected[cursor] = candidate;
             isSelected[disputeId][candidate] = true;
-            cursor++;
         }
         selectedEvaluators[disputeId] = selected;
         dispute.selected = true;
@@ -118,6 +154,7 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
             !dispute.selected ||
             block.timestamp >= dispute.commitDeadline ||
             !isSelected[disputeId][msg.sender] ||
+            commitment == bytes32(0) ||
             commitments[disputeId][msg.sender] != bytes32(0)
         ) revert InvalidPhase();
         commitments[disputeId][msg.sender] = commitment;

@@ -3,6 +3,10 @@ import { apiResponse, handleApiError, requestId } from "@/lib/api";
 import { authenticateAgentWrite } from "@/lib/auth";
 import { execute, queryAll, queryFirst } from "@/db/runtime";
 import { seedReferenceData } from "@/lib/seed";
+import {
+  BOOTSTRAP_VERIFIER_NAMES,
+  verifierIdForName,
+} from "@/lib/protocol";
 
 const listingSchema = z.object({
   sellerAgentId: z.string().min(3).max(80),
@@ -33,7 +37,15 @@ export async function GET(request: Request): Promise<Response> {
       : await queryAll(
           "SELECT * FROM listings WHERE status = 'active' ORDER BY created_at DESC LIMIT 100",
         );
-    return apiResponse({ listings: rows });
+    return apiResponse({
+      listings: rows.map((row) => {
+        const listing = row as Record<string, unknown> & { verifier_id: string };
+        return {
+          ...listing,
+          onchain_verifier_id: verifierIdForName(listing.verifier_id),
+        };
+      }),
+    });
   } catch (error) {
     return handleApiError(error);
   }
@@ -51,9 +63,9 @@ export async function POST(request: Request): Promise<Response> {
     if (!seller || seller.owner_address.toLowerCase() !== auth.address) {
       throw new Error("AUTH_NOT_AGENT_OWNER");
     }
-    if (input.miningEligible && !input.verifierId.endsWith("-v1")) {
+    if (!BOOTSTRAP_VERIFIER_NAMES.includes(input.verifierId)) {
       return apiResponse(
-        { error: { code: "UNREGISTERED_VERIFIER", message: "Mining requires a registered v1 verification adapter." } },
+        { error: { code: "UNREGISTERED_VERIFIER", message: "Jobs require a registered v1 verification adapter." } },
         422,
       );
     }
@@ -80,7 +92,12 @@ export async function POST(request: Request): Promise<Response> {
       now,
       now,
     );
-    return apiResponse({ id, status: "active", protocolFeeBps: 0 }, 201);
+    return apiResponse({
+      id,
+      status: "active",
+      protocolFeeBps: 0,
+      onchainVerifierId: verifierIdForName(input.verifierId),
+    }, 201);
   } catch (error) {
     return handleApiError(error);
   }

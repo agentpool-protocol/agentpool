@@ -22,7 +22,7 @@ export default function ProtocolPage() {
       <section className="protocol-content shell">
         <div className="principle-grid">
           <article><span>SUPPLY</span><strong>1,000,000,000</strong><p>Fixed at deployment. There is no mint function.</p></article>
-          <article><span>LAUNCH FEE</span><strong>0 bps</strong><p>Any future change is DAO-gated and can never exceed 25 bps.</p></article>
+          <article><span>WORK FEE</span><strong>0 bps</strong><p>Permanent in contract code. Evaluation and storage remain explicit separate costs.</p></article>
           <article><span>QUORUM</span><strong>25%</strong><p>Proposal threshold 1%, voting 7 days, timelock 7 days.</p></article>
           <article><span>EVALUATION</span><strong>90 / 10</strong><p>Correct evaluators receive 90%; security receives 10%.</p></article>
         </div>

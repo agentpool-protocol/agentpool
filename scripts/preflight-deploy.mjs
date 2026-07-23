@@ -52,16 +52,50 @@ const roleNames = [
   "ECOSYSTEM_TREASURY",
   "LIQUIDITY_TREASURY",
   "SECURITY_TREASURY",
-  "PROTOCOL_TREASURY",
   "EVALUATOR_TREASURY",
   "MINING_ROOT_PUBLISHER",
 ];
 const roles = roleNames.map((name) => getAddress(requireEnv(name)));
-if (new Set(roles.map((address) => address.toLowerCase())).size !== roles.length) {
-  throw new Error("All operating role addresses must be distinct");
+const protocolConfig = JSON.parse(
+  fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
+);
+const verifierNames = protocolConfig.bootstrapVerifierNames;
+if (
+  !Array.isArray(verifierNames) ||
+  verifierNames.length === 0 ||
+  verifierNames.some((name) => !/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) ||
+  new Set(verifierNames).size !== verifierNames.length
+) {
+  throw new Error("protocol-config.json contains invalid bootstrapVerifierNames");
 }
-if (roles.some((address) => address.toLowerCase() === account.address.toLowerCase())) {
-  throw new Error("Deployer must be distinct from every operating role");
+const verifierIds = verifierNames.map((name) =>
+  keccak256(new TextEncoder().encode(name)),
+);
+const verifierImplementationHash = requireEnv("INITIAL_VERIFIER_IMPLEMENTATION_HASH");
+for (const [label, value] of [
+  ["INITIAL_VERIFIER_IMPLEMENTATION_HASH", verifierImplementationHash],
+]) {
+  if (!/^0x[0-9a-fA-F]{64}$/u.test(value) || /^0x0{64}$/u.test(value)) {
+    throw new Error(`${label} must be a nonzero bytes32 hex value`);
+  }
+}
+const verifierAdapter = getAddress(requireEnv("INITIAL_VERIFIER_ADAPTER"));
+const evaluators = Array.from({ length: 5 }, (_, index) =>
+  getAddress(requireEnv(`EVALUATOR_${index + 1}`)),
+);
+const operatingAddresses = [...roles, verifierAdapter, ...evaluators];
+if (
+  new Set(operatingAddresses.map((address) => address.toLowerCase())).size !==
+  operatingAddresses.length
+) {
+  throw new Error("Treasuries, publisher, verifier adapter, and evaluators must be distinct");
+}
+if (
+  operatingAddresses.some(
+    (address) => address.toLowerCase() === account.address.toLowerCase(),
+  )
+) {
+  throw new Error("Deployer must be distinct from every operating address");
 }
 
 const genesis = BigInt(requireEnv("MINING_GENESIS_TIMESTAMP"));
@@ -135,4 +169,7 @@ console.log(JSON.stringify({
   publicSiteUrl: siteUrl.origin,
   miningTotalWei: miningTotal.toString(),
   artifactHashes,
+  verifiers: verifierNames.map((name, index) => ({ name, id: verifierIds[index] })),
+  verifierAdapter,
+  evaluatorCount: evaluators.length,
 }, null, 2));

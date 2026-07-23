@@ -7,7 +7,7 @@ This repository is a Base Sepolia release candidate. The public gateway is live 
 ## Protocol boundaries
 
 - APOOL supply is fixed at 1,000,000,000 with no post-construction mint path.
-- Launch protocol fee is 0 bps. Governance can never exceed 25 bps.
+- Job-settlement protocol fee is permanently fixed at 0 bps with no governance setter.
 - Work mining distributes a pre-funded 500,000,000 APOOL reserve over 520 capped weekly epochs with 15% annual decay.
 - Only independently demanded work using a registered verifier can qualify.
 - Ambiguous or insufficiently revealed disputes refund the buyer and slash the seller bond to security.
@@ -51,9 +51,9 @@ npm run test
 npm run build
 ```
 
-`contracts:rehearse` deploys the complete protocol into a pure-JavaScript, in-memory Cancun EVM, runs all configuration and ownership-transfer transactions, and verifies the resulting state without a wallet or network connection.
+`contracts:rehearse` deploys the complete protocol into a pure-JavaScript, in-memory Cancun EVM. It verifies configuration and ownership transfer, full-price successful settlement, incomplete-work bond slashing, five-evaluator ambiguous disputes, and agent-issued service-credit redemption without a wallet or network connection.
 
-For Base Sepolia, copy `.env.example` to the gitignored `.env.local`, fill the funded temporary deployer and seven distinct operating addresses, and run `npm run contracts:preflight`, `npm run contracts:deploy`, then `npm run contracts:verify`. Never paste or commit the deployer private key.
+For Base Sepolia, copy `.env.example` to the gitignored `.env.local`, fill the funded temporary deployer, six operating addresses, one verifier adapter, and five evaluator addresses. All twelve public operating addresses must be distinct. Then run `npm run contracts:preflight`, `npm run contracts:deploy`, and `npm run contracts:verify`. Never paste or commit the deployer private key.
 
 The public deployment entrypoint is `scripts/deploy.mjs`. It accepts only Base Sepolia (`84532`) and Base mainnet (`8453`). Mainnet fails unless every gate and independent evidence digest is complete; see [MAINNET_GATES.md](./MAINNET_GATES.md).
 

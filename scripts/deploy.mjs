@@ -80,21 +80,46 @@ const operatorWallet = getAddress(requireEnv("OPERATOR_WALLET"));
 const ecosystemTreasury = getAddress(requireEnv("ECOSYSTEM_TREASURY"));
 const liquidityTreasury = getAddress(requireEnv("LIQUIDITY_TREASURY"));
 const securityTreasury = getAddress(requireEnv("SECURITY_TREASURY"));
-const protocolTreasury = getAddress(requireEnv("PROTOCOL_TREASURY"));
 const evaluatorTreasury = getAddress(requireEnv("EVALUATOR_TREASURY"));
 const rootPublisher = getAddress(requireEnv("MINING_ROOT_PUBLISHER"));
+const protocolConfig = JSON.parse(
+  fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
+);
+const initialVerifierNames = protocolConfig.bootstrapVerifierNames;
+if (
+  !Array.isArray(initialVerifierNames) ||
+  initialVerifierNames.length === 0 ||
+  initialVerifierNames.some((name) => !/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) ||
+  new Set(initialVerifierNames).size !== initialVerifierNames.length
+) {
+  throw new Error("protocol-config.json contains invalid bootstrapVerifierNames");
+}
+const initialVerifierIds = initialVerifierNames.map((name) => keccak256(toBytes(name)));
+const initialVerifierAdapter = getAddress(requireEnv("INITIAL_VERIFIER_ADAPTER"));
+const initialVerifierImplementationHash = requireEnv("INITIAL_VERIFIER_IMPLEMENTATION_HASH");
+const evaluators = Array.from({ length: 5 }, (_, index) =>
+  getAddress(requireEnv(`EVALUATOR_${index + 1}`)),
+);
 const genesis = BigInt(requireEnv("MINING_GENESIS_TIMESTAMP"));
 const publicSiteUrl = requireEnv("PUBLIC_SITE_URL").replace(/\/$/u, "");
 new URL(publicSiteUrl);
+for (const [label, value] of [
+  ["INITIAL_VERIFIER_IMPLEMENTATION_HASH", initialVerifierImplementationHash],
+]) {
+  if (!/^0x[0-9a-fA-F]{64}$/u.test(value) || /^0x0{64}$/u.test(value)) {
+    throw new Error(`${label} must be a nonzero bytes32 hex value`);
+  }
+}
 
 const roleAddresses = [
   operatorWallet,
   ecosystemTreasury,
   liquidityTreasury,
   securityTreasury,
-  protocolTreasury,
   evaluatorTreasury,
   rootPublisher,
+  initialVerifierAdapter,
+  ...evaluators,
 ];
 if (new Set(roleAddresses.map((address) => address.toLowerCase())).size !== roleAddresses.length) {
   throw new Error("Operator, treasury, evaluator, and publisher addresses must be distinct");
@@ -136,12 +161,11 @@ const timelock = await deploy("TimelockController", [
 const governor = await deploy("AgentPoolGovernor", [token, timelock]);
 const registry = await deploy("AgentPoolRegistry", [account.address]);
 const license = await deploy("AgentPoolLicense", [
-  account.address,
   `${publicSiteUrl}/api/v1/licenses/{id}.json`,
 ]);
 let randomnessProvider;
 if (chainId === 84532) {
-  randomnessProvider = await deploy("MockRandomnessProvider");
+  randomnessProvider = await deploy("MockRandomnessProvider", [account.address]);
 } else {
   randomnessProvider = getAddress(requireEnv("CHAINLINK_VRF_ADAPTER"));
   const providerCode = await publicClient.getCode({ address: randomnessProvider });
@@ -151,13 +175,14 @@ if (chainId === 84532) {
 }
 const oracle = await deploy("AgentPoolWorkOracle", [
   account.address,
+  registry,
   randomnessProvider,
   evaluatorTreasury,
 ]);
 const escrow = await deploy("AgentPoolJobEscrow", [
   token,
+  registry,
   account.address,
-  protocolTreasury,
   securityTreasury,
 ]);
 const miningVault = await deploy("AgentPoolMiningVault", [
@@ -184,6 +209,18 @@ async function write(name, address, functionName, args = []) {
 if (chainId === 84532) {
   await write("MockRandomnessProvider", randomnessProvider, "setConsumer", [oracle]);
 }
+for (const verifierId of initialVerifierIds) {
+  await write("AgentPoolRegistry", registry, "configureVerifier", [
+    verifierId,
+    initialVerifierAdapter,
+    initialVerifierImplementationHash,
+    true,
+    true,
+  ]);
+}
+for (const evaluator of evaluators) {
+  await write("AgentPoolWorkOracle", oracle, "setEvaluator", [evaluator, true]);
+}
 await write("AgentPoolWorkOracle", oracle, "setEscrow", [escrow]);
 await write("AgentPoolJobEscrow", escrow, "setResolver", [oracle]);
 
@@ -208,10 +245,12 @@ if (transferReceipt.status !== "success") {
 
 for (const [name, address] of [
   ["AgentPoolRegistry", registry],
-  ["AgentPoolLicense", license],
   ["AgentPoolWorkOracle", oracle],
   ["AgentPoolJobEscrow", escrow],
   ["AgentPoolMiningVault", miningVault],
+  ...(chainId === 84532
+    ? [["MockRandomnessProvider", randomnessProvider]]
+    : []),
 ]) {
   await write(name, address, "transferOwnership", [timelock]);
 }
@@ -241,6 +280,15 @@ const deployment = {
     oracle,
     escrow,
     miningVault,
+  },
+  bootstrap: {
+    verifiers: initialVerifierNames.map((name, index) => ({
+      name,
+      id: initialVerifierIds[index],
+    })),
+    verifierAdapter: initialVerifierAdapter,
+    verifierImplementationHash: initialVerifierImplementationHash,
+    evaluators,
   },
 };
 const target = path.join(root, "deployments", `${chainId}.json`);

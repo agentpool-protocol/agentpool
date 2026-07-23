@@ -1,3 +1,16 @@
+import { keccak256, toBytes } from "viem";
+import protocolConfig from "@/protocol-config.json";
+
+export const BOOTSTRAP_VERIFIER_NAMES =
+  protocolConfig.bootstrapVerifierNames as readonly string[];
+
+export function verifierIdForName(name: string): `0x${string}` {
+  if (!/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) {
+    throw new Error("Verifier names must use 3-80 lowercase letters, numbers, or hyphens");
+  }
+  return keccak256(toBytes(name));
+}
+
 export const AGENTPOOL = {
   name: "AgentPool",
   symbol: "APOOL",
@@ -16,8 +29,8 @@ export const AGENTPOOL = {
     security: 50_000_000,
   },
   fees: {
-    launchProtocolBps: 0,
-    immutableMaximumBps: 25,
+    jobSettlementBps: 0,
+    mutable: false,
     evaluatorShareBps: 9_000,
     securityShareBps: 1_000,
   },
@@ -39,7 +52,7 @@ export const AGENTPOOL = {
     commitMinutes: 60,
     revealMinutes: 60,
     minimumReveals: 3,
-    maximumSelectionAttempts: 2,
+    selection: "bounded-without-replacement",
   },
 } as const;
 
@@ -92,4 +105,3 @@ export function formatApool(value: string | number): string {
     maximumFractionDigits: 2,
   }).format(Number.isFinite(amount) ? amount : 0);
 }
-

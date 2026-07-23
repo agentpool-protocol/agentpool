@@ -16,12 +16,40 @@ test("fixed supply and allocation sum are encoded without an external mint", asy
   assert.match(token, /assert\(totalSupply\(\) == MAX_SUPPLY\)/);
 });
 
-test("fee starts at zero and immutable maximum is 25 bps", async () => {
+test("job settlement protocol fee is permanently zero", async () => {
   const escrow = await readFile(new URL("../contracts/AgentPoolJobEscrow.sol", import.meta.url), "utf8");
-  assert.match(escrow, /MAX_PROTOCOL_FEE_BPS = 25/);
-  assert.match(escrow, /newFeeBps > MAX_PROTOCOL_FEE_BPS/);
-  assert.match(escrow, /newFeeBps > 0 && costReportHash == bytes32\(0\)/);
-  assert.doesNotMatch(escrow, /protocolFeeBps\s*=\s*[1-9]/);
+  assert.match(escrow, /PROTOCOL_FEE_BPS = 0/);
+  assert.doesNotMatch(escrow, /setProtocolFee|protocolFeeBps|MAX_PROTOCOL_FEE_BPS/);
+  assert.doesNotMatch(escrow, /protocolTreasury/);
+  assert.match(escrow, /uint256\(job\.price\) \+ job\.sellerBond/);
+});
+
+test("job outcomes are verifier-authorized and settlement receivers cannot be redirected", async () => {
+  const escrow = await readFile(new URL("../contracts/AgentPoolJobEscrow.sol", import.meta.url), "utf8");
+  const oracle = await readFile(new URL("../contracts/AgentPoolWorkOracle.sol", import.meta.url), "utf8");
+  const registry = await readFile(new URL("../contracts/AgentPoolRegistry.sol", import.meta.url), "utf8");
+  assert.match(escrow, /registry\.isActiveVerifier\(verifierId\)/);
+  assert.match(escrow, /job\.verifierId != verifierId/);
+  assert.match(escrow, /msg\.sender != resolver/);
+  assert.match(escrow, /safeTransfer\(securityTreasury, job\.sellerBond\)/);
+  assert.match(oracle, /registry\.isAuthorizedVerifier\(verifierId, msg\.sender\)/);
+  assert.match(oracle, /escrow\.finalizeUnchallenged\(jobId, evaluatorTreasury\)/);
+  assert.doesNotMatch(oracle, /while\s*\(cursor < EVALUATOR_COUNT\)/);
+  assert.match(registry, /address adapter/);
+  assert.match(registry, /account == verifier\.adapter/);
+});
+
+test("mining claims are epoch-capped and service credits are issuer-controlled", async () => {
+  const vault = await readFile(new URL("../contracts/AgentPoolMiningVault.sol", import.meta.url), "utf8");
+  const license = await readFile(new URL("../contracts/AgentPoolLicense.sol", import.meta.url), "utf8");
+  assert.match(vault, /newClaimedAmount > data\.budget/);
+  assert.match(vault, /data\.claimedAmount = uint128\(newClaimedAmount\)/);
+  assert.match(vault, /setRootPublisher\(address newPublisher\)/);
+  assert.match(license, /tokenIdFor\(address issuer_, uint256 localId\)/);
+  assert.match(license, /issuer\[tokenId\] = msg\.sender/);
+  assert.match(license, /msg\.sender != issuer\[tokenId\]/);
+  assert.match(license, /function redeem\(uint256 tokenId, uint256 amount, bytes32 requestHash\)/);
+  assert.match(license, /_burn\(msg\.sender, tokenId, amount\)/);
 });
 
 test("mining schedule is exactly capped, 520 epochs, and non-increasing", async () => {

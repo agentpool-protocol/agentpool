@@ -7,12 +7,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAgentPoolResolver} from "./interfaces/IAgentPoolResolver.sol";
 import {IAgentPoolEscrow} from "./interfaces/IAgentPoolEscrow.sol";
+import {IAgentPoolRegistry} from "./interfaces/IAgentPoolRegistry.sol";
 
 /// @notice APOOL job escrow. Human checkout and arbitrary ERC-20 assets are deliberately unsupported.
 contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
     using SafeERC20 for IERC20;
 
-    uint16 public constant MAX_PROTOCOL_FEE_BPS = 25;
+    uint16 public constant PROTOCOL_FEE_BPS = 0;
     uint16 public constant EVALUATOR_SHARE_BPS = 9_000;
     uint16 public constant SECURITY_SHARE_BPS = 1_000;
     uint64 public constant CHALLENGE_WINDOW = 2 hours;
@@ -46,10 +47,9 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
     }
 
     IERC20 public immutable apool;
+    IAgentPoolRegistry public immutable registry;
     address public resolver;
-    address public protocolTreasury;
     address public securityTreasury;
-    uint16 public protocolFeeBps;
     uint256 public nextJobId = 1;
     mapping(uint256 => Job) public jobs;
 
@@ -59,41 +59,29 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
     event OutcomeProposed(uint256 indexed jobId, Outcome outcome, uint64 challengeDeadline);
     event JobChallenged(uint256 indexed jobId);
     event JobSettled(uint256 indexed jobId, Outcome outcome, State state);
-    event ProtocolFeeChanged(uint16 oldFeeBps, uint16 newFeeBps, bytes32 indexed costReportHash);
-
     error InvalidState();
     error Unauthorized();
     error InvalidTerms();
-    error FeeAboveImmutableMaximum();
-    error CostReportRequired();
 
     constructor(
         IERC20 token,
+        IAgentPoolRegistry registry_,
         address governance,
-        address protocolTreasury_,
         address securityTreasury_
     ) Ownable(governance) {
         if (
             address(token) == address(0) ||
-            protocolTreasury_ == address(0) ||
+            address(registry_) == address(0) ||
             securityTreasury_ == address(0)
         ) revert InvalidTerms();
         apool = token;
-        protocolTreasury = protocolTreasury_;
+        registry = registry_;
         securityTreasury = securityTreasury_;
     }
 
     function setResolver(address resolver_) external onlyOwner {
         if (resolver_ == address(0)) revert InvalidTerms();
         resolver = resolver_;
-    }
-
-    function setProtocolFee(uint16 newFeeBps, bytes32 costReportHash) external onlyOwner {
-        if (newFeeBps > MAX_PROTOCOL_FEE_BPS) revert FeeAboveImmutableMaximum();
-        if (newFeeBps > 0 && costReportHash == bytes32(0)) revert CostReportRequired();
-        uint16 oldFee = protocolFeeBps;
-        protocolFeeBps = newFeeBps;
-        emit ProtocolFeeChanged(oldFee, newFeeBps, costReportHash);
     }
 
     function fundJob(
@@ -115,6 +103,7 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
             requirementsHash == bytes32(0) ||
             verifierId == bytes32(0)
         ) revert InvalidTerms();
+        if (!registry.isActiveVerifier(verifierId)) revert InvalidTerms();
         jobId = nextJobId++;
         jobs[jobId] = Job({
             buyer: msg.sender,
@@ -153,10 +142,10 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         emit JobSubmitted(jobId, deliveryHash);
     }
 
-    function proposeOutcome(uint256 jobId, Outcome outcome) external {
+    function proposeOutcome(uint256 jobId, bytes32 verifierId, Outcome outcome) external {
         if (msg.sender != resolver) revert Unauthorized();
         Job storage job = jobs[jobId];
-        if (job.state != State.SUBMITTED) revert InvalidState();
+        if (job.state != State.SUBMITTED || job.verifierId != verifierId) revert InvalidState();
         job.proposedOutcome = outcome;
         job.challengeDeadline = uint64(block.timestamp + CHALLENGE_WINDOW);
         job.state = State.PROPOSED;
@@ -176,6 +165,7 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
     }
 
     function finalizeUnchallenged(uint256 jobId, address evaluatorReceiver) external nonReentrant {
+        if (msg.sender != resolver) revert Unauthorized();
         Job storage job = jobs[jobId];
         if (job.state != State.PROPOSED || block.timestamp < job.challengeDeadline) revert InvalidState();
         _settle(jobId, job.proposedOutcome, evaluatorReceiver);
@@ -198,8 +188,12 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         bool accepted = job.state == State.ACCEPTED;
         job.state = State.EXPIRED;
         apool.safeTransfer(job.buyer, uint256(job.price) + job.evaluationBudget);
-        if (accepted) apool.safeTransfer(job.seller, job.sellerBond);
+        if (accepted) apool.safeTransfer(securityTreasury, job.sellerBond);
         emit JobSettled(jobId, Outcome.AMBIGUOUS, State.EXPIRED);
+    }
+
+    function jobState(uint256 jobId) external view returns (State) {
+        return jobs[jobId].state;
     }
 
     function _settle(uint256 jobId, Outcome outcome, address evaluatorReceiver) internal {
@@ -210,10 +204,8 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         apool.safeTransfer(evaluatorReceiver, evaluatorPayment);
 
         if (outcome == Outcome.PASS) {
-            uint256 fee = uint256(job.price) * protocolFeeBps / 10_000;
             job.state = State.COMPLETED;
-            apool.safeTransfer(job.seller, uint256(job.price) - fee + job.sellerBond);
-            if (fee > 0) apool.safeTransfer(protocolTreasury, fee);
+            apool.safeTransfer(job.seller, uint256(job.price) + job.sellerBond);
         } else {
             job.state = outcome == Outcome.FAIL ? State.REJECTED : State.REFUNDED;
             apool.safeTransfer(job.buyer, job.price);

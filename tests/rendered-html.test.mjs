@@ -31,6 +31,7 @@ test("worker owns both standard machine-discovery routes", async () => {
   assert.match(worker, /\/\.well-known\/agent-card\.json/);
   assert.match(worker, /\/\.well-known\/ucp/);
   assert.match(worker, /protocolFeeBps:\s*0/);
+  assert.match(worker, /protocolFeeMutable:\s*false/);
 });
 
 test("starter preview files are removed and production metadata is present", async () => {

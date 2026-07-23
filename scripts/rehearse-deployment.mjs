@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createBlock } from "@ethereumjs/block";
 import { Common, Hardfork, Mainnet, createCustomCommon } from "@ethereumjs/common";
 import { createLegacyTx } from "@ethereumjs/tx";
 import {
@@ -42,26 +43,49 @@ const privateKey = hexToBytes(
 );
 const deployer = createAddressFromPrivateKey(privateKey);
 const deployerAddress = getAddress(deployer.toString());
-await vm.stateManager.putAccount(
-  deployer,
-  createAccount({ nonce: 0n, balance: parseEther("10000") }),
-);
 
-const roles = {
-  operator: getAddress("0x1000000000000000000000000000000000000001"),
-  ecosystem: getAddress("0x1000000000000000000000000000000000000002"),
-  liquidity: getAddress("0x1000000000000000000000000000000000000003"),
-  security: getAddress("0x1000000000000000000000000000000000000004"),
-  protocol: getAddress("0x1000000000000000000000000000000000000005"),
-  evaluator: getAddress("0x1000000000000000000000000000000000000006"),
-  publisher: getAddress("0x1000000000000000000000000000000000000007"),
+function rehearsalKey(index) {
+  return hexToBytes(`0x${BigInt(index).toString(16).padStart(64, "0")}`);
+}
+function addressFor(key) {
+  return getAddress(createAddressFromPrivateKey(key).toString());
+}
+const roleKeys = {
+  operator: rehearsalKey(2),
+  ecosystem: rehearsalKey(3),
+  liquidity: rehearsalKey(4),
+  security: rehearsalKey(5),
+  evaluator: rehearsalKey(6),
+  publisher: rehearsalKey(7),
 };
-const roleAddresses = Object.values(roles);
+const roles = Object.fromEntries(
+  Object.entries(roleKeys).map(([name, key]) => [name, addressFor(key)]),
+);
+const verifierKey = rehearsalKey(8);
+const verifierAdapter = addressFor(verifierKey);
+const evaluatorKeys = Array.from({ length: 5 }, (_, index) => rehearsalKey(index + 9));
+const evaluators = evaluatorKeys.map(addressFor);
+const protocolConfig = JSON.parse(
+  fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
+);
+const verifierNames = protocolConfig.bootstrapVerifierNames;
+const verifierIds = verifierNames.map((name) => keccak256(toBytes(name)));
+const verifierId = verifierIds[0];
+const verifierImplementationHash = keccak256(
+  toBytes("agentpool.rehearsal.verifier.implementation.v1"),
+);
+const roleAddresses = [...Object.values(roles), verifierAdapter, ...evaluators];
 if (new Set(roleAddresses.map((address) => address.toLowerCase())).size !== roleAddresses.length) {
   throw new Error("Rehearsal roles must be distinct");
 }
 if (roleAddresses.some((address) => address.toLowerCase() === deployerAddress.toLowerCase())) {
   throw new Error("The rehearsal deployer must not hold an operating role");
+}
+for (const key of [privateKey, ...Object.values(roleKeys), verifierKey, ...evaluatorKeys]) {
+  await vm.stateManager.putAccount(
+    createAddressFromPrivateKey(key),
+    createAccount({ nonce: 0n, balance: parseEther("10000") }),
+  );
 }
 
 const artifactCache = new Map();
@@ -76,10 +100,17 @@ function artifact(name) {
   return artifactCache.get(name);
 }
 
-let nonce = 0n;
+const signerNonces = new Map();
+let blockNumber = 1n;
+let blockTimestamp = BigInt(Math.floor(Date.now() / 1000));
 let transactionCount = 0;
 let gasSpent = 0n;
-async function execute(data, to) {
+function advanceTime(seconds) {
+  blockTimestamp += BigInt(seconds);
+}
+async function execute(data, to, signingKey = privateKey) {
+  const signerAddress = addressFor(signingKey).toLowerCase();
+  const nonce = signerNonces.get(signerAddress) ?? 0n;
   const tx = createLegacyTx(
     {
       nonce,
@@ -90,9 +121,20 @@ async function execute(data, to) {
       data: hexToBytes(data),
     },
     { common },
-  ).sign(privateKey);
+  ).sign(signingKey);
+  const block = createBlock(
+    {
+      header: {
+        number: blockNumber,
+        timestamp: blockTimestamp,
+        gasLimit: 100_000_000n,
+      },
+    },
+    { common, skipConsensusFormatValidation: true },
+  );
   const result = await runTx(vm, {
     tx,
+    block,
     skipBlockGasLimitValidation: true,
   });
   if (result.execResult.exceptionError) {
@@ -101,7 +143,9 @@ async function execute(data, to) {
       `Local EVM transaction ${nonce} reverted: ${result.execResult.exceptionError.error}; data=${returnData}`,
     );
   }
-  nonce += 1n;
+  signerNonces.set(signerAddress, nonce + 1n);
+  blockNumber += 1n;
+  blockTimestamp += 1n;
   transactionCount += 1;
   gasSpent += result.totalGasSpent;
   return result;
@@ -124,7 +168,7 @@ async function deploy(name, args = []) {
   return address;
 }
 
-async function write(name, address, functionName, args = []) {
+async function write(name, address, functionName, args = [], signingKey = privateKey) {
   return execute(
     encodeFunctionData({
       abi: artifact(name).abi,
@@ -132,6 +176,7 @@ async function write(name, address, functionName, args = []) {
       args,
     }),
     address,
+    signingKey,
   );
 }
 
@@ -174,7 +219,7 @@ if (scheduledBudget !== parseEther("500000000")) {
 }
 console.log("Preflight OK: 520 epochs and 500M APOOL mining budget");
 
-const genesis = BigInt(Math.floor(Date.now() / 1000));
+const genesis = blockTimestamp;
 const siteUrl = "https://agentpool-protocol.asfu.chatgpt.site";
 const token = await deploy("AgentPoolToken", [
   deployerAddress,
@@ -192,19 +237,19 @@ const timelock = await deploy("TimelockController", [
 const governor = await deploy("AgentPoolGovernor", [token, timelock]);
 const registry = await deploy("AgentPoolRegistry", [deployerAddress]);
 const license = await deploy("AgentPoolLicense", [
-  deployerAddress,
   `${siteUrl}/api/v1/licenses/{id}.json`,
 ]);
-const randomnessProvider = await deploy("MockRandomnessProvider");
+const randomnessProvider = await deploy("MockRandomnessProvider", [deployerAddress]);
 const oracle = await deploy("AgentPoolWorkOracle", [
   deployerAddress,
+  registry,
   randomnessProvider,
   roles.evaluator,
 ]);
 const escrow = await deploy("AgentPoolJobEscrow", [
   token,
+  registry,
   deployerAddress,
-  roles.protocol,
   roles.security,
 ]);
 const miningVault = await deploy("AgentPoolMiningVault", [
@@ -215,6 +260,18 @@ const miningVault = await deploy("AgentPoolMiningVault", [
 ]);
 
 await write("MockRandomnessProvider", randomnessProvider, "setConsumer", [oracle]);
+for (const configuredVerifierId of verifierIds) {
+  await write("AgentPoolRegistry", registry, "configureVerifier", [
+    configuredVerifierId,
+    verifierAdapter,
+    verifierImplementationHash,
+    true,
+    true,
+  ]);
+}
+for (const evaluator of evaluators) {
+  await write("AgentPoolWorkOracle", oracle, "setEvaluator", [evaluator, true]);
+}
 await write("AgentPoolWorkOracle", oracle, "setEscrow", [escrow]);
 await write("AgentPoolJobEscrow", escrow, "setResolver", [oracle]);
 
@@ -231,10 +288,10 @@ await write("AgentPoolToken", token, "transfer", [
 
 for (const [name, address] of [
   ["AgentPoolRegistry", registry],
-  ["AgentPoolLicense", license],
   ["AgentPoolWorkOracle", oracle],
   ["AgentPoolJobEscrow", escrow],
   ["AgentPoolMiningVault", miningVault],
+  ["MockRandomnessProvider", randomnessProvider],
 ]) {
   await write(name, address, "transferOwnership", [timelock]);
 }
@@ -246,6 +303,314 @@ await write("TimelockController", timelock, "grantRole", [cancellerRole, governo
 await write("TimelockController", timelock, "revokeRole", [proposerRole, deployerAddress]);
 await write("TimelockController", timelock, "revokeRole", [cancellerRole, deployerAddress]);
 await write("TimelockController", timelock, "revokeRole", [zeroHash, deployerAddress]);
+
+const scenarioChecks = [];
+function scenarioCheck(name, actual, expected) {
+  const normalizedActual = typeof actual === "bigint" ? actual.toString() : actual;
+  const normalizedExpected = typeof expected === "bigint" ? expected.toString() : expected;
+  scenarioChecks.push({
+    name,
+    passed: normalizedActual === normalizedExpected,
+    actual: normalizedActual,
+    expected: normalizedExpected,
+  });
+}
+async function tokenBalance(address) {
+  return read("AgentPoolToken", token, "balanceOf", [address]);
+}
+async function approveEscrow(signingKey, amount) {
+  await write("AgentPoolToken", token, "approve", [escrow, amount], signingKey);
+}
+
+await vm.stateManager.checkpoint();
+try {
+  const successPrice = parseEther("300");
+  const successEvaluation = parseEther("10");
+  const successBond = parseEther("30");
+  const successBuyerStart = await tokenBalance(roles.operator);
+  const successSellerStart = await tokenBalance(roles.ecosystem);
+  const successEvaluatorStart = await tokenBalance(roles.evaluator);
+  const successSecurityStart = await tokenBalance(roles.security);
+  const successJobId = await read("AgentPoolJobEscrow", escrow, "nextJobId");
+  await approveEscrow(roleKeys.operator, successPrice + successEvaluation);
+  await approveEscrow(roleKeys.ecosystem, successBond);
+  await write(
+    "AgentPoolJobEscrow",
+    escrow,
+    "fundJob",
+    [
+      roles.ecosystem,
+      successPrice,
+      successEvaluation,
+      successBond,
+      blockTimestamp + 3_600n,
+      keccak256(toBytes("success requirements")),
+      verifierId,
+    ],
+    roleKeys.operator,
+  );
+  await write("AgentPoolJobEscrow", escrow, "acceptJob", [successJobId], roleKeys.ecosystem);
+  await write(
+    "AgentPoolJobEscrow",
+    escrow,
+    "submitJob",
+    [successJobId, keccak256(toBytes("success delivery"))],
+    roleKeys.ecosystem,
+  );
+  await write(
+    "AgentPoolWorkOracle",
+    oracle,
+    "proposeOutcome",
+    [successJobId, verifierId, 0],
+    verifierKey,
+  );
+  advanceTime(2 * 60 * 60 + 1);
+  await write(
+    "AgentPoolWorkOracle",
+    oracle,
+    "finalizeUnchallenged",
+    [successJobId],
+    roleKeys.operator,
+  );
+  scenarioCheck(
+    "lifecycle.success.state",
+    await read("AgentPoolJobEscrow", escrow, "jobState", [successJobId]),
+    6,
+  );
+  scenarioCheck(
+    "lifecycle.success.buyerDelta",
+    (await tokenBalance(roles.operator)) - successBuyerStart,
+    -(successPrice + successEvaluation),
+  );
+  scenarioCheck(
+    "lifecycle.success.sellerReceivesFullPrice",
+    (await tokenBalance(roles.ecosystem)) - successSellerStart,
+    successPrice,
+  );
+  scenarioCheck(
+    "lifecycle.success.evaluatorShare",
+    (await tokenBalance(roles.evaluator)) - successEvaluatorStart,
+    successEvaluation * 9n / 10n,
+  );
+  scenarioCheck(
+    "lifecycle.success.securityShare",
+    (await tokenBalance(roles.security)) - successSecurityStart,
+    successEvaluation / 10n,
+  );
+  scenarioCheck("lifecycle.success.escrowCleared", await tokenBalance(escrow), 0n);
+
+  const expiryPrice = parseEther("100");
+  const expiryEvaluation = parseEther("5");
+  const expiryBond = parseEther("25");
+  const expiryBuyerStart = await tokenBalance(roles.operator);
+  const expirySellerStart = await tokenBalance(roles.ecosystem);
+  const expirySecurityStart = await tokenBalance(roles.security);
+  const expiryJobId = await read("AgentPoolJobEscrow", escrow, "nextJobId");
+  await approveEscrow(roleKeys.operator, expiryPrice + expiryEvaluation);
+  await approveEscrow(roleKeys.ecosystem, expiryBond);
+  await write(
+    "AgentPoolJobEscrow",
+    escrow,
+    "fundJob",
+    [
+      roles.ecosystem,
+      expiryPrice,
+      expiryEvaluation,
+      expiryBond,
+      blockTimestamp + 120n,
+      keccak256(toBytes("expiry requirements")),
+      verifierId,
+    ],
+    roleKeys.operator,
+  );
+  await write("AgentPoolJobEscrow", escrow, "acceptJob", [expiryJobId], roleKeys.ecosystem);
+  advanceTime(121);
+  await write(
+    "AgentPoolJobEscrow",
+    escrow,
+    "refundExpired",
+    [expiryJobId],
+    roleKeys.operator,
+  );
+  scenarioCheck(
+    "lifecycle.expiry.state",
+    await read("AgentPoolJobEscrow", escrow, "jobState", [expiryJobId]),
+    9,
+  );
+  scenarioCheck(
+    "lifecycle.expiry.buyerRefunded",
+    (await tokenBalance(roles.operator)) - expiryBuyerStart,
+    0n,
+  );
+  scenarioCheck(
+    "lifecycle.expiry.sellerBondSlashed",
+    (await tokenBalance(roles.ecosystem)) - expirySellerStart,
+    -expiryBond,
+  );
+  scenarioCheck(
+    "lifecycle.expiry.securityReceivesBond",
+    (await tokenBalance(roles.security)) - expirySecurityStart,
+    expiryBond,
+  );
+  scenarioCheck("lifecycle.expiry.escrowCleared", await tokenBalance(escrow), 0n);
+
+  const disputePrice = parseEther("200");
+  const disputeEvaluation = parseEther("10");
+  const disputeBond = parseEther("20");
+  const disputeBuyerStart = await tokenBalance(roles.operator);
+  const disputeSellerStart = await tokenBalance(roles.ecosystem);
+  const disputeEvaluatorStart = await tokenBalance(roles.evaluator);
+  const disputeSecurityStart = await tokenBalance(roles.security);
+  const disputeJobId = await read("AgentPoolJobEscrow", escrow, "nextJobId");
+  const disputeId = await read("AgentPoolWorkOracle", oracle, "nextDisputeId");
+  const requestId = await read(
+    "MockRandomnessProvider",
+    randomnessProvider,
+    "nextRequestId",
+  );
+  await approveEscrow(roleKeys.operator, disputePrice + disputeEvaluation);
+  await approveEscrow(roleKeys.ecosystem, disputeBond);
+  await write(
+    "AgentPoolJobEscrow",
+    escrow,
+    "fundJob",
+    [
+      roles.ecosystem,
+      disputePrice,
+      disputeEvaluation,
+      disputeBond,
+      blockTimestamp + 3_600n,
+      keccak256(toBytes("dispute requirements")),
+      verifierId,
+    ],
+    roleKeys.operator,
+  );
+  await write("AgentPoolJobEscrow", escrow, "acceptJob", [disputeJobId], roleKeys.ecosystem);
+  await write(
+    "AgentPoolJobEscrow",
+    escrow,
+    "submitJob",
+    [disputeJobId, keccak256(toBytes("dispute delivery"))],
+    roleKeys.ecosystem,
+  );
+  await write(
+    "AgentPoolWorkOracle",
+    oracle,
+    "proposeOutcome",
+    [disputeJobId, verifierId, 0],
+    verifierKey,
+  );
+  await write(
+    "AgentPoolJobEscrow",
+    escrow,
+    "challenge",
+    [disputeJobId],
+    roleKeys.operator,
+  );
+  await write(
+    "MockRandomnessProvider",
+    randomnessProvider,
+    "fulfill",
+    [requestId, 123456789n],
+    roleKeys.operator,
+  );
+  const selectedEvaluators = [];
+  for (let index = 0; index < 5; index += 1) {
+    selectedEvaluators.push(
+      await read("AgentPoolWorkOracle", oracle, "selectedEvaluators", [
+        disputeId,
+        index,
+      ]),
+    );
+  }
+  scenarioCheck(
+    "lifecycle.dispute.uniquePanel",
+    new Set(selectedEvaluators.map((address) => address.toLowerCase())).size,
+    5,
+  );
+  scenarioCheck(
+    "lifecycle.dispute.authorizedPanel",
+    selectedEvaluators.every((address) =>
+      evaluators.some((evaluator) => evaluator.toLowerCase() === address.toLowerCase()),
+    ),
+    true,
+  );
+  advanceTime(2 * 60 * 60 + 1);
+  await write(
+    "AgentPoolWorkOracle",
+    oracle,
+    "finalize",
+    [disputeId],
+    roleKeys.operator,
+  );
+  scenarioCheck(
+    "lifecycle.dispute.ambiguousState",
+    await read("AgentPoolJobEscrow", escrow, "jobState", [disputeJobId]),
+    8,
+  );
+  scenarioCheck(
+    "lifecycle.dispute.buyerRefundMinusEvaluation",
+    (await tokenBalance(roles.operator)) - disputeBuyerStart,
+    -disputeEvaluation,
+  );
+  scenarioCheck(
+    "lifecycle.dispute.sellerBondSlashed",
+    (await tokenBalance(roles.ecosystem)) - disputeSellerStart,
+    -disputeBond,
+  );
+  scenarioCheck(
+    "lifecycle.dispute.evaluatorShare",
+    (await tokenBalance(roles.evaluator)) - disputeEvaluatorStart,
+    disputeEvaluation * 9n / 10n,
+  );
+  scenarioCheck(
+    "lifecycle.dispute.securityReceivesShareAndBond",
+    (await tokenBalance(roles.security)) - disputeSecurityStart,
+    disputeEvaluation / 10n + disputeBond,
+  );
+  scenarioCheck("lifecycle.dispute.escrowCleared", await tokenBalance(escrow), 0n);
+
+  const serviceCreditId = await read("AgentPoolLicense", license, "tokenIdFor", [
+    roles.ecosystem,
+    1n,
+  ]);
+  await write(
+    "AgentPoolLicense",
+    license,
+    "defineLicense",
+    [1n, keccak256(toBytes("one future module delivery")), false],
+    roleKeys.ecosystem,
+  );
+  await write(
+    "AgentPoolLicense",
+    license,
+    "issue",
+    [roles.operator, serviceCreditId, 2n, "0x"],
+    roleKeys.ecosystem,
+  );
+  await write(
+    "AgentPoolLicense",
+    license,
+    "redeem",
+    [serviceCreditId, 1n, keccak256(toBytes("module redemption request"))],
+    roleKeys.operator,
+  );
+  scenarioCheck(
+    "serviceCredit.issuer",
+    await read("AgentPoolLicense", license, "issuer", [serviceCreditId]),
+    roles.ecosystem,
+  );
+  scenarioCheck(
+    "serviceCredit.balance",
+    await read("AgentPoolLicense", license, "balanceOf", [
+      roles.operator,
+      serviceCreditId,
+    ]),
+    1n,
+  );
+} finally {
+  await vm.stateManager.revert();
+}
 
 const contracts = {
   token,
@@ -268,6 +633,15 @@ const manifest = {
   deployer: deployerAddress,
   deployedAt: new Date().toISOString(),
   contracts,
+  bootstrap: {
+    verifiers: verifierNames.map((name, index) => ({
+      name,
+      id: verifierIds[index],
+    })),
+    verifierAdapter,
+    verifierImplementationHash,
+    evaluators,
+  },
 };
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
@@ -287,6 +661,7 @@ function check(name, actual, expected) {
     expected: normalizedExpected,
   });
 }
+checks.push(...scenarioChecks);
 
 const codeHashes = {};
 for (const [name, address] of Object.entries(contracts)) {
@@ -305,14 +680,51 @@ check(
   await read("AgentPoolToken", token, "balanceOf", [miningVault]),
   parseEther("500000000"),
 );
-check("escrow.protocolFeeBps", await read("AgentPoolJobEscrow", escrow, "protocolFeeBps"), 0);
 check(
-  "escrow.maxProtocolFeeBps",
-  await read("AgentPoolJobEscrow", escrow, "MAX_PROTOCOL_FEE_BPS"),
-  25,
+  "escrow.permanentProtocolFeeBps",
+  await read("AgentPoolJobEscrow", escrow, "PROTOCOL_FEE_BPS"),
+  0,
+);
+check(
+  "escrow.noFeeSetter",
+  artifact("AgentPoolJobEscrow").abi.some((entry) => entry.name === "setProtocolFee"),
+  false,
 );
 check("escrow.resolver", await read("AgentPoolJobEscrow", escrow, "resolver"), oracle);
+check("escrow.registry", await read("AgentPoolJobEscrow", escrow, "registry"), registry);
 check("oracle.escrow", await read("AgentPoolWorkOracle", oracle, "escrow"), escrow);
+check("oracle.registry", await read("AgentPoolWorkOracle", oracle, "registry"), registry);
+for (const [index, configuredVerifierId] of verifierIds.entries()) {
+  check(
+    `registry.verifier${index + 1}Active`,
+    await read("AgentPoolRegistry", registry, "isActiveVerifier", [
+      configuredVerifierId,
+    ]),
+    true,
+  );
+  check(
+    `registry.verifier${index + 1}Authorized`,
+    await read("AgentPoolRegistry", registry, "isAuthorizedVerifier", [
+      configuredVerifierId,
+      verifierAdapter,
+    ]),
+    true,
+  );
+  check(
+    `registry.verifier${index + 1}MiningEligible`,
+    await read("AgentPoolRegistry", registry, "isMiningVerifier", [
+      configuredVerifierId,
+    ]),
+    true,
+  );
+}
+for (const [index, evaluator] of evaluators.entries()) {
+  check(
+    `oracle.evaluator${index + 1}Eligible`,
+    await read("AgentPoolWorkOracle", oracle, "isEligible", [evaluator]),
+    true,
+  );
+}
 check(
   "mining.configuredBudget",
   await read("AgentPoolMiningVault", miningVault, "configuredBudget"),
@@ -341,10 +753,10 @@ check(
 
 for (const [name, address] of [
   ["AgentPoolRegistry", registry],
-  ["AgentPoolLicense", license],
   ["AgentPoolWorkOracle", oracle],
   ["AgentPoolJobEscrow", escrow],
   ["AgentPoolMiningVault", miningVault],
+  ["MockRandomnessProvider", randomnessProvider],
 ]) {
   check(`owner:${name}`, await read(name, address, "owner"), timelock);
 }

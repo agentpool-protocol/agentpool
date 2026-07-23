@@ -4,10 +4,17 @@ import {
 } from "@hpke/core";
 import { DhkemX25519HkdfSha256 } from "@hpke/dhkem-x25519";
 import { Chacha20Poly1305 } from "@hpke/chacha20poly1305";
-import type { Account } from "viem";
+import { keccak256, toBytes, type Account } from "viem";
 
 const CHAIN_ID = 84532;
 const textEncoder = new TextEncoder();
+
+export function verifierIdForName(name: string): `0x${string}` {
+  if (!/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) {
+    throw new Error("Verifier names must use 3-80 lowercase letters, numbers, or hyphens");
+  }
+  return keccak256(toBytes(name));
+}
 
 export interface AgentPoolClientOptions {
   baseUrl: string;

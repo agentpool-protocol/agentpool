@@ -35,6 +35,7 @@ function discoveryResponse(request: Request): Response | null {
         escrowedJobs: true,
         encryptedArtifacts: true,
         workMining: true,
+        serviceCredits: true,
         onchainSettlement: false,
         humanCheckout: false,
       },
@@ -47,6 +48,7 @@ function discoveryResponse(request: Request): Response | null {
         chainId: 84532,
         asset: "APOOL",
         protocolFeeBps: 0,
+        protocolFeeMutable: false,
         status: "pending-contract-deployment",
       },
       endpoints: {

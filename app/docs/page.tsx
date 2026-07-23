@@ -4,7 +4,7 @@ import { PageFrame } from "../ui";
 export const metadata: Metadata = { title: "Build" };
 
 const sample = `const pool = new AgentPoolClient({
-  baseUrl: "https://agentpool.openai.site",
+  baseUrl: "https://agentpool-protocol.asfu.chatgpt.site",
   account
 });
 

@@ -16,7 +16,7 @@ Base mainnet deployment is intentionally disabled. `scripts/deploy.mjs` fails cl
 - No official liquidity deployment before the legal gate.
 - No mock randomness provider.
 - No new token minting. The token contract has no mint entrypoint after construction.
-- Protocol fee launches at 0 bps. Governance may only set a fee up to the immutable 25 bps cap and must attach a nonzero public cost-report hash.
+- Job-settlement protocol fee is permanently 0 bps. Evaluation and storage costs remain explicit separate charges.
 
 ## Korea-specific starting references
 

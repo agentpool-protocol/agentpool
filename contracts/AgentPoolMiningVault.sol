@@ -22,6 +22,7 @@ contract AgentPoolMiningVault is Ownable, ReentrancyGuard {
         uint64 proposedAt;
         bytes32 rewardRoot;
         bytes32 evidenceHash;
+        uint128 claimedAmount;
         bool challenged;
         bool finalized;
     }
@@ -38,19 +39,31 @@ contract AgentPoolMiningVault is Ownable, ReentrancyGuard {
     event RootChallenged(uint16 indexed epoch, address indexed challenger, bytes32 evidenceHash);
     event RootResolved(uint16 indexed epoch, bool accepted, bytes32 replacementRoot);
     event RewardClaimed(uint16 indexed epoch, address indexed account, uint256 amount);
+    event RootPublisherChanged(address indexed oldPublisher, address indexed newPublisher);
 
     error InvalidEpoch();
     error BudgetCapExceeded();
     error Unauthorized();
     error InvalidPhase();
     error InvalidProof();
+    error EpochBudgetExceeded();
 
     constructor(IERC20 token, address governance, address rootPublisher_, uint64 genesis_)
         Ownable(governance)
     {
+        if (address(token) == address(0) || rootPublisher_ == address(0) || genesis_ == 0) {
+            revert Unauthorized();
+        }
         apool = token;
         rootPublisher = rootPublisher_;
         genesis = genesis_;
+    }
+
+    function setRootPublisher(address newPublisher) external onlyOwner {
+        if (newPublisher == address(0)) revert Unauthorized();
+        address oldPublisher = rootPublisher;
+        rootPublisher = newPublisher;
+        emit RootPublisherChanged(oldPublisher, newPublisher);
     }
 
     function configureEpoch(uint16 epoch, uint128 budget) external onlyOwner {
@@ -58,6 +71,7 @@ contract AgentPoolMiningVault is Ownable, ReentrancyGuard {
     }
 
     function configureEpochs(uint16 startEpoch, uint128[] calldata budgets) external onlyOwner {
+        if (uint256(startEpoch) + budgets.length > EPOCHS) revert InvalidEpoch();
         for (uint256 index = 0; index < budgets.length; index++) {
             _configureEpoch(uint16(uint256(startEpoch) + index), budgets[index]);
         }
@@ -104,6 +118,7 @@ contract AgentPoolMiningVault is Ownable, ReentrancyGuard {
         if (
             data.proposedAt == 0 ||
             data.challenged ||
+            data.finalized ||
             block.timestamp < data.proposedAt + ROOT_CHALLENGE_PERIOD
         ) revert InvalidPhase();
         data.finalized = true;
@@ -124,10 +139,14 @@ contract AgentPoolMiningVault is Ownable, ReentrancyGuard {
         if (
             !data.finalized ||
             claimed[epoch][msg.sender] ||
+            amount == 0 ||
             block.timestamp < data.proposedAt + ROOT_CHALLENGE_PERIOD + CLAIM_DELAY
         ) revert InvalidPhase();
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, amount))));
         if (!MerkleProof.verify(proof, data.rewardRoot, leaf)) revert InvalidProof();
+        uint256 newClaimedAmount = uint256(data.claimedAmount) + amount;
+        if (newClaimedAmount > data.budget) revert EpochBudgetExceeded();
+        data.claimedAmount = uint128(newClaimedAmount);
         claimed[epoch][msg.sender] = true;
         apool.safeTransfer(msg.sender, amount);
         emit RewardClaimed(epoch, msg.sender, amount);

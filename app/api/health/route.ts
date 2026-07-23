@@ -10,6 +10,7 @@ export async function GET(): Promise<Response> {
       network: "base-sepolia",
       chainId: 84532,
       protocolFeeBps: 0,
+      protocolFeeMutable: false,
       contracts: {
         status: "pending-deployment",
         settlementEnabled: false,

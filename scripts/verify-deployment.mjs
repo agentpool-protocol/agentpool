@@ -34,6 +34,16 @@ if (connectedChainId !== chainId) {
   throw new Error(`RPC chain mismatch: expected ${chainId}, received ${connectedChainId}`);
 }
 const operatorWallet = getAddress(requireEnv("OPERATOR_WALLET"));
+const protocolConfig = JSON.parse(
+  fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
+);
+const verifierIds = protocolConfig.bootstrapVerifierNames.map((name) =>
+  keccak256(new TextEncoder().encode(name)),
+);
+const verifierAdapter = getAddress(requireEnv("INITIAL_VERIFIER_ADAPTER"));
+const evaluators = Array.from({ length: 5 }, (_, index) =>
+  getAddress(requireEnv(`EVALUATOR_${index + 1}`)),
+);
 const artifacts = new Map();
 function artifact(name) {
   if (!artifacts.has(name)) {
@@ -93,14 +103,14 @@ check(
   parseEther("500000000"),
 );
 check(
-  "escrow.protocolFeeBps",
-  await read("AgentPoolJobEscrow", contracts.escrow, "protocolFeeBps"),
+  "escrow.permanentProtocolFeeBps",
+  await read("AgentPoolJobEscrow", contracts.escrow, "PROTOCOL_FEE_BPS"),
   0,
 );
 check(
-  "escrow.maxProtocolFeeBps",
-  await read("AgentPoolJobEscrow", contracts.escrow, "MAX_PROTOCOL_FEE_BPS"),
-  25,
+  "escrow.noFeeSetter",
+  artifact("AgentPoolJobEscrow").abi.some((entry) => entry.name === "setProtocolFee"),
+  false,
 );
 check(
   "escrow.resolver",
@@ -108,10 +118,47 @@ check(
   contracts.oracle,
 );
 check(
+  "escrow.registry",
+  await read("AgentPoolJobEscrow", contracts.escrow, "registry"),
+  contracts.registry,
+);
+check(
   "oracle.escrow",
   await read("AgentPoolWorkOracle", contracts.oracle, "escrow"),
   contracts.escrow,
 );
+check(
+  "oracle.registry",
+  await read("AgentPoolWorkOracle", contracts.oracle, "registry"),
+  contracts.registry,
+);
+for (const [index, verifierId] of verifierIds.entries()) {
+  check(
+    `registry.verifier${index + 1}Active`,
+    await read("AgentPoolRegistry", contracts.registry, "isActiveVerifier", [verifierId]),
+    true,
+  );
+  check(
+    `registry.verifier${index + 1}Authorized`,
+    await read("AgentPoolRegistry", contracts.registry, "isAuthorizedVerifier", [
+      verifierId,
+      verifierAdapter,
+    ]),
+    true,
+  );
+  check(
+    `registry.verifier${index + 1}MiningEligible`,
+    await read("AgentPoolRegistry", contracts.registry, "isMiningVerifier", [verifierId]),
+    true,
+  );
+}
+for (const [index, evaluator] of evaluators.entries()) {
+  check(
+    `oracle.evaluator${index + 1}Eligible`,
+    await read("AgentPoolWorkOracle", contracts.oracle, "isEligible", [evaluator]),
+    true,
+  );
+}
 check(
   "mining.configuredBudget",
   await read("AgentPoolMiningVault", contracts.miningVault, "configuredBudget"),
@@ -140,10 +187,12 @@ check(
 
 for (const [name, address] of [
   ["AgentPoolRegistry", contracts.registry],
-  ["AgentPoolLicense", contracts.license],
   ["AgentPoolWorkOracle", contracts.oracle],
   ["AgentPoolJobEscrow", contracts.escrow],
   ["AgentPoolMiningVault", contracts.miningVault],
+  ...(chainId === 84532
+    ? [["MockRandomnessProvider", contracts.randomnessProvider]]
+    : []),
 ]) {
   check(
     `owner:${name}`,

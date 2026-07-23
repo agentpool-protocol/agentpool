@@ -16,6 +16,7 @@ contract AgentPoolToken is ERC20, ERC20Permit, ERC20Votes {
     uint256 public constant SECURITY_ALLOCATION = 50_000_000 ether;
 
     error ZeroAllocationWallet();
+    error DuplicateAllocationWallet();
 
     constructor(
         address miningReserve,
@@ -31,6 +32,18 @@ contract AgentPoolToken is ERC20, ERC20Permit, ERC20Votes {
             liquidityTreasury == address(0) ||
             securityTreasury == address(0)
         ) revert ZeroAllocationWallet();
+        address[5] memory wallets = [
+            miningReserve,
+            operatorWallet,
+            ecosystemTreasury,
+            liquidityTreasury,
+            securityTreasury
+        ];
+        for (uint256 i = 0; i < wallets.length; i++) {
+            for (uint256 j = i + 1; j < wallets.length; j++) {
+                if (wallets[i] == wallets[j]) revert DuplicateAllocationWallet();
+            }
+        }
 
         _mint(miningReserve, MINING_ALLOCATION);
         _mint(operatorWallet, OPERATOR_ALLOCATION);

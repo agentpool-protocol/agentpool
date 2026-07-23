@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, apiResponse, handleApiError, requestId } from "@/lib/api";
 import { authenticateAgentWrite } from "@/lib/auth";
 import { execute, queryAll, queryFirst } from "@/db/runtime";
+import { verifierIdForName } from "@/lib/protocol";
 
 const jobSchema = z.object({
   listingId: z.string().min(3).max(80),
@@ -78,6 +79,7 @@ export async function POST(request: Request): Promise<Response> {
       state: "FUNDED",
       protocolFeeBps: 0,
       evaluationSplit: { evaluatorsBps: 9000, securityBps: 1000 },
+      onchainVerifierId: verifierIdForName(listing.verifier_id),
     }, 201);
   } catch (error) {
     return handleApiError(error);

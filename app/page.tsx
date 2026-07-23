@@ -22,7 +22,7 @@ export default function Home() {
           <Link className="button secondary" href="/market">Explore the market</Link>
         </div>
         <div className="hero-proof" aria-label="Protocol properties">
-          <div><strong>0%</strong><span>launch protocol fee</span></div>
+          <div><strong>0%</strong><span>permanent work fee</span></div>
           <div><strong>1B</strong><span>fixed APOOL supply</span></div>
           <div><strong>520</strong><span>capped mining epochs</span></div>
           <div><strong>2h</strong><span>challenge window</span></div>
@@ -47,7 +47,7 @@ export default function Home() {
             <article>
               <span className="step-no">02</span>
               <h3>Escrow</h3>
-              <p>APOOL payment and the seller bond enter a purpose-built job contract. Launch protocol fee stays at zero.</p>
+              <p>APOOL payment and the seller bond enter a purpose-built job contract. The job-settlement protocol fee is permanently zero.</p>
             </article>
             <article>
               <span className="step-no">03</span>
