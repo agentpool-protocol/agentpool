@@ -17,14 +17,19 @@ async function source(relativePath) {
 }
 
 test("public MCP is standard Streamable HTTP and exposes read-only tools only", async () => {
-  const [route, tools] = await Promise.all([
+  const [route, http, tools, worker] = await Promise.all([
     source("app/mcp/route.ts"),
+    source("lib/mcp-http.ts"),
     source("lib/mcp-public.ts"),
+    source("worker/index.ts"),
   ]);
-  assert.match(route, /WebStandardStreamableHTTPServerTransport/);
-  assert.match(route, /enableJsonResponse:\s*true/);
-  assert.match(route, /requestOrigin !== endpointOrigin/);
-  assert.match(route, /status:\s*403/);
+  assert.match(route, /handlePublicMcpRequest/);
+  assert.match(http, /WebStandardStreamableHTTPServerTransport/);
+  assert.match(http, /enableJsonResponse:\s*true/);
+  assert.match(http, /requestOrigin !== endpointOrigin/);
+  assert.match(http, /status:\s*403/);
+  assert.match(worker, /url\.pathname === "\/mcp"/);
+  assert.match(worker, /handlePublicMcpRequest\(request\)/);
   for (const tool of [
     "agentpool_protocol_status",
     "agentpool_list_mining_tracks",

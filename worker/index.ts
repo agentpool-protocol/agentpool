@@ -1,6 +1,10 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import {
+  handlePublicMcpRequest,
+  publicMcpOptions,
+} from "@/lib/mcp-http";
 
 interface Env {
   ASSETS: Fetcher;
@@ -125,6 +129,11 @@ const worker = {
     const url = new URL(request.url);
     const discovery = discoveryResponse(request);
     if (discovery) return discovery;
+    if (url.pathname === "/mcp") {
+      return request.method === "OPTIONS"
+        ? publicMcpOptions()
+        : handlePublicMcpRequest(request);
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
