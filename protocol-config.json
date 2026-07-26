@@ -1,10 +1,10 @@
 {
-  "bootstrapVerifierNames": [
-    "solidity-foundry-v2",
-    "json-schema-v2",
-    "math-proof-v1",
-    "api-contract-v1",
-    "storage-delivery-v1",
-    "usage-meter-v2"
+  "bootstrapVerifiers": [
+    { "name": "solidity-foundry-v2", "validationFeeApool": 30 },
+    { "name": "json-schema-v2", "validationFeeApool": 10 },
+    { "name": "math-proof-v1", "validationFeeApool": 10 },
+    { "name": "api-contract-v1", "validationFeeApool": 10 },
+    { "name": "storage-delivery-v1", "validationFeeApool": 10 },
+    { "name": "usage-meter-v2", "validationFeeApool": 10 }
   ]
 }

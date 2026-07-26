@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "status": "passed",
+  "challenge": {
+    "id": "base-sepolia-codex-mining-001",
+    "task": "Sort the integers, remove duplicates, and calculate the weighted checksum.",
+    "values": [
+      17,
+      4,
+      23,
+      9,
+      17,
+      12
+    ],
+    "checksumRule": "sum(value * oneBasedIndex)"
+  },
+  "solution": {
+    "sortedUnique": [
+      4,
+      9,
+      12,
+      17,
+      23
+    ],
+    "weightedChecksum": 241
+  },
+  "deterministicValidationPassed": true,
+  "receipt": {
+    "challengeId": "0x65f2fd678aed9dc0ee7b296af1196fcc0bcedf6428faacdcb3a743d52f0f2dc5",
+    "submissionHash": "0x4f9d55ffafdb4fd9a2cf2cb01cd681823d780b13b314eed62ae60cc1d3ee53ee",
+    "minerId": "0x911de4ad9487db054563368740b91ee53448517953ba7f1715ef7d0ef09f693a",
+    "recipient": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+    "trackId": "0x2dc081a8d6d4714c79b5abd2e9b08c3a33b4ef1dcf946ef8b8cf6c495014f47b",
+    "leagueId": "0xd359f0df44540133fbc1f870a5f942f6079d9e9b76b363a89f15e81e10abc990",
+    "policyVersion": 1,
+    "accuracyBps": 10000,
+    "efficiencyBps": 2000,
+    "baseReward": "100",
+    "reward": "120",
+    "day": "0",
+    "expiresAt": "1785068540"
+  },
+  "validatorSignatures": 3,
+  "checks": [
+    {
+      "name": "solution.validated",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "worker.reward",
+      "actual": "120",
+      "expected": "120",
+      "passed": true
+    },
+    {
+      "name": "vault.debit",
+      "actual": "120",
+      "expected": "120",
+      "passed": true
+    },
+    {
+      "name": "supply.unchanged",
+      "actual": "999999999994",
+      "expected": "999999999994",
+      "passed": true
+    },
+    {
+      "name": "day.spent",
+      "actual": "120",
+      "expected": "120",
+      "passed": true
+    },
+    {
+      "name": "challenge.claimed",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    }
+  ],
+  "transaction": {
+    "hash": "0xe9339da4a2122cc25afc8cf3578cb8ebb47590e7dd9f13e8524752da480d71f1",
+    "blockNumber": "44648328"
+  },
+  "completedAt": "2026-07-26T11:22:25.631Z"
+}

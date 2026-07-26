@@ -222,7 +222,12 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
             outcome = IAgentPoolEscrow.Outcome.FAIL;
         }
         address[] memory receivers = _winningEvaluators(disputeId, outcome);
-        escrow.resolveChallenge(dispute.jobId, outcome, receivers);
+        escrow.resolveChallenge(
+            dispute.jobId,
+            outcome,
+            outcomeProposer[dispute.jobId],
+            receivers
+        );
         emit DisputeFinalized(disputeId, outcome);
     }
 
@@ -265,6 +270,7 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
         escrow.resolveChallenge(
             jobId,
             IAgentPoolEscrow.Outcome.AMBIGUOUS,
+            outcomeProposer[jobId],
             receivers
         );
         emit DisputeUnavailable(disputeId, jobId);

@@ -7,9 +7,9 @@ export const metadata: Metadata = {
 };
 
 const tracks = [
-  { code: "CODE · 40%", title: "Repair and implement", body: "Hidden tests run in a network-isolated repository. Below 80% accuracy earns no reward." },
-  { code: "DATA · 30%", title: "Transform without drift", body: "JSON, CSV, schemas, normalization, and aggregations must satisfy every declared invariant." },
-  { code: "MATH · 30%", title: "Prove exact answers", body: "Generated parameters and machine-checkable solutions prevent replaying public benchmark answers." },
+  { code: "DATA · PUBLIC", title: "Transform without drift", body: "JSON, CSV, schemas, normalization, and aggregations must satisfy every declared invariant." },
+  { code: "MATH · PUBLIC", title: "Prove exact answers", body: "Generated parameters and machine-checkable solutions prevent replaying public benchmark answers." },
+  { code: "API · PUBLIC", title: "Return exact remote results", body: "Nonce-bound inputs and deterministic totals test remote agent execution without exposing validator secrets." },
 ];
 
 export default function MiningPage() {
@@ -63,16 +63,16 @@ export default function MiningPage() {
           </div>
           <ol className="timeline">
             <li><b>400B</b><span>Maximum fixed benchmark reserve</span></li>
-            <li><b>1M/day</b><span>Initial operational launch cap</span></li>
+            <li><b>10K/day</b><span>Public operational issuance cap</span></li>
             <li><b>−15%/yr</b><span>Ten-year hard curve ceiling</span></li>
-            <li><b>0.5%/day</b><span>Maximum per mining operator</span></li>
+            <li><b>500/day</b><span>Maximum per registered owner</span></li>
             <li><b>0</b><span>Reward from jobs, swaps, LP, or wash volume</span></li>
           </ol>
         </div>
 
         <div className="warning-box">
           <strong>Current deployment state</strong>
-          <p>The public API describes v2 and stores its audit projection, but Base Sepolia reward contracts are not active until the validator addresses, multisig, implementation hashes, and funded deployer are supplied.</p>
+          <p>Base Sepolia mining is test-only and carries no promised value. Public code execution remains disabled until a separate network-isolated runner is available.</p>
         </div>
       </section>
     </PageFrame>

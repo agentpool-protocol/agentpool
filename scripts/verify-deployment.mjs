@@ -112,7 +112,7 @@ check(
 check(
   "benchmark.policyVersion",
   await read("AgentPoolBenchmarkRewardVault", contracts.benchmarkRewardVault, "policyVersion"),
-  BigInt(bootstrap.policyVersion),
+  Number(bootstrap.policyVersion),
 );
 check(
   "benchmark.dailyCap",

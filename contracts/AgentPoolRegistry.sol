@@ -18,6 +18,7 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
     struct Verifier {
         address adapter;
         bytes32 implementationHash;
+        uint16 validationFeeApool;
         uint64 registeredAt;
         bool miningEligible;
         bool active;
@@ -32,6 +33,7 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
     event VerifierConfigured(
         bytes32 indexed verifierId,
         address indexed adapter,
+        uint256 validationFeeApool,
         bool miningEligible,
         bool active
     );
@@ -85,13 +87,17 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
         bytes32 verifierId,
         address adapter,
         bytes32 implementationHash,
+        uint16 validationFeeApool,
         bool miningEligible,
         bool active
     ) external onlyOwner {
         if (
             verifierId == bytes32(0) ||
             adapter == address(0) ||
-            implementationHash == bytes32(0)
+            implementationHash == bytes32(0) ||
+            validationFeeApool < 10 ||
+            validationFeeApool > 30 ||
+            validationFeeApool % 10 != 0
         ) revert InvalidVerifier();
         if (verifiers[verifierId].adapter != address(0)) {
             revert VerifierAlreadyRegistered();
@@ -99,11 +105,18 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
         verifiers[verifierId] = Verifier({
             adapter: adapter,
             implementationHash: implementationHash,
+            validationFeeApool: validationFeeApool,
             registeredAt: uint64(block.timestamp),
             miningEligible: miningEligible,
             active: active
         });
-        emit VerifierConfigured(verifierId, adapter, miningEligible, active);
+        emit VerifierConfigured(
+            verifierId,
+            adapter,
+            validationFeeApool,
+            miningEligible,
+            active
+        );
     }
 
     /// @notice Verifier identities are versioned and immutable; governance can only pause them.
@@ -135,5 +148,17 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
     function isMiningVerifier(bytes32 verifierId) external view returns (bool) {
         Verifier memory verifier = verifiers[verifierId];
         return verifier.active && verifier.miningEligible;
+    }
+
+    function validationFeeForVerifier(bytes32 verifierId)
+        external
+        view
+        returns (uint256)
+    {
+        Verifier memory verifier = verifiers[verifierId];
+        if (!verifier.active || verifier.validationFeeApool == 0) {
+            revert InvalidVerifier();
+        }
+        return verifier.validationFeeApool;
     }
 }

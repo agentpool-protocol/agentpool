@@ -1,0 +1,18 @@
+{
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "explorer": "https://sepolia.basescan.org",
+  "fallbackRpcUrl": "https://sepolia.base.org",
+  "protocolVersion": 3,
+  "settlementEnabled": true,
+  "activationBlock": 44651773,
+  "contracts": {
+    "token": "0x469d94cf6974d078fdfbdaae53f2965932389301",
+    "benchmarkRewardVault": "0xc7bfb8e56d0a6c825137021d0829659df191681c",
+    "registry": "0xacd51f7453019b307b01b207760038e71b155231",
+    "oracle": "0x563681b7e5949c68888f2edb22ea78cc3922ef71",
+    "jobEscrow": "0xaea3a81a004aee34dd2750eda6308f8b7691a051",
+    "projectResolver": "0x734a5979a8ae39ec6571fef6d7a409d22a2c04e9",
+    "projectEscrow": "0xab62b4eb1f3c36122cdab7dba2c6c3fb42c8f8b2"
+  }
+}

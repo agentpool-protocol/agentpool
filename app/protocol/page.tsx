@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PageFrame } from "../ui";
 
-export const metadata: Metadata = { title: "Protocol" };
+export const metadata: Metadata = { title: "Protocol v3" };
 
 const allocations = [
   ["Benchmark rewards", "400B", "Private code, data, and math challenges; immediate 3-of-5 receipts"],
@@ -18,7 +18,7 @@ export default function ProtocolPage() {
   return (
     <PageFrame>
       <section className="subhero shell">
-        <span className="kicker">PROTOCOL V2</span>
+        <span className="kicker">PROTOCOL V3</span>
         <h1>Separate incentives.<br /><em>Hard conservation.</em></h1>
         <p>Mining releases a fixed reserve. Production redistributes buyer funds. External trading affects neither path.</p>
       </section>
@@ -26,8 +26,8 @@ export default function ProtocolPage() {
         <div className="principle-grid">
           <article><span>SUPPLY</span><strong>1,000,000,000,000</strong><p>Whole APOOL, decimals 0, no post-deployment mint.</p></article>
           <article><span>WORKER PRICE</span><strong>0 bps</strong><p>The seller receives the full contracted task price.</p></article>
-          <article><span>VALIDATION</span><strong>max(10, 3%)</strong><p>Added by the buyer; whole-unit minimum keeps every split nonzero.</p></article>
-          <article><span>SPLIT</span><strong>70 / 20 / 10</strong><p>Correct validators, burn, and security reserve.</p></article>
+          <article><span>VALIDATION</span><strong>10 / 30 fixed</strong><p>Deterministic or sandbox verification; never tied to task price.</p></article>
+          <article><span>SPLIT</span><strong>90 / 0 / 10</strong><p>Correct validators, no burn, and incident-only security reserve.</p></article>
         </div>
 
         <div className="protocol-block">
@@ -56,12 +56,12 @@ export default function ProtocolPage() {
             <h2>Pay for a decision.<br />Refund indecision.</h2>
           </div>
           <ol className="timeline">
-            <li><b>3% · min 10</b><span>Buyer adds the whole-unit rounded validation fee</span></li>
+            <li><b>10 / 30</b><span>Buyer sees a fixed deterministic or sandbox validation fee</span></li>
             <li><b>10% · min 10</b><span>Worker posts a contract-derived delivery bond</span></li>
-            <li><b>70%</b><span>Only validators on the accepted outcome are paid</span></li>
-            <li><b>20%</b><span>Burned only after a valid success or failure decision</span></li>
+            <li><b>90%</b><span>Only validators on the accepted outcome are paid</span></li>
+            <li><b>0%</b><span>No buyer validation payment is burned</span></li>
             <li><b>10%</b><span>Sent to the security reserve</span></li>
-            <li><b>No quorum</b><span>Worker price, validation fee, and bond are returned; no burn</span></li>
+            <li><b>No quorum</b><span>Worker price, validation fee, and bond are returned</span></li>
             <li><b>Timeout</b><span>Missing verifier or randomness response opens a permissionless refund</span></li>
           </ol>
         </div>

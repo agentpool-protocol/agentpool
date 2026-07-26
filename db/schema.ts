@@ -71,6 +71,7 @@ export const jobs = sqliteTable(
     deadlineAt: integer("deadline_at", { mode: "timestamp_ms" }).notNull(),
     challengeDeadlineAt: integer("challenge_deadline_at", { mode: "timestamp_ms" }),
     txHash: text("tx_hash"),
+    chainJobId: text("chain_job_id"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -118,10 +119,15 @@ export const benchmarkSubmissions = sqliteTable(
     efficiencyBps: integer("efficiency_bps"),
     rewardApool: text("reward_apool"),
     receiptDigest: text("receipt_digest"),
+    artifactKey: text("artifact_key"),
+    receiptJson: text("receipt_json"),
+    signaturesJson: text("signatures_json"),
+    claimCalldata: text("claim_calldata"),
     claimTxHash: text("claim_tx_hash"),
     status: text("status").notNull().default("submitted"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     verifiedAt: integer("verified_at", { mode: "timestamp_ms" }),
+    claimedAt: integer("claimed_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     uniqueIndex("benchmark_submissions_challenge_miner_unique").on(
@@ -130,6 +136,30 @@ export const benchmarkSubmissions = sqliteTable(
     ),
     index("benchmark_submissions_miner_idx").on(table.minerAgentId),
     index("benchmark_submissions_status_idx").on(table.status),
+  ],
+);
+
+export const miningSessions = sqliteTable(
+  "mining_sessions",
+  {
+    id: text("id").primaryKey(),
+    challengeId: text("challenge_id").notNull(),
+    minerAgentId: text("miner_agent_id").notNull(),
+    ownerAddress: text("owner_address").notNull(),
+    recipientAddress: text("recipient_address").notNull(),
+    track: text("track").notNull(),
+    payloadKey: text("payload_key").notNull(),
+    assignmentHash: text("assignment_hash").notNull(),
+    rewardApool: text("reward_apool").notNull(),
+    status: text("status").notNull().default("active"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("mining_sessions_challenge_unique").on(table.challengeId),
+    index("mining_sessions_miner_idx").on(table.minerAgentId),
+    index("mining_sessions_owner_idx").on(table.ownerAddress),
+    index("mining_sessions_status_idx").on(table.status),
   ],
 );
 
@@ -150,6 +180,7 @@ export const projects = sqliteTable(
     state: text("state").notNull().default("PENDING_CHAIN"),
     deadlineAt: integer("deadline_at", { mode: "timestamp_ms" }).notNull(),
     txHash: text("tx_hash").notNull(),
+    chainProjectId: text("chain_project_id"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -171,6 +202,7 @@ export const projectTasks = sqliteTable(
     strategy: text("strategy").notNull(),
     priceApool: text("price_apool").notNull(),
     validationFeeApool: text("validation_fee_apool").notNull(),
+    verifierId: text("verifier_id").notNull(),
     dependenciesJson: text("dependencies_json").notNull(),
     requirementsHash: text("requirements_hash").notNull(),
     deliveryHash: text("delivery_hash"),
@@ -233,6 +265,7 @@ export const protocolEvents = sqliteTable(
     payloadJson: text("payload_json").notNull(),
     chainId: integer("chain_id").notNull().default(84532),
     blockNumber: integer("block_number"),
+    logIndex: integer("log_index"),
     txHash: text("tx_hash"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -240,6 +273,41 @@ export const protocolEvents = sqliteTable(
     index("protocol_events_type_idx").on(table.type),
     index("protocol_events_entity_idx").on(table.entityId),
     index("protocol_events_created_idx").on(table.createdAt),
+    uniqueIndex("protocol_events_chain_log_unique").on(
+      table.chainId,
+      table.txHash,
+      table.logIndex,
+    ),
+  ],
+);
+
+export const chainCursors = sqliteTable(
+  "chain_cursors",
+  {
+    chainId: integer("chain_id").primaryKey(),
+    lastFinalizedBlock: integer("last_finalized_block").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+);
+
+export const securityIncidents = sqliteTable(
+  "security_incidents",
+  {
+    id: text("id").primaryKey(),
+    incidentTxHash: text("incident_tx_hash").notNull(),
+    cause: text("cause").notNull(),
+    recipientAddress: text("recipient_address").notNull(),
+    amountApool: text("amount_apool").notNull(),
+    evidenceUrl: text("evidence_url").notNull(),
+    safeTxHash: text("safe_tx_hash"),
+    status: text("status").notNull().default("announced"),
+    announcedAt: integer("announced_at", { mode: "timestamp_ms" }).notNull(),
+    executableAt: integer("executable_at", { mode: "timestamp_ms" }).notNull(),
+    executedAt: integer("executed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("security_incidents_tx_unique").on(table.incidentTxHash),
+    index("security_incidents_status_idx").on(table.status),
   ],
 );
 

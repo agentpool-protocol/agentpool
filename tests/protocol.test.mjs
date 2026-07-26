@@ -30,24 +30,29 @@ test("APOOL is a fixed one-trillion whole-unit supply with declared allocations"
   assert.match(token, /assert\(totalSupply\(\) == MAX_SUPPLY\)/);
 });
 
-test("single and project work use the same explicit 3% validation economics", async () => {
-  const [job, project] = await Promise.all([
+test("single and project work use fixed verifier fees with 90/0/10 settlement", async () => {
+  const [job, project, registry] = await Promise.all([
     source("contracts/AgentPoolJobEscrow.sol"),
     source("contracts/AgentPoolProjectEscrow.sol"),
+    source("contracts/AgentPoolRegistry.sol"),
   ]);
   for (const contract of [job, project]) {
-    assert.match(contract, /VALIDATION_FEE_BPS = 300/);
-    assert.match(contract, /VALIDATOR_SHARE_BPS = 7_000/);
-    assert.match(contract, /BURN_SHARE_BPS = 2_000/);
+    assert.match(contract, /VALIDATOR_SHARE_BPS = 9_000/);
+    assert.match(contract, /BURN_SHARE_BPS = 0/);
     assert.match(contract, /SECURITY_SHARE_BPS = 1_000/);
-    assert.match(contract, /MIN_VALIDATION_FEE = 10/);
-    assert.match(contract, /\(price \* VALIDATION_FEE_BPS \+ 9_999\) \/ 10_000/);
-    assert.match(contract, /percentageFee < MIN_VALIDATION_FEE/);
-    assert.match(contract, /burnableApool\.burn\(burnPayment\)/);
+    assert.match(contract, /registry\.validationFeeForVerifier\(verifierId\)/);
+    assert.doesNotMatch(contract, /VALIDATION_FEE_BPS|burnableApool|\.burn\(/);
   }
+  assert.match(registry, /validationFeeApool < 10/);
+  assert.match(registry, /validationFeeApool > 30/);
+  assert.match(registry, /validationFeeApool % 10 != 0/);
   assert.match(job, /SELLER_BOND_BPS = 1_000/);
+  assert.match(job, /MIN_VERIFIED_JOB_PRICE = 1_000/);
+  assert.match(job, /DISPUTE_FEE = 50/);
   assert.match(job, /sellerBond < sellerBondFor\(price\)/);
   assert.match(project, /WORKER_BOND_BPS = 1_000/);
+  assert.match(project, /MIN_VERIFIED_TASK_PRICE = 1_000/);
+  assert.match(project, /MAX_VALIDATION_FEE = 30/);
   assert.match(project, /workerBondFor\(price\)/);
   assert.match(job, /PROTOCOL_FEE_BPS = 0/);
   assert.doesNotMatch(job, /setProtocolFee|protocolTreasury/);
@@ -56,6 +61,7 @@ test("single and project work use the same explicit 3% validation economics", as
   assert.match(job, /Outcome\.AMBIGUOUS/);
   assert.match(job, /RESOLUTION_GRACE = 3 days/);
   assert.match(job, /refundStalledSubmission/);
+  assert.match(job, /uint256\(job\.price\) \+ job\.validationFee \+ job\.challengeBond/);
   assert.doesNotMatch(job, /refundExpired[\s\S]*msg\.sender != job\.buyer/);
 });
 
@@ -86,8 +92,8 @@ test("multi-agent projects conserve signed budgets and stage worker payouts", as
   assert.match(escrow, /STAGE_PAYMENT_BPS = 8_000/);
   assert.match(escrow, /project\.committedWorker.*project\.maxWorkerBudget/s);
   assert.match(escrow, /project\.committedFees.*project\.validationReserve/s);
-  assert.match(escrow, /smallTaskReserve[\s\S]*uint256\(maxTasks - 1\) \* MIN_VALIDATION_FEE/);
-  assert.match(escrow, /smallTaskReserve \+ validationFeeFor\(largestTaskBudget\)/);
+  assert.match(escrow, /uint256\(maxTasks\) \* MAX_VALIDATION_FEE/);
+  assert.match(escrow, /maxWorkerBudget < uint256\(maxTasks\) \* MIN_VERIFIED_TASK_PRICE/);
   assert.match(escrow, /function approvePlan/);
   assert.match(escrow, /MerkleProof\.verifyCalldata/);
   assert.match(escrow, /consumedPlanLeaf\[projectId\]\[leaf\]/);
@@ -132,7 +138,9 @@ test("API routes keep mining, production, and chain authority separate", async (
   assert.match(tracks, /tokenTradesEarnMiningRewards: false/);
   assert.match(worker, /benchmarkMining: true/);
   assert.match(worker, /multiAgentProjects: true/);
-  assert.match(worker, /validationFeeBps: 300/);
+  assert.match(worker, /validationPricing: "fixed-by-verifier"/);
+  assert.match(worker, /validators: 9000/);
+  assert.match(worker, /burn: 0/);
 });
 
 test("every state-creating API requires replay protection", async () => {
@@ -142,6 +150,8 @@ test("every state-creating API requires replay protection", async () => {
     "app/api/v1/jobs/route.ts",
     "app/api/v1/listings/route.ts",
     "app/api/v2/mining/submissions/route.ts",
+    "app/api/v2/mining/sessions/route.ts",
+    "app/api/v2/chain/backfill/route.ts",
     "app/api/v2/projects/route.ts",
     "app/api/v2/projects/[id]/tasks/route.ts",
   ];
@@ -180,9 +190,15 @@ test("mainnet deployment remains fail-closed", async () => {
     assert.match(script, /CHAINLINK_VRF_ADAPTER/);
     assert.match(script, /MAINNET_VALIDATOR_ECONOMICS_SHA256/);
   }
+  assert.match(preflight, /MAINNET_SAFE_INVALID/);
+  assert.match(preflight, /FOUNDER_BENEFICIARY/);
+  assert.match(preflight, /getOwners/);
+  assert.match(preflight, /getThreshold/);
+  assert.match(preflight, /must be exact 2-of-3/);
+  assert.match(preflight, /MAINNET_SAFE_OWNER_SET_MISMATCH/);
 });
 
-test("obsolete weekly mining artifacts are removed and v2 bytecode is deployable", async () => {
+test("obsolete weekly mining artifacts are removed and v3 bytecode is deployable", async () => {
   await assert.rejects(access(new URL("../contracts/AgentPoolMiningVault.sol", import.meta.url)));
   await assert.rejects(access(new URL("../mining-schedule.json", import.meta.url)));
   const required = [

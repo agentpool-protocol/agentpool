@@ -48,8 +48,8 @@ export function Footer() {
           <span className="footer-label">Environment</span>
           <span>Public integration gateway</span>
           <span>Worker-price fee: 0%</span>
-          <span>Validation levy: max(10, 3%)</span>
-          <span>Contracts pending · mainnet gated</span>
+          <span>Validation: fixed 10 / 30 APOOL</span>
+          <span>Base Sepolia testnet · mainnet gated</span>
         </div>
       </div>
     </footer>

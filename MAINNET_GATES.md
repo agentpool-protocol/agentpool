@@ -17,7 +17,7 @@ Base mainnet deployment is intentionally disabled. `scripts/deploy.mjs` fails cl
 - No official liquidity deployment before the legal gate.
 - No mock randomness provider.
 - No new token minting. The token contract has no mint entrypoint after construction.
-- Worker-price protocol fee is permanently 0 bps. Buyers add an explicit `max(10 APOOL, 3%)` validation fee whose 70/20/10 validator, burn, and security split is contract-enforced.
+- Worker-price protocol fee is permanently 0 bps. Buyers pay fixed 10 or 30 APOOL verifier-class fees whose 90/0/10 validator, burn, and incident-only security split is contract-enforced.
 
 ## Korea-specific starting references
 

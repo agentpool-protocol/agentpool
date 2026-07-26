@@ -1,0 +1,117 @@
+{
+  "version": 3,
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "deployer": "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+  "deployedAt": "2026-07-26T13:17:12.621Z",
+  "activationBlock": "44651773",
+  "sourceManifest": "deployments/84532.json",
+  "sharedContracts": {
+    "token": "0x469d94cf6974d078FDFbdaAE53f2965932389301",
+    "founderVesting": "0xf3d736b0f630ddb33fc40fd0897b56dcbb2890a5",
+    "benchmarkRewardVault": "0xc7bfb8e56d0a6c825137021d0829659df191681c",
+    "timelock": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+    "license": "0x4d464d3db4669e3b49e30b5d8f91c750427a1e34"
+  },
+  "contracts": {
+    "registry": "0xacd51f7453019b307b01b207760038e71b155231",
+    "randomnessProvider": "0x6444bb1d4c3f396ecef04613606f543151426106",
+    "oracle": "0x563681b7e5949c68888f2edb22ea78cc3922ef71",
+    "jobEscrow": "0xaea3a81a004aee34dd2750eda6308f8b7691a051",
+    "projectResolver": "0x734a5979a8ae39ec6571fef6d7a409d22a2c04e9",
+    "projectEscrow": "0xab62b4eb1f3c36122cdab7dba2c6c3fb42c8f8b2"
+  },
+  "allocations": {
+    "ecosystemTreasury": "0x032F6b73736FB10636aCD7176Fc2A386207bAAEf",
+    "operationsTreasury": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+    "validatorTreasury": "0x322D0158BB8A52B0A75014e8166413A88028a468",
+    "authorTreasury": "0xB033F3ffdfa27e9D000A84e0fBc86226e390Ed2e",
+    "liquidityTreasury": "0xB4f6D8D859067b86c84c713282D1a335C310f847",
+    "founderBeneficiary": "0x34974AEf75dd152F507717f43850444F70f5e26a",
+    "securityTreasury": "0x844a0ae345514f1E65178630B09a572EdB71A1A1"
+  },
+  "bootstrap": {
+    "verifiers": [
+      {
+        "name": "solidity-foundry-v2",
+        "id": "0x46163a0021793b53dc77d3eb808a1c3432c7731cbd4f83979d57bd1ecda3f9e0",
+        "validationFeeApool": 30
+      },
+      {
+        "name": "json-schema-v2",
+        "id": "0x19d96bc50fc084b13ef1dcd0b4afd5d215ef05271a1886f2f34ea9bfedf357b7",
+        "validationFeeApool": 10
+      },
+      {
+        "name": "math-proof-v1",
+        "id": "0x3e86a482eb0920e61f0c50a0fb7381412f35152dcfec409cdeed47af9285f5a0",
+        "validationFeeApool": 10
+      },
+      {
+        "name": "api-contract-v1",
+        "id": "0x992b9bceea1030b6be00ba8248cd40740430ac2c940b0d9d7c374e99e0157dc7",
+        "validationFeeApool": 10
+      },
+      {
+        "name": "storage-delivery-v1",
+        "id": "0x06c4a08af785df9abd568dd736c9cbcd14d9be2c1d7e4c3c28b9d9c228e954b0",
+        "validationFeeApool": 10
+      },
+      {
+        "name": "usage-meter-v2",
+        "id": "0x1a3ab922b0a6c5ca208db2e20fb5dffeb77b09652918821e0f03567281f7e50c",
+        "validationFeeApool": 10
+      }
+    ],
+    "verifierAdapter": "0x251a2A509ACFc0E16dd57dF3879254FC132E3d26",
+    "verifierImplementationHash": "0x744e2f85191bb7352293621695ef9347bc77a7b0b491c0bb52c556c7d7abcefa",
+    "validators": [
+      "0x43C4eBA160622834440928d20FC7202a644BAcbd",
+      "0x21106dC9965c2Be9d1aBEAD8A77BCa9531835D12",
+      "0xEE48E52d5bab5F48c16cE10d5123d2D3f4Ba7057",
+      "0x7dEC7E9E91627A346F41d89DB9a9A1edf3FC20D8",
+      "0x5f389362c9E4ba83c1F88E33209BbAE474fEb1Bd"
+    ],
+    "policyVersion": 1
+  },
+  "economics": {
+    "workerPriceFeeBps": 0,
+    "validatorShareBps": 9000,
+    "burnShareBps": 0,
+    "securityShareBps": 1000,
+    "minimumVerifiedJobPriceApool": 1000,
+    "disputeFeeApool": 50,
+    "operationalMiningDailyCapApool": 10000,
+    "ownerMiningDailyCapApool": 500
+  },
+  "transactionHashes": [
+    "0x4df4648b474be371c7fe32b9a1944f7ed0ef3b439a1d16afc5e6b99bacc0d90d",
+    "0x63f5e2596429346a577c1d2f7d07e3eef17fbe82947ce214201126380e7f489f",
+    "0xe69c2e8d2ac25ce4eee9ff7d55ce84c2515c530f6b367a8cb320fcdd15d5e0f9",
+    "0x1e7cfddb9f14576fb04ed82661676937ed2d3cfdf0becf33a1b6a38b1ad2cc00",
+    "0x86f3892f2e120b57cf174b782c6cdffad2f28e2c562b9aad979bf1f78ad04e47",
+    "0x5689a2ed015673e538f40d95271b8794a0dd87c8803d7ef9aba4e0166755677a",
+    "0xb39c085a5287892bdfe11405d0df8025458db447a07019d2eeb873464ee72413",
+    "0x33b7e11400606fac639378c9245fb694b9eb98fbfc4eeca02443acaa5326be5b",
+    "0x315975b8ff74b7d389d821bbf0a9cd442617874ef3b823ff8fb3e0a6711e0ea4",
+    "0x1776f34c96f96523d419c2ef0dd189dcf529104c7182cd41e07a9384d2bd151b",
+    "0xc7221d222815520e64d0dbba27ffe0380520cd32f195ec9493c48b54880d0793",
+    "0xbfdc335dd9e9ac6291fe2245d117b43a0895128441472bb188b2577635d72523",
+    "0x54dfa5f7be19650d6dd44b1258bad83fe9764430a595cf99b7843d85424a330f",
+    "0x81ab09891804eb1819b053684c735ee06f898d720c908e60101f986d16862afc",
+    "0x2c9fa12ef7cf9074f85a57f400cce1e0d58c621744e1a1d9179dd174636b47ad",
+    "0xf0ce7215ac8e0494369028cff6c712c73afe6c9d4f75290bcda63f35170b341e",
+    "0xda17e0275afa58c59595830b1c0e95ead4c3dd02c6266a44fbae23986b07892d",
+    "0xa2d032c346a00a3aa5f4e9983f5622069fdddc6482d0b2bbc2152eae71f6e915",
+    "0x801992769a76b85c373ff330af541b6117c4ec5c47e08e08f9dd6cde2f139b19",
+    "0x54a212198ca2301a42250376b19e80826ccbcc8d52f8fa46858905325f2d638f",
+    "0xe4df534e285a1c776331fe06e3ffc663c00944afcab92e28cfc27570d0d7c235",
+    "0x204519d0395d0cf56ede71564971bb8b5b40fdea3554c35c207ac317fbc37597",
+    "0x3e3770d357fd07355461fb2031ae0918e62759f71213e3dfacca5f45db1ca049",
+    "0x79da9d76e7ad2246e632ec46373af80666bbf2e9e3e55d13aeb0bbd93222af5f",
+    "0x76c28e3e3600ff7d5802b79b5a74ac61f88aa0420b357e53de7cd2c45765d20b",
+    "0x245ed4b2035327c6e383cc60a4d9fb0df9546f72af54240837d2594e067d6c26",
+    "0x8f70bac26c6e5a7d5106fc0aa2f4413ef4396d8035cf729a95b6370c9c00fae4",
+    "0x73c1dc3411fc9cdd853c55a76b1dee9c78ae4ae672f88e57cd5f7806889c4af2"
+  ]
+}

@@ -121,16 +121,23 @@ if (!/^0x[0-9a-fA-F]{64}$/u.test(implementationHash) || /^0x0{64}$/u.test(implem
 const protocolConfig = JSON.parse(
   fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
 );
-const verifierNames = protocolConfig.bootstrapVerifierNames;
+const verifierConfigs = protocolConfig.bootstrapVerifiers;
 if (
-  !Array.isArray(verifierNames) ||
-  verifierNames.length === 0 ||
-  verifierNames.some((name) => !/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) ||
-  new Set(verifierNames).size !== verifierNames.length
+  !Array.isArray(verifierConfigs) ||
+  verifierConfigs.length === 0 ||
+  verifierConfigs.some(
+    ({ name, validationFeeApool }) =>
+      !/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name) ||
+      !Number.isInteger(validationFeeApool) ||
+      validationFeeApool < 10 ||
+      validationFeeApool > 30 ||
+      validationFeeApool % 10 !== 0,
+  ) ||
+  new Set(verifierConfigs.map(({ name }) => name)).size !== verifierConfigs.length
 ) {
-  throw new Error("protocol-config.json contains invalid bootstrapVerifierNames");
+  throw new Error("protocol-config.json contains invalid bootstrapVerifiers");
 }
-const verifierIds = verifierNames.map((name) => keccak256(toBytes(name)));
+const verifierIds = verifierConfigs.map(({ name }) => keccak256(toBytes(name)));
 
 const allocationAddresses = [
   governanceMultisig,
@@ -268,11 +275,12 @@ const projectEscrow = await deploy("AgentPoolProjectEscrow", [
 if (chainId === 84532) {
   await write("MockRandomnessProvider", randomnessProvider, "setConsumer", [oracle]);
 }
-for (const verifierId of verifierIds) {
+for (const [index, verifierId] of verifierIds.entries()) {
   await write("AgentPoolRegistry", registry, "configureVerifier", [
     verifierId,
     initialVerifierAdapter,
     implementationHash,
+    verifierConfigs[index].validationFeeApool,
     false,
     true,
   ]);
@@ -341,9 +349,10 @@ const deployment = {
     securityTreasury,
   },
   bootstrap: {
-    verifiers: verifierNames.map((name, index) => ({
-      name,
+    verifiers: verifierConfigs.map((verifier, index) => ({
+      name: verifier.name,
       id: verifierIds[index],
+      validationFeeApool: verifier.validationFeeApool,
     })),
     verifierAdapter: initialVerifierAdapter,
     verifierImplementationHash: implementationHash,

@@ -31,7 +31,7 @@ const outputDirectory = path.join(root, "outputs", "deployments");
 fs.mkdirSync(outputDirectory, { recursive: true });
 
 const common = createCustomCommon(
-  { chainId: 31337, name: "AgentPool v2 Local Rehearsal" },
+  { chainId: 31337, name: "AgentPool v3 Local Rehearsal" },
   Mainnet,
   { hardfork: Hardfork.Cancun },
 );
@@ -231,11 +231,11 @@ function sortedPairHash(left, right) {
 const protocolConfig = JSON.parse(
   fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
 );
-const verifierIds = protocolConfig.bootstrapVerifierNames.map((name) =>
+const verifierIds = protocolConfig.bootstrapVerifiers.map(({ name }) =>
   keccak256(toBytes(name)),
 );
 const verifierImplementationHash = keccak256(
-  toBytes("agentpool.rehearsal.verifier.implementation.v2"),
+  toBytes("agentpool.rehearsal.verifier.implementation.v3"),
 );
 const genesis = blockTimestamp;
 const founderVesting = await deploy("AgentPoolFounderVesting", [
@@ -299,11 +299,12 @@ const projectEscrow = await deploy("AgentPoolProjectEscrow", [
   roles.security,
 ]);
 await write("MockRandomnessProvider", randomnessProvider, "setConsumer", [oracle]);
-for (const verifierId of verifierIds) {
+for (let index = 0; index < verifierIds.length; index++) {
   await write("AgentPoolRegistry", registry, "configureVerifier", [
-    verifierId,
+    verifierIds[index],
     verifierAdapter,
     verifierImplementationHash,
+    protocolConfig.bootstrapVerifiers[index].validationFeeApool,
     false,
     true,
   ]);
@@ -334,21 +335,56 @@ check(
   50_000_000_000n,
 );
 check(
-  "job.minimumValidationFee",
-  await read("AgentPoolJobEscrow", jobEscrow, "validationFeeFor", [1n]),
-  10n,
+  "job.codeValidationFee",
+  await read("AgentPoolJobEscrow", jobEscrow, "validationFeeFor", [verifierIds[0]]),
+  30n,
 );
 check(
-  "project.minimumValidationFee",
-  await read("AgentPoolProjectEscrow", projectEscrow, "validationFeeFor", [1n]),
+  "project.deterministicValidationFee",
+  await read("AgentPoolProjectEscrow", projectEscrow, "validationFeeFor", [
+    verifierIds[1],
+  ]),
   10n,
 );
 
+const codexMiningChallenge = {
+  id: "codex-code-001",
+  track: "code",
+  prompt:
+    "Return the sorted unique values and the one-based weighted checksum for [17, 4, 23, 9, 17, 12].",
+  input: [17, 4, 23, 9, 17, 12],
+};
+const codexMiningSolution = {
+  sortedUnique: [4, 9, 12, 17, 23],
+  weightedChecksum: 241,
+};
+const expectedMiningValues = [...new Set(codexMiningChallenge.input)].sort(
+  (left, right) => left - right,
+);
+const expectedMiningSolution = {
+  sortedUnique: expectedMiningValues,
+  weightedChecksum: expectedMiningValues.reduce(
+    (total, value, index) => total + value * (index + 1),
+    0,
+  ),
+};
+const codexMiningValidated =
+  JSON.stringify(codexMiningSolution) === JSON.stringify(expectedMiningSolution);
+check("codex.miningSolutionValidated", codexMiningValidated, true);
+const codexMiningSubmissionHash = keccak256(
+  toBytes(JSON.stringify(codexMiningSolution)),
+);
+const codexBalanceBeforeMining = await read(
+  "AgentPoolToken",
+  token,
+  "balanceOf",
+  [seller],
+);
 const benchmarkReceipt = {
-  challengeId: keccak256(toBytes("challenge-1")),
-  submissionHash: keccak256(toBytes("submission-1")),
-  minerId: keccak256(toBytes("miner-1")),
-  recipient: buyer,
+  challengeId: keccak256(toBytes(JSON.stringify(codexMiningChallenge))),
+  submissionHash: codexMiningSubmissionHash,
+  minerId: keccak256(toBytes("codex-agent-v1")),
+  recipient: seller,
   trackId: keccak256(toBytes("code")),
   leagueId: keccak256(toBytes("container")),
   policyVersion: 1,
@@ -405,16 +441,26 @@ await write(
   benchmarkRewardVault,
   "claim",
   [benchmarkReceipt, benchmarkSignatures],
-  buyerKey,
+  sellerKey,
 );
-check("benchmark.immediateReward", await read("AgentPoolToken", token, "balanceOf", [buyer]), 120n);
+const codexBalanceAfterMining = await read(
+  "AgentPoolToken",
+  token,
+  "balanceOf",
+  [seller],
+);
+check(
+  "benchmark.immediateReward",
+  codexBalanceAfterMining,
+  codexBalanceBeforeMining + 120n,
+);
 await expectRevert("benchmark receipt replay", () =>
   write(
     "AgentPoolBenchmarkRewardVault",
     benchmarkRewardVault,
     "claim",
     [benchmarkReceipt, benchmarkSignatures],
-    buyerKey,
+    sellerKey,
   ),
 );
 
@@ -438,12 +484,44 @@ const securityBeforeJob = await read(
   [roles.security],
 );
 const jobDeadline = blockTimestamp + 3_600n;
+const codexCommissionRequest = {
+  id: "buyer-report-001",
+  prompt: "Calculate each line total and the grand total.",
+  rows: [
+    { sku: "alpha", quantity: 2, unitPrice: 125 },
+    { sku: "beta", quantity: 3, unitPrice: 80 },
+  ],
+};
+const codexCommissionDelivery = {
+  lineTotals: [
+    { sku: "alpha", total: 250 },
+    { sku: "beta", total: 240 },
+  ],
+  grandTotal: 490,
+};
+const expectedCommissionDelivery = {
+  lineTotals: codexCommissionRequest.rows.map((row) => ({
+    sku: row.sku,
+    total: row.quantity * row.unitPrice,
+  })),
+  grandTotal: codexCommissionRequest.rows.reduce(
+    (total, row) => total + row.quantity * row.unitPrice,
+    0,
+  ),
+};
+const codexCommissionValidated =
+  JSON.stringify(codexCommissionDelivery) ===
+  JSON.stringify(expectedCommissionDelivery);
+check("codex.commissionDeliveryValidated", codexCommissionValidated, true);
+const codexCommissionDeliveryHash = keccak256(
+  toBytes(JSON.stringify(codexCommissionDelivery)),
+);
 await write("AgentPoolJobEscrow", jobEscrow, "fundJob", [
   seller,
   1_000n,
   100n,
   jobDeadline,
-  keccak256(toBytes("job-requirements")),
+  keccak256(toBytes(JSON.stringify(codexCommissionRequest))),
   verifierIds[0],
 ], buyerKey);
 await write("AgentPoolJobEscrow", jobEscrow, "acceptJob", [1n], sellerKey);
@@ -451,7 +529,7 @@ await write(
   "AgentPoolJobEscrow",
   jobEscrow,
   "submitJob",
-  [1n, keccak256(toBytes("job-delivery"))],
+  [1n, codexCommissionDeliveryHash],
   sellerKey,
 );
 await write(
@@ -471,18 +549,14 @@ check(
 check(
   "job.validatorShare",
   await read("AgentPoolToken", token, "balanceOf", [verifierAdapter]),
-  validatorBeforeJob + 21n,
+  validatorBeforeJob + 27n,
 );
 check(
   "job.securityShare",
   await read("AgentPoolToken", token, "balanceOf", [roles.security]),
   securityBeforeJob + 3n,
 );
-check(
-  "job.burn",
-  await read("AgentPoolToken", token, "totalSupply"),
-  supplyBeforeJob - 6n,
-);
+check("job.noBurn", await read("AgentPoolToken", token, "totalSupply"), supplyBeforeJob);
 check("job.completed", await read("AgentPoolJobEscrow", jobEscrow, "jobState", [1n]), 6);
 
 const buyerBeforeAmbiguous = await read("AgentPoolToken", token, "balanceOf", [buyer]);
@@ -496,8 +570,8 @@ const securityBeforeAmbiguous = await read(
 const supplyBeforeAmbiguous = await read("AgentPoolToken", token, "totalSupply");
 await write("AgentPoolJobEscrow", jobEscrow, "fundJob", [
   seller,
-  500n,
-  50n,
+  1_000n,
+  100n,
   blockTimestamp + 3_600n,
   keccak256(toBytes("ambiguous-requirements")),
   verifierIds[0],
@@ -584,7 +658,7 @@ for (const task of projectTaskSpecs) {
       task.deadline,
       task.requirementsHash,
       dependenciesHash,
-      verifierIds[0],
+      verifierIds[1],
     ]),
   );
 }
@@ -608,7 +682,7 @@ await expectRevert("project task before buyer approval", () =>
       projectTaskSpecs[0].deadline,
       projectTaskSpecs[0].requirementsHash,
       projectTaskSpecs[0].dependencies,
-      verifierIds[0],
+      verifierIds[1],
       [projectTaskLeaves[1]],
     ],
     coordinatorKey,
@@ -628,7 +702,7 @@ for (let index = 0; index < projectTaskSpecs.length; index++) {
       task.deadline,
       task.requirementsHash,
       task.dependencies,
-      verifierIds[0],
+      verifierIds[1],
       [projectTaskLeaves[index === 0 ? 1 : 0]],
     ],
     coordinatorKey,
@@ -646,7 +720,7 @@ for (let index = 0; index < projectTaskSpecs.length; index++) {
           task.deadline,
           task.requirementsHash,
           task.dependencies,
-          verifierIds[0],
+          verifierIds[1],
           [projectTaskLeaves[1]],
         ],
         coordinatorKey,
@@ -725,14 +799,14 @@ await write(
 await resolveProjectTask(2n, 1);
 await write("AgentPoolProjectEscrow", projectEscrow, "finalizeProject", [1n]);
 check(
-  "project.twoValidationBurns",
+  "project.noValidationBurn",
   await read("AgentPoolToken", token, "totalSupply"),
-  supplyBeforeProjectResolution - 12n,
+  supplyBeforeProjectResolution,
 );
 check(
   "project.refundsUnusedBudget",
   await read("AgentPoolToken", token, "balanceOf", [buyer]),
-  buyerBeforeFinalize + 1_010n,
+  buyerBeforeFinalize + 1_040n,
 );
 const project = await read("AgentPoolProjectEscrow", projectEscrow, "projects", [1n]);
 check("project.completed", project[12], 4);
@@ -748,8 +822,8 @@ const sellerBeforeStalled = await read("AgentPoolToken", token, "balanceOf", [se
 const supplyBeforeStalled = await read("AgentPoolToken", token, "totalSupply");
 await write("AgentPoolJobEscrow", jobEscrow, "fundJob", [
   seller,
+  1_000n,
   100n,
-  20n,
   blockTimestamp + 3_600n,
   keccak256(toBytes("stalled-requirements")),
   verifierIds[0],
@@ -791,8 +865,8 @@ const sellerBeforeVrfTimeout = await read("AgentPoolToken", token, "balanceOf", 
 const supplyBeforeVrfTimeout = await read("AgentPoolToken", token, "totalSupply");
 await write("AgentPoolJobEscrow", jobEscrow, "fundJob", [
   seller,
+  1_000n,
   100n,
-  20n,
   blockTimestamp + 3_600n,
   keccak256(toBytes("vrf-timeout-requirements")),
   verifierIds[0],
@@ -844,8 +918,8 @@ for (const validator of validators) {
 }
 await write("AgentPoolJobEscrow", jobEscrow, "fundJob", [
   seller,
+  1_000n,
   100n,
-  20n,
   blockTimestamp + 3_600n,
   keccak256(toBytes("dispute-requirements")),
   verifierIds[0],
@@ -927,7 +1001,7 @@ await write("AgentPoolWorkOracle", oracle, "finalize", [2n], coordinatorKey);
 check(
   "dispute.workerReceivesFullPrice",
   await read("AgentPoolToken", token, "balanceOf", [seller]),
-  sellerBeforeDispute + 100n,
+  sellerBeforeDispute + 1_000n,
 );
 let validatorRewardsAfterDispute = 0n;
 for (const validator of validators) {
@@ -941,12 +1015,12 @@ for (const validator of validators) {
 check(
   "dispute.correctValidatorsPaid",
   validatorRewardsAfterDispute,
-  validatorRewardsBeforeDispute + 7n,
+  validatorRewardsBeforeDispute + 45n,
 );
 check(
-  "dispute.burn",
+  "dispute.noBurn",
   await read("AgentPoolToken", token, "totalSupply"),
-  supplyBeforeDispute - 2n,
+  supplyBeforeDispute,
 );
 
 for (const [name, address] of [
@@ -983,7 +1057,36 @@ check(
 const deployment = {
   version: 2,
   chainId: 31337,
-  network: "AgentPool v2 Local Rehearsal",
+  network: "AgentPool v3 Local Rehearsal",
+  codexAgentDemo: {
+    agentId: "codex-agent-v1",
+    wallet: seller,
+    mining: {
+      challenge: codexMiningChallenge,
+      solution: codexMiningSolution,
+      submissionHash: codexMiningSubmissionHash,
+      deterministicValidationPassed: codexMiningValidated,
+      validatorSignatures: benchmarkSignatures.length,
+      balanceBefore: codexBalanceBeforeMining.toString(),
+      reward: "120",
+      balanceAfter: codexBalanceAfterMining.toString(),
+    },
+    commission: {
+      buyerWallet: buyer,
+      request: codexCommissionRequest,
+      delivery: codexCommissionDelivery,
+      deliveryHash: codexCommissionDeliveryHash,
+      deterministicValidationPassed: codexCommissionValidated,
+      workerPrice: "1000",
+      validationFee: "30",
+      validatorReward: "27",
+      burn: "0",
+      securityReward: "3",
+      workerBalanceBefore: sellerBeforeJob.toString(),
+      workerBalanceAfter: (sellerBeforeJob + 1_000n).toString(),
+      finalState: "COMPLETED",
+    },
+  },
   contracts: {
     founderVesting,
     benchmarkRewardVault,
@@ -1003,9 +1106,9 @@ const deployment = {
   status: "passed",
   generatedAt: new Date().toISOString(),
 };
-const target = path.join(outputDirectory, "local-rehearsal-v2.json");
+const target = path.join(outputDirectory, "local-rehearsal-v3.json");
 fs.writeFileSync(target, `${JSON.stringify(deployment, null, 2)}\n`);
 console.log(
-  `AgentPool v2 local rehearsal passed: ${transactionCount} transactions, ${checks.length} checks.`,
+  `AgentPool v3 local rehearsal passed: ${transactionCount} transactions, ${checks.length} checks.`,
 );
 console.log(`Rehearsal evidence: ${target}`);

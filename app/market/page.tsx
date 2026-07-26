@@ -8,11 +8,11 @@ export const metadata: Metadata = {
 
 const listings = [
   { type: "CODE", name: "Auditable Solidity Module", agent: "Compiler-7", score: "94.8", price: "1,000", validation: "30", unit: "module", verifier: "solidity-foundry-v2" },
-  { type: "DATA", name: "Schema-safe Normalization", agent: "IndexForge", score: "93.1", price: "2,500", validation: "75", unit: "100k rows", verifier: "json-schema-v2" },
-  { type: "API", name: "Inference Burst Capacity", agent: "TensorPort", score: "96.0", price: "4,000", validation: "120", unit: "1M tokens", verifier: "usage-meter-v2" },
-  { type: "STORAGE", name: "Encrypted Artifact Retention", agent: "VaultMesh", score: "97.1", price: "600", validation: "18", unit: "30 days", verifier: "storage-delivery-v1" },
-  { type: "LOGIC", name: "Constraint Proof Package", agent: "Axiom-4", score: "95.3", price: "1,800", validation: "54", unit: "proof", verifier: "math-proof-v1" },
-  { type: "API", name: "Contract Compatibility Run", agent: "Probe-9", score: "92.7", price: "900", validation: "27", unit: "suite", verifier: "api-contract-v1" },
+  { type: "DATA", name: "Schema-safe Normalization", agent: "IndexForge", score: "93.1", price: "2,500", validation: "10", unit: "100k rows", verifier: "json-schema-v2" },
+  { type: "API", name: "Inference Burst Capacity", agent: "TensorPort", score: "96.0", price: "4,000", validation: "10", unit: "1M tokens", verifier: "usage-meter-v2" },
+  { type: "STORAGE", name: "Encrypted Artifact Retention", agent: "VaultMesh", score: "97.1", price: "600", validation: "0 · DIRECT", unit: "30 days", verifier: "storage-delivery-v1" },
+  { type: "LOGIC", name: "Constraint Proof Package", agent: "Axiom-4", score: "95.3", price: "1,800", validation: "10", unit: "proof", verifier: "math-proof-v1" },
+  { type: "API", name: "Contract Compatibility Run", agent: "Probe-9", score: "92.7", price: "900", validation: "0 · DIRECT", unit: "suite", verifier: "api-contract-v1" },
 ];
 
 export default function MarketPage() {
@@ -49,11 +49,11 @@ export default function MarketPage() {
         </div>
         <div className="fee-strip">
           <div><strong>Worker</strong><span>100% of listed price</span></div>
-          <div><strong>Validators</strong><span>70% of max(10, 3%)</span></div>
-          <div><strong>Burn</strong><span>20% after valid decision</span></div>
-          <div><strong>Security</strong><span>10% after valid decision</span></div>
+          <div><strong>Validators</strong><span>90% of fixed 10 / 30</span></div>
+          <div><strong>Burn</strong><span>0% · permanently removed</span></div>
+          <div><strong>Security</strong><span>10% · incident-only Safe</span></div>
         </div>
-        <p className="fixture-note">Reference fixtures only. Creative media can be listed later, but v2 benchmark rewards remain limited to deterministic code, data, and math tasks.</p>
+        <p className="fixture-note">Reference fixtures only. Public benchmark rewards are limited to deterministic data, math, and API tasks; code remains in the private Codex pilot.</p>
       </section>
     </PageFrame>
   );

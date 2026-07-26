@@ -9,7 +9,7 @@ export function apiResponse(
     status,
     headers: {
       "cache-control": "no-store",
-      "x-agentpool-version": "0.2.0-testnet",
+      "x-agentpool-version": "0.3.0-testnet",
       ...headers,
     },
   });

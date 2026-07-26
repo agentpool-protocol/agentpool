@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "deployer": "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+  "governanceMultisig": "0x1bae2c0d690F3b069ddBF823371FBCc219DBdfeD",
+  "deployedAt": "2026-07-26T10:38:57.764Z",
+  "contracts": {
+    "token": "0x469d94cf6974d078fdfbdaae53f2965932389301",
+    "founderVesting": "0xf3d736b0f630ddb33fc40fd0897b56dcbb2890a5",
+    "benchmarkRewardVault": "0xc7bfb8e56d0a6c825137021d0829659df191681c",
+    "timelock": "0x6785cfac02716772acf88850c1643dc7658d0831",
+    "registry": "0x5f4977f3b2ab57a6a84123b6b309f01634fab23a",
+    "license": "0x4d464d3db4669e3b49e30b5d8f91c750427a1e34",
+    "randomnessProvider": "0xba220d14ccf47d45b653e3c1a241bf50fcf7a426",
+    "oracle": "0xb3bd7577ffd75bbd42751f88dc21ace2a1d5abe9",
+    "jobEscrow": "0x3958d462eda55ef11c9849904b9f3d6e5eb4ca83",
+    "projectResolver": "0xa182385871f23c20dd3d3e88ce56629d7a40b288",
+    "projectEscrow": "0xb82a496be90ea489626ac2da95b7c056088e0ad7"
+  },
+  "allocations": {
+    "ecosystemTreasury": "0x032F6b73736FB10636aCD7176Fc2A386207bAAEf",
+    "operationsTreasury": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+    "validatorTreasury": "0x322D0158BB8A52B0A75014e8166413A88028a468",
+    "authorTreasury": "0xB033F3ffdfa27e9D000A84e0fBc86226e390Ed2e",
+    "liquidityTreasury": "0xB4f6D8D859067b86c84c713282D1a335C310f847",
+    "founderBeneficiary": "0x34974AEf75dd152F507717f43850444F70f5e26a",
+    "securityTreasury": "0x844a0ae345514f1E65178630B09a572EdB71A1A1"
+  },
+  "bootstrap": {
+    "verifiers": [
+      {
+        "name": "solidity-foundry-v2",
+        "id": "0x46163a0021793b53dc77d3eb808a1c3432c7731cbd4f83979d57bd1ecda3f9e0"
+      },
+      {
+        "name": "json-schema-v2",
+        "id": "0x19d96bc50fc084b13ef1dcd0b4afd5d215ef05271a1886f2f34ea9bfedf357b7"
+      },
+      {
+        "name": "math-proof-v1",
+        "id": "0x3e86a482eb0920e61f0c50a0fb7381412f35152dcfec409cdeed47af9285f5a0"
+      },
+      {
+        "name": "api-contract-v1",
+        "id": "0x992b9bceea1030b6be00ba8248cd40740430ac2c940b0d9d7c374e99e0157dc7"
+      },
+      {
+        "name": "storage-delivery-v1",
+        "id": "0x06c4a08af785df9abd568dd736c9cbcd14d9be2c1d7e4c3c28b9d9c228e954b0"
+      },
+      {
+        "name": "usage-meter-v2",
+        "id": "0x1a3ab922b0a6c5ca208db2e20fb5dffeb77b09652918821e0f03567281f7e50c"
+      }
+    ],
+    "verifierAdapter": "0x251a2A509ACFc0E16dd57dF3879254FC132E3d26",
+    "verifierImplementationHash": "0x744e2f85191bb7352293621695ef9347bc77a7b0b491c0bb52c556c7d7abcefa",
+    "validators": [
+      "0x43C4eBA160622834440928d20FC7202a644BAcbd",
+      "0x21106dC9965c2Be9d1aBEAD8A77BCa9531835D12",
+      "0xEE48E52d5bab5F48c16cE10d5123d2D3f4Ba7057",
+      "0x7dEC7E9E91627A346F41d89DB9a9A1edf3FC20D8",
+      "0x5f389362c9E4ba83c1F88E33209BbAE474fEb1Bd"
+    ],
+    "benchmarkGenesis": "1785064938",
+    "benchmarkDailyCap": "1000000",
+    "founderVestingStart": "1785064938",
+    "policyVersion": 1
+  }
+}

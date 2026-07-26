@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAgentPoolResolver} from "./interfaces/IAgentPoolResolver.sol";
 import {IAgentPoolEscrow} from "./interfaces/IAgentPoolEscrow.sol";
@@ -15,13 +14,13 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
     using SafeERC20 for IERC20;
 
     uint16 public constant PROTOCOL_FEE_BPS = 0;
-    uint16 public constant VALIDATION_FEE_BPS = 300;
-    uint16 public constant MIN_VALIDATION_FEE = 10;
-    uint16 public constant VALIDATOR_SHARE_BPS = 7_000;
-    uint16 public constant BURN_SHARE_BPS = 2_000;
+    uint16 public constant VALIDATOR_SHARE_BPS = 9_000;
+    uint16 public constant BURN_SHARE_BPS = 0;
     uint16 public constant SECURITY_SHARE_BPS = 1_000;
     uint16 public constant SELLER_BOND_BPS = 1_000;
     uint16 public constant MIN_SELLER_BOND = 10;
+    uint128 public constant MIN_VERIFIED_JOB_PRICE = 1_000;
+    uint128 public constant DISPUTE_FEE = 50;
     uint64 public constant CHALLENGE_WINDOW = 2 hours;
     uint64 public constant RESOLUTION_GRACE = 3 days;
 
@@ -44,6 +43,7 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         uint128 price;
         uint128 validationFee;
         uint128 sellerBond;
+        uint128 challengeBond;
         uint64 deadline;
         uint64 resolutionDeadline;
         uint64 challengeDeadline;
@@ -55,7 +55,6 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
     }
 
     IERC20 public immutable apool;
-    ERC20Burnable private immutable burnableApool;
     IAgentPoolRegistry public immutable registry;
     address public resolver;
     address public immutable securityTreasury;
@@ -91,7 +90,6 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
             securityTreasury_ == address(0)
         ) revert InvalidTerms();
         apool = token;
-        burnableApool = ERC20Burnable(address(token));
         registry = registry_;
         securityTreasury = securityTreasury_;
     }
@@ -113,14 +111,14 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         if (
             seller == address(0) ||
             seller == msg.sender ||
-            price == 0 ||
+            price < MIN_VERIFIED_JOB_PRICE ||
             sellerBond < sellerBondFor(price) ||
             deadline <= block.timestamp ||
             requirementsHash == bytes32(0) ||
             verifierId == bytes32(0)
         ) revert InvalidTerms();
         if (!registry.isActiveVerifier(verifierId)) revert InvalidTerms();
-        uint128 validationFee = uint128(validationFeeFor(price));
+        uint128 validationFee = uint128(validationFeeFor(verifierId));
         jobId = nextJobId++;
         jobs[jobId] = Job({
             buyer: msg.sender,
@@ -128,6 +126,7 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
             price: price,
             validationFee: validationFee,
             sellerBond: sellerBond,
+            challengeBond: 0,
             deadline: deadline,
             resolutionDeadline: 0,
             challengeDeadline: 0,
@@ -182,6 +181,8 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
             msg.sender != job.buyer ||
             block.timestamp >= job.challengeDeadline
         ) revert InvalidState();
+        job.challengeBond = DISPUTE_FEE;
+        apool.safeTransferFrom(msg.sender, address(this), DISPUTE_FEE);
         job.state = State.CHALLENGED;
         emit JobChallenged(jobId);
         IAgentPoolResolver(resolver).openDispute(jobId);
@@ -197,13 +198,20 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         _settle(jobId, job.proposedOutcome, validatorReceivers);
     }
 
-    function resolveChallenge(uint256 jobId, Outcome outcome, address[] calldata validatorReceivers)
-        external
-        nonReentrant
-    {
+    function resolveChallenge(
+        uint256 jobId,
+        Outcome outcome,
+        address initialValidator,
+        address[] calldata validatorReceivers
+    ) external nonReentrant {
         if (msg.sender != resolver) revert Unauthorized();
         if (jobs[jobId].state != State.CHALLENGED) revert InvalidState();
-        _settle(jobId, outcome, validatorReceivers);
+        _settleChallenge(
+            jobId,
+            outcome,
+            initialValidator,
+            validatorReceivers
+        );
     }
 
     function refundExpired(uint256 jobId) external nonReentrant {
@@ -234,10 +242,8 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         return jobs[jobId].state;
     }
 
-    function validationFeeFor(uint256 price) public pure returns (uint256) {
-        if (price == 0) return 0;
-        uint256 percentageFee = (price * VALIDATION_FEE_BPS + 9_999) / 10_000;
-        return percentageFee < MIN_VALIDATION_FEE ? MIN_VALIDATION_FEE : percentageFee;
+    function validationFeeFor(bytes32 verifierId) public view returns (uint256) {
+        return registry.validationFeeForVerifier(verifierId);
     }
 
     function sellerBondFor(uint256 price) public pure returns (uint256) {
@@ -263,13 +269,10 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
             return;
         }
         if (validatorReceivers.length == 0) revert InvalidTerms();
-        uint256 validatorPayment =
-            uint256(job.validationFee) * VALIDATOR_SHARE_BPS / 10_000;
-        uint256 burnPayment = uint256(job.validationFee) * BURN_SHARE_BPS / 10_000;
-        uint256 securityPayment =
-            uint256(job.validationFee) - validatorPayment - burnPayment;
-        _payValidators(validatorReceivers, validatorPayment);
-        if (burnPayment != 0) burnableApool.burn(burnPayment);
+        uint256 securityPayment = _settleValidationFee(
+            job.validationFee,
+            validatorReceivers
+        );
 
         if (outcome == Outcome.PASS) {
             job.state = State.COMPLETED;
@@ -283,7 +286,92 @@ contract AgentPoolJobEscrow is Ownable, ReentrancyGuard, IAgentPoolEscrow {
         emit JobSettled(jobId, outcome, job.state);
     }
 
+    function _settleChallenge(
+        uint256 jobId,
+        Outcome outcome,
+        address initialValidator,
+        address[] calldata panelReceivers
+    ) internal {
+        Job storage job = jobs[jobId];
+        if (outcome == Outcome.AMBIGUOUS) {
+            job.state = State.REFUNDED;
+            apool.safeTransfer(
+                job.buyer,
+                uint256(job.price) + job.validationFee + job.challengeBond
+            );
+            apool.safeTransfer(job.seller, job.sellerBond);
+            emit JobSettled(jobId, outcome, job.state);
+            return;
+        }
+        if (
+            initialValidator == address(0) ||
+            panelReceivers.length == 0 ||
+            job.challengeBond != DISPUTE_FEE
+        ) revert InvalidTerms();
+
+        uint256 securityPayment;
+        if (outcome == Outcome.PASS) {
+            address[] memory initialReceivers = new address[](1);
+            initialReceivers[0] = initialValidator;
+            securityPayment += _settleValidationFeeMemory(
+                job.validationFee,
+                initialReceivers
+            );
+            securityPayment += _settleValidationFee(
+                job.challengeBond,
+                panelReceivers
+            );
+            job.state = State.COMPLETED;
+            apool.safeTransfer(job.seller, uint256(job.price) + job.sellerBond);
+        } else {
+            if (job.sellerBond < DISPUTE_FEE) revert InvalidTerms();
+            securityPayment += _settleValidationFee(
+                DISPUTE_FEE,
+                panelReceivers
+            );
+            securityPayment += uint256(job.sellerBond) - DISPUTE_FEE;
+            job.state = State.REJECTED;
+            apool.safeTransfer(
+                job.buyer,
+                uint256(job.price) + job.validationFee + job.challengeBond
+            );
+        }
+        if (securityPayment != 0) {
+            apool.safeTransfer(securityTreasury, securityPayment);
+        }
+        emit JobSettled(jobId, outcome, job.state);
+    }
+
+    function _settleValidationFee(
+        uint256 fee,
+        address[] calldata receivers
+    ) internal returns (uint256 securityPayment) {
+        uint256 validatorPayment = fee * VALIDATOR_SHARE_BPS / 10_000;
+        securityPayment = fee - validatorPayment;
+        _payValidators(receivers, validatorPayment);
+    }
+
+    function _settleValidationFeeMemory(
+        uint256 fee,
+        address[] memory receivers
+    ) internal returns (uint256 securityPayment) {
+        uint256 validatorPayment = fee * VALIDATOR_SHARE_BPS / 10_000;
+        securityPayment = fee - validatorPayment;
+        _payValidatorsMemory(receivers, validatorPayment);
+    }
+
     function _payValidators(address[] calldata receivers, uint256 amount) internal {
+        uint256 share = amount / receivers.length;
+        uint256 remainder = amount - share * receivers.length;
+        for (uint256 index = 0; index < receivers.length; index++) {
+            address receiver = receivers[index];
+            if (receiver == address(0)) revert InvalidTerms();
+            uint256 payment = share + (index == 0 ? remainder : 0);
+            if (payment != 0) apool.safeTransfer(receiver, payment);
+        }
+    }
+
+    function _payValidatorsMemory(address[] memory receivers, uint256 amount) internal {
         uint256 share = amount / receivers.length;
         uint256 remainder = amount - share * receivers.length;
         for (uint256 index = 0; index < receivers.length; index++) {

@@ -13,6 +13,7 @@ interface IAgentPoolEscrow {
     function resolveChallenge(
         uint256 jobId,
         Outcome outcome,
+        address initialValidator,
         address[] calldata validatorReceivers
     ) external;
 }

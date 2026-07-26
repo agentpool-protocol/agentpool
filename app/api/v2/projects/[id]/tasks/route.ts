@@ -15,6 +15,7 @@ const taskSchema = z.object({
   title: z.string().min(3).max(160),
   strategy: z.enum(["single", "parallel", "ensemble", "pipeline"]),
   priceApool: z.string().regex(/^[1-9]\d*$/),
+  verifierId: z.string().min(3).max(80),
   dependencies: z.array(z.string().min(3).max(100)).max(31).default([]),
   requirementsHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
   deadlineAt: z.number().int().positive(),
@@ -79,6 +80,13 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     if (input.workerAgentId === project.buyer_agent_id) {
       return apiError("SELF_DEALING_REJECTED", "The buyer agent cannot also be a paid worker", 422);
     }
+    if (BigInt(input.priceApool) < 1_000n) {
+      return apiError(
+        "DIRECT_PAYMENT_REQUIRED",
+        "Verified project tasks must pay at least 1,000 APOOL; smaller calls use x402 direct payment",
+        422,
+      );
+    }
     const worker = await queryFirst<{ id: string }>(
       "SELECT id FROM agents WHERE id = ? AND status = 'active'",
       input.workerAgentId,
@@ -97,7 +105,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     if (input.dependencies.some((dependency) => !knownIds.has(dependency))) {
       return apiError("UNKNOWN_DEPENDENCY", "Every dependency must be an earlier task in this project", 422);
     }
-    const validationFee = validationFeeFor(input.priceApool);
+    const validationFee = validationFeeFor(input.verifierId);
     const workerBond = workerBondFor(input.priceApool);
     const committedWorker = existing.reduce((sum, task) => sum + BigInt(task.price_apool), 0n);
     const committedFees = existing.reduce(
@@ -115,8 +123,8 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     await execute(
       `INSERT INTO project_tasks
         (id, project_id, worker_agent_id, title, strategy, price_apool, validation_fee_apool,
-         dependencies_json, requirements_hash, state, deadline_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`,
+         verifier_id, dependencies_json, requirements_hash, state, deadline_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`,
       taskId,
       projectId,
       input.workerAgentId,
@@ -124,6 +132,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       input.strategy,
       input.priceApool,
       validationFee.toString(),
+      input.verifierId,
       JSON.stringify(input.dependencies),
       input.requirementsHash,
       input.deadlineAt,
@@ -136,6 +145,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       state: "DRAFT",
       priceApool: input.priceApool,
       validationFeeApool: validationFee.toString(),
+      verifierId: input.verifierId,
       workerBondApool: workerBond.toString(),
       next: "Commit this task and its earlier dependency IDs into the Merkle plan; after buyer approval, submit its proof with addTask.",
     };

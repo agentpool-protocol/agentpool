@@ -14,19 +14,27 @@ import {
 
 const CHAIN_ID = 84532;
 const textEncoder = new TextEncoder();
-export const VALIDATION_FEE_BPS = 300;
-export const MIN_VALIDATION_FEE_APOOL = 10n;
+export const VALIDATOR_SHARE_BPS = 9_000;
+export const SECURITY_SHARE_BPS = 1_000;
+export const BURN_SHARE_BPS = 0;
+export const MIN_VERIFIED_WORK_PRICE_APOOL = 1_000n;
+export const DISPUTE_FEE_APOOL = 50n;
 export const WORKER_BOND_BPS = 1_000;
 export const MIN_WORKER_BOND_APOOL = 10n;
 
-export function validationFeeForApool(amount: string | number | bigint): bigint {
-  const value = BigInt(amount);
-  if (value <= 0n) return 0n;
-  const percentageFee =
-    (value * BigInt(VALIDATION_FEE_BPS) + 9_999n) / 10_000n;
-  return percentageFee < MIN_VALIDATION_FEE_APOOL
-    ? MIN_VALIDATION_FEE_APOOL
-    : percentageFee;
+export const VALIDATION_FEES_APOOL = {
+  "solidity-foundry-v2": 30n,
+  "json-schema-v2": 10n,
+  "math-proof-v1": 10n,
+  "api-contract-v1": 10n,
+  "storage-delivery-v1": 10n,
+  "usage-meter-v2": 10n,
+} as const;
+
+export function validationFeeForVerifier(
+  verifierName: keyof typeof VALIDATION_FEES_APOOL,
+): bigint {
+  return VALIDATION_FEES_APOOL[verifierName];
 }
 
 export function workerBondForApool(amount: string | number | bigint): bigint {
@@ -126,6 +134,20 @@ export interface EncryptedArtifact {
   ciphertextHash: `0x${string}`;
   keyEnvelope: string;
   encryptionSuite: "HPKE-X25519-HKDF-SHA256-CHACHA20POLY1305";
+}
+
+export interface MiningSessionInput {
+  minerAgentId: string;
+  recipientAddress: `0x${string}`;
+  track: "data" | "math" | "api";
+}
+
+export interface MiningSubmissionInput {
+  sessionId: string;
+  challengeId: `0x${string}`;
+  minerAgentId: string;
+  recipientAddress: `0x${string}`;
+  answer: unknown;
 }
 
 async function sha256Hex(data: string | Uint8Array): Promise<`0x${string}`> {
@@ -263,8 +285,49 @@ export class AgentPoolClient {
     return this.get(`/api/v2/mining/challenges${query}`);
   }
 
-  async submitBenchmark(input: Record<string, unknown>): Promise<unknown> {
+  async requestMiningSession(input: MiningSessionInput): Promise<unknown> {
+    return this.signedWrite("/api/v2/mining/sessions", "POST", input);
+  }
+
+  async submitBenchmark(input: MiningSubmissionInput): Promise<unknown> {
     return this.signedWrite("/api/v2/mining/submissions", "POST", input);
+  }
+
+  async miningSubmission(submissionId: string): Promise<unknown> {
+    return this.get(
+      `/api/v2/mining/submissions/${encodeURIComponent(submissionId)}`,
+    );
+  }
+
+  async confirmMiningClaim(
+    txHash: `0x${string}`,
+    input: { submissionId: string; minerAgentId: string },
+  ): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v2/mining/claims/${encodeURIComponent(txHash)}`,
+      "POST",
+      input,
+    );
+  }
+
+  async protocolStatus(): Promise<unknown> {
+    return this.get("/api/v2/status");
+  }
+
+  async directPaymentRequirements(listingId: string): Promise<unknown> {
+    const response = await this.fetcher(
+      `${this.baseUrl}/api/v1/payments/direct?listingId=${encodeURIComponent(listingId)}`,
+    );
+    if (response.status !== 402) return this.decode(response);
+    return response.json();
+  }
+
+  async confirmDirectPayment(input: {
+    listingId: string;
+    buyerAgentId: string;
+    txHash: `0x${string}`;
+  }): Promise<unknown> {
+    return this.signedWrite("/api/v1/payments/direct", "POST", input);
   }
 
   async miningLeaderboard(): Promise<unknown> {

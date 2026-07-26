@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {IAgentPoolRegistry} from "./interfaces/IAgentPoolRegistry.sol";
@@ -13,13 +12,13 @@ import {IAgentPoolRegistry} from "./interfaces/IAgentPoolRegistry.sol";
 contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    uint16 public constant VALIDATION_FEE_BPS = 300;
-    uint16 public constant MIN_VALIDATION_FEE = 10;
-    uint16 public constant VALIDATOR_SHARE_BPS = 7_000;
-    uint16 public constant BURN_SHARE_BPS = 2_000;
+    uint16 public constant VALIDATOR_SHARE_BPS = 9_000;
+    uint16 public constant BURN_SHARE_BPS = 0;
     uint16 public constant SECURITY_SHARE_BPS = 1_000;
     uint16 public constant WORKER_BOND_BPS = 1_000;
     uint16 public constant MIN_WORKER_BOND = 10;
+    uint128 public constant MIN_VERIFIED_TASK_PRICE = 1_000;
+    uint128 public constant MAX_VALIDATION_FEE = 30;
     uint16 public constant STAGE_PAYMENT_BPS = 8_000;
     uint8 public constant MAX_TASKS = 32;
     uint64 public constant RESOLUTION_GRACE = 3 days;
@@ -89,7 +88,6 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
     }
 
     IERC20 public immutable apool;
-    ERC20Burnable private immutable burnableApool;
     IAgentPoolRegistry public immutable registry;
     address public resolver;
     address public immutable securityTreasury;
@@ -146,7 +144,6 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
             securityTreasury_ == address(0)
         ) revert InvalidTerms();
         apool = token;
-        burnableApool = ERC20Burnable(address(token));
         registry = registry_;
         securityTreasury = securityTreasury_;
     }
@@ -168,8 +165,7 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
         if (
             coordinator == address(0) ||
             coordinator == msg.sender ||
-            maxWorkerBudget == 0 ||
-            maxWorkerBudget < maxTasks ||
+            maxWorkerBudget < uint256(maxTasks) * MIN_VERIFIED_TASK_PRICE ||
             minWorkers == 0 ||
             maxTasks == 0 ||
             minWorkers > maxTasks ||
@@ -177,14 +173,8 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
             deadline <= block.timestamp ||
             briefHash == bytes32(0)
         ) revert InvalidTerms();
-        // Worst case: maxTasks - 1 one-unit leaves each pay the 10 APOOL minimum,
-        // while the remaining budget is concentrated into the final leaf.
-        uint256 smallTaskReserve =
-            uint256(maxTasks - 1) * MIN_VALIDATION_FEE;
-        uint256 largestTaskBudget =
-            uint256(maxWorkerBudget) - uint256(maxTasks - 1);
         uint128 validationReserve = uint128(
-            smallTaskReserve + validationFeeFor(largestTaskBudget)
+            uint256(maxTasks) * MAX_VALIDATION_FEE
         );
         projectId = nextProjectId++;
         projects[projectId] = Project({
@@ -267,7 +257,7 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
         if (
             worker == address(0) ||
             worker == project.buyer ||
-            price == 0 ||
+            price < MIN_VERIFIED_TASK_PRICE ||
             deadline <= block.timestamp ||
             deadline > project.deadline ||
             requirementsHash == bytes32(0) ||
@@ -298,7 +288,7 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
         }
         if (consumedPlanLeaf[projectId][leaf]) revert InvalidTerms();
         consumedPlanLeaf[projectId][leaf] = true;
-        uint128 validationFee = uint128(validationFeeFor(price));
+        uint128 validationFee = uint128(validationFeeFor(verifierId));
         uint128 workerBond = uint128(workerBondFor(price));
         if (
             uint256(project.committedWorker) + price > project.maxWorkerBudget ||
@@ -460,10 +450,8 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
         emit ProjectCancelled(projectId, buyerRefund);
     }
 
-    function validationFeeFor(uint256 price) public pure returns (uint256) {
-        if (price == 0) return 0;
-        uint256 percentageFee = (price * VALIDATION_FEE_BPS + 9_999) / 10_000;
-        return percentageFee < MIN_VALIDATION_FEE ? MIN_VALIDATION_FEE : percentageFee;
+    function validationFeeFor(bytes32 verifierId) public view returns (uint256) {
+        return registry.validationFeeForVerifier(verifierId);
     }
 
     function getProjectTaskIds(uint256 projectId) external view returns (uint256[] memory) {
@@ -517,11 +505,9 @@ contract AgentPoolProjectEscrow is Ownable, ReentrancyGuard {
         address[] calldata receivers
     ) internal {
         uint256 validatorPayment = uint256(fee) * VALIDATOR_SHARE_BPS / 10_000;
-        uint256 burnPayment = uint256(fee) * BURN_SHARE_BPS / 10_000;
-        uint256 securityPayment = uint256(fee) - validatorPayment - burnPayment;
+        uint256 securityPayment = uint256(fee) - validatorPayment;
         project.feeFundsRemaining -= fee;
         _payValidators(receivers, validatorPayment);
-        if (burnPayment != 0) burnableApool.burn(burnPayment);
         if (securityPayment != 0) apool.safeTransfer(securityTreasury, securityPayment);
     }
 

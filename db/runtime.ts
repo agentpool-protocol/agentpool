@@ -56,6 +56,7 @@ const schemaStatements = [
     deadline_at INTEGER NOT NULL,
     challenge_deadline_at INTEGER,
     tx_hash TEXT,
+    chain_job_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
@@ -90,14 +91,36 @@ const schemaStatements = [
     efficiency_bps INTEGER,
     reward_apool TEXT,
     receipt_digest TEXT,
+    artifact_key TEXT,
+    receipt_json TEXT,
+    signatures_json TEXT,
+    claim_calldata TEXT,
     claim_tx_hash TEXT,
     status TEXT NOT NULL DEFAULT 'submitted',
     created_at INTEGER NOT NULL,
     verified_at INTEGER,
+    claimed_at INTEGER,
     UNIQUE(challenge_id, miner_agent_id)
   )`,
   "CREATE INDEX IF NOT EXISTS benchmark_submissions_miner_idx ON benchmark_submissions(miner_agent_id)",
   "CREATE INDEX IF NOT EXISTS benchmark_submissions_status_idx ON benchmark_submissions(status)",
+  `CREATE TABLE IF NOT EXISTS mining_sessions (
+    id TEXT PRIMARY KEY,
+    challenge_id TEXT NOT NULL UNIQUE,
+    miner_agent_id TEXT NOT NULL,
+    owner_address TEXT NOT NULL,
+    recipient_address TEXT NOT NULL,
+    track TEXT NOT NULL,
+    payload_key TEXT NOT NULL,
+    assignment_hash TEXT NOT NULL,
+    reward_apool TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  "CREATE INDEX IF NOT EXISTS mining_sessions_miner_idx ON mining_sessions(miner_agent_id)",
+  "CREATE INDEX IF NOT EXISTS mining_sessions_owner_idx ON mining_sessions(owner_address)",
+  "CREATE INDEX IF NOT EXISTS mining_sessions_status_idx ON mining_sessions(status)",
   `CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     buyer_agent_id TEXT NOT NULL,
@@ -113,6 +136,7 @@ const schemaStatements = [
     state TEXT NOT NULL DEFAULT 'PENDING_CHAIN',
     deadline_at INTEGER NOT NULL,
     tx_hash TEXT NOT NULL,
+    chain_project_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
@@ -128,6 +152,7 @@ const schemaStatements = [
     strategy TEXT NOT NULL,
     price_apool TEXT NOT NULL,
     validation_fee_apool TEXT NOT NULL,
+    verifier_id TEXT NOT NULL,
     dependencies_json TEXT NOT NULL,
     requirements_hash TEXT NOT NULL,
     delivery_hash TEXT,
@@ -172,10 +197,31 @@ const schemaStatements = [
     payload_json TEXT NOT NULL,
     chain_id INTEGER NOT NULL DEFAULT 84532,
     block_number INTEGER,
+    log_index INTEGER,
     tx_hash TEXT,
     created_at INTEGER NOT NULL
   )`,
   "CREATE INDEX IF NOT EXISTS protocol_events_created_idx ON protocol_events(created_at)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS protocol_events_chain_log_unique ON protocol_events(chain_id, tx_hash, log_index)",
+  `CREATE TABLE IF NOT EXISTS chain_cursors (
+    chain_id INTEGER PRIMARY KEY,
+    last_finalized_block INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS security_incidents (
+    id TEXT PRIMARY KEY,
+    incident_tx_hash TEXT NOT NULL UNIQUE,
+    cause TEXT NOT NULL,
+    recipient_address TEXT NOT NULL,
+    amount_apool TEXT NOT NULL,
+    evidence_url TEXT NOT NULL,
+    safe_tx_hash TEXT,
+    status TEXT NOT NULL DEFAULT 'announced',
+    announced_at INTEGER NOT NULL,
+    executable_at INTEGER NOT NULL,
+    executed_at INTEGER
+  )`,
+  "CREATE INDEX IF NOT EXISTS security_incidents_status_idx ON security_incidents(status)",
   `CREATE TABLE IF NOT EXISTS api_nonces (
     address TEXT PRIMARY KEY,
     nonce TEXT NOT NULL,
@@ -260,4 +306,16 @@ export async function execute(
 ): Promise<D1Result<unknown>> {
   await ensureSchema();
   return getD1().prepare(statement).bind(...bindings).run();
+}
+
+export async function executeBatch(
+  statements: Array<{ sql: string; bindings?: unknown[] }>,
+): Promise<D1Result<unknown>[]> {
+  await ensureSchema();
+  const database = getD1();
+  return database.batch(
+    statements.map(({ sql, bindings = [] }) =>
+      database.prepare(sql).bind(...bindings),
+    ),
+  );
 }

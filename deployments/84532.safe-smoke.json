@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "status": "passed",
+  "safeAddress": "0xDc8d4A813ae99bA8C2dcd4ba74062B3672EbF530",
+  "safeVersion": "1.4.1",
+  "owners": [
+    "0x43C4eBA160622834440928d20FC7202a644BAcbd",
+    "0x21106dC9965c2Be9d1aBEAD8A77BCa9531835D12",
+    "0xEE48E52d5bab5F48c16cE10d5123d2D3f4Ba7057",
+    "0x7dEC7E9E91627A346F41d89DB9a9A1edf3FC20D8",
+    "0x5f389362c9E4ba83c1F88E33209BbAE474fEb1Bd"
+  ],
+  "threshold": 3,
+  "deploymentHash": "0x68029e844c1533c63bc0bcb11aa38245a92c3473fdb27a4eb1983212d4adf1c8",
+  "twoSignatureRejection": "There is 1 signature missing",
+  "safeTransactionHash": "0x429404755c952e2aa2e6365a98f4ce435ce884795ccdf4e8257d320131f69426",
+  "executionTransactionHash": "0xb1622a72cebbdd5df9fce52d5395785e4c2054e3bda0e86c76fd9da4b3f739d5",
+  "executionBlockNumber": "44648541",
+  "checks": [
+    {
+      "name": "safe.deployed",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "safe.bytecode",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "safe.owners",
+      "actual": "[\"0x21106dc9965c2be9d1abead8a77bca9531835d12\",\"0x43c4eba160622834440928d20fc7202a644bacbd\",\"0x5f389362c9e4ba83c1f88e33209bbae474feb1bd\",\"0x7dec7e9e91627a346f41d89db9a9a1edf3fc20d8\",\"0xee48e52d5bab5f48c16ce10d5123d2d3f4ba7057\"]",
+      "expected": "[\"0x21106dc9965c2be9d1abead8a77bca9531835d12\",\"0x43c4eba160622834440928d20fc7202a644bacbd\",\"0x5f389362c9e4ba83c1f88e33209bbae474feb1bd\",\"0x7dec7e9e91627a346f41d89db9a9a1edf3fc20d8\",\"0xee48e52d5bab5f48c16ce10d5123d2d3f4ba7057\"]",
+      "passed": true
+    },
+    {
+      "name": "safe.threshold",
+      "actual": 3,
+      "expected": 3,
+      "passed": true
+    },
+    {
+      "name": "safe.twoSignaturesRejected",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "safe.nonceUnchangedAfterReject",
+      "actual": 0,
+      "expected": 0,
+      "passed": true
+    },
+    {
+      "name": "safe.threeSignaturesCollected",
+      "actual": 3,
+      "expected": 3,
+      "passed": true
+    },
+    {
+      "name": "safe.nonceAfterExecution",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "name": "safe.tokenDebit",
+      "actual": "10",
+      "expected": "10",
+      "passed": true
+    },
+    {
+      "name": "security.tokenCredit",
+      "actual": "10",
+      "expected": "10",
+      "passed": true
+    },
+    {
+      "name": "token.supplyUnchanged",
+      "actual": "999999999994",
+      "expected": "999999999994",
+      "passed": true
+    },
+    {
+      "name": "safe.remainingBalance",
+      "actual": "90",
+      "expected": "90",
+      "passed": true
+    }
+  ],
+  "transactions": [
+    {
+      "label": "Safe.deploy",
+      "hash": "0x68029e844c1533c63bc0bcb11aa38245a92c3473fdb27a4eb1983212d4adf1c8",
+      "blockNumber": "44648527"
+    },
+    {
+      "label": "AgentPoolToken.fundSafe",
+      "hash": "0xff92a801d987217330ee8772232318f6d56b7d568d64ebfd9655174ece2ae483",
+      "blockNumber": "44648531"
+    },
+    {
+      "label": "fund-gas:0x43C4eBA160622834440928d20FC7202a644BAcbd",
+      "hash": "0x5606030305014bbad5b02986f8386a37781b42fad9fb62bf2fde8456c4d20cc5",
+      "blockNumber": "44648534"
+    },
+    {
+      "label": "Safe.execTransaction",
+      "hash": "0xb1622a72cebbdd5df9fce52d5395785e4c2054e3bda0e86c76fd9da4b3f739d5",
+      "blockNumber": "44648541"
+    }
+  ],
+  "completedAt": "2026-07-26T11:29:31.077Z"
+}

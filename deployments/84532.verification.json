@@ -1,0 +1,646 @@
+{
+  "version": 2,
+  "verifiedAt": "2026-07-26T10:40:12.758Z",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "deploymentManifest": "deployments/84532.json",
+  "manifest": {
+    "version": 2,
+    "chainId": 84532,
+    "network": "Base Sepolia",
+    "deployer": "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+    "governanceMultisig": "0x1bae2c0d690F3b069ddBF823371FBCc219DBdfeD",
+    "deployedAt": "2026-07-26T10:38:57.764Z",
+    "contracts": {
+      "token": "0x469d94cf6974d078fdfbdaae53f2965932389301",
+      "founderVesting": "0xf3d736b0f630ddb33fc40fd0897b56dcbb2890a5",
+      "benchmarkRewardVault": "0xc7bfb8e56d0a6c825137021d0829659df191681c",
+      "timelock": "0x6785cfac02716772acf88850c1643dc7658d0831",
+      "registry": "0x5f4977f3b2ab57a6a84123b6b309f01634fab23a",
+      "license": "0x4d464d3db4669e3b49e30b5d8f91c750427a1e34",
+      "randomnessProvider": "0xba220d14ccf47d45b653e3c1a241bf50fcf7a426",
+      "oracle": "0xb3bd7577ffd75bbd42751f88dc21ace2a1d5abe9",
+      "jobEscrow": "0x3958d462eda55ef11c9849904b9f3d6e5eb4ca83",
+      "projectResolver": "0xa182385871f23c20dd3d3e88ce56629d7a40b288",
+      "projectEscrow": "0xb82a496be90ea489626ac2da95b7c056088e0ad7"
+    },
+    "allocations": {
+      "ecosystemTreasury": "0x032F6b73736FB10636aCD7176Fc2A386207bAAEf",
+      "operationsTreasury": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+      "validatorTreasury": "0x322D0158BB8A52B0A75014e8166413A88028a468",
+      "authorTreasury": "0xB033F3ffdfa27e9D000A84e0fBc86226e390Ed2e",
+      "liquidityTreasury": "0xB4f6D8D859067b86c84c713282D1a335C310f847",
+      "founderBeneficiary": "0x34974AEf75dd152F507717f43850444F70f5e26a",
+      "securityTreasury": "0x844a0ae345514f1E65178630B09a572EdB71A1A1"
+    },
+    "bootstrap": {
+      "verifiers": [
+        {
+          "name": "solidity-foundry-v2",
+          "id": "0x46163a0021793b53dc77d3eb808a1c3432c7731cbd4f83979d57bd1ecda3f9e0"
+        },
+        {
+          "name": "json-schema-v2",
+          "id": "0x19d96bc50fc084b13ef1dcd0b4afd5d215ef05271a1886f2f34ea9bfedf357b7"
+        },
+        {
+          "name": "math-proof-v1",
+          "id": "0x3e86a482eb0920e61f0c50a0fb7381412f35152dcfec409cdeed47af9285f5a0"
+        },
+        {
+          "name": "api-contract-v1",
+          "id": "0x992b9bceea1030b6be00ba8248cd40740430ac2c940b0d9d7c374e99e0157dc7"
+        },
+        {
+          "name": "storage-delivery-v1",
+          "id": "0x06c4a08af785df9abd568dd736c9cbcd14d9be2c1d7e4c3c28b9d9c228e954b0"
+        },
+        {
+          "name": "usage-meter-v2",
+          "id": "0x1a3ab922b0a6c5ca208db2e20fb5dffeb77b09652918821e0f03567281f7e50c"
+        }
+      ],
+      "verifierAdapter": "0x251a2A509ACFc0E16dd57dF3879254FC132E3d26",
+      "verifierImplementationHash": "0x744e2f85191bb7352293621695ef9347bc77a7b0b491c0bb52c556c7d7abcefa",
+      "validators": [
+        "0x43C4eBA160622834440928d20FC7202a644BAcbd",
+        "0x21106dC9965c2Be9d1aBEAD8A77BCa9531835D12",
+        "0xEE48E52d5bab5F48c16cE10d5123d2D3f4Ba7057",
+        "0x7dEC7E9E91627A346F41d89DB9a9A1edf3FC20D8",
+        "0x5f389362c9E4ba83c1F88E33209BbAE474fEb1Bd"
+      ],
+      "benchmarkGenesis": "1785064938",
+      "benchmarkDailyCap": "1000000",
+      "founderVestingStart": "1785064938",
+      "policyVersion": 1
+    }
+  },
+  "codeHashes": {
+    "token": "0x3e91ab0c5de867604aabb51025117ea6266e58c2575e6adb62cbaa823ce55e5a",
+    "founderVesting": "0x752f11b91f0d2f77e1b13cac8f2824a304c5d2b46b54d0b52ff801d600775f26",
+    "benchmarkRewardVault": "0xbf91adb127a2f710057c23e424dc3d3a4f2a2447321c0c75489de4efc186bb5b",
+    "timelock": "0x5588716939273f6c902d2534c277254f791b2fdbd829ee345df1944a9ede3150",
+    "registry": "0x332812538d2dfa01cc50fc11d950a38bedcdeb8ef98eb3345836b5bc0cc00de5",
+    "license": "0xbac7540916468d4386b9695017a1ec774ffb9d08c13ade7e7a2f61325e1f401e",
+    "randomnessProvider": "0x8584118056896aa09bcb78acbb3034cca87a04ee0c7d874116610b316be9d702",
+    "oracle": "0xead2c11c581ff5a019e932e63c10d1c3861dc929dd85de0abd5ce64d2121a6d4",
+    "jobEscrow": "0xbfd36a04bd20039b0315e8498be962430b6d3e1fdbff91677f19695958ff03f0",
+    "projectResolver": "0x8ecce23f053ff5610e6e8d1ac32c3fbbc15ad99941470ac234939c4962e1b173",
+    "projectEscrow": "0x953953d28ecb4213e6c7be2cc8267829ab9f372fdcdec5de32de44af33398793"
+  },
+  "checks": [
+    {
+      "name": "bytecode:token",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:founderVesting",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:benchmarkRewardVault",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:timelock",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:registry",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:license",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:randomnessProvider",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:oracle",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:jobEscrow",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:projectResolver",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:projectEscrow",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "token.totalSupply",
+      "passed": true,
+      "actual": "1000000000000",
+      "expected": "1000000000000"
+    },
+    {
+      "name": "token.decimals",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "name": "token.allocation:benchmark",
+      "passed": true,
+      "actual": "400000000000",
+      "expected": "400000000000"
+    },
+    {
+      "name": "token.allocation:ecosystem",
+      "passed": true,
+      "actual": "200000000000",
+      "expected": "200000000000"
+    },
+    {
+      "name": "token.allocation:operations",
+      "passed": true,
+      "actual": "100000000000",
+      "expected": "100000000000"
+    },
+    {
+      "name": "token.allocation:validators",
+      "passed": true,
+      "actual": "60000000000",
+      "expected": "60000000000"
+    },
+    {
+      "name": "token.allocation:authors",
+      "passed": true,
+      "actual": "40000000000",
+      "expected": "40000000000"
+    },
+    {
+      "name": "token.allocation:liquidity",
+      "passed": true,
+      "actual": "100000000000",
+      "expected": "100000000000"
+    },
+    {
+      "name": "token.allocation:founder",
+      "passed": true,
+      "actual": "50000000000",
+      "expected": "50000000000"
+    },
+    {
+      "name": "token.allocation:security",
+      "passed": true,
+      "actual": "50000000000",
+      "expected": "50000000000"
+    },
+    {
+      "name": "benchmark.token",
+      "passed": true,
+      "actual": "0x469d94cf6974d078FDFbdaAE53f2965932389301",
+      "expected": "0x469d94cf6974d078fdfbdaae53f2965932389301"
+    },
+    {
+      "name": "benchmark.policyVersion",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "name": "benchmark.dailyCap",
+      "passed": true,
+      "actual": "1000000",
+      "expected": "1000000"
+    },
+    {
+      "name": "benchmark.validator1",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "projectResolver.validator1",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.evaluator1",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "benchmark.validator2",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "projectResolver.validator2",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.evaluator2",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "benchmark.validator3",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "projectResolver.validator3",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.evaluator3",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "benchmark.validator4",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "projectResolver.validator4",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.evaluator4",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "benchmark.validator5",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "projectResolver.validator5",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.evaluator5",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "jobEscrow.workerPriceFee",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "name": "AgentPoolJobEscrow.validationFee",
+      "passed": true,
+      "actual": 300,
+      "expected": 300
+    },
+    {
+      "name": "AgentPoolJobEscrow.validatorShare",
+      "passed": true,
+      "actual": 7000,
+      "expected": 7000
+    },
+    {
+      "name": "AgentPoolJobEscrow.burnShare",
+      "passed": true,
+      "actual": 2000,
+      "expected": 2000
+    },
+    {
+      "name": "AgentPoolJobEscrow.securityShare",
+      "passed": true,
+      "actual": 1000,
+      "expected": 1000
+    },
+    {
+      "name": "AgentPoolJobEscrow.minimumValidationFee",
+      "passed": true,
+      "actual": 10,
+      "expected": 10
+    },
+    {
+      "name": "AgentPoolProjectEscrow.validationFee",
+      "passed": true,
+      "actual": 300,
+      "expected": 300
+    },
+    {
+      "name": "AgentPoolProjectEscrow.validatorShare",
+      "passed": true,
+      "actual": 7000,
+      "expected": 7000
+    },
+    {
+      "name": "AgentPoolProjectEscrow.burnShare",
+      "passed": true,
+      "actual": 2000,
+      "expected": 2000
+    },
+    {
+      "name": "AgentPoolProjectEscrow.securityShare",
+      "passed": true,
+      "actual": 1000,
+      "expected": 1000
+    },
+    {
+      "name": "AgentPoolProjectEscrow.minimumValidationFee",
+      "passed": true,
+      "actual": 10,
+      "expected": 10
+    },
+    {
+      "name": "jobEscrow.verifierProposalTimeout",
+      "passed": true,
+      "actual": "259200",
+      "expected": "259200"
+    },
+    {
+      "name": "jobEscrow.minimumSellerBond",
+      "passed": true,
+      "actual": 10,
+      "expected": 10
+    },
+    {
+      "name": "projectEscrow.minimumWorkerBond",
+      "passed": true,
+      "actual": 10,
+      "expected": 10
+    },
+    {
+      "name": "oracle.validatorSelectionTimeout",
+      "passed": true,
+      "actual": "86400",
+      "expected": "86400"
+    },
+    {
+      "name": "jobEscrow.resolver",
+      "passed": true,
+      "actual": "0xb3bd7577fFd75BBd42751f88Dc21ACE2a1d5ABe9",
+      "expected": "0xb3bd7577ffd75bbd42751f88dc21ace2a1d5abe9"
+    },
+    {
+      "name": "projectEscrow.resolver",
+      "passed": true,
+      "actual": "0xa182385871f23C20dD3d3E88Ce56629D7A40b288",
+      "expected": "0xa182385871f23c20dd3d3e88ce56629d7a40b288"
+    },
+    {
+      "name": "projectResolver.escrow",
+      "passed": true,
+      "actual": "0xB82A496Be90eA489626ac2Da95B7C056088E0Ad7",
+      "expected": "0xb82a496be90ea489626ac2da95b7c056088e0ad7"
+    },
+    {
+      "name": "oracle.escrow",
+      "passed": true,
+      "actual": "0x3958d462edA55Ef11C9849904B9F3D6e5EB4Ca83",
+      "expected": "0x3958d462eda55ef11c9849904b9f3d6e5eb4ca83"
+    },
+    {
+      "name": "registry.verifier1Active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier1Authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier1NotMining",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "registry.verifier2Active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier2Authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier2NotMining",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "registry.verifier3Active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier3Authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier3NotMining",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "registry.verifier4Active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier4Authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier4NotMining",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "registry.verifier5Active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier5Authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier5NotMining",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "registry.verifier6Active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier6Authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "registry.verifier6NotMining",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "founder.owner",
+      "passed": true,
+      "actual": "0x34974AEf75dd152F507717f43850444F70f5e26a",
+      "expected": "0x34974AEf75dd152F507717f43850444F70f5e26a"
+    },
+    {
+      "name": "founder.duration",
+      "passed": true,
+      "actual": "126144000",
+      "expected": "126144000"
+    },
+    {
+      "name": "founder.start",
+      "passed": true,
+      "actual": "1785064938",
+      "expected": "1785064938"
+    },
+    {
+      "name": "founder.cliff",
+      "passed": true,
+      "actual": "1816600938",
+      "expected": "1816600938"
+    },
+    {
+      "name": "owner:AgentPoolBenchmarkRewardVault",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cfac02716772acf88850c1643dc7658d0831"
+    },
+    {
+      "name": "owner:AgentPoolRegistry",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cfac02716772acf88850c1643dc7658d0831"
+    },
+    {
+      "name": "owner:AgentPoolWorkOracle",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cfac02716772acf88850c1643dc7658d0831"
+    },
+    {
+      "name": "owner:AgentPoolJobEscrow",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cfac02716772acf88850c1643dc7658d0831"
+    },
+    {
+      "name": "owner:AgentPoolProjectResolver",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cfac02716772acf88850c1643dc7658d0831"
+    },
+    {
+      "name": "owner:AgentPoolProjectEscrow",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cfac02716772acf88850c1643dc7658d0831"
+    },
+    {
+      "name": "owner:MockRandomnessProvider",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cfac02716772acf88850c1643dc7658d0831"
+    },
+    {
+      "name": "timelock.minDelay",
+      "passed": true,
+      "actual": "604800",
+      "expected": "604800"
+    },
+    {
+      "name": "timelock.multisigProposer",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "timelock.multisigCanceller",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "timelock.deployerAdminRemoved",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "mockRandomness.consumer",
+      "passed": true,
+      "actual": "0xb3bd7577fFd75BBd42751f88Dc21ACE2a1d5ABe9",
+      "expected": "0xb3bd7577ffd75bbd42751f88dc21ace2a1d5abe9"
+    }
+  ],
+  "status": "passed"
+}

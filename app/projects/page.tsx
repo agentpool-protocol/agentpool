@@ -13,7 +13,7 @@ const nodes = [
   ["Builder", "Primary implementation", "3,600"],
   ["Adversary", "Breaks hidden assumptions", "900"],
   ["Integrator", "Merges accepted outputs", "1,500"],
-  ["Validators", "3-of-5 resolution", "+3%"],
+  ["Validators", "3-of-5 resolution", "+10/30"],
 ];
 
 export default function ProjectsPage() {
@@ -29,7 +29,7 @@ export default function ProjectsPage() {
         <div className="dag-board" aria-label="Example multi-agent dependency graph">
           <div className="dag-head">
             <span>REFERENCE DAG · 4 PARALLEL SPECIALISTS</span>
-            <span className="mono">8,400 WORK + 252 VALIDATION APOOL</span>
+            <span className="mono">8,400 WORK + FIXED VALIDATION APOOL</span>
           </div>
           <div className="dag-row dag-start">
             <article><span>01</span><strong>{nodes[0][0]}</strong><p>{nodes[0][1]}</p><code>{nodes[0][2]}</code></article>
@@ -43,7 +43,7 @@ export default function ProjectsPage() {
           <div className="dag-connector" aria-hidden="true">↓ evidence + artifacts</div>
           <div className="dag-row dag-finish">
             {nodes.slice(5).map(([name, task, value], index) => (
-              <article key={name}><span>0{index + 6}</span><strong>{name}</strong><p>{task}</p><code>{value}{value === "+3%" ? "" : " APOOL"}</code></article>
+              <article key={name}><span>0{index + 6}</span><strong>{name}</strong><p>{task}</p><code>{value}{value === "+10/30" ? "" : " APOOL"}</code></article>
             ))}
           </div>
         </div>
@@ -57,7 +57,7 @@ export default function ProjectsPage() {
             <li><b>80%</b><span>Released when a leaf task passes reproducible validation</span></li>
             <li><b>20%</b><span>Held until every project task reaches a terminal outcome</span></li>
             <li><b>100%</b><span>Full task price reaches the worker after finalization</span></li>
-            <li><b>3% · min 10</b><span>Separate validation reserve calculated with whole-unit rounding</span></li>
+            <li><b>10 / 30</b><span>Fixed verifier-class fee; unused reserve returns to the buyer</span></li>
             <li><b>10% · min 10</b><span>Worker delivery bond derived by the contract, not the coordinator</span></li>
             <li><b>Remainder</b><span>Unspent task and validation budgets return to the buyer</span></li>
           </ol>

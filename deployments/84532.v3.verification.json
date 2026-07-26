@@ -1,0 +1,414 @@
+{
+  "version": 3,
+  "chainId": 84532,
+  "manifest": "deployments/84532.v3.json",
+  "verifiedAt": "2026-07-26T13:18:22.749Z",
+  "latestBlock": "44651808",
+  "codeHashes": {
+    "registry": "0x211aff009737f345c505867aae3e834bc434d45ee062057394a920da997bbefd",
+    "randomnessProvider": "0x8584118056896aa09bcb78acbb3034cca87a04ee0c7d874116610b316be9d702",
+    "oracle": "0xe31997bc7d0309ad02a74c2668765a9de33148b7b39a4296736e767a6c1429dd",
+    "jobEscrow": "0xa9265679f68bcb8407765e05d589419f4ecb00293ff5c6eca895f59159814e4d",
+    "projectResolver": "0x1446264eeb7778b64bb1132f9d4db244577aab9f0238a08c86b7227ff33ead43",
+    "projectEscrow": "0x1c28742f3cd7b948053a3ce5f79599a0cebd3a2a7bb62dd636e3a25b6d79ca10"
+  },
+  "checks": [
+    {
+      "name": "bytecode:registry",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:randomnessProvider",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:oracle",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:jobEscrow",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:projectResolver",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bytecode:projectEscrow",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "sharedBytecode:token",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "sharedBytecode:founderVesting",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "sharedBytecode:benchmarkRewardVault",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "sharedBytecode:timelock",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "sharedBytecode:license",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "owner:registry",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cFac02716772acf88850c1643Dc7658D0831"
+    },
+    {
+      "name": "owner:randomnessProvider",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cFac02716772acf88850c1643Dc7658D0831"
+    },
+    {
+      "name": "owner:oracle",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cFac02716772acf88850c1643Dc7658D0831"
+    },
+    {
+      "name": "owner:jobEscrow",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cFac02716772acf88850c1643Dc7658D0831"
+    },
+    {
+      "name": "owner:projectResolver",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cFac02716772acf88850c1643Dc7658D0831"
+    },
+    {
+      "name": "owner:projectEscrow",
+      "passed": true,
+      "actual": "0x6785cFac02716772acf88850c1643Dc7658D0831",
+      "expected": "0x6785cFac02716772acf88850c1643Dc7658D0831"
+    },
+    {
+      "name": "job.token",
+      "passed": true,
+      "actual": "0x469d94cf6974d078FDFbdaAE53f2965932389301",
+      "expected": "0x469d94cf6974d078FDFbdaAE53f2965932389301"
+    },
+    {
+      "name": "project.token",
+      "passed": true,
+      "actual": "0x469d94cf6974d078FDFbdaAE53f2965932389301",
+      "expected": "0x469d94cf6974d078FDFbdaAE53f2965932389301"
+    },
+    {
+      "name": "job.registry",
+      "passed": true,
+      "actual": "0xAcD51F7453019B307B01b207760038E71B155231",
+      "expected": "0xacd51f7453019b307b01b207760038e71b155231"
+    },
+    {
+      "name": "project.registry",
+      "passed": true,
+      "actual": "0xAcD51F7453019B307B01b207760038E71B155231",
+      "expected": "0xacd51f7453019b307b01b207760038e71b155231"
+    },
+    {
+      "name": "job.security",
+      "passed": true,
+      "actual": "0x844a0ae345514f1E65178630B09a572EdB71A1A1",
+      "expected": "0x844a0ae345514f1E65178630B09a572EdB71A1A1"
+    },
+    {
+      "name": "project.security",
+      "passed": true,
+      "actual": "0x844a0ae345514f1E65178630B09a572EdB71A1A1",
+      "expected": "0x844a0ae345514f1E65178630B09a572EdB71A1A1"
+    },
+    {
+      "name": "job.resolver",
+      "passed": true,
+      "actual": "0x563681B7E5949c68888f2eDb22eA78cC3922EF71",
+      "expected": "0x563681b7e5949c68888f2edb22ea78cc3922ef71"
+    },
+    {
+      "name": "oracle.escrow",
+      "passed": true,
+      "actual": "0xAEA3a81a004aeE34DD2750Eda6308f8B7691a051",
+      "expected": "0xaea3a81a004aee34dd2750eda6308f8b7691a051"
+    },
+    {
+      "name": "project.resolver",
+      "passed": true,
+      "actual": "0x734A5979a8aE39ec6571FEf6d7a409d22a2C04e9",
+      "expected": "0x734a5979a8ae39ec6571fef6d7a409d22a2c04e9"
+    },
+    {
+      "name": "projectResolver.escrow",
+      "passed": true,
+      "actual": "0xAb62b4EB1F3C36122cDaB7dba2C6C3fb42c8f8B2",
+      "expected": "0xab62b4eb1f3c36122cdab7dba2c6c3fb42c8f8b2"
+    },
+    {
+      "name": "randomness.consumer",
+      "passed": true,
+      "actual": "0x563681B7E5949c68888f2eDb22eA78cC3922EF71",
+      "expected": "0x563681b7e5949c68888f2edb22ea78cc3922ef71"
+    },
+    {
+      "name": "AgentPoolJobEscrow.validatorShare",
+      "passed": true,
+      "actual": 9000,
+      "expected": 9000
+    },
+    {
+      "name": "AgentPoolJobEscrow.burnShare",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "name": "AgentPoolJobEscrow.securityShare",
+      "passed": true,
+      "actual": 1000,
+      "expected": 1000
+    },
+    {
+      "name": "AgentPoolProjectEscrow.validatorShare",
+      "passed": true,
+      "actual": 9000,
+      "expected": 9000
+    },
+    {
+      "name": "AgentPoolProjectEscrow.burnShare",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "name": "AgentPoolProjectEscrow.securityShare",
+      "passed": true,
+      "actual": 1000,
+      "expected": 1000
+    },
+    {
+      "name": "job.protocolFee",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "name": "job.minimumPrice",
+      "passed": true,
+      "actual": "1000",
+      "expected": "1000"
+    },
+    {
+      "name": "project.minimumTaskPrice",
+      "passed": true,
+      "actual": "1000",
+      "expected": "1000"
+    },
+    {
+      "name": "job.disputeFee",
+      "passed": true,
+      "actual": "50",
+      "expected": "50"
+    },
+    {
+      "name": "verifier:0:active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:0:fee",
+      "passed": true,
+      "actual": "30",
+      "expected": "30"
+    },
+    {
+      "name": "verifier:0:authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:1:active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:1:fee",
+      "passed": true,
+      "actual": "10",
+      "expected": "10"
+    },
+    {
+      "name": "verifier:1:authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:2:active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:2:fee",
+      "passed": true,
+      "actual": "10",
+      "expected": "10"
+    },
+    {
+      "name": "verifier:2:authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:3:active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:3:fee",
+      "passed": true,
+      "actual": "10",
+      "expected": "10"
+    },
+    {
+      "name": "verifier:3:authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:4:active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:4:fee",
+      "passed": true,
+      "actual": "10",
+      "expected": "10"
+    },
+    {
+      "name": "verifier:4:authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:5:active",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "verifier:5:fee",
+      "passed": true,
+      "actual": "10",
+      "expected": "10"
+    },
+    {
+      "name": "verifier:5:authorized",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.validator:0",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "project.validator:0",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.validator:1",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "project.validator:1",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.validator:2",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "project.validator:2",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.validator:3",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "project.validator:3",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "oracle.validator:4",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "project.validator:4",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    }
+  ],
+  "status": "passed"
+}

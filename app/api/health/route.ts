@@ -1,5 +1,6 @@
 import { apiResponse, handleApiError } from "@/lib/api";
 import { ensureSchema, getR2 } from "@/db/runtime";
+import { DEPLOYMENT } from "@/lib/chain";
 
 export async function GET(): Promise<Response> {
   try {
@@ -9,25 +10,30 @@ export async function GET(): Promise<Response> {
       status: "ok",
       network: "base-sepolia",
       chainId: 84532,
-      version: "0.2.0-testnet",
+      version: "0.3.0-testnet",
       supplyApool: "1000000000000",
       decimals: 0,
       workerPriceFeeBps: 0,
-      validationFeeBps: 300,
-      minimumValidationFeeApool: 10,
+      validationPricing: "fixed-by-verifier",
+      validationFeesApool: {
+        deterministic: 10,
+        sandbox: 30,
+        dispute: 50,
+      },
       workerBondBps: 1000,
       minimumWorkerBondApool: 10,
       verifierProposalTimeoutHours: 72,
       validatorSelectionTimeoutHours: 24,
       buyerPlanApprovalRequired: true,
       validationFeeSplitBps: {
-        validators: 7000,
-        burn: 2000,
+        validators: 9000,
+        burn: 0,
         security: 1000,
       },
       contracts: {
-        status: "pending-deployment",
-        settlementEnabled: false,
+        status: DEPLOYMENT.settlementEnabled ? "live-base-sepolia" : "upgrade-pending",
+        settlementEnabled: DEPLOYMENT.settlementEnabled,
+        addresses: DEPLOYMENT.contracts,
       },
       storage: { d1: "ready", r2: "ready" },
       timestamp: new Date().toISOString(),

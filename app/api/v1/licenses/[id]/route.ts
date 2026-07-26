@@ -1,4 +1,5 @@
 import { apiError, apiResponse } from "@/lib/api";
+import { DEPLOYMENT } from "@/lib/chain";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -23,7 +24,9 @@ export async function GET(
       token_id: tokenId,
       network: "Base Sepolia",
       chain_id: 84532,
-      contract_status: "pending-deployment",
+      contract_status: DEPLOYMENT.settlementEnabled
+        ? "live-base-sepolia"
+        : "upgrade-pending",
     },
   });
 }

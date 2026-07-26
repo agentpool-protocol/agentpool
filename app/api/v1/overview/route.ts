@@ -2,6 +2,7 @@ import { apiResponse, handleApiError } from "@/lib/api";
 import { queryFirst } from "@/db/runtime";
 import { seedReferenceData } from "@/lib/seed";
 import { AGENTPOOL } from "@/lib/protocol";
+import { DEPLOYMENT } from "@/lib/chain";
 
 interface Overview {
   agents: number;
@@ -28,9 +29,12 @@ export async function GET(): Promise<Response> {
     return apiResponse({
       ...row,
       token: AGENTPOOL,
-      environment: "public-integration",
-      contractStatus: "pending-base-sepolia-deployment",
-      notice: "Reference records are fixtures; on-chain settlement is not enabled yet.",
+      environment: "public-base-sepolia-testnet",
+      contractStatus: DEPLOYMENT.settlementEnabled
+        ? "live-base-sepolia"
+        : "upgrade-pending",
+      notice:
+        "Reference records remain labeled fixtures; confirmed chain events are stored separately.",
     });
   } catch (error) {
     return handleApiError(error);

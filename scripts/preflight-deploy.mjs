@@ -22,6 +22,10 @@ const chainId = Number(process.env.AGENTPOOL_CHAIN_ID ?? "84532");
 const rpcUrl = requireEnv("AGENTPOOL_RPC_URL");
 const chain = chainId === 8453 ? base : chainId === 84532 ? baseSepolia : null;
 if (!chain) throw new Error("AGENTPOOL_CHAIN_ID must be 84532 or 8453");
+const walletProfile = process.env.AGENTPOOL_WALLET_PROFILE ?? "";
+if (chainId === 8453 && walletProfile === "base-sepolia-disposable") {
+  throw new Error("MAINNET_BLOCKED: disposable Base Sepolia wallet profile");
+}
 
 if (chainId === 8453) {
   const gates = JSON.parse(
@@ -63,7 +67,10 @@ const roleNames = [
   "VALIDATOR_4",
   "VALIDATOR_5",
 ];
-const roles = roleNames.map((name) => getAddress(requireEnv(name)));
+const roleAddresses = Object.fromEntries(
+  roleNames.map((name) => [name, getAddress(requireEnv(name))]),
+);
+const roles = roleNames.map((name) => roleAddresses[name]);
 if (new Set(roles.map((address) => address.toLowerCase())).size !== roles.length) {
   throw new Error("All governance, allocation, verifier, and validator addresses must be distinct");
 }
@@ -74,14 +81,21 @@ if (roles.some((address) => address.toLowerCase() === account.address.toLowerCas
 const protocolConfig = JSON.parse(
   fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
 );
-const verifierNames = protocolConfig.bootstrapVerifierNames;
+const verifierConfigs = protocolConfig.bootstrapVerifiers;
 if (
-  !Array.isArray(verifierNames) ||
-  verifierNames.length === 0 ||
-  verifierNames.some((name) => !/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) ||
-  new Set(verifierNames).size !== verifierNames.length
+  !Array.isArray(verifierConfigs) ||
+  verifierConfigs.length === 0 ||
+  verifierConfigs.some(
+    ({ name, validationFeeApool }) =>
+      !/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name) ||
+      !Number.isInteger(validationFeeApool) ||
+      validationFeeApool < 10 ||
+      validationFeeApool > 30 ||
+      validationFeeApool % 10 !== 0,
+  ) ||
+  new Set(verifierConfigs.map(({ name }) => name)).size !== verifierConfigs.length
 ) {
-  throw new Error("protocol-config.json contains invalid bootstrapVerifierNames");
+  throw new Error("protocol-config.json contains invalid bootstrapVerifiers");
 }
 const implementationHash = requireEnv("INITIAL_VERIFIER_IMPLEMENTATION_HASH");
 if (!/^0x[0-9a-fA-F]{64}$/u.test(implementationHash) || /^0x0{64}$/u.test(implementationHash)) {
@@ -152,8 +166,9 @@ if (
   throw new Error("BENCHMARK_GENESIS_TIMESTAMP must be within -1h/+30d of chain time");
 }
 const balance = await client.getBalance({ address: account.address });
+const configuredMinimumBalance = process.env.MIN_DEPLOYER_BALANCE_WEI?.trim();
 const minimumBalance = BigInt(
-  process.env.MIN_DEPLOYER_BALANCE_WEI ?? parseEther("0.02").toString(),
+  configuredMinimumBalance || parseEther("0.001").toString(),
 );
 if (balance < minimumBalance) {
   throw new Error(`DEPLOYER_BALANCE_TOO_LOW: ${balance} < ${minimumBalance}`);
@@ -163,6 +178,78 @@ if (chainId === 8453) {
   const code = await client.getCode({ address: vrf });
   if (!code || code === "0x") {
     throw new Error("MAINNET_BLOCKED: VRF adapter has no code");
+  }
+  const safeAbi = [
+    {
+      type: "function",
+      name: "getOwners",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{ name: "", type: "address[]" }],
+    },
+    {
+      type: "function",
+      name: "getThreshold",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{ name: "", type: "uint256" }],
+    },
+  ];
+  let expectedSafeOwners;
+  for (const name of [
+    "GOVERNANCE_MULTISIG",
+    "ECOSYSTEM_TREASURY",
+    "OPERATIONS_TREASURY",
+    "VALIDATOR_TREASURY",
+    "AUTHOR_TREASURY",
+    "LIQUIDITY_TREASURY",
+    "FOUNDER_BENEFICIARY",
+    "SECURITY_TREASURY",
+  ]) {
+    const address = roleAddresses[name];
+    const safeCode = await client.getCode({ address });
+    if (!safeCode || safeCode === "0x") {
+      throw new Error(`MAINNET_SAFE_INVALID: ${name} has no deployed code`);
+    }
+    let owners;
+    let threshold;
+    try {
+      [owners, threshold] = await Promise.all([
+        client.readContract({
+          address,
+          abi: safeAbi,
+          functionName: "getOwners",
+        }),
+        client.readContract({
+          address,
+          abi: safeAbi,
+          functionName: "getThreshold",
+        }),
+      ]);
+    } catch {
+      throw new Error(`MAINNET_SAFE_INVALID: ${name} is not a readable Safe`);
+    }
+    if (
+      owners.length !== 3 ||
+      new Set(owners.map((owner) => owner.toLowerCase())).size !== 3 ||
+      threshold !== 2n
+    ) {
+      throw new Error(`MAINNET_SAFE_INVALID: ${name} must be exact 2-of-3`);
+    }
+    const normalizedOwners = owners
+      .map((owner) => owner.toLowerCase())
+      .sort();
+    if (expectedSafeOwners === undefined) {
+      expectedSafeOwners = normalizedOwners;
+    } else if (
+      normalizedOwners.some(
+        (owner, index) => owner !== expectedSafeOwners[index],
+      )
+    ) {
+      throw new Error(
+        `MAINNET_SAFE_OWNER_SET_MISMATCH: ${name} must use the planned three owners`,
+      );
+    }
   }
 }
 

@@ -27,7 +27,7 @@ function discoveryResponse(request: Request): Response | null {
     return Response.json({
       name: "AgentPool Protocol",
       description: "Machine-native benchmark mining and multi-agent production market.",
-      version: "0.2.0-testnet",
+      version: "0.3.0-testnet",
       url: origin,
       capabilities: {
         agentRegistry: true,
@@ -39,7 +39,7 @@ function discoveryResponse(request: Request): Response | null {
         buyerApprovedMerklePlans: true,
         permissionlessTimeoutRefunds: true,
         serviceCredits: true,
-        onchainSettlement: false,
+        onchainSettlement: true,
         humanCheckout: false,
       },
       authentication: {
@@ -51,16 +51,20 @@ function discoveryResponse(request: Request): Response | null {
         chainId: 84532,
         asset: "APOOL",
         workerPriceFeeBps: 0,
-        validationFeeBps: 300,
-        minimumValidationFeeApool: 10,
+        validationPricing: "fixed-by-verifier",
+        validationFeesApool: {
+          deterministic: 10,
+          sandbox: 30,
+          dispute: 50,
+        },
         workerBondBps: 1000,
         minimumWorkerBondApool: 10,
         validationSplitBps: {
-          validators: 7000,
-          burn: 2000,
+          validators: 9000,
+          burn: 0,
           security: 1000,
         },
-        status: "pending-contract-deployment",
+        status: "live-base-sepolia",
       },
       endpoints: {
         agents: `${origin}/api/v1/agents`,
@@ -69,8 +73,11 @@ function discoveryResponse(request: Request): Response | null {
         artifacts: `${origin}/api/v1/artifacts`,
         benchmarkTracks: `${origin}/api/v2/mining/tracks`,
         benchmarkChallenges: `${origin}/api/v2/mining/challenges`,
+        benchmarkSessions: `${origin}/api/v2/mining/sessions`,
         benchmarkSubmissions: `${origin}/api/v2/mining/submissions`,
         miningLeaderboard: `${origin}/api/v2/mining/leaderboard`,
+        protocolStatus: `${origin}/api/v2/status`,
+        directPayment: `${origin}/api/v1/payments/direct`,
         projects: `${origin}/api/v2/projects`,
       },
     });

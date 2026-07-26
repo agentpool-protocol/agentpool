@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "projectId": "1",
+  "taskId": "1",
+  "request": {
+    "id": "base-sepolia-codex-order-001",
+    "prompt": "Calculate each line total and the grand total.",
+    "rows": [
+      {
+        "sku": "alpha",
+        "quantity": 2,
+        "unitPrice": 125
+      },
+      {
+        "sku": "beta",
+        "quantity": 3,
+        "unitPrice": 80
+      }
+    ]
+  },
+  "delivery": {
+    "lineTotals": [
+      {
+        "sku": "alpha",
+        "total": 250
+      },
+      {
+        "sku": "beta",
+        "total": 240
+      }
+    ],
+    "grandTotal": 490
+  },
+  "deliveryHash": "0x8c7b2cc535abb1ba0733e755868d0484b2ccad2d527d10c47d2e1ae339000981",
+  "deterministicValidationPassed": true,
+  "worker": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+  "buyer": "0x032F6b73736FB10636aCD7176Fc2A386207bAAEf",
+  "coordinator": "0xB033F3ffdfa27e9D000A84e0fBc86226e390Ed2e",
+  "price": "1000",
+  "validationFee": "30",
+  "workerBond": "100",
+  "validatorSignatures": 3,
+  "checks": [
+    {
+      "name": "delivery.validated",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "worker.fullPrice",
+      "actual": "1000",
+      "expected": "1000",
+      "passed": true
+    },
+    {
+      "name": "buyer.priceAndValidationFee",
+      "actual": "1030",
+      "expected": "1030",
+      "passed": true
+    },
+    {
+      "name": "token.burn",
+      "actual": "6",
+      "expected": "6",
+      "passed": true
+    },
+    {
+      "name": "security.reward",
+      "actual": "3",
+      "expected": "3",
+      "passed": true
+    },
+    {
+      "name": "escrow.empty",
+      "actual": "0",
+      "expected": "0",
+      "passed": true
+    },
+    {
+      "name": "project.completed",
+      "actual": 4,
+      "expected": 4,
+      "passed": true
+    },
+    {
+      "name": "validator1.reward",
+      "actual": "7",
+      "expected": "7",
+      "passed": true
+    },
+    {
+      "name": "validator2.reward",
+      "actual": "7",
+      "expected": "7",
+      "passed": true
+    },
+    {
+      "name": "validator3.reward",
+      "actual": "7",
+      "expected": "7",
+      "passed": true
+    }
+  ],
+  "transactions": [
+    {
+      "label": "fund-gas:0x032F6b73736FB10636aCD7176Fc2A386207bAAEf",
+      "hash": "0xce8159316ac66ff03d2af3e8a8392821568734a11fe0124a066fbc5522b3297f",
+      "blockNumber": "44647253"
+    },
+    {
+      "label": "AgentPoolToken.approve",
+      "hash": "0x3b2c8fe4b83df78d1867dd56d3743e6b9d6d763f0d9f18c9f1b21840a818603a",
+      "blockNumber": "44647257"
+    },
+    {
+      "label": "AgentPoolProjectEscrow.createProject",
+      "hash": "0xe9c1c5095eab97534a3496a5d53b4f6f585be291027bd9cf1efcdcb8a3978763",
+      "blockNumber": "44647259"
+    },
+    {
+      "label": "AgentPoolProjectEscrow.postPlan",
+      "hash": "0x7982bd2caaa1558ad609c4df9b6aa3d26e1e18f068dc47ddcd0ece1886eb6ad2",
+      "blockNumber": "44647261"
+    },
+    {
+      "label": "AgentPoolProjectEscrow.approvePlan",
+      "hash": "0x5749b3cf7f230a66ec880e744d7b74c621062147d6fd99d7a05465e1ad47354f",
+      "blockNumber": "44647264"
+    },
+    {
+      "label": "AgentPoolProjectEscrow.addTask",
+      "hash": "0xa3cf6160f4a877b145c11f876ed8bc11db2c75e80dbb8497b53882bc46ddb0a2",
+      "blockNumber": "44647267"
+    },
+    {
+      "label": "AgentPoolToken.approve",
+      "hash": "0x24afd831319590b3b34d1ca6f15f4ec5bd203de2016468903ce2f23c70d4ed5e",
+      "blockNumber": "44647270"
+    },
+    {
+      "label": "AgentPoolProjectEscrow.acceptTask",
+      "hash": "0xe1e4d93eabef94651339432f9c17f528f59636bacfdf16e15c24e30445f03b23",
+      "blockNumber": "44647273"
+    },
+    {
+      "label": "AgentPoolProjectEscrow.submitTask",
+      "hash": "0xfd71a7e349361647914a069a9d2effc8c542b0a72c2edf5981dc70f3171c1603",
+      "blockNumber": "44647276"
+    },
+    {
+      "label": "AgentPoolProjectResolver.resolve",
+      "hash": "0xca47b4dee1139312c0677483c152827fd99ddd338b14979b0d22f94e4a18572b",
+      "blockNumber": "44647278"
+    },
+    {
+      "label": "AgentPoolProjectEscrow.finalizeProject",
+      "hash": "0x0aa18d3ff038967dc95625009c823037a7477764698192dd2709e0845a966c48",
+      "blockNumber": "44647281"
+    }
+  ],
+  "status": "passed",
+  "completedAt": "2026-07-26T10:47:32.025Z"
+}

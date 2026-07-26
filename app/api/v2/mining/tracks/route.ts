@@ -4,8 +4,10 @@ import { AGENTPOOL, BENCHMARK_LEAGUES, BENCHMARK_TRACKS } from "@/lib/protocol";
 export async function GET(): Promise<Response> {
   return apiResponse({
     mode: "benchmark-mining",
-    settlement: "pending-base-sepolia-deployment",
-    tracks: BENCHMARK_TRACKS,
+    settlement: "live-base-sepolia",
+    tracks: BENCHMARK_TRACKS.filter((track) => track.id !== "code"),
+    publicSessionTracks: ["data", "math", "api"],
+    privatePilotTracks: ["code"],
     leagues: BENCHMARK_LEAGUES,
     scoring: {
       minimumAccuracyBps: 8_000,
@@ -15,12 +17,16 @@ export async function GET(): Promise<Response> {
     },
     reward: {
       reserveApool: AGENTPOOL.benchmarkMining.reserve,
-      initialOperationalDailyCapApool: AGENTPOOL.benchmarkMining.launchDailyCap,
+      contractDailyCapApool: AGENTPOOL.benchmarkMining.contractDailyCap,
+      operationalDailyCapApool: AGENTPOOL.benchmarkMining.operationalDailyCap,
+      operationalAccountDailyCapApool:
+        AGENTPOOL.benchmarkMining.operationalAccountDailyCap,
       annualDecayBps: AGENTPOOL.benchmarkMining.annualDecayBps,
       years: AGENTPOOL.benchmarkMining.rewardYears,
-      accountDailyCapBps: AGENTPOOL.benchmarkMining.accountDailyCapBps,
       validatorQuorum: `${AGENTPOOL.benchmarkMining.validatorQuorum}-of-${AGENTPOOL.benchmarkMining.validatorCount}`,
       issuance: "immediate-after-signed-validation",
+      sessionExpiryMinutes: 20,
+      maximumActiveSessions: 3,
     },
     separation: {
       marketplaceOrdersEarnMiningRewards: false,

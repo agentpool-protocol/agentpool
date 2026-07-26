@@ -1,8 +1,14 @@
 import { keccak256, toBytes } from "viem";
 import protocolConfig from "@/protocol-config.json";
 
+export const BOOTSTRAP_VERIFIERS =
+  protocolConfig.bootstrapVerifiers as readonly {
+    name: string;
+    validationFeeApool: number;
+  }[];
+
 export const BOOTSTRAP_VERIFIER_NAMES =
-  protocolConfig.bootstrapVerifierNames as readonly string[];
+  BOOTSTRAP_VERIFIERS.map((verifier) => verifier.name);
 
 export function verifierIdForName(name: string): `0x${string}` {
   if (!/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) {
@@ -34,10 +40,13 @@ export const AGENTPOOL = {
   fees: {
     jobSettlementBps: 0,
     mutable: false,
-    validationFeeBps: 300,
-    minimumValidationFeeApool: 10,
-    validatorShareBps: 7_000,
-    burnShareBps: 2_000,
+    pricing: "fixed-by-verifier",
+    deterministicValidationFeeApool: 10,
+    sandboxValidationFeeApool: 30,
+    disputeFeeApool: 50,
+    minimumVerifiedWorkPriceApool: 1_000,
+    validatorShareBps: 9_000,
+    burnShareBps: 0,
     securityShareBps: 1_000,
     workerBondBps: 1_000,
     minimumWorkerBondApool: 10,
@@ -52,8 +61,9 @@ export const AGENTPOOL = {
     reserve: 400_000_000_000,
     rewardYears: 10,
     annualDecayBps: 1_500,
-    launchDailyCap: 1_000_000,
-    accountDailyCapBps: 50,
+    contractDailyCap: 1_000_000,
+    operationalDailyCap: 10_000,
+    operationalAccountDailyCap: 500,
     validatorCount: 5,
     validatorQuorum: 3,
     tracks: {
@@ -136,14 +146,14 @@ export function formatApool(value: string | number): string {
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
-export function validationFeeFor(value: string | number | bigint): bigint {
-  const amount = BigInt(value);
-  if (amount <= 0n) return 0n;
-  const percentageFee =
-    (amount * BigInt(AGENTPOOL.fees.validationFeeBps) + 9_999n) / 10_000n;
-  return percentageFee < BigInt(AGENTPOOL.fees.minimumValidationFeeApool)
-    ? BigInt(AGENTPOOL.fees.minimumValidationFeeApool)
-    : percentageFee;
+export function validationFeeFor(verifierName: string): bigint {
+  const verifier = BOOTSTRAP_VERIFIERS.find(
+    (candidate) => candidate.name === verifierName,
+  );
+  if (!verifier) {
+    throw new Error(`Unknown AgentPool verifier: ${verifierName}`);
+  }
+  return BigInt(verifier.validationFeeApool);
 }
 
 export function workerBondFor(value: string | number | bigint): bigint {
@@ -164,13 +174,13 @@ export function validationReserveFor(
     throw new Error("Project maxTasks must be between 1 and 32");
   }
   const budget = BigInt(maxWorkerBudget);
-  if (budget < BigInt(maxTasks)) {
-    throw new Error("Project worker budget must fund at least one APOOL per possible task");
+  if (
+    budget <
+    BigInt(maxTasks) * BigInt(AGENTPOOL.fees.minimumVerifiedWorkPriceApool)
+  ) {
+    throw new Error("Project worker budget must fund at least 1,000 APOOL per possible task");
   }
-  const smallTaskReserve =
-    BigInt(maxTasks - 1) * BigInt(AGENTPOOL.fees.minimumValidationFeeApool);
-  const largestTaskBudget = budget - BigInt(maxTasks - 1);
-  return smallTaskReserve + validationFeeFor(largestTaskBudget);
+  return BigInt(maxTasks) * BigInt(AGENTPOOL.fees.sandboxValidationFeeApool);
 }
 
 export const BENCHMARK_TRACKS = [

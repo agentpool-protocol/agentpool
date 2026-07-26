@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "status": "two_owner_approval_passed",
+  "safeAddress": "0x1Ac88d093C9e32F1068f8B03E1BBc53318c1CE22",
+  "safeVersion": "1.4.1",
+  "owners": {
+    "desktop": "0x1F06359E2AD66da68488Fbe343858d18b72e3eba",
+    "laptop": "0x38604d08EC85eb9ADFe2aDf7A1F3086e9330D2b5",
+    "phone": "0x89415C9d17f56388F41C9E460EE44Ee864E4E904"
+  },
+  "threshold": 2,
+  "nonce": 1,
+  "token": "0x469d94cf6974d078fdfbdaae53f2965932389301",
+  "apoolBalance": "100",
+  "testEthBalanceWei": "9000000000000",
+  "suggestedTransfer": {
+    "asset": "APOOL",
+    "amount": "10",
+    "recipient": "0x3769780cbcB91542474D804524C4D718FBF10fb2"
+  },
+  "deploymentHash": null,
+  "transactions": [
+    {
+      "label": "fund-test-gas.laptop-owner",
+      "hash": "0x06b47aeeb48d715a2bd5a254ae0ce33c79749a6b4b816c2651b51d62700908e3",
+      "blockNumber": "44650259"
+    },
+    {
+      "label": "Safe.execTransaction.real-device-2-of-3",
+      "hash": "0xbbbace5def711c90a73e2bcac1b3a6de982816123a04127a152d388831ab4616",
+      "blockNumber": "44650364"
+    }
+  ],
+  "ownerApprovalTest": {
+    "safeTransactionHash": "0x92e033a859dddf664704ba888091b93f6907b42b3456096bfe9b37c2e8bfc531",
+    "executionTransactionHash": "0xbbbace5def711c90a73e2bcac1b3a6de982816123a04127a152d388831ab4616",
+    "executionDate": "2026-07-26T12:30:16Z",
+    "nonce": 0,
+    "valueWei": "1000000000000",
+    "recipient": "0x1F06359E2AD66da68488Fbe343858d18b72e3eba",
+    "confirmations": [
+      "0x1F06359E2AD66da68488Fbe343858d18b72e3eba",
+      "0x38604d08EC85eb9ADFe2aDf7A1F3086e9330D2b5"
+    ],
+    "confirmationCount": 2,
+    "executed": true
+  },
+  "checks": [
+    {
+      "name": "safe.deployed",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "safe.bytecode",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "safe.owners",
+      "actual": [
+        "0x1f06359e2ad66da68488fbe343858d18b72e3eba",
+        "0x38604d08ec85eb9adfe2adf7a1f3086e9330d2b5",
+        "0x89415c9d17f56388f41c9e460ee44ee864e4e904"
+      ],
+      "expected": [
+        "0x1f06359e2ad66da68488fbe343858d18b72e3eba",
+        "0x38604d08ec85eb9adfe2adf7a1f3086e9330d2b5",
+        "0x89415c9d17f56388f41c9e460ee44ee864e4e904"
+      ],
+      "passed": true
+    },
+    {
+      "name": "safe.threshold",
+      "actual": 2,
+      "expected": 2,
+      "passed": true
+    },
+    {
+      "name": "safe.apoolBalance",
+      "actual": "100",
+      "expectedMinimum": "100",
+      "passed": true
+    },
+    {
+      "name": "safe.testEthBalance",
+      "actual": "9000000000000",
+      "expected": "9000000000000",
+      "passed": true
+    },
+    {
+      "name": "ownerApproval.confirmationCount",
+      "actual": 2,
+      "expected": 2,
+      "passed": true
+    },
+    {
+      "name": "ownerApproval.executed",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "safe.nonceAfterOwnerExecution",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    }
+  ],
+  "updatedAt": "2026-07-26T12:31:00.000Z",
+  "warning": "Base Sepolia test assets only. Do not send mainnet assets."
+}

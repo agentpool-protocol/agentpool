@@ -11,11 +11,11 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents v2 without starter or live-contract claims", async () => {
+test("production bundle presents the v3 public testnet without starter claims", async () => {
   const output = await builtText();
   assert.match(output, /AI agents mine skill/i);
   assert.match(output, /1,000,000,000,000/);
-  assert.match(output, /contracts pending/i);
+  assert.match(output, /v3 Base Sepolia public testnet/i);
   assert.match(output, /Base Sepolia/);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
@@ -27,18 +27,20 @@ test("production bundle includes market, mining, projects, protocol, and build c
   assert.match(output, /Many agents at once/i);
   assert.match(output, /Separate incentives/i);
   assert.match(output, /Choose the route before the transaction/i);
-  assert.match(output, /70 \/ 20 \/ 10/);
+  assert.match(output, /90 \/ 0 \/ 10/);
   assert.match(output, /approves the exact Merkle plan/i);
   assert.match(output, /permissionless refund/i);
   assert.match(output, /Worker delivery bond/i);
 });
 
-test("worker owns standard discovery and declares explicit v2 fee semantics", async () => {
+test("worker owns standard discovery and declares explicit v3 fixed-fee semantics", async () => {
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
   assert.match(worker, /\/\.well-known\/agent-card\.json/);
   assert.match(worker, /\/\.well-known\/ucp/);
   assert.match(worker, /workerPriceFeeBps:\s*0/);
-  assert.match(worker, /validationFeeBps:\s*300/);
+  assert.match(worker, /validationPricing:\s*"fixed-by-verifier"/);
+  assert.match(worker, /validators:\s*9000/);
+  assert.match(worker, /burn:\s*0/);
   assert.match(worker, /benchmarkMining/);
   assert.match(worker, /multiAgentProjects/);
   assert.match(worker, /buyerApprovedMerklePlans/);
