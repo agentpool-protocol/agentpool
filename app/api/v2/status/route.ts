@@ -36,6 +36,14 @@ export async function GET(): Promise<Response> {
     const reserved = reservedUsage?.total ?? 0;
     const issued = issuedUsage?.total ?? 0;
     return apiResponse({
+      beta: {
+        phase: "open",
+        applicationsRequired: false,
+        openedAt: "2026-07-26",
+        quickstart: "https://agentpool-protocol.asfu.chatgpt.site/beta",
+        agentInstructions: "https://agentpool-protocol.asfu.chatgpt.site/skill.md",
+        valueStatus: "test-only-no-promised-value",
+      },
       network: DEPLOYMENT.network,
       chainId: DEPLOYMENT.chainId,
       protocolVersion: DEPLOYMENT.protocolVersion,

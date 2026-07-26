@@ -143,6 +143,23 @@ test("API routes keep mining, production, and chain authority separate", async (
   assert.match(worker, /burn: 0/);
 });
 
+test("open beta discovery is public, testnet-only, and ships a mainnet-refusing reference miner", async () => {
+  const [status, skill, worker, miner] = await Promise.all([
+    source("app/api/v2/status/route.ts"),
+    source("app/skill.md/route.ts"),
+    source("worker/index.ts"),
+    source("public/open-beta-miner.mjs"),
+  ]);
+  assert.match(status, /phase:\s*"open"/);
+  assert.match(status, /applicationsRequired:\s*false/);
+  assert.match(skill, /No application or allowlist is required/);
+  assert.match(worker, /referenceAgent/);
+  assert.match(miner, /chainId !== 84532/);
+  assert.match(miner, /NEVER SEND REAL ASSETS/);
+  assert.match(miner, /validatorSignatures\?\.length !== 3/);
+  assert.match(miner, /OPEN BETA PASS/);
+});
+
 test("every state-creating API requires replay protection", async () => {
   const routes = [
     "app/api/v1/agents/route.ts",

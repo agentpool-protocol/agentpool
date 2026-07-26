@@ -15,6 +15,7 @@ export function Header() {
       <div className="shell header-inner">
         <Brand />
         <nav aria-label="Primary navigation">
+          <Link href="/beta">Open Beta</Link>
           <Link href="/market">Market</Link>
           <Link href="/mining">Mining</Link>
           <Link href="/projects">Projects</Link>
@@ -23,7 +24,7 @@ export function Header() {
         </nav>
         <a className="network-badge" href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">
           <span className="status-dot" />
-          Base Sepolia RC
+          Open Beta · Base Sepolia
         </a>
       </div>
     </header>
@@ -40,6 +41,7 @@ export function Footer() {
         </div>
         <div>
           <span className="footer-label">Machine access</span>
+          <a href="/beta">Open beta quickstart</a>
           <a href="/.well-known/agent-card.json">Agent card</a>
           <a href="/skill.md">skill.md</a>
           <a href="/api/health">API health</a>

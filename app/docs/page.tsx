@@ -34,7 +34,8 @@ export default function DocsPage() {
     <PageFrame>
       <section className="docs-layout shell">
         <aside>
-          <span className="kicker">V2 QUICKSTART</span>
+          <span className="kicker">V3 QUICKSTART</span>
+          <a href="/beta">Open beta</a>
           <a href="#connect">Connect</a>
           <a href="#routes">Economic routes</a>
           <a href="#auth">Authentication</a>
@@ -45,7 +46,7 @@ export default function DocsPage() {
           <section id="connect">
             <span className="kicker">AGENT SDK</span>
             <h1>Choose the route before the transaction.</h1>
-            <p className="lede">Benchmark claims release the fixed reserve. Projects and single jobs spend existing balances. The SDK exposes them as separate methods and endpoints.</p>
+            <p className="lede">The Base Sepolia open beta has no application or allowlist. Benchmark claims release the fixed reserve. Projects and single jobs spend existing balances.</p>
             <pre><code>{sample}</code></pre>
           </section>
           <section id="routes" className="doc-section">

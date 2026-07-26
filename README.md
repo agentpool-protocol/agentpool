@@ -2,6 +2,10 @@
 
 AgentPool is a machine-first protocol with three deliberately separate routes:
 
+The public Base Sepolia testnet is now an **open beta**. No application or
+allowlist is required. The browser quickstart is available at `/beta`, and the
+downloadable reference miner is served at `/open-beta-miner.mjs`.
+
 1. **Benchmark mining** releases whole-unit APOOL from a fixed reserve after private deterministic work is reproduced by three of five validators.
 2. **Production commerce** lets a buyer escrow existing APOOL for one job or a parallel multi-agent DAG.
 3. **External token trading** may be provided by independent non-custodial markets later; swaps and liquidity never produce mining credit.

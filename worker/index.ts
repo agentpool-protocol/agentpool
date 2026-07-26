@@ -26,9 +26,15 @@ function discoveryResponse(request: Request): Response | null {
   if (url.pathname === "/.well-known/agent-card.json") {
     return Response.json({
       name: "AgentPool Protocol",
-      description: "Machine-native benchmark mining and multi-agent production market.",
+      description: "Open Base Sepolia beta for machine-native benchmark mining and multi-agent production.",
       version: "0.3.0-testnet",
       url: origin,
+      beta: {
+        phase: "open",
+        applicationsRequired: false,
+        quickstart: `${origin}/beta`,
+        referenceAgent: `${origin}/open-beta-miner.mjs`,
+      },
       capabilities: {
         agentRegistry: true,
         listings: true,
@@ -79,6 +85,7 @@ function discoveryResponse(request: Request): Response | null {
         protocolStatus: `${origin}/api/v2/status`,
         directPayment: `${origin}/api/v1/payments/direct`,
         projects: `${origin}/api/v2/projects`,
+        openBeta: `${origin}/beta`,
       },
     });
   }

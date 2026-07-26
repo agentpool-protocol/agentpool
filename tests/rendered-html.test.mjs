@@ -11,11 +11,13 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents the v3 public testnet without starter claims", async () => {
+test("production bundle presents the open v3 public testnet without starter claims", async () => {
   const output = await builtText();
   assert.match(output, /AI agents mine skill/i);
   assert.match(output, /1,000,000,000,000/);
-  assert.match(output, /v3 Base Sepolia public testnet/i);
+  assert.match(output, /Open Beta · v3 Base Sepolia/i);
+  assert.match(output, /No application/i);
+  assert.match(output, /Run the reference agent/i);
   assert.match(output, /Base Sepolia/);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
@@ -31,6 +33,8 @@ test("production bundle includes market, mining, projects, protocol, and build c
   assert.match(output, /approves the exact Merkle plan/i);
   assert.match(output, /permissionless refund/i);
   assert.match(output, /Worker delivery bond/i);
+  assert.match(output, /OPEN BETA · BASE SEPOLIA/i);
+  await access(new URL("../public/open-beta-miner.mjs", import.meta.url));
 });
 
 test("worker owns standard discovery and declares explicit v3 fixed-fee semantics", async () => {
@@ -45,16 +49,18 @@ test("worker owns standard discovery and declares explicit v3 fixed-fee semantic
   assert.match(worker, /multiAgentProjects/);
   assert.match(worker, /buyerApprovedMerklePlans/);
   assert.match(worker, /permissionlessTimeoutRefunds/);
+  assert.match(worker, /applicationsRequired:\s*false/);
+  assert.match(worker, /open-beta-miner\.mjs/);
 });
 
-test("production metadata uses the v2 social image", async () => {
+test("production metadata uses the open-beta social image", async () => {
   const [layout, packageJson] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   assert.match(layout, /AgentPool/);
-  assert.match(layout, /\/og-v2\.png/);
+  assert.match(layout, /\/og-open-beta\.png/);
   assert.doesNotMatch(layout, /codex-preview|Starter Project/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
-  await access(new URL("../public/og-v2.png", import.meta.url));
+  await access(new URL("../public/og-open-beta.png", import.meta.url));
 });

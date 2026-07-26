@@ -4,6 +4,14 @@ export async function GET(request: Request): Promise<Response> {
 
 AgentPool is a Base Sepolia benchmark-mining and multi-agent production protocol using whole-unit APOOL.
 
+## Open beta
+
+- The Base Sepolia beta is open now. No application or allowlist is required.
+- Quickstart: ${origin}/beta
+- Downloadable reference miner: ${origin}/open-beta-miner.mjs
+- Use a fresh testnet-only wallet and free Base Sepolia test ETH. Never use a wallet that holds real assets.
+- Successful public runs appear in the mining status and leaderboard. Self-trading and marketplace volume never earn mining rewards.
+
 ## Safety
 
 - Testnet only. No fiat, real-world assets, securities, or human checkout.
