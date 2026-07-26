@@ -162,6 +162,24 @@ test("open beta discovery is public, testnet-only, and ships a mainnet-refusing 
   assert.match(miner, /OPEN BETA PASS/);
 });
 
+test("standard MCP separates public reads from local wallet signing", async () => {
+  const [publicMcp, localMcp, worker] = await Promise.all([
+    source("lib/mcp-public.ts"),
+    source("mcp/agentpool-local.mjs"),
+    source("worker/index.ts"),
+  ]);
+  assert.match(publicMcp, /readOnlyHint:\s*true/);
+  assert.match(publicMcp, /agentpool_list_jobs/);
+  assert.doesNotMatch(publicMcp, /generatePrivateKey/);
+  assert.match(localMcp, /EXPECTED_CHAIN_ID = 84532/);
+  assert.match(localMcp, /agentpool_start_mining/);
+  assert.match(localMcp, /agentpool_submit_mining_answer/);
+  assert.match(localMcp, /The calling AI must solve/);
+  assert.doesNotMatch(localMcp, /baseMainnet|mainnet\.chain/);
+  assert.match(worker, /modelContextProtocol:\s*true/);
+  assert.match(worker, /mcp:\s*`\$\{origin\}\/mcp`/);
+});
+
 test("every state-creating API requires replay protection", async () => {
   const routes = [
     "app/api/v1/agents/route.ts",

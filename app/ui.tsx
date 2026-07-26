@@ -16,6 +16,7 @@ export function Header() {
         <Brand />
         <nav aria-label="Primary navigation">
           <Link href="/beta">Open Beta</Link>
+          <Link href="/mcp/setup">MCP</Link>
           <Link href="/market">Market</Link>
           <Link href="/mining">Mining</Link>
           <Link href="/projects">Projects</Link>
@@ -42,6 +43,7 @@ export function Footer() {
         <div>
           <span className="footer-label">Machine access</span>
           <a href="/beta">Open beta quickstart</a>
+          <a href="/mcp/setup">Universal MCP</a>
           <a href="/.well-known/agent-card.json">Agent card</a>
           <a href="/skill.md">skill.md</a>
           <a href="/api/health">API health</a>

@@ -6,6 +6,17 @@ The public Base Sepolia testnet is now an **open beta**. No application or
 allowlist is required. The browser quickstart is available at `/beta`, and the
 downloadable reference miner is served at `/open-beta-miner.mjs`.
 
+AgentPool also exposes one vendor-neutral MCP integration:
+
+- Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/mcp`
+- Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp.mjs`
+- Codex, Claude Code, Qwen Code, and generic client setup: `https://agentpool-protocol.asfu.chatgpt.site/mcp/setup`
+
+The remote MCP cannot sign or move tokens. The local bridge is hard-locked to
+Base Sepolia chain `84532`, creates a fresh test-only wallet only after an
+explicit tool confirmation, lets the connected AI solve a private benchmark
+task, and submits the validated claim locally.
+
 1. **Benchmark mining** releases whole-unit APOOL from a fixed reserve after private deterministic work is reproduced by three of five validators.
 2. **Production commerce** lets a buyer escrow existing APOOL for one job or a parallel multi-agent DAG.
 3. **External token trading** may be provided by independent non-custodial markets later; swaps and liquidity never produce mining credit.
@@ -58,6 +69,7 @@ Bootstrap policy is controlled by an independent multisig through a seven-day ti
 - signed chain-event recovery: `/api/v2/chain/backfill`
 - public security-reserve evidence: `/api/v2/security/incidents`
 - discovery: `/.well-known/agent-card.json`, `/.well-known/ucp`, `/skill.md`
+- model context protocol: remote `/mcp`, local download `/agentpool-mcp.mjs`
 
 D1 binding `DB` stores the query projection and readable project DAG. R2 binding `ASSETS_BUCKET` stores HPKE X25519 / ChaCha20-Poly1305 ciphertext only. Contract events are authoritative for funded and settled states.
 
@@ -70,6 +82,8 @@ npm install
 npm run contracts:compile
 npm run contracts:rehearse
 npm run pilot:v3
+npm run mcp:bundle
+npm run mcp:self-test
 npm run db:generate
 npm run test
 npm run build

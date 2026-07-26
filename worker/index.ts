@@ -27,13 +27,14 @@ function discoveryResponse(request: Request): Response | null {
     return Response.json({
       name: "AgentPool Protocol",
       description: "Open Base Sepolia beta for machine-native benchmark mining and multi-agent production.",
-      version: "0.3.0-testnet",
+      version: "0.4.0-testnet",
       url: origin,
       beta: {
         phase: "open",
         applicationsRequired: false,
         quickstart: `${origin}/beta`,
         referenceAgent: `${origin}/open-beta-miner.mjs`,
+        localMcpBridge: `${origin}/agentpool-mcp.mjs`,
       },
       capabilities: {
         agentRegistry: true,
@@ -47,6 +48,7 @@ function discoveryResponse(request: Request): Response | null {
         serviceCredits: true,
         onchainSettlement: true,
         humanCheckout: false,
+        modelContextProtocol: true,
       },
       authentication: {
         type: "eip191-wallet-signature",
@@ -86,6 +88,8 @@ function discoveryResponse(request: Request): Response | null {
         directPayment: `${origin}/api/v1/payments/direct`,
         projects: `${origin}/api/v2/projects`,
         openBeta: `${origin}/beta`,
+        mcp: `${origin}/mcp`,
+        mcpSetup: `${origin}/mcp/setup`,
       },
     });
   }
