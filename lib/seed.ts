@@ -1,5 +1,4 @@
-import { execute, queryFirst } from "@/db/runtime";
-import { epochBudget } from "@/lib/mining";
+import { execute } from "@/db/runtime";
 
 const referenceAgents = [
   {
@@ -15,13 +14,13 @@ const referenceAgents = [
     disputed: 9,
   },
   {
-    id: "agent_framesmith",
-    owner: "0x2222222222222222222222222222222222222222",
-    delegate: "0x2222222222222222222222222222222222222223",
-    name: "FrameSmith",
-    description: "High-resolution image and short-form motion asset generator.",
-    capabilities: ["image", "video", "style-transfer"],
-    endpoint: "https://reference.agentpool.invalid/framesmith",
+    id: "agent_indexforge",
+    owner: "0x4444444444444444444444444444444444444444",
+    delegate: "0x4444444444444444444444444444444444444445",
+    name: "IndexForge",
+    description: "Deterministic schema transformation and data normalization agent.",
+    capabilities: ["data", "json", "csv", "schema"],
+    endpoint: "https://reference.agentpool.invalid/indexforge",
     score: 91.3,
     completed: 8421,
     disputed: 31,
@@ -42,45 +41,47 @@ const referenceAgents = [
 
 const referenceListings = [
   {
-    id: "listing_solidity_module",
+    id: "listing_v2_solidity_module",
     seller: "agent_compiler_7",
     title: "Auditable Solidity Module",
     summary: "One isolated contract module with tests and ABI.",
     type: "code",
-    price: "300",
+    price: "1000",
     license: "commercial-single-project",
-    verifier: "solidity-foundry-v1",
-    mining: 1,
+    verifier: "solidity-foundry-v2",
+    mining: 0,
   },
   {
-    id: "listing_visual_pack",
-    seller: "agent_framesmith",
-    title: "Campaign Visual Pack",
-    summary: "Four production-ready images with provenance hashes.",
-    type: "image",
-    price: "96",
-    license: "commercial-unlimited-impressions",
-    verifier: "image-originality-v1",
-    mining: 1,
+    id: "listing_v2_schema_normalization",
+    seller: "agent_indexforge",
+    title: "Schema-safe Normalization",
+    summary: "One deterministic JSON or CSV normalization run with invariant evidence.",
+    type: "dataset",
+    price: "2500",
+    license: "commercial-single-project",
+    verifier: "json-schema-v2",
+    mining: 0,
   },
   {
-    id: "listing_eval_credit",
+    id: "listing_v2_validation_credit",
     seller: "agent_sigma",
     title: "Five-job Evaluation Credit",
     summary: "Commit-reveal quality review capacity for five jobs.",
     type: "service-credit",
     price: "140",
     license: "five-redemptions",
-    verifier: "service-credit-v1",
+    verifier: "api-contract-v1",
     mining: 0,
   },
 ];
 
 export async function seedReferenceData(): Promise<void> {
-  const existing = await queryFirst<{ count: number }>("SELECT COUNT(*) AS count FROM agents");
-  if ((existing?.count ?? 0) > 0) return;
-
   const now = Date.now();
+  await execute(
+    `UPDATE listings SET status = 'deprecated', updated_at = ?
+     WHERE id IN ('listing_solidity_module', 'listing_visual_pack', 'listing_eval_credit')`,
+    now,
+  );
   for (const agent of referenceAgents) {
     await execute(
       `INSERT OR IGNORE INTO agents
@@ -125,16 +126,4 @@ export async function seedReferenceData(): Promise<void> {
     );
   }
 
-  const startsAt = now - 2 * 24 * 60 * 60 * 1000;
-  await execute(
-    `INSERT OR IGNORE INTO mining_epochs
-      (epoch, budget_apool, eligible_work_apool, contribution_score, status,
-       starts_at, ends_at, created_at)
-     VALUES (0, ?, '0', 0, 'open', ?, ?, ?)`,
-    String(epochBudget(0)),
-    startsAt,
-    startsAt + 7 * 24 * 60 * 60 * 1000,
-    now,
-  );
 }
-

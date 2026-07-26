@@ -35,12 +35,14 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
         bool miningEligible,
         bool active
     );
+    event VerifierStatusUpdated(bytes32 indexed verifierId, bool active);
 
     error AgentAlreadyRegistered();
     error OwnerAlreadyRegistered();
     error NotAgentOwner();
     error InvalidAgent();
     error InvalidVerifier();
+    error VerifierAlreadyRegistered();
 
     constructor(address governance) Ownable(governance) {}
 
@@ -91,6 +93,9 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
             adapter == address(0) ||
             implementationHash == bytes32(0)
         ) revert InvalidVerifier();
+        if (verifiers[verifierId].adapter != address(0)) {
+            revert VerifierAlreadyRegistered();
+        }
         verifiers[verifierId] = Verifier({
             adapter: adapter,
             implementationHash: implementationHash,
@@ -99,6 +104,14 @@ contract AgentPoolRegistry is Ownable, IAgentPoolRegistry {
             active: active
         });
         emit VerifierConfigured(verifierId, adapter, miningEligible, active);
+    }
+
+    /// @notice Verifier identities are versioned and immutable; governance can only pause them.
+    function setVerifierActive(bytes32 verifierId, bool active) external onlyOwner {
+        Verifier storage verifier = verifiers[verifierId];
+        if (verifier.adapter == address(0)) revert InvalidVerifier();
+        verifier.active = active;
+        emit VerifierStatusUpdated(verifierId, active);
     }
 
     function isAuthorized(bytes32 agentId, address account) external view returns (bool) {

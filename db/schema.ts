@@ -59,7 +59,8 @@ export const jobs = sqliteTable(
     buyerAgentId: text("buyer_agent_id").notNull(),
     sellerAgentId: text("seller_agent_id").notNull(),
     priceApool: text("price_apool").notNull(),
-    evaluationBudgetApool: text("evaluation_budget_apool").notNull(),
+    // Kept on the legacy physical column name so the public D1 can migrate in place.
+    validationFeeApool: text("evaluation_budget_apool").notNull(),
     sellerBondApool: text("seller_bond_apool").notNull(),
     state: text("state").notNull(),
     requirementsHash: text("requirements_hash").notNull(),
@@ -78,6 +79,111 @@ export const jobs = sqliteTable(
     index("jobs_seller_idx").on(table.sellerAgentId),
     index("jobs_state_idx").on(table.state),
     index("jobs_created_idx").on(table.createdAt),
+    uniqueIndex("jobs_tx_hash_unique").on(table.txHash),
+  ],
+);
+
+export const benchmarkChallenges = sqliteTable(
+  "benchmark_challenges",
+  {
+    id: text("id").primaryKey(),
+    track: text("track").notNull(),
+    league: text("league").notNull(),
+    difficulty: text("difficulty").notNull(),
+    policyVersion: integer("policy_version").notNull(),
+    commitmentHash: text("commitment_hash").notNull(),
+    baseRewardApool: text("base_reward_apool").notNull(),
+    generatorAgentId: text("generator_agent_id").notNull(),
+    status: text("status").notNull().default("committed"),
+    revealAt: integer("reveal_at", { mode: "timestamp_ms" }).notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("benchmark_challenges_track_idx").on(table.track),
+    index("benchmark_challenges_status_idx").on(table.status),
+    index("benchmark_challenges_created_idx").on(table.createdAt),
+  ],
+);
+
+export const benchmarkSubmissions = sqliteTable(
+  "benchmark_submissions",
+  {
+    id: text("id").primaryKey(),
+    challengeId: text("challenge_id").notNull(),
+    minerAgentId: text("miner_agent_id").notNull(),
+    recipientAddress: text("recipient_address").notNull(),
+    submissionHash: text("submission_hash").notNull(),
+    accuracyBps: integer("accuracy_bps"),
+    efficiencyBps: integer("efficiency_bps"),
+    rewardApool: text("reward_apool"),
+    receiptDigest: text("receipt_digest"),
+    claimTxHash: text("claim_tx_hash"),
+    status: text("status").notNull().default("submitted"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    verifiedAt: integer("verified_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("benchmark_submissions_challenge_miner_unique").on(
+      table.challengeId,
+      table.minerAgentId,
+    ),
+    index("benchmark_submissions_miner_idx").on(table.minerAgentId),
+    index("benchmark_submissions_status_idx").on(table.status),
+  ],
+);
+
+export const projects = sqliteTable(
+  "projects",
+  {
+    id: text("id").primaryKey(),
+    buyerAgentId: text("buyer_agent_id").notNull(),
+    coordinatorAgentId: text("coordinator_agent_id").notNull(),
+    publicSummary: text("brief").notNull(),
+    briefHash: text("brief_hash").notNull(),
+    planRoot: text("plan_root"),
+    maxWorkerBudgetApool: text("max_worker_budget_apool").notNull(),
+    validationReserveApool: text("validation_reserve_apool").notNull(),
+    minAgents: integer("min_agents").notNull(),
+    maxParallel: integer("max_parallel").notNull(),
+    maxTasks: integer("max_tasks").notNull(),
+    state: text("state").notNull().default("PENDING_CHAIN"),
+    deadlineAt: integer("deadline_at", { mode: "timestamp_ms" }).notNull(),
+    txHash: text("tx_hash").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("projects_buyer_idx").on(table.buyerAgentId),
+    index("projects_coordinator_idx").on(table.coordinatorAgentId),
+    index("projects_state_idx").on(table.state),
+    uniqueIndex("projects_tx_hash_unique").on(table.txHash),
+  ],
+);
+
+export const projectTasks = sqliteTable(
+  "project_tasks",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull(),
+    workerAgentId: text("worker_agent_id").notNull(),
+    title: text("title").notNull(),
+    strategy: text("strategy").notNull(),
+    priceApool: text("price_apool").notNull(),
+    validationFeeApool: text("validation_fee_apool").notNull(),
+    dependenciesJson: text("dependencies_json").notNull(),
+    requirementsHash: text("requirements_hash").notNull(),
+    deliveryHash: text("delivery_hash"),
+    state: text("state").notNull().default("PLANNED"),
+    deadlineAt: integer("deadline_at", { mode: "timestamp_ms" }).notNull(),
+    txHash: text("tx_hash"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("project_tasks_project_idx").on(table.projectId),
+    index("project_tasks_worker_idx").on(table.workerAgentId),
+    index("project_tasks_state_idx").on(table.state),
   ],
 );
 
@@ -183,4 +289,3 @@ export const artifacts = sqliteTable(
     index("artifacts_job_idx").on(table.jobId),
   ],
 );
-

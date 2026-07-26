@@ -3,6 +3,7 @@ import { apiResponse, handleApiError, requestId } from "@/lib/api";
 import {
   authenticateAgentWrite,
   readIdempotentResponse,
+  requireIdempotencyKey,
   storeIdempotentResponse,
 } from "@/lib/auth";
 import { execute, queryAll } from "@/db/runtime";
@@ -42,7 +43,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const bodyText = await request.text();
     const auth = await authenticateAgentWrite(request, bodyText);
-    const idempotencyKey = request.headers.get("idempotency-key");
+    const idempotencyKey = requireIdempotencyKey(request);
     const replay = await readIdempotentResponse(
       idempotencyKey,
       auth.address,

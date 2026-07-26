@@ -13,9 +13,11 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
     uint8 public constant MINIMUM_REVEALS = 3;
     uint64 public constant COMMIT_DURATION = 60 minutes;
     uint64 public constant REVEAL_DURATION = 60 minutes;
+    uint64 public constant SELECTION_TIMEOUT = 24 hours;
 
     struct Dispute {
         uint256 jobId;
+        uint64 selectionDeadline;
         uint64 commitDeadline;
         uint64 revealDeadline;
         uint8 reveals;
@@ -27,8 +29,7 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
 
     IAgentPoolEscrow public escrow;
     IAgentPoolRegistry public immutable registry;
-    IRandomnessProvider public randomnessProvider;
-    address public evaluatorTreasury;
+    IRandomnessProvider public immutable randomnessProvider;
     address[] public eligibleEvaluators;
     mapping(address => bool) public isEligible;
     mapping(address => bool) public isKnownEvaluator;
@@ -38,6 +39,8 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
     mapping(uint256 => mapping(address => bool)) public isSelected;
     mapping(uint256 => mapping(address => bytes32)) public commitments;
     mapping(uint256 => mapping(address => bool)) public revealed;
+    mapping(uint256 => mapping(address => bool)) public revealedVote;
+    mapping(uint256 => address) public outcomeProposer;
     uint256 public nextDisputeId = 1;
 
     event DisputeOpened(uint256 indexed disputeId, uint256 indexed jobId, uint256 requestId);
@@ -45,30 +48,28 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
     event VoteCommitted(uint256 indexed disputeId, address indexed evaluator);
     event VoteRevealed(uint256 indexed disputeId, address indexed evaluator, bool pass);
     event DisputeFinalized(uint256 indexed disputeId, IAgentPoolEscrow.Outcome outcome);
+    event DisputeUnavailable(uint256 indexed disputeId, uint256 indexed jobId);
 
     error Unauthorized();
     error InvalidPhase();
-    error InsufficientEvaluatorPool();
     error AlreadyConfigured();
 
     constructor(
         address governance,
         IAgentPoolRegistry registry_,
-        IRandomnessProvider randomnessProvider_,
-        address evaluatorTreasury_
+        IRandomnessProvider randomnessProvider_
     ) Ownable(governance) {
         if (
             address(registry_) == address(0) ||
-            address(randomnessProvider_) == address(0) ||
-            evaluatorTreasury_ == address(0)
+            address(randomnessProvider_) == address(0)
         ) revert Unauthorized();
         registry = registry_;
         randomnessProvider = randomnessProvider_;
-        evaluatorTreasury = evaluatorTreasury_;
     }
 
     function setEscrow(IAgentPoolEscrow escrow_) external onlyOwner {
         if (address(escrow) != address(0)) revert AlreadyConfigured();
+        if (address(escrow_) == address(0)) revert Unauthorized();
         escrow = escrow_;
     }
 
@@ -85,32 +86,41 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
         }
     }
 
-    function setEvaluatorTreasury(address treasury) external onlyOwner {
-        if (treasury == address(0)) revert Unauthorized();
-        evaluatorTreasury = treasury;
-    }
-
     function proposeOutcome(
         uint256 jobId,
         bytes32 verifierId,
         IAgentPoolEscrow.Outcome outcome
     ) external {
         if (!registry.isAuthorizedVerifier(verifierId, msg.sender)) revert Unauthorized();
+        outcomeProposer[jobId] = msg.sender;
         escrow.proposeOutcome(jobId, verifierId, outcome);
     }
 
     function finalizeUnchallenged(uint256 jobId) external {
-        escrow.finalizeUnchallenged(jobId, evaluatorTreasury);
+        address proposer = outcomeProposer[jobId];
+        if (proposer == address(0)) revert InvalidPhase();
+        address[] memory receivers = new address[](1);
+        receivers[0] = proposer;
+        escrow.finalizeUnchallenged(jobId, receivers);
     }
 
     function openDispute(uint256 jobId) external returns (uint256 disputeId) {
         if (msg.sender != address(escrow)) revert Unauthorized();
-        if (_activeEvaluatorCount() < EVALUATOR_COUNT) revert InsufficientEvaluatorPool();
         disputeId = nextDisputeId++;
         disputes[disputeId].jobId = jobId;
-        uint256 requestId = randomnessProvider.requestRandomness(disputeId);
-        requestToDispute[requestId] = disputeId;
-        emit DisputeOpened(disputeId, jobId, requestId);
+        disputes[disputeId].selectionDeadline = uint64(
+            block.timestamp + SELECTION_TIMEOUT
+        );
+        if (_activeEvaluatorCount() < EVALUATOR_COUNT) {
+            _resolveUnavailable(disputeId, jobId);
+            return disputeId;
+        }
+        try randomnessProvider.requestRandomness(disputeId) returns (uint256 requestId) {
+            requestToDispute[requestId] = disputeId;
+            emit DisputeOpened(disputeId, jobId, requestId);
+        } catch {
+            _resolveUnavailable(disputeId, jobId);
+        }
     }
 
     /// @dev The configured VRF adapter must call this with its fulfilled random word.
@@ -118,7 +128,13 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
         if (msg.sender != address(randomnessProvider)) revert Unauthorized();
         uint256 disputeId = requestToDispute[requestId];
         Dispute storage dispute = disputes[disputeId];
-        if (dispute.jobId == 0 || dispute.selected) revert InvalidPhase();
+        if (dispute.jobId == 0 || dispute.selected || dispute.finalized) {
+            revert InvalidPhase();
+        }
+        if (block.timestamp > dispute.selectionDeadline) {
+            _resolveUnavailable(disputeId, dispute.jobId);
+            return;
+        }
 
         uint256 activeCount = _activeEvaluatorCount();
         address[] memory candidates = new address[](activeCount);
@@ -148,6 +164,18 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
         emit EvaluatorsSelected(disputeId, selected);
     }
 
+    /// @notice Refunds the job if the configured randomness adapter never responds.
+    function finalizeUnselected(uint256 disputeId) external {
+        Dispute storage dispute = disputes[disputeId];
+        if (
+            dispute.jobId == 0 ||
+            dispute.selected ||
+            dispute.finalized ||
+            block.timestamp < dispute.selectionDeadline
+        ) revert InvalidPhase();
+        _resolveUnavailable(disputeId, dispute.jobId);
+    }
+
     function commitVote(uint256 disputeId, bytes32 commitment) external {
         Dispute storage dispute = disputes[disputeId];
         if (
@@ -170,6 +198,7 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
             revealed[disputeId][msg.sender]
         ) revert InvalidPhase();
         revealed[disputeId][msg.sender] = true;
+        revealedVote[disputeId][msg.sender] = pass;
         dispute.reveals++;
         if (pass) dispute.passVotes++;
         else dispute.failVotes++;
@@ -192,13 +221,53 @@ contract AgentPoolWorkOracle is Ownable, IAgentPoolResolver {
         } else {
             outcome = IAgentPoolEscrow.Outcome.FAIL;
         }
-        escrow.resolveChallenge(dispute.jobId, outcome, evaluatorTreasury);
+        address[] memory receivers = _winningEvaluators(disputeId, outcome);
+        escrow.resolveChallenge(dispute.jobId, outcome, receivers);
         emit DisputeFinalized(disputeId, outcome);
+    }
+
+    function _winningEvaluators(uint256 disputeId, IAgentPoolEscrow.Outcome outcome)
+        internal
+        view
+        returns (address[] memory receivers)
+    {
+        if (outcome == IAgentPoolEscrow.Outcome.AMBIGUOUS) {
+            return new address[](0);
+        }
+        bool winningVote = outcome == IAgentPoolEscrow.Outcome.PASS;
+        address[EVALUATOR_COUNT] memory selected = selectedEvaluators[disputeId];
+        uint256 winnerCount;
+        for (uint256 index = 0; index < EVALUATOR_COUNT; index++) {
+            address evaluator = selected[index];
+            if (revealed[disputeId][evaluator] && revealedVote[disputeId][evaluator] == winningVote) {
+                winnerCount++;
+            }
+        }
+        receivers = new address[](winnerCount);
+        uint256 cursor;
+        for (uint256 index = 0; index < EVALUATOR_COUNT; index++) {
+            address evaluator = selected[index];
+            if (revealed[disputeId][evaluator] && revealedVote[disputeId][evaluator] == winningVote) {
+                receivers[cursor++] = evaluator;
+            }
+        }
     }
 
     function _activeEvaluatorCount() internal view returns (uint256 count) {
         for (uint256 i = 0; i < eligibleEvaluators.length; i++) {
             if (isEligible[eligibleEvaluators[i]]) count++;
         }
+    }
+
+    function _resolveUnavailable(uint256 disputeId, uint256 jobId) internal {
+        disputes[disputeId].finalized = true;
+        address[] memory receivers = new address[](0);
+        escrow.resolveChallenge(
+            jobId,
+            IAgentPoolEscrow.Outcome.AMBIGUOUS,
+            receivers
+        );
+        emit DisputeUnavailable(disputeId, jobId);
+        emit DisputeFinalized(disputeId, IAgentPoolEscrow.Outcome.AMBIGUOUS);
     }
 }

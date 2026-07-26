@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { apiError, apiResponse, handleApiError } from "@/lib/api";
-import { authenticateAgentWrite } from "@/lib/auth";
+import {
+  agentAuthorization,
+  authenticateAgentWrite,
+  readIdempotentResponse,
+  requireIdempotencyKey,
+  storeIdempotentResponse,
+} from "@/lib/auth";
 import { execute, getR2, queryFirst } from "@/db/runtime";
 
 const MAX_CIPHERTEXT_BYTES = 5 * 1024 * 1024;
@@ -30,13 +36,40 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const bodyText = await request.text();
     const auth = await authenticateAgentWrite(request, bodyText);
-    const input = artifactSchema.parse(JSON.parse(bodyText));
-    const owner = await queryFirst<{ owner_address: string }>(
-      "SELECT owner_address FROM agents WHERE id = ? AND status = 'active'",
-      input.ownerAgentId,
+    const idempotencyKey = requireIdempotencyKey(request);
+    const replay = await readIdempotentResponse(
+      idempotencyKey,
+      auth.address,
+      auth.requestHash,
     );
-    if (!owner || owner.owner_address.toLowerCase() !== auth.address) {
-      throw new Error("AUTH_NOT_AGENT_OWNER");
+    if (replay) return replay;
+    const input = artifactSchema.parse(JSON.parse(bodyText));
+    const owner = await agentAuthorization(
+      input.ownerAgentId,
+      auth.address,
+    );
+    if (!owner) {
+      throw new Error("AUTH_NOT_AGENT_SIGNER");
+    }
+    if (input.jobId) {
+      const job = await queryFirst<{ seller_agent_id: string }>(
+        "SELECT seller_agent_id FROM jobs WHERE id = ?",
+        input.jobId,
+      );
+      if (!job || job.seller_agent_id !== input.ownerAgentId) {
+        return apiError(
+          "ARTIFACT_JOB_MISMATCH",
+          "Only the job's seller agent can attach its encrypted delivery",
+          403,
+        );
+      }
+    }
+    const existing = await queryFirst<{ key: string }>(
+      "SELECT key FROM artifacts WHERE key = ?",
+      input.key,
+    );
+    if (existing) {
+      return apiError("ARTIFACT_KEY_EXISTS", "Artifact keys are immutable", 409);
     }
     const ciphertext = decodeBase64(input.ciphertextBase64);
     if (ciphertext.byteLength > MAX_CIPHERTEXT_BYTES) {
@@ -56,7 +89,8 @@ export async function POST(request: Request): Promise<Response> {
       return apiError("CIPHERTEXT_HASH_MISMATCH", "ciphertextHash does not match the uploaded bytes", 422);
     }
 
-    await getR2().put(input.key, ciphertext, {
+    const stored = await getR2().put(input.key, ciphertext, {
+      onlyIf: { etagDoesNotMatch: "*" },
       httpMetadata: { contentType: "application/octet-stream" },
       customMetadata: {
         ciphertextHash: computedHash,
@@ -64,6 +98,9 @@ export async function POST(request: Request): Promise<Response> {
         encryptionSuite: "HPKE-X25519-HKDF-SHA256-CHACHA20POLY1305",
       },
     });
+    if (!stored) {
+      return apiError("ARTIFACT_KEY_EXISTS", "Artifact keys are immutable", 409);
+    }
     await execute(
       `INSERT INTO artifacts
         (key, owner_agent_id, job_id, content_hash, ciphertext_hash, media_type,
@@ -80,12 +117,20 @@ export async function POST(request: Request): Promise<Response> {
       input.keyEnvelope,
       Date.now(),
     );
-    return apiResponse({
+    const responseBody = {
       key: input.key,
       ciphertextHash: computedHash,
       sizeBytes: ciphertext.byteLength,
       status: "sealed",
-    }, 201);
+    };
+    await storeIdempotentResponse({
+      key: idempotencyKey,
+      actorAddress: auth.address,
+      requestHash: auth.requestHash,
+      responseBody,
+      statusCode: 201,
+    });
+    return apiResponse(responseBody, 201);
   } catch (error) {
     return handleApiError(error);
   }

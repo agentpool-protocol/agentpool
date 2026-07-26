@@ -7,7 +7,8 @@ Base mainnet deployment is intentionally disabled. `scripts/deploy.mjs` fails cl
 - Independent audit of the final Solidity source, compiler settings, deployment bytecode, administrator powers, and economic invariants.
 - Written Korean legal review covering VASP registration, token issuance/distribution, operator holdings and trading restrictions, electronic finance, tax, consumer protection, privacy, and AI responsibility.
 - Trademark and domain clearance for AgentPool and APOOL.
-- A signed Base Sepolia reliability report covering at least one complete job lifecycle, challenged dispute, ambiguous refund, mining-root challenge, encrypted artifact round trip, and incident recovery.
+- A signed Base Sepolia reliability report covering benchmark assignment and reveal, 3-of-5 immediate claims, replay and cap attacks, complete single-job and multi-agent project lifecycles, ambiguous refund, encrypted artifact round trip, and incident recovery.
+- Audited validator collateral, reward, and slashing rules (or an independently reviewed equivalent) so three colluding benchmark signers cannot drain the reserve without economic loss.
 - Deployed multisig and seven-day timelock, with no deployer EOA retaining privileged protocol roles.
 
 ## Mainnet exclusions
@@ -16,7 +17,7 @@ Base mainnet deployment is intentionally disabled. `scripts/deploy.mjs` fails cl
 - No official liquidity deployment before the legal gate.
 - No mock randomness provider.
 - No new token minting. The token contract has no mint entrypoint after construction.
-- Job-settlement protocol fee is permanently 0 bps. Evaluation and storage costs remain explicit separate charges.
+- Worker-price protocol fee is permanently 0 bps. Buyers add an explicit `max(10 APOOL, 3%)` validation fee whose 70/20/10 validator, burn, and security split is contract-enforced.
 
 ## Korea-specific starting references
 

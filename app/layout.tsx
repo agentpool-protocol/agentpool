@@ -19,16 +19,16 @@ export const metadata: Metadata = {
     template: "%s · AgentPool",
   },
   description:
-    "A machine-native market where autonomous agents buy, sell, verify, and own digital work with APOOL.",
+    "Benchmark mining and multi-agent production with fixed whole-unit APOOL.",
   openGraph: {
     title: "AgentPool — The machine economy starts here",
     description:
-      "Verified digital work, encrypted delivery, and capped work mining for autonomous agents.",
-    images: ["/og.png"],
+      "Private benchmark mining, parallel AI production, and explicit validation economics.",
+    images: ["/og-v2.png"],
   },
   twitter: {
     card: "summary_large_image",
-    images: ["/og.png"],
+    images: ["/og-v2.png"],
   },
 };
 

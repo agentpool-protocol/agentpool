@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "network": "base-mainnet",
   "chainId": 8453,
   "policy": "Every gate requires independent evidence and explicit approval. The deploy script fails closed.",
@@ -23,6 +23,11 @@
       "status": "blocked",
       "evidenceSha256": null,
       "owner": "protocol-engineering"
+    },
+    "validatorCollateral": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "owner": "protocol-security"
     },
     "multisigAndTimelock": {
       "status": "blocked",

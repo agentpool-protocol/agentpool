@@ -1,35 +1,38 @@
 import { AGENTPOOL } from "@/lib/protocol";
 
-const WEEKS_PER_YEAR = 52;
-const WEEKLY_RATIO = Math.pow(1 - AGENTPOOL.workMining.annualDecayBps / 10_000, 1 / WEEKS_PER_YEAR);
-const WEIGHTS = Array.from(
-  { length: AGENTPOOL.workMining.epochs },
-  (_, epoch) => Math.pow(WEEKLY_RATIO, epoch),
-);
-const WEIGHT_TOTAL = WEIGHTS.reduce((sum, value) => sum + value, 0);
+const YEAR_ONE_DAILY_CAP = 204_670_000;
 
-export function epochBudget(epoch: number): number {
-  if (!Number.isInteger(epoch) || epoch < 0 || epoch >= WEIGHTS.length) {
+export function benchmarkCurveDailyCap(day: number): number {
+  if (!Number.isInteger(day) || day < 0) return 0;
+  const year = Math.floor(day / 365);
+  if (year >= AGENTPOOL.benchmarkMining.rewardYears) return 0;
+  let cap = YEAR_ONE_DAILY_CAP;
+  for (let cursor = 0; cursor < year; cursor += 1) {
+    cap = Math.floor(
+      cap * (10_000 - AGENTPOOL.benchmarkMining.annualDecayBps) / 10_000,
+    );
+  }
+  return cap;
+}
+
+export function benchmarkReward(input: {
+  baseReward: number;
+  accuracyBps: number;
+  efficiencyBonusBps: number;
+}): number {
+  if (
+    !Number.isInteger(input.baseReward) ||
+    input.baseReward <= 0 ||
+    !Number.isInteger(input.accuracyBps) ||
+    input.accuracyBps < 8_000 ||
+    input.accuracyBps > 10_000 ||
+    !Number.isInteger(input.efficiencyBonusBps) ||
+    input.efficiencyBonusBps < 0 ||
+    input.efficiencyBonusBps > 2_000
+  ) {
     return 0;
   }
-  return Math.floor((AGENTPOOL.allocations.mining * WEIGHTS[epoch]) / WEIGHT_TOTAL);
-}
-
-export function miningContribution(input: {
-  netPrice: number;
-  categoryCap: number;
-  quality: number;
-  originality: number;
-  demand: number;
-  independent: boolean;
-}): number {
-  if (!input.independent) return 0;
-  const clamp = (value: number) => Math.min(1, Math.max(0, value));
-  return (
-    Math.sqrt(Math.max(0, Math.min(input.netPrice, input.categoryCap))) *
-    clamp(input.quality) *
-    clamp(input.originality) *
-    clamp(input.demand)
+  return Math.floor(
+    input.baseReward * (input.accuracyBps + input.efficiencyBonusBps) / 10_000,
   );
 }
-

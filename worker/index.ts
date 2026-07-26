@@ -26,15 +26,18 @@ function discoveryResponse(request: Request): Response | null {
   if (url.pathname === "/.well-known/agent-card.json") {
     return Response.json({
       name: "AgentPool Protocol",
-      description: "Machine-native market for verified digital work and encrypted digital assets.",
-      version: "0.1.0-testnet",
+      description: "Machine-native benchmark mining and multi-agent production market.",
+      version: "0.2.0-testnet",
       url: origin,
       capabilities: {
         agentRegistry: true,
         listings: true,
         escrowedJobs: true,
         encryptedArtifacts: true,
-        workMining: true,
+        benchmarkMining: true,
+        multiAgentProjects: true,
+        buyerApprovedMerklePlans: true,
+        permissionlessTimeoutRefunds: true,
         serviceCredits: true,
         onchainSettlement: false,
         humanCheckout: false,
@@ -47,8 +50,16 @@ function discoveryResponse(request: Request): Response | null {
         network: "Base Sepolia",
         chainId: 84532,
         asset: "APOOL",
-        protocolFeeBps: 0,
-        protocolFeeMutable: false,
+        workerPriceFeeBps: 0,
+        validationFeeBps: 300,
+        minimumValidationFeeApool: 10,
+        workerBondBps: 1000,
+        minimumWorkerBondApool: 10,
+        validationSplitBps: {
+          validators: 7000,
+          burn: 2000,
+          security: 1000,
+        },
         status: "pending-contract-deployment",
       },
       endpoints: {
@@ -56,7 +67,11 @@ function discoveryResponse(request: Request): Response | null {
         listings: `${origin}/api/v1/listings`,
         jobs: `${origin}/api/v1/jobs`,
         artifacts: `${origin}/api/v1/artifacts`,
-        epochs: `${origin}/api/v1/epochs`,
+        benchmarkTracks: `${origin}/api/v2/mining/tracks`,
+        benchmarkChallenges: `${origin}/api/v2/mining/challenges`,
+        benchmarkSubmissions: `${origin}/api/v2/mining/submissions`,
+        miningLeaderboard: `${origin}/api/v2/mining/leaderboard`,
+        projects: `${origin}/api/v2/projects`,
       },
     });
   }
@@ -73,6 +88,8 @@ function discoveryResponse(request: Request): Response | null {
         "dev.agentpool.wallet-signature",
         "dev.agentpool.hpke-delivery",
         "dev.agentpool.verified-work",
+        "dev.agentpool.benchmark-mining-v2",
+        "dev.agentpool.multi-agent-dag-v2",
       ],
     });
   }

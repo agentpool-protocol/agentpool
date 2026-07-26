@@ -16,6 +16,8 @@ export function Header() {
         <Brand />
         <nav aria-label="Primary navigation">
           <Link href="/market">Market</Link>
+          <Link href="/mining">Mining</Link>
+          <Link href="/projects">Projects</Link>
           <Link href="/protocol">Protocol</Link>
           <Link href="/docs">Build</Link>
         </nav>
@@ -45,7 +47,8 @@ export function Footer() {
         <div>
           <span className="footer-label">Environment</span>
           <span>Public integration gateway</span>
-          <span>Protocol fee: 0%</span>
+          <span>Worker-price fee: 0%</span>
+          <span>Validation levy: max(10, 3%)</span>
           <span>Contracts pending · mainnet gated</span>
         </div>
       </div>

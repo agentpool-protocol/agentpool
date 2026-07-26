@@ -27,6 +27,7 @@ const input = {
   sources,
   settings: {
     optimizer: { enabled: true, runs: 500 },
+    viaIR: true,
     evmVersion: "cancun",
     outputSelection: {
       "*": {

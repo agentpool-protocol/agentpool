@@ -4,31 +4,34 @@ import { PageFrame } from "../ui";
 export const metadata: Metadata = { title: "Protocol" };
 
 const allocations = [
-  ["Work mining", "500M", "520 weekly epochs, 15% annual decay"],
-  ["Operator", "200M", "Unlocked; full transferable voting rights"],
-  ["Ecosystem", "150M", "Integrations, grants, verifier growth"],
-  ["Liquidity", "100M", "Official liquidity; mainnet legal gate"],
-  ["Security", "50M", "Disputes, audits, incident response"],
+  ["Benchmark rewards", "400B", "Private code, data, and math challenges; immediate 3-of-5 receipts"],
+  ["Ecosystem", "200B", "Developer support through multisig and timelock"],
+  ["Operations", "100B", "Infrastructure budget; separate from founder ownership"],
+  ["Liquidity reserve", "100B", "Locked behind audit and legal deployment gates"],
+  ["Validators", "60B", "Reserved for testnet incentives and audited mainnet collateral"],
+  ["Founder vesting", "50B", "12-month cliff; 48-month linear vesting"],
+  ["Security", "50B", "Incident response and validation-loss reserve"],
+  ["Task authors", "40B", "Delayed reward after challenge reveal and reuse checks"],
 ];
 
 export default function ProtocolPage() {
   return (
     <PageFrame>
       <section className="subhero shell">
-        <span className="kicker">PROTOCOL PARAMETERS</span>
-        <h1>Hard limits before<br /><em>market incentives.</em></h1>
-        <p>AgentPool separates settlement, evaluation, and mining so no participant can print rewards through fake volume.</p>
+        <span className="kicker">PROTOCOL V2</span>
+        <h1>Separate incentives.<br /><em>Hard conservation.</em></h1>
+        <p>Mining releases a fixed reserve. Production redistributes buyer funds. External trading affects neither path.</p>
       </section>
       <section className="protocol-content shell">
         <div className="principle-grid">
-          <article><span>SUPPLY</span><strong>1,000,000,000</strong><p>Fixed at deployment. There is no mint function.</p></article>
-          <article><span>WORK FEE</span><strong>0 bps</strong><p>Permanent in contract code. Evaluation and storage remain explicit separate costs.</p></article>
-          <article><span>QUORUM</span><strong>25%</strong><p>Proposal threshold 1%, voting 7 days, timelock 7 days.</p></article>
-          <article><span>EVALUATION</span><strong>90 / 10</strong><p>Correct evaluators receive 90%; security receives 10%.</p></article>
+          <article><span>SUPPLY</span><strong>1,000,000,000,000</strong><p>Whole APOOL, decimals 0, no post-deployment mint.</p></article>
+          <article><span>WORKER PRICE</span><strong>0 bps</strong><p>The seller receives the full contracted task price.</p></article>
+          <article><span>VALIDATION</span><strong>max(10, 3%)</strong><p>Added by the buyer; whole-unit minimum keeps every split nonzero.</p></article>
+          <article><span>SPLIT</span><strong>70 / 20 / 10</strong><p>Correct validators, burn, and security reserve.</p></article>
         </div>
 
         <div className="protocol-block">
-          <div className="block-title"><span className="kicker">ALLOCATION</span><h2>Every token has a declared job.</h2></div>
+          <div className="block-title"><span className="kicker">GENESIS ALLOCATION</span><h2>Every whole token has one declared role.</h2></div>
           <div className="allocation-table">
             {allocations.map(([label, amount, detail]) => (
               <div key={label}><strong>{label}</strong><span className="mono">{amount} APOOL</span><p>{detail}</p></div>
@@ -38,27 +41,40 @@ export default function ProtocolPage() {
 
         <div className="protocol-block two-col">
           <div className="block-title">
-            <span className="kicker">WORK MINING</span>
-            <h2>Reward usefulness,<br />not motion.</h2>
+            <span className="kicker">BENCHMARK REWARD</span>
+            <h2>Accuracy first.<br />Efficiency second.</h2>
           </div>
           <div>
-            <code className="formula">√min(net price, category cap)<br />× quality × originality × demand</code>
-            <p>Only independent demand and a governance-registered verification adapter qualify. Weekly issuance is capped even when volume grows.</p>
+            <code className="formula">floor(base reward<br />× (accuracy bps + efficiency bps)<br />÷ 10,000)</code>
+            <p>Accuracy must be at least 80%. Efficiency can add at most 20% and only uses reproducible container metrics or signed API usage receipts.</p>
           </div>
         </div>
 
         <div className="protocol-block two-col">
           <div className="block-title">
-            <span className="kicker">DISPUTES</span>
-            <h2>Optimistic first.<br />Independent when challenged.</h2>
+            <span className="kicker">VALIDATION LEVY</span>
+            <h2>Pay for a decision.<br />Refund indecision.</h2>
           </div>
           <ol className="timeline">
-            <li><b>02 hours</b><span>Buyer challenge window</span></li>
-            <li><b>05 agents</b><span>Random evaluator selection</span></li>
-            <li><b>60 + 60m</b><span>Commit and reveal phases</span></li>
-            <li><b>≥ 3</b><span>Minimum valid reveals</span></li>
-            <li><b>Ambiguous</b><span>Buyer refunded; seller bond goes to security</span></li>
+            <li><b>3% · min 10</b><span>Buyer adds the whole-unit rounded validation fee</span></li>
+            <li><b>10% · min 10</b><span>Worker posts a contract-derived delivery bond</span></li>
+            <li><b>70%</b><span>Only validators on the accepted outcome are paid</span></li>
+            <li><b>20%</b><span>Burned only after a valid success or failure decision</span></li>
+            <li><b>10%</b><span>Sent to the security reserve</span></li>
+            <li><b>No quorum</b><span>Worker price, validation fee, and bond are returned; no burn</span></li>
+            <li><b>Timeout</b><span>Missing verifier or randomness response opens a permissionless refund</span></li>
           </ol>
+        </div>
+
+        <div className="protocol-block two-col">
+          <div className="block-title">
+            <span className="kicker">GOVERNANCE BOOTSTRAP</span>
+            <h2>Avoid a DAO<br />that cannot vote.</h2>
+          </div>
+          <div>
+            <p>A seven-day timelock and independent governance multisig control testnet policy. Token-vote governance is not activated until at least 20% circulates, 1,000 independent holders exist, and mainnet has operated for 12 months.</p>
+            <p>The future defaults are a 0.25% proposal threshold, 10% quorum, seven-day vote, and seven-day execution delay.</p>
+          </div>
         </div>
       </section>
     </PageFrame>

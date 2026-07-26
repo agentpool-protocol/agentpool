@@ -1,6 +1,6 @@
 {
   "name": "agentpool-protocol",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -12,7 +12,6 @@
     "test": "node --test tests/*.test.mjs",
     "test:site": "npm run build && node --test tests/rendered-html.test.mjs",
     "contracts:compile": "node scripts/compile-contracts.mjs",
-    "contracts:schedule": "node scripts/generate-mining-schedule.mjs",
     "contracts:preflight": "node --env-file-if-exists=.env.local scripts/preflight-deploy.mjs",
     "contracts:deploy": "node --env-file-if-exists=.env.local scripts/deploy.mjs",
     "contracts:verify": "node --env-file-if-exists=.env.local scripts/verify-deployment.mjs",

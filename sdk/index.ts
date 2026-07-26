@@ -4,16 +4,106 @@ import {
 } from "@hpke/core";
 import { DhkemX25519HkdfSha256 } from "@hpke/dhkem-x25519";
 import { Chacha20Poly1305 } from "@hpke/chacha20poly1305";
-import { keccak256, toBytes, type Account } from "viem";
+import {
+  concatHex,
+  encodeAbiParameters,
+  keccak256,
+  toBytes,
+  type Account,
+} from "viem";
 
 const CHAIN_ID = 84532;
 const textEncoder = new TextEncoder();
+export const VALIDATION_FEE_BPS = 300;
+export const MIN_VALIDATION_FEE_APOOL = 10n;
+export const WORKER_BOND_BPS = 1_000;
+export const MIN_WORKER_BOND_APOOL = 10n;
+
+export function validationFeeForApool(amount: string | number | bigint): bigint {
+  const value = BigInt(amount);
+  if (value <= 0n) return 0n;
+  const percentageFee =
+    (value * BigInt(VALIDATION_FEE_BPS) + 9_999n) / 10_000n;
+  return percentageFee < MIN_VALIDATION_FEE_APOOL
+    ? MIN_VALIDATION_FEE_APOOL
+    : percentageFee;
+}
+
+export function workerBondForApool(amount: string | number | bigint): bigint {
+  const value = BigInt(amount);
+  if (value <= 0n) return 0n;
+  const percentageBond =
+    (value * BigInt(WORKER_BOND_BPS) + 9_999n) / 10_000n;
+  return percentageBond < MIN_WORKER_BOND_APOOL
+    ? MIN_WORKER_BOND_APOOL
+    : percentageBond;
+}
 
 export function verifierIdForName(name: string): `0x${string}` {
   if (!/^[a-z0-9][a-z0-9-]{2,79}$/u.test(name)) {
     throw new Error("Verifier names must use 3-80 lowercase letters, numbers, or hyphens");
   }
   return keccak256(toBytes(name));
+}
+
+export interface ProjectTaskCommitment {
+  projectId: bigint;
+  worker: `0x${string}`;
+  price: bigint;
+  deadline: bigint;
+  requirementsHash: `0x${string}`;
+  dependencyTaskIds: bigint[];
+  verifierId: `0x${string}`;
+}
+
+export function projectDependenciesHash(
+  dependencyTaskIds: bigint[],
+): `0x${string}` {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "uint256[]" }],
+      [dependencyTaskIds],
+    ),
+  );
+}
+
+export function projectTaskLeaf(
+  input: ProjectTaskCommitment,
+): `0x${string}` {
+  const inner = keccak256(
+    encodeAbiParameters(
+      [
+        { type: "uint256" },
+        { type: "address" },
+        { type: "uint128" },
+        { type: "uint128" },
+        { type: "uint64" },
+        { type: "bytes32" },
+        { type: "bytes32" },
+        { type: "bytes32" },
+      ],
+      [
+        input.projectId,
+        input.worker,
+        input.price,
+        workerBondForApool(input.price),
+        input.deadline,
+        input.requirementsHash,
+        projectDependenciesHash(input.dependencyTaskIds),
+        input.verifierId,
+      ],
+    ),
+  );
+  return keccak256(inner);
+}
+
+export function sortedMerkleParent(
+  left: `0x${string}`,
+  right: `0x${string}`,
+): `0x${string}` {
+  const [first, second] =
+    BigInt(left) < BigInt(right) ? [left, right] : [right, left];
+  return keccak256(concatHex([first, second]));
 }
 
 export interface AgentPoolClientOptions {
@@ -160,12 +250,46 @@ export class AgentPoolClient {
     return this.signedWrite("/api/v1/jobs", "POST", input);
   }
 
-  async transitionJob(jobId: string, input: Record<string, unknown>): Promise<unknown> {
-    return this.signedWrite(`/api/v1/jobs/${jobId}`, "PATCH", input);
-  }
-
   async uploadArtifact(input: Record<string, unknown>): Promise<unknown> {
     return this.signedWrite("/api/v1/artifacts", "POST", input);
+  }
+
+  async benchmarkTracks(): Promise<unknown> {
+    return this.get("/api/v2/mining/tracks");
+  }
+
+  async benchmarkChallenges(filter?: { track?: "code" | "data" | "math" }): Promise<unknown> {
+    const query = filter?.track ? `?track=${encodeURIComponent(filter.track)}` : "";
+    return this.get(`/api/v2/mining/challenges${query}`);
+  }
+
+  async submitBenchmark(input: Record<string, unknown>): Promise<unknown> {
+    return this.signedWrite("/api/v2/mining/submissions", "POST", input);
+  }
+
+  async miningLeaderboard(): Promise<unknown> {
+    return this.get("/api/v2/mining/leaderboard");
+  }
+
+  async projects(filter?: { state?: string }): Promise<unknown> {
+    const query = filter?.state ? `?state=${encodeURIComponent(filter.state)}` : "";
+    return this.get(`/api/v2/projects${query}`);
+  }
+
+  async project(projectId: string): Promise<unknown> {
+    return this.get(`/api/v2/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  async createProject(input: Record<string, unknown>): Promise<unknown> {
+    return this.signedWrite("/api/v2/projects", "POST", input);
+  }
+
+  async addProjectTask(projectId: string, input: Record<string, unknown>): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v2/projects/${encodeURIComponent(projectId)}/tasks`,
+      "POST",
+      input,
+    );
   }
 
   private async get(path: string): Promise<unknown> {

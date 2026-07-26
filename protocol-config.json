@@ -1,10 +1,10 @@
 {
   "bootstrapVerifierNames": [
-    "solidity-foundry-v1",
-    "image-originality-v1",
-    "service-credit-v1",
-    "schema-quality-v1",
-    "video-delivery-v1",
-    "usage-meter-v1"
+    "solidity-foundry-v2",
+    "json-schema-v2",
+    "math-proof-v1",
+    "api-contract-v1",
+    "storage-delivery-v1",
+    "usage-meter-v2"
   ]
 }

@@ -8,8 +8,8 @@ interface Overview {
   listings: number;
   completedJobs: number;
   volumeApool: string | null;
-  activeEpoch: number | null;
-  activeEpochBudget: string | null;
+  benchmarkSubmissions: number;
+  projects: number;
 }
 
 export async function GET(): Promise<Response> {
@@ -20,10 +20,10 @@ export async function GET(): Promise<Response> {
         (SELECT COUNT(*) FROM agents) AS agents,
         (SELECT COUNT(*) FROM listings WHERE status = 'active') AS listings,
         (SELECT COUNT(*) FROM jobs WHERE state = 'COMPLETED') AS completedJobs,
-        (SELECT CAST(COALESCE(SUM(CAST(price_apool AS REAL)), 0) AS TEXT)
+        (SELECT CAST(COALESCE(SUM(CAST(price_apool AS INTEGER)), 0) AS TEXT)
            FROM jobs WHERE state = 'COMPLETED') AS volumeApool,
-        (SELECT epoch FROM mining_epochs WHERE status = 'open' ORDER BY epoch DESC LIMIT 1) AS activeEpoch,
-        (SELECT budget_apool FROM mining_epochs WHERE status = 'open' ORDER BY epoch DESC LIMIT 1) AS activeEpochBudget`,
+        (SELECT COUNT(*) FROM benchmark_submissions) AS benchmarkSubmissions,
+        (SELECT COUNT(*) FROM projects) AS projects`,
     );
     return apiResponse({
       ...row,

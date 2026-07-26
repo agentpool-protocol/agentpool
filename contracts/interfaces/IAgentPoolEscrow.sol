@@ -9,6 +9,10 @@ interface IAgentPoolEscrow {
     }
 
     function proposeOutcome(uint256 jobId, bytes32 verifierId, Outcome outcome) external;
-    function finalizeUnchallenged(uint256 jobId, address evaluatorReceiver) external;
-    function resolveChallenge(uint256 jobId, Outcome outcome, address evaluatorReceiver) external;
+    function finalizeUnchallenged(uint256 jobId, address[] calldata validatorReceivers) external;
+    function resolveChallenge(
+        uint256 jobId,
+        Outcome outcome,
+        address[] calldata validatorReceivers
+    ) external;
 }

@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { apiResponse, handleApiError, requestId } from "@/lib/api";
-import { authenticateAgentWrite } from "@/lib/auth";
-import { execute, queryAll, queryFirst } from "@/db/runtime";
+import {
+  agentAuthorization,
+  authenticateAgentWrite,
+  readIdempotentResponse,
+  requireIdempotencyKey,
+  storeIdempotentResponse,
+} from "@/lib/auth";
+import { execute, queryAll } from "@/db/runtime";
 import { seedReferenceData } from "@/lib/seed";
 import {
   BOOTSTRAP_VERIFIER_NAMES,
@@ -16,12 +22,11 @@ const listingSchema = z.object({
     "code", "image", "video", "dataset", "prompt", "model",
     "api-credit", "service-credit",
   ]),
-  priceApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  priceApool: z.string().regex(/^[1-9]\d*$/),
   licenseType: z.string().min(3).max(80),
   verifierId: z.string().min(3).max(80),
   contentHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
   resaleAllowed: z.boolean().default(false),
-  miningEligible: z.boolean().default(false),
 });
 
 export async function GET(request: Request): Promise<Response> {
@@ -55,17 +60,24 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const bodyText = await request.text();
     const auth = await authenticateAgentWrite(request, bodyText);
-    const input = listingSchema.parse(JSON.parse(bodyText));
-    const seller = await queryFirst<{ owner_address: string }>(
-      "SELECT owner_address FROM agents WHERE id = ? AND status = 'active'",
-      input.sellerAgentId,
+    const idempotencyKey = requireIdempotencyKey(request);
+    const replay = await readIdempotentResponse(
+      idempotencyKey,
+      auth.address,
+      auth.requestHash,
     );
-    if (!seller || seller.owner_address.toLowerCase() !== auth.address) {
-      throw new Error("AUTH_NOT_AGENT_OWNER");
+    if (replay) return replay;
+    const input = listingSchema.parse(JSON.parse(bodyText));
+    const seller = await agentAuthorization(
+      input.sellerAgentId,
+      auth.address,
+    );
+    if (!seller) {
+      throw new Error("AUTH_NOT_AGENT_SIGNER");
     }
     if (!BOOTSTRAP_VERIFIER_NAMES.includes(input.verifierId)) {
       return apiResponse(
-        { error: { code: "UNREGISTERED_VERIFIER", message: "Jobs require a registered v1 verification adapter." } },
+        { error: { code: "UNREGISTERED_VERIFIER", message: "Jobs require a registered v2 verification adapter." } },
         422,
       );
     }
@@ -88,16 +100,25 @@ export async function POST(request: Request): Promise<Response> {
       input.verifierId,
       input.contentHash ?? null,
       input.resaleAllowed ? 1 : 0,
-      input.miningEligible ? 1 : 0,
+      0,
       now,
       now,
     );
-    return apiResponse({
+    const responseBody = {
       id,
       status: "active",
-      protocolFeeBps: 0,
+      workerPriceFeeBps: 0,
+      benchmarkMiningEligible: false,
       onchainVerifierId: verifierIdForName(input.verifierId),
-    }, 201);
+    };
+    await storeIdempotentResponse({
+      key: idempotencyKey,
+      actorAddress: auth.address,
+      requestHash: auth.requestHash,
+      responseBody,
+      statusCode: 201,
+    });
+    return apiResponse(responseBody, 201);
   } catch (error) {
     return handleApiError(error);
   }

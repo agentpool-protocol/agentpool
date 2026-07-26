@@ -27,14 +27,14 @@ if (chainId === 8453) {
   const gates = JSON.parse(
     fs.readFileSync(path.join(root, "mainnet-gates.json"), "utf8"),
   );
-  const evidenceMap = [
+  for (const [gateName, envName] of [
     ["smartContractAudit", "MAINNET_AUDIT_REPORT_SHA256"],
     ["koreaLegalReview", "MAINNET_LEGAL_MEMO_SHA256"],
     ["trademarkClearance", "MAINNET_TRADEMARK_EVIDENCE_SHA256"],
     ["testnetReliability", "MAINNET_TESTNET_REPORT_SHA256"],
+    ["validatorCollateral", "MAINNET_VALIDATOR_ECONOMICS_SHA256"],
     ["multisigAndTimelock", "MAINNET_MULTISIG_EVIDENCE_SHA256"],
-  ];
-  for (const [gateName, envName] of evidenceMap) {
+  ]) {
     const gate = gates.gates[gateName];
     if (
       gate.status !== "approved" ||
@@ -48,14 +48,29 @@ if (chainId === 8453) {
 
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
 const roleNames = [
-  "OPERATOR_WALLET",
+  "GOVERNANCE_MULTISIG",
   "ECOSYSTEM_TREASURY",
+  "OPERATIONS_TREASURY",
+  "VALIDATOR_TREASURY",
+  "AUTHOR_TREASURY",
   "LIQUIDITY_TREASURY",
+  "FOUNDER_BENEFICIARY",
   "SECURITY_TREASURY",
-  "EVALUATOR_TREASURY",
-  "MINING_ROOT_PUBLISHER",
+  "INITIAL_VERIFIER_ADAPTER",
+  "VALIDATOR_1",
+  "VALIDATOR_2",
+  "VALIDATOR_3",
+  "VALIDATOR_4",
+  "VALIDATOR_5",
 ];
 const roles = roleNames.map((name) => getAddress(requireEnv(name)));
+if (new Set(roles.map((address) => address.toLowerCase())).size !== roles.length) {
+  throw new Error("All governance, allocation, verifier, and validator addresses must be distinct");
+}
+if (roles.some((address) => address.toLowerCase() === account.address.toLowerCase())) {
+  throw new Error("Deployer must be distinct from every long-lived role");
+}
+
 const protocolConfig = JSON.parse(
   fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
 );
@@ -68,75 +83,54 @@ if (
 ) {
   throw new Error("protocol-config.json contains invalid bootstrapVerifierNames");
 }
-const verifierIds = verifierNames.map((name) =>
-  keccak256(new TextEncoder().encode(name)),
+const implementationHash = requireEnv("INITIAL_VERIFIER_IMPLEMENTATION_HASH");
+if (!/^0x[0-9a-fA-F]{64}$/u.test(implementationHash) || /^0x0{64}$/u.test(implementationHash)) {
+  throw new Error("INITIAL_VERIFIER_IMPLEMENTATION_HASH must be a nonzero bytes32");
+}
+const benchmarkGenesis = BigInt(requireEnv("BENCHMARK_GENESIS_TIMESTAMP"));
+const founderVestingStart = BigInt(requireEnv("FOUNDER_VESTING_START_TIMESTAMP"));
+const benchmarkDailyCap = BigInt(
+  process.env.BENCHMARK_DAILY_CAP_APOOL ?? "1000000",
 );
-const verifierImplementationHash = requireEnv("INITIAL_VERIFIER_IMPLEMENTATION_HASH");
-for (const [label, value] of [
-  ["INITIAL_VERIFIER_IMPLEMENTATION_HASH", verifierImplementationHash],
-]) {
-  if (!/^0x[0-9a-fA-F]{64}$/u.test(value) || /^0x0{64}$/u.test(value)) {
-    throw new Error(`${label} must be a nonzero bytes32 hex value`);
-  }
+if (benchmarkGenesis <= 0n || founderVestingStart <= 0n) {
+  throw new Error("Genesis and vesting timestamps must be positive");
 }
-const verifierAdapter = getAddress(requireEnv("INITIAL_VERIFIER_ADAPTER"));
-const evaluators = Array.from({ length: 5 }, (_, index) =>
-  getAddress(requireEnv(`EVALUATOR_${index + 1}`)),
-);
-const operatingAddresses = [...roles, verifierAdapter, ...evaluators];
-if (
-  new Set(operatingAddresses.map((address) => address.toLowerCase())).size !==
-  operatingAddresses.length
-) {
-  throw new Error("Treasuries, publisher, verifier adapter, and evaluators must be distinct");
+if (benchmarkDailyCap <= 0n || benchmarkDailyCap > 204_670_000n) {
+  throw new Error("BENCHMARK_DAILY_CAP_APOOL must be between 1 and 204670000");
 }
-if (
-  operatingAddresses.some(
-    (address) => address.toLowerCase() === account.address.toLowerCase(),
-  )
-) {
-  throw new Error("Deployer must be distinct from every operating address");
-}
-
-const genesis = BigInt(requireEnv("MINING_GENESIS_TIMESTAMP"));
-if (genesis <= 0n) throw new Error("MINING_GENESIS_TIMESTAMP must be positive");
 const siteUrl = new URL(requireEnv("PUBLIC_SITE_URL"));
 if (siteUrl.protocol !== "https:") {
   throw new Error("PUBLIC_SITE_URL must use HTTPS");
 }
 
 const requiredArtifacts = [
+  "AgentPoolFounderVesting",
+  "AgentPoolBenchmarkRewardVault",
   "AgentPoolToken",
   "TimelockController",
-  "AgentPoolGovernor",
   "AgentPoolRegistry",
   "AgentPoolLicense",
   "AgentPoolWorkOracle",
   "AgentPoolJobEscrow",
-  "AgentPoolMiningVault",
+  "AgentPoolProjectResolver",
+  "AgentPoolProjectEscrow",
   ...(chainId === 8453 ? [] : ["MockRandomnessProvider"]),
 ];
 const artifactHashes = {};
+const runtimeBytes = {};
 for (const name of requiredArtifacts) {
-  const artifact = JSON.parse(
+  const compiled = JSON.parse(
     fs.readFileSync(path.join(root, "artifacts", `${name}.json`), "utf8"),
   );
-  if (!artifact.bytecode || artifact.bytecode === "0x") {
+  if (!compiled.bytecode || compiled.bytecode === "0x") {
     throw new Error(`Missing bytecode for ${name}`);
   }
-  artifactHashes[name] = keccak256(artifact.bytecode);
-}
-
-const schedule = JSON.parse(
-  fs.readFileSync(path.join(root, "mining-schedule.json"), "utf8"),
-);
-const miningTotal = schedule.budgetsWei.map(BigInt).reduce((sum, value) => sum + value, 0n);
-if (
-  schedule.epochs !== 520 ||
-  schedule.budgetsWei.length !== 520 ||
-  miningTotal !== parseEther("500000000")
-) {
-  throw new Error("Mining schedule invariant failed");
+  const size = (compiled.deployedBytecode.length - 2) / 2;
+  if (size > 24_576) {
+    throw new Error(`${name} exceeds the EIP-170 runtime size limit`);
+  }
+  artifactHashes[name] = keccak256(compiled.bytecode);
+  runtimeBytes[name] = size;
 }
 
 const client = createPublicClient({ chain, transport: http(rpcUrl) });
@@ -144,32 +138,48 @@ const connectedChainId = await client.getChainId();
 if (connectedChainId !== chainId) {
   throw new Error(`RPC chain mismatch: expected ${chainId}, received ${connectedChainId}`);
 }
+const chainNow = (await client.getBlock()).timestamp;
+if (
+  founderVestingStart < chainNow - 3_600n ||
+  founderVestingStart > chainNow + 86_400n
+) {
+  throw new Error("FOUNDER_VESTING_START_TIMESTAMP must be within -1h/+24h of chain time");
+}
+if (
+  benchmarkGenesis < chainNow - 3_600n ||
+  benchmarkGenesis > chainNow + 30n * 24n * 60n * 60n
+) {
+  throw new Error("BENCHMARK_GENESIS_TIMESTAMP must be within -1h/+30d of chain time");
+}
 const balance = await client.getBalance({ address: account.address });
 const minimumBalance = BigInt(
-  process.env.MIN_DEPLOYER_BALANCE_WEI ?? parseEther("0.01").toString(),
+  process.env.MIN_DEPLOYER_BALANCE_WEI ?? parseEther("0.02").toString(),
 );
 if (balance < minimumBalance) {
   throw new Error(`DEPLOYER_BALANCE_TOO_LOW: ${balance} < ${minimumBalance}`);
 }
-
 if (chainId === 8453) {
   const vrf = getAddress(requireEnv("CHAINLINK_VRF_ADAPTER"));
   const code = await client.getCode({ address: vrf });
-  if (!code || code === "0x") throw new Error("MAINNET_BLOCKED: VRF adapter has no code");
+  if (!code || code === "0x") {
+    throw new Error("MAINNET_BLOCKED: VRF adapter has no code");
+  }
 }
 
 console.log(JSON.stringify({
   status: "ready",
+  version: 2,
   chainId,
   network: chain.name,
   deployer: account.address,
   balanceWei: balance.toString(),
   minimumBalanceWei: minimumBalance.toString(),
-  genesis: genesis.toString(),
+  benchmarkGenesis: benchmarkGenesis.toString(),
+  founderVestingStart: founderVestingStart.toString(),
+  benchmarkDailyCapApool: benchmarkDailyCap.toString(),
   publicSiteUrl: siteUrl.origin,
-  miningTotalWei: miningTotal.toString(),
   artifactHashes,
-  verifiers: verifierNames.map((name, index) => ({ name, id: verifierIds[index] })),
-  verifierAdapter,
-  evaluatorCount: evaluators.length,
+  runtimeBytes,
+  verifiers: verifierNames,
+  validatorCount: 5,
 }, null, 2));

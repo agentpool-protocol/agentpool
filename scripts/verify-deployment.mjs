@@ -2,10 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   createPublicClient,
-  getAddress,
   http,
   keccak256,
-  parseEther,
   toBytes,
   zeroHash,
 } from "viem";
@@ -26,24 +24,14 @@ const manifestPath =
   process.env.DEPLOYMENT_MANIFEST ??
   path.join(root, "deployments", `${chainId}.json`);
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-if (manifest.chainId !== chainId) throw new Error("Deployment manifest chain mismatch");
+if (manifest.chainId !== chainId || manifest.version !== 2) {
+  throw new Error("Deployment manifest is not an AgentPool v2 manifest for this chain");
+}
 
 const client = createPublicClient({ chain, transport: http(rpcUrl) });
-const connectedChainId = await client.getChainId();
-if (connectedChainId !== chainId) {
-  throw new Error(`RPC chain mismatch: expected ${chainId}, received ${connectedChainId}`);
+if (await client.getChainId() !== chainId) {
+  throw new Error("RPC chain mismatch");
 }
-const operatorWallet = getAddress(requireEnv("OPERATOR_WALLET"));
-const protocolConfig = JSON.parse(
-  fs.readFileSync(path.join(root, "protocol-config.json"), "utf8"),
-);
-const verifierIds = protocolConfig.bootstrapVerifierNames.map((name) =>
-  keccak256(new TextEncoder().encode(name)),
-);
-const verifierAdapter = getAddress(requireEnv("INITIAL_VERIFIER_ADAPTER"));
-const evaluators = Array.from({ length: 5 }, (_, index) =>
-  getAddress(requireEnv(`EVALUATOR_${index + 1}`)),
-);
 const artifacts = new Map();
 function artifact(name) {
   if (!artifacts.has(name)) {
@@ -62,7 +50,6 @@ async function read(name, address, functionName, args = []) {
     args,
   });
 }
-
 const checks = [];
 function check(name, actual, expected) {
   const passed =
@@ -77,177 +64,255 @@ function check(name, actual, expected) {
   });
 }
 
-const { contracts } = manifest;
+const { contracts, allocations, bootstrap } = manifest;
+const contractArtifacts = {
+  token: "AgentPoolToken",
+  founderVesting: "AgentPoolFounderVesting",
+  benchmarkRewardVault: "AgentPoolBenchmarkRewardVault",
+  timelock: "TimelockController",
+  registry: "AgentPoolRegistry",
+  license: "AgentPoolLicense",
+  randomnessProvider: chainId === 84532 ? "MockRandomnessProvider" : null,
+  oracle: "AgentPoolWorkOracle",
+  jobEscrow: "AgentPoolJobEscrow",
+  projectResolver: "AgentPoolProjectResolver",
+  projectEscrow: "AgentPoolProjectEscrow",
+};
 const codeHashes = {};
-for (const [name, address] of Object.entries(contracts)) {
+for (const [key, address] of Object.entries(contracts)) {
   const code = await client.getCode({ address });
-  check(`bytecode:${name}`, Boolean(code && code !== "0x"), true);
-  if (code && code !== "0x") codeHashes[name] = keccak256(code);
+  check(`bytecode:${key}`, Boolean(code && code !== "0x"), true);
+  if (code && code !== "0x") codeHashes[key] = keccak256(code);
+  if (contractArtifacts[key]) artifact(contractArtifacts[key]);
+}
+
+check("token.totalSupply", await read("AgentPoolToken", contracts.token, "totalSupply"), 1_000_000_000_000n);
+check("token.decimals", await read("AgentPoolToken", contracts.token, "decimals"), 0);
+for (const [label, address, amount] of [
+  ["benchmark", contracts.benchmarkRewardVault, 400_000_000_000n],
+  ["ecosystem", allocations.ecosystemTreasury, 200_000_000_000n],
+  ["operations", allocations.operationsTreasury, 100_000_000_000n],
+  ["validators", allocations.validatorTreasury, 60_000_000_000n],
+  ["authors", allocations.authorTreasury, 40_000_000_000n],
+  ["liquidity", allocations.liquidityTreasury, 100_000_000_000n],
+  ["founder", contracts.founderVesting, 50_000_000_000n],
+  ["security", allocations.securityTreasury, 50_000_000_000n],
+]) {
+  check(
+    `token.allocation:${label}`,
+    await read("AgentPoolToken", contracts.token, "balanceOf", [address]),
+    amount,
+  );
+}
+check(
+  "benchmark.token",
+  await read("AgentPoolBenchmarkRewardVault", contracts.benchmarkRewardVault, "apool"),
+  contracts.token,
+);
+check(
+  "benchmark.policyVersion",
+  await read("AgentPoolBenchmarkRewardVault", contracts.benchmarkRewardVault, "policyVersion"),
+  BigInt(bootstrap.policyVersion),
+);
+check(
+  "benchmark.dailyCap",
+  await read("AgentPoolBenchmarkRewardVault", contracts.benchmarkRewardVault, "dailyCap"),
+  BigInt(bootstrap.benchmarkDailyCap),
+);
+for (const [index, validator] of bootstrap.validators.entries()) {
+  check(
+    `benchmark.validator${index + 1}`,
+    await read(
+      "AgentPoolBenchmarkRewardVault",
+      contracts.benchmarkRewardVault,
+      "isValidator",
+      [validator],
+    ),
+    true,
+  );
+  check(
+    `projectResolver.validator${index + 1}`,
+    await read(
+      "AgentPoolProjectResolver",
+      contracts.projectResolver,
+      "isValidator",
+      [validator],
+    ),
+    true,
+  );
+  check(
+    `oracle.evaluator${index + 1}`,
+    await read("AgentPoolWorkOracle", contracts.oracle, "isEligible", [validator]),
+    true,
+  );
 }
 
 check(
-  "token.totalSupply",
-  await read("AgentPoolToken", contracts.token, "totalSupply"),
-  parseEther("1000000000"),
-);
-check(
-  "token.operatorAllocation",
-  await read("AgentPoolToken", contracts.token, "balanceOf", [
-    operatorWallet,
-  ]),
-  parseEther("200000000"),
-);
-check(
-  "token.miningVaultAllocation",
-  await read("AgentPoolToken", contracts.token, "balanceOf", [contracts.miningVault]),
-  parseEther("500000000"),
-);
-check(
-  "escrow.permanentProtocolFeeBps",
-  await read("AgentPoolJobEscrow", contracts.escrow, "PROTOCOL_FEE_BPS"),
+  "jobEscrow.workerPriceFee",
+  await read("AgentPoolJobEscrow", contracts.jobEscrow, "PROTOCOL_FEE_BPS"),
   0,
 );
+for (const [contractName, address] of [
+  ["AgentPoolJobEscrow", contracts.jobEscrow],
+  ["AgentPoolProjectEscrow", contracts.projectEscrow],
+]) {
+  check(
+    `${contractName}.validationFee`,
+    await read(contractName, address, "VALIDATION_FEE_BPS"),
+    300,
+  );
+  check(
+    `${contractName}.validatorShare`,
+    await read(contractName, address, "VALIDATOR_SHARE_BPS"),
+    7000,
+  );
+  check(
+    `${contractName}.burnShare`,
+    await read(contractName, address, "BURN_SHARE_BPS"),
+    2000,
+  );
+  check(
+    `${contractName}.securityShare`,
+    await read(contractName, address, "SECURITY_SHARE_BPS"),
+    1000,
+  );
+  check(
+    `${contractName}.minimumValidationFee`,
+    await read(contractName, address, "MIN_VALIDATION_FEE"),
+    10,
+  );
+}
 check(
-  "escrow.noFeeSetter",
-  artifact("AgentPoolJobEscrow").abi.some((entry) => entry.name === "setProtocolFee"),
-  false,
+  "jobEscrow.verifierProposalTimeout",
+  await read("AgentPoolJobEscrow", contracts.jobEscrow, "RESOLUTION_GRACE"),
+  3n * 24n * 60n * 60n,
 );
 check(
-  "escrow.resolver",
-  await read("AgentPoolJobEscrow", contracts.escrow, "resolver"),
-  contracts.oracle,
+  "jobEscrow.minimumSellerBond",
+  await read("AgentPoolJobEscrow", contracts.jobEscrow, "MIN_SELLER_BOND"),
+  10,
 );
 check(
-  "escrow.registry",
-  await read("AgentPoolJobEscrow", contracts.escrow, "registry"),
-  contracts.registry,
+  "projectEscrow.minimumWorkerBond",
+  await read("AgentPoolProjectEscrow", contracts.projectEscrow, "MIN_WORKER_BOND"),
+  10,
 );
 check(
-  "oracle.escrow",
-  await read("AgentPoolWorkOracle", contracts.oracle, "escrow"),
-  contracts.escrow,
+  "oracle.validatorSelectionTimeout",
+  await read("AgentPoolWorkOracle", contracts.oracle, "SELECTION_TIMEOUT"),
+  24n * 60n * 60n,
+);
+check("jobEscrow.resolver", await read("AgentPoolJobEscrow", contracts.jobEscrow, "resolver"), contracts.oracle);
+check(
+  "projectEscrow.resolver",
+  await read("AgentPoolProjectEscrow", contracts.projectEscrow, "resolver"),
+  contracts.projectResolver,
 );
 check(
-  "oracle.registry",
-  await read("AgentPoolWorkOracle", contracts.oracle, "registry"),
-  contracts.registry,
+  "projectResolver.escrow",
+  await read("AgentPoolProjectResolver", contracts.projectResolver, "projectEscrow"),
+  contracts.projectEscrow,
 );
-for (const [index, verifierId] of verifierIds.entries()) {
+check("oracle.escrow", await read("AgentPoolWorkOracle", contracts.oracle, "escrow"), contracts.jobEscrow);
+
+for (const [index, verifier] of bootstrap.verifiers.entries()) {
   check(
     `registry.verifier${index + 1}Active`,
-    await read("AgentPoolRegistry", contracts.registry, "isActiveVerifier", [verifierId]),
+    await read("AgentPoolRegistry", contracts.registry, "isActiveVerifier", [verifier.id]),
     true,
   );
   check(
     `registry.verifier${index + 1}Authorized`,
     await read("AgentPoolRegistry", contracts.registry, "isAuthorizedVerifier", [
-      verifierId,
-      verifierAdapter,
+      verifier.id,
+      bootstrap.verifierAdapter,
     ]),
     true,
   );
   check(
-    `registry.verifier${index + 1}MiningEligible`,
-    await read("AgentPoolRegistry", contracts.registry, "isMiningVerifier", [verifierId]),
-    true,
+    `registry.verifier${index + 1}NotMining`,
+    await read("AgentPoolRegistry", contracts.registry, "isMiningVerifier", [verifier.id]),
+    false,
   );
 }
-for (const [index, evaluator] of evaluators.entries()) {
-  check(
-    `oracle.evaluator${index + 1}Eligible`,
-    await read("AgentPoolWorkOracle", contracts.oracle, "isEligible", [evaluator]),
-    true,
-  );
-}
+
 check(
-  "mining.configuredBudget",
-  await read("AgentPoolMiningVault", contracts.miningVault, "configuredBudget"),
-  parseEther("500000000"),
+  "founder.owner",
+  await read("AgentPoolFounderVesting", contracts.founderVesting, "owner"),
+  allocations.founderBeneficiary,
 );
+check(
+  "founder.duration",
+  await read("AgentPoolFounderVesting", contracts.founderVesting, "duration"),
+  4n * 365n * 24n * 60n * 60n,
+);
+check(
+  "founder.start",
+  await read("AgentPoolFounderVesting", contracts.founderVesting, "start"),
+  BigInt(bootstrap.founderVestingStart),
+);
+check(
+  "founder.cliff",
+  await read("AgentPoolFounderVesting", contracts.founderVesting, "cliff"),
+  await read("AgentPoolFounderVesting", contracts.founderVesting, "start") +
+    365n * 24n * 60n * 60n,
+);
+
+for (const [name, address] of [
+  ["AgentPoolBenchmarkRewardVault", contracts.benchmarkRewardVault],
+  ["AgentPoolRegistry", contracts.registry],
+  ["AgentPoolWorkOracle", contracts.oracle],
+  ["AgentPoolJobEscrow", contracts.jobEscrow],
+  ["AgentPoolProjectResolver", contracts.projectResolver],
+  ["AgentPoolProjectEscrow", contracts.projectEscrow],
+  ...(chainId === 84532
+    ? [["MockRandomnessProvider", contracts.randomnessProvider]]
+    : []),
+]) {
+  check(`owner:${name}`, await read(name, address, "owner"), contracts.timelock);
+}
 check(
   "timelock.minDelay",
   await read("TimelockController", contracts.timelock, "getMinDelay"),
   7n * 24n * 60n * 60n,
 );
-check(
-  "governor.quorumNumerator",
-  await read("AgentPoolGovernor", contracts.governor, "quorumNumerator"),
-  25n,
-);
-check(
-  "governor.proposalThreshold",
-  await read("AgentPoolGovernor", contracts.governor, "proposalThreshold"),
-  parseEther("10000000"),
-);
-check(
-  "governor.votingPeriod",
-  await read("AgentPoolGovernor", contracts.governor, "votingPeriod"),
-  302400n,
-);
-
-for (const [name, address] of [
-  ["AgentPoolRegistry", contracts.registry],
-  ["AgentPoolWorkOracle", contracts.oracle],
-  ["AgentPoolJobEscrow", contracts.escrow],
-  ["AgentPoolMiningVault", contracts.miningVault],
-  ...(chainId === 84532
-    ? [["MockRandomnessProvider", contracts.randomnessProvider]]
-    : []),
-]) {
-  check(
-    `owner:${name}`,
-    await read(name, address, "owner"),
-    contracts.timelock,
-  );
-}
-
 const proposerRole = keccak256(toBytes("PROPOSER_ROLE"));
 const cancellerRole = keccak256(toBytes("CANCELLER_ROLE"));
 check(
-  "timelock.governorProposer",
+  "timelock.multisigProposer",
   await read("TimelockController", contracts.timelock, "hasRole", [
     proposerRole,
-    contracts.governor,
+    manifest.governanceMultisig,
   ]),
   true,
 );
 check(
-  "timelock.governorCanceller",
+  "timelock.multisigCanceller",
   await read("TimelockController", contracts.timelock, "hasRole", [
     cancellerRole,
-    contracts.governor,
+    manifest.governanceMultisig,
   ]),
   true,
 );
-for (const [label, role] of [
-  ["admin", zeroHash],
-  ["proposer", proposerRole],
-  ["canceller", cancellerRole],
-]) {
-  check(
-    `deployerRoleRemoved:${label}`,
-    await read("TimelockController", contracts.timelock, "hasRole", [
-      role,
-      manifest.deployer,
-    ]),
-    false,
-  );
-}
+check(
+  "timelock.deployerAdminRemoved",
+  await read("TimelockController", contracts.timelock, "hasRole", [
+    zeroHash,
+    manifest.deployer,
+  ]),
+  false,
+);
 if (chainId === 84532) {
   check(
     "mockRandomness.consumer",
-    await read(
-      "MockRandomnessProvider",
-      contracts.randomnessProvider,
-      "consumer",
-    ),
+    await read("MockRandomnessProvider", contracts.randomnessProvider, "consumer"),
     contracts.oracle,
   );
 }
 
 const failures = checks.filter((entry) => !entry.passed);
 const evidence = {
-  version: 1,
+  version: 2,
   verifiedAt: new Date().toISOString(),
   chainId,
   network: chain.name,

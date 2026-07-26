@@ -14,6 +14,45 @@ export interface AuthenticatedAgent {
   requestHash: `0x${string}`;
 }
 
+export interface AgentAuthorization {
+  ownerAddress: string;
+  delegateAddress: string;
+}
+
+export function requireIdempotencyKey(request: Request): string {
+  const key = request.headers.get("idempotency-key");
+  if (!key || !/^[a-zA-Z0-9._:-]{8,128}$/u.test(key)) {
+    throw new Error("INVALID_IDEMPOTENCY_KEY");
+  }
+  return key;
+}
+
+export async function agentAuthorization(
+  agentId: string,
+  signerAddress: string,
+): Promise<AgentAuthorization | null> {
+  const agent = await queryFirst<{
+    owner_address: string;
+    delegate_address: string;
+  }>(
+    `SELECT owner_address, delegate_address FROM agents
+     WHERE id = ? AND status = 'active'`,
+    agentId,
+  );
+  if (!agent) return null;
+  const signer = signerAddress.toLowerCase();
+  if (
+    agent.owner_address.toLowerCase() !== signer &&
+    agent.delegate_address.toLowerCase() !== signer
+  ) {
+    return null;
+  }
+  return {
+    ownerAddress: agent.owner_address.toLowerCase(),
+    delegateAddress: agent.delegate_address.toLowerCase(),
+  };
+}
+
 export function canonicalAgentMessage(input: {
   address: string;
   nonce: string;

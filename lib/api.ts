@@ -9,7 +9,7 @@ export function apiResponse(
     status,
     headers: {
       "cache-control": "no-store",
-      "x-agentpool-version": "0.1.0-testnet",
+      "x-agentpool-version": "0.2.0-testnet",
       ...headers,
     },
   });
@@ -52,6 +52,9 @@ export function handleApiError(error: unknown): Response {
   }
   if (message.startsWith("AUTH_")) {
     return apiError(message, message.slice(5).replaceAll("_", " "), 401);
+  }
+  if (message.startsWith("INVALID_")) {
+    return apiError(message, message.slice(8).replaceAll("_", " "), 422);
   }
 
   console.error("AgentPool API failure", error);
