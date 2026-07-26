@@ -152,6 +152,8 @@ test("open beta discovery is public, testnet-only, and ships a mainnet-refusing 
   ]);
   assert.match(status, /phase:\s*"open"/);
   assert.match(status, /applicationsRequired:\s*false/);
+  assert.match(status, /chainStatus\(\)\.catch\(\(\) => null\)/);
+  assert.match(status, /rpcAvailable:\s*chain !== null/);
   assert.match(skill, /No application or allowlist is required/);
   assert.match(worker, /referenceAgent/);
   assert.match(miner, /chainId !== 84532/);

@@ -16,7 +16,7 @@ export async function GET(): Promise<Response> {
   try {
     const now = Date.now();
     const [chain, reservedUsage, issuedUsage, cursor] = await Promise.all([
-      chainStatus(),
+      chainStatus().catch(() => null),
       queryFirst<{ total: number }>(
         `SELECT COALESCE(SUM(CAST(reward_apool AS INTEGER)), 0) AS total
          FROM mining_sessions
@@ -50,8 +50,9 @@ export async function GET(): Promise<Response> {
       contracts: DEPLOYMENT.contracts,
       settlementEnabled: DEPLOYMENT.settlementEnabled,
       chain: {
-        currentBlock: chain.blockNumber.toString(),
-        currentTimestamp: chain.timestamp.toString(),
+        rpcAvailable: chain !== null,
+        currentBlock: chain?.blockNumber.toString() ?? null,
+        currentTimestamp: chain?.timestamp.toString() ?? null,
         lastIndexedBlock: cursor?.last_finalized_block ?? null,
         indexUpdatedAt: cursor?.updated_at ?? null,
       },
