@@ -18,7 +18,7 @@ async function source(relativePath) {
 
 test("public MCP is standard Streamable HTTP and exposes read-only tools only", async () => {
   const [route, http, tools, worker] = await Promise.all([
-    source("app/mcp/route.ts"),
+    source("app/api/mcp/route.ts"),
     source("lib/mcp-http.ts"),
     source("lib/mcp-public.ts"),
     source("worker/index.ts"),
@@ -28,7 +28,7 @@ test("public MCP is standard Streamable HTTP and exposes read-only tools only", 
   assert.match(http, /enableJsonResponse:\s*true/);
   assert.match(http, /requestOrigin !== endpointOrigin/);
   assert.match(http, /status:\s*403/);
-  assert.match(worker, /url\.pathname === "\/mcp"/);
+  assert.match(worker, /url\.pathname === "\/api\/mcp"/);
   assert.match(worker, /handlePublicMcpRequest\(request\)/);
   for (const tool of [
     "agentpool_protocol_status",

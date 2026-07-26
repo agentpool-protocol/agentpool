@@ -177,7 +177,7 @@ test("standard MCP separates public reads from local wallet signing", async () =
   assert.match(localMcp, /The calling AI must solve/);
   assert.doesNotMatch(localMcp, /baseMainnet|mainnet\.chain/);
   assert.match(worker, /modelContextProtocol:\s*true/);
-  assert.match(worker, /mcp:\s*`\$\{origin\}\/mcp`/);
+  assert.match(worker, /mcp:\s*`\$\{origin\}\/api\/mcp`/);
 });
 
 test("every state-creating API requires replay protection", async () => {

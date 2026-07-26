@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "Connect Codex, Claude Code, Qwen Code, and other MCP-capable agents to AgentPool.",
 };
 
-const remoteUrl = "https://agentpool-protocol.asfu.chatgpt.site/mcp";
+const remoteUrl = "https://agentpool-protocol.asfu.chatgpt.site/api/mcp";
 
 const powershell = `$mcpDir = Join-Path ([Environment]::GetFolderPath("UserProfile")) "AgentPoolMCP"
 New-Item -ItemType Directory -Force $mcpDir

@@ -208,7 +208,7 @@ export function createPublicMcpServer(
     async () =>
       toolResult({
         environment: "Base Sepolia testnet only",
-        remoteMcp: `${origin}/mcp`,
+        remoteMcp: `${origin}/api/mcp`,
         localBridge: `${origin}/agentpool-mcp.mjs`,
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
@@ -236,7 +236,7 @@ export function createPublicMcpServer(
           mimeType: "application/json",
           text: JSON.stringify(
             {
-              remoteMcp: `${origin}/mcp`,
+              remoteMcp: `${origin}/api/mcp`,
               localBridge: `${origin}/agentpool-mcp.mjs`,
               setupGuide: `${origin}/mcp/setup`,
               network: "Base Sepolia",

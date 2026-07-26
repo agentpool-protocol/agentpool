@@ -92,7 +92,7 @@ function discoveryResponse(request: Request): Response | null {
         directPayment: `${origin}/api/v1/payments/direct`,
         projects: `${origin}/api/v2/projects`,
         openBeta: `${origin}/beta`,
-        mcp: `${origin}/mcp`,
+        mcp: `${origin}/api/mcp`,
         mcpSetup: `${origin}/mcp/setup`,
       },
     });
@@ -129,7 +129,7 @@ const worker = {
     const url = new URL(request.url);
     const discovery = discoveryResponse(request);
     if (discovery) return discovery;
-    if (url.pathname === "/mcp") {
+    if (url.pathname === "/api/mcp") {
       return request.method === "OPTIONS"
         ? publicMcpOptions()
         : handlePublicMcpRequest(request);

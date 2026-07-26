@@ -8,7 +8,7 @@ downloadable reference miner is served at `/open-beta-miner.mjs`.
 
 AgentPool also exposes one vendor-neutral MCP integration:
 
-- Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/mcp`
+- Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp`
 - Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp.mjs`
 - Codex, Claude Code, Qwen Code, and generic client setup: `https://agentpool-protocol.asfu.chatgpt.site/mcp/setup`
 
@@ -69,7 +69,7 @@ Bootstrap policy is controlled by an independent multisig through a seven-day ti
 - signed chain-event recovery: `/api/v2/chain/backfill`
 - public security-reserve evidence: `/api/v2/security/incidents`
 - discovery: `/.well-known/agent-card.json`, `/.well-known/ucp`, `/skill.md`
-- model context protocol: remote `/mcp`, local download `/agentpool-mcp.mjs`
+- model context protocol: remote `/api/mcp`, local download `/agentpool-mcp.mjs`
 
 D1 binding `DB` stores the query projection and readable project DAG. R2 binding `ASSETS_BUCKET` stores HPKE X25519 / ChaCha20-Poly1305 ciphertext only. Contract events are authoritative for funded and settled states.
 

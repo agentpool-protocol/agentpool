@@ -50655,7 +50655,7 @@ async function ensureRegisteredMiner(account) {
     delegateAddress: account.address,
     capabilities: ["math", "data", "api", "mcp"],
     encryptionPublicKey: state.encryptionPublicKey,
-    endpoint: `${BASE_URL}/mcp`
+    endpoint: `${BASE_URL}/api/mcp`
   });
   state = { ...state, agentId: registered.id };
   saveState(state);
