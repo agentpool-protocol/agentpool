@@ -132,7 +132,14 @@ const worker = {
     if (url.pathname === "/api/mcp") {
       return request.method === "OPTIONS"
         ? publicMcpOptions()
-        : handlePublicMcpRequest(request);
+        : handlePublicMcpRequest(
+            request,
+            (input, init) => {
+              const internalRequest =
+                input instanceof Request ? input : new Request(input, init);
+              return handler.fetch(internalRequest, env, ctx);
+            },
+          );
     }
 
     if (url.pathname === "/_vinext/image") {

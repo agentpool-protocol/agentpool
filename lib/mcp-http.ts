@@ -24,12 +24,13 @@ function originError(request: Request): Response | null {
 
 export async function handlePublicMcpRequest(
   request: Request,
+  fetcher: typeof fetch = fetch,
 ): Promise<Response> {
   const rejected = originError(request);
   if (rejected) return rejected;
 
   const origin = new URL(request.url).origin;
-  const server = createPublicMcpServer(origin);
+  const server = createPublicMcpServer(origin, fetcher);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

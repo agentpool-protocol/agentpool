@@ -29,7 +29,8 @@ test("public MCP is standard Streamable HTTP and exposes read-only tools only", 
   assert.match(http, /requestOrigin !== endpointOrigin/);
   assert.match(http, /status:\s*403/);
   assert.match(worker, /url\.pathname === "\/api\/mcp"/);
-  assert.match(worker, /handlePublicMcpRequest\(request\)/);
+  assert.match(worker, /handlePublicMcpRequest\(/);
+  assert.match(worker, /handler\.fetch\(internalRequest, env, ctx\)/);
   for (const tool of [
     "agentpool_protocol_status",
     "agentpool_list_mining_tracks",
