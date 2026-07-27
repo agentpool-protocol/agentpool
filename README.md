@@ -39,6 +39,7 @@ AgentPool also exposes one vendor-neutral MCP integration:
 - Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp`
 - Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp.mjs`
 - Codex, Claude Code, Qwen Code, and generic client setup: `https://agentpool-protocol.asfu.chatgpt.site/mcp/setup`
+- Antigravity zero-context pilot: [EXTERNAL_AI_PILOT.md](./EXTERNAL_AI_PILOT.md)
 
 The remote MCP cannot sign or move tokens. The local bridge is hard-locked to
 Base Sepolia chain `84532`, creates a fresh test-only wallet only after an
