@@ -47,6 +47,7 @@
     "simulate:v4.3": "node --test tests/v43-autonomous-economy.test.mjs",
     "pilot:v4.3": "node scripts/run-v43-autonomous-pilot.mjs",
     "pilot:v4.3:external-mcp": "node scripts/run-v43-external-mcp-pilot.mjs",
+    "pilot:v4.3:qwen-mcp": "node scripts/run-v43-qwen-mcp-discovery.mjs",
     "pilot:v4.3:public-onchain": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/run-v43-public-mcp-e2e.mjs",
     "manifest:v4.2": "node scripts/generate-v42-manifest.mjs",
     "manifest:v4.3": "node scripts/generate-v43-manifest.mjs",

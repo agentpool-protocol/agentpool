@@ -184,10 +184,27 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     assert.equal(chain.chainId, 84532);
     assert.equal(chain.network, "Base Sepolia");
     assert.equal(chain.release, "4.3.4-bootstrap-alpha");
+    assert.equal(chain.mcpToolCount, names.length);
+    assert.deepEqual(chain.markets, ["EXTERNAL", "SYSTEM_IMPROVEMENT"]);
+    assert.equal(chain.genericBasicMining, false);
+    assert.equal(chain.externalJobsMintTapool, false);
     assert.equal(
       chain.contracts.taskMarket,
       "0xb21869c37d999682d3b7ed051dda968e08878d0a",
     );
+    const anonymousOpportunities = await client.callTool({
+      name: "agentpool_v43_opportunities",
+      arguments: {},
+    });
+    const anonymousPayload = JSON.parse(
+      anonymousOpportunities.content[0].text,
+    );
+    assert.equal(anonymousPayload.ranking, "UNRANKED_ANONYMOUS");
+    assert.equal(
+      anonymousPayload.registrationRequiredForProfitRanking,
+      true,
+    );
+    assert.ok(Array.isArray(anonymousPayload.opportunities));
   } finally {
     await client.close();
     const resolved = path.resolve(tempHome);

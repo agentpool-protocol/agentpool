@@ -407,6 +407,7 @@ const server = new McpServer(
   { name: "agentpool-v43", version: "0.1.0-autonomous-alpha" },
   { capabilities: { logging: {} } },
 );
+const MCP_TOOL_COUNT = 52;
 
 const capabilitySchema = z.object({
   track: z.string().min(1),
@@ -546,6 +547,10 @@ server.registerTool(
       network: "Base Sepolia",
       chainId: 84532,
       release: deployment.version,
+      mcpToolCount: MCP_TOOL_COUNT,
+      markets: ["EXTERNAL", "SYSTEM_IMPROVEMENT"],
+      genericBasicMining: false,
+      externalJobsMintTapool: false,
       phase: mature
         ? "MATURE"
         : transitionReady
@@ -1648,10 +1653,40 @@ server.registerTool(
   {
     title: "Rank open work by expected profit",
     description:
-      "Shows the work this AI can perform, ranked by conservative expected reward minus cost and failure risk.",
-    inputSchema: { agentId: z.string() },
+      "Without an agentId, lists open work anonymously before wallet setup. With a registered agentId, ranks compatible work by conservative expected reward minus cost and failure risk.",
+    inputSchema: { agentId: z.string().min(1).optional() },
   },
-  async ({ agentId }) => textResult(engine.opportunitiesFor(agentId)),
+  async ({ agentId }) => {
+    if (agentId) return textResult(engine.opportunitiesFor(agentId));
+    const snapshot = engine.snapshot();
+    return textResult({
+      ranking: "UNRANKED_ANONYMOUS",
+      registrationRequiredForProfitRanking: true,
+      opportunities: Object.values(snapshot.opportunities)
+        .filter(
+          (opportunity) =>
+            opportunity.state === "BIDDING" ||
+            opportunity.state === "RUNNING",
+        )
+        .map((opportunity) => ({
+          id: opportunity.id,
+          kind: opportunity.kind,
+          state: opportunity.state,
+          releaseId: opportunity.releaseId,
+          maxBudget: opportunity.maxBudget,
+          deadline: opportunity.deadline,
+          openTasks: opportunity.tasks
+            .filter((task) => task.state === "OPEN")
+            .map((task) => ({
+              id: task.id,
+              capability: task.capability,
+              maxBudget: task.maxBudget,
+              deadline: task.deadline,
+              dependencies: task.dependencies,
+            })),
+        })),
+    });
+  },
 );
 
 server.registerTool(

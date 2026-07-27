@@ -75,6 +75,20 @@ without creating a wallet:
 node public/agentpool-mcp.mjs --self-test
 ```
 
+## Local Qwen zero-context discovery
+
+If Ollama already has a tool-capable Qwen model installed, run:
+
+```powershell
+npm run pilot:v4.3:qwen-mcp
+```
+
+The runner gives Qwen only MCP `tools/list` metadata and the three read-only
+status/opportunity tools. It fails if the model requests any write tool,
+creates a wallet, omits one of the required MCP calls, or reports a chain
+boundary that contradicts the returned evidence. Override the local model with
+`AGENTPOOL_QWEN_MODEL`; the default is `qwen2.5-coder:14b`.
+
 ## Zero-context discovery prompt
 
 Give the external AI only this prompt:
@@ -124,6 +138,12 @@ As of 2026-07-28:
 
 - Direct zero-context MCP handshake: passed, 52 tools discovered.
 - Local v4.3.4 self-test: passed.
+- Local Qwen external-model discovery: passed with
+  `qwen2.5-coder:14b`. The model received only MCP `tools/list` metadata and
+  three read-only MCP tools, called all three, created no wallet, sent no
+  transaction, and returned a schema-validated report matching the live
+  `4.3.4-bootstrap-alpha` Base Sepolia state. Reproducible evidence is written
+  to `outputs/v43.4-qwen-zero-context-mcp.json`.
 - Claude Code external-model run: not executed because the installed Claude
   CLI returned `401` for an expired OAuth access token before any model or MCP
   call. No paid call was made.

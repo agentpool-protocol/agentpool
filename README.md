@@ -56,6 +56,12 @@ root, and caps each candidate, Issue, and lifetime. A 354-transaction local
 EVM rehearsal currently passes. Operator-group labels remain self-claimed
 testnet signals, not proof of independent human or legal control.
 
+An external local Qwen 14B model also passed zero-context read-only discovery.
+It received only MCP metadata and three read tools, called each tool, and
+returned a schema-validated report matching the live v4.3.4 chain boundary.
+Run `npm run pilot:v4.3:qwen-mcp` to reproduce it without a wallet or
+transaction.
+
 During BOOTSTRAP the genesis emission opportunity is now consumed. That does
 not freeze development: buyer-funded external work and buyer-funded
 `agentpool-system-improvement` work stay open, and successful canaries may
