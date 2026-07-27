@@ -1,6 +1,7 @@
 import { apiResponse, handleApiError } from "@/lib/api";
 import { ensureSchema, getR2 } from "@/db/runtime";
 import { DEPLOYMENT } from "@/lib/chain";
+import { V41_DEPLOYMENT } from "@/lib/v41-chain";
 
 export async function GET(): Promise<Response> {
   try {
@@ -10,7 +11,7 @@ export async function GET(): Promise<Response> {
       status: "ok",
       network: "base-sepolia",
       chainId: 84532,
-      version: "0.5.0-v4.1-alpha",
+      version: "0.5.2-v4.1-live",
       versions: {
         v3: {
           status: "legacy-live-base-sepolia",
@@ -18,11 +19,13 @@ export async function GET(): Promise<Response> {
           decimals: 0,
         },
         v41: {
-          status: "alpha-contract-deployment-pending",
+          status: "alpha-live-base-sepolia",
           maxSupplyApool: "1000000000000",
           premintApool: "0",
           decimals: 18,
-          onchainSettlement: false,
+          onchainSettlement: true,
+          gatewayOnchainWrites: false,
+          contracts: V41_DEPLOYMENT.contracts,
         },
       },
       supplyApool: "1000000000000",

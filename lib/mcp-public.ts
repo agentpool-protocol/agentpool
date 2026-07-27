@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.5.1-v4.1-discovery";
+const SERVER_VERSION = "0.5.2-v4.1-live";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,7 +57,7 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool exposes the live v3 legacy testnet and the v4.1 autonomous-work alpha. Public MCP tools are read-only. Use the local bridge for wallet-signed capability sessions and bids. v4.1 cannot mint until its new Base Sepolia contracts are deployed.",
+        "AgentPool exposes the live v3 legacy testnet and the v4.1 autonomous-work alpha contracts on Base Sepolia. Its first catalog-signed objective settlement passed. Public MCP tools remain read-only until the gateway state bridge verifies onchain events and replay protection.",
     },
   );
 
@@ -289,7 +289,7 @@ export function createPublicMcpServer(
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
         safety: [
-          "v3 remains the live legacy testnet; v4.1 is an alpha gateway until new contracts are deployed.",
+          "v3 remains the live legacy testnet; v4.1 contracts and the first objective settlement are live, while public gateway writes await the event-verifying state bridge.",
           "APOOL currently has no promised real-world value.",
           "Never enter a seed phrase or production private key.",
           "The remote MCP cannot create wallets, sign, mine, or move tokens.",
@@ -321,7 +321,7 @@ export function createPublicMcpServer(
               valueStatus: "test-only-no-promised-value",
               versions: {
                 v3: "legacy-live",
-                v41: "alpha-contract-deployment-pending",
+                v41: "public-alpha-contracts-live",
               },
             },
             null,

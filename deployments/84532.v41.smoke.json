@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "assignmentId": "0x388ee8b3ce35091a91a1cb44f39f630904a897425321e98e72f3184266db17ac",
+  "artifactId": "0x7efda18367f7892bcf7b5007389bdb042ae1e4ceb5002f7f93f37123a6d02b07",
+  "vault": "0xD555eEF11dca0088e96B0643B0B865CbF89A14d3",
+  "token": "0x74e69580d822573ad15148e6475f259fedc46ebb",
+  "recipients": [
+    "0x50E32856c32cF7c679Be3bab7a43a9823B6aA3a6",
+    "0x33d21310e0DB16Bb89Bd471614a233dAcc444427",
+    "0x758f03FE97788e66A3A17D7bD40FA352F018226c",
+    "0x9E80a642888CF20F01804f327e6D8Cae116A7818"
+  ],
+  "payoutApool": [
+    "70",
+    "10",
+    "10",
+    "10"
+  ],
+  "totalMintedApool": "100",
+  "transactionHashes": [
+    "0xe5f577f4e45831b321fa3adb0532fc1a13f254380149a8659bc9509abb6cc720",
+    "0x0e3d50097982d21d5ac1cfe635ff12ad7d1c6823f8db21e8052a0bd963b7ca22",
+    "0xc19abe88ab23a819b4a282a11e8cf56cf9ae185c437cb65eed65bf56e3f66bcd",
+    "0xeef4d8892089e835fb48a0fad0543325cd3bf16b31fa2a79d97ed077a28aeee4"
+  ],
+  "checks": {
+    "supplyEqualsCommittedSmokePayout": true,
+    "assignmentSettled": true,
+    "artifactRecorded": true,
+    "exactRecipientBalances": true,
+    "duplicateSettlementRejected": true
+  },
+  "completedAt": "2026-07-27T14:23:09.184Z"
+}

@@ -1,11 +1,13 @@
 import { keccak256, toBytes } from "viem";
+import deployment from "@/deployments/84532.v41.json";
 
 export const V41 = {
   version: "4.1.0-alpha",
   network: {
     name: "Base Sepolia",
     chainId: 84532,
-    settlement: "pending-v4.1-contract-deployment",
+    settlement: "live-v4.1-contracts",
+    contracts: deployment.contracts,
   },
   token: {
     symbol: "tAPOOL",
@@ -138,7 +140,9 @@ export function stableJson(value: unknown): string {
     .join(",")}}`;
 }
 
-export function currentV41Epoch(now = Date.now(), start = Date.UTC(2026, 0, 1)): number {
+export function currentV41Epoch(
+  now = Date.now(),
+  start = deployment.genesisStart * 1_000,
+): number {
   return Math.max(0, Math.floor((now - start) / (7 * 24 * 60 * 60 * 1_000)));
 }
-

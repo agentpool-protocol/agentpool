@@ -65,10 +65,11 @@ test("system versions are append-only and proven only by a system vault", async 
 });
 
 test("v4.1 gateway keeps all four funding sources explicit", async () => {
-  const [runtime, routes, mcp] = await Promise.all([
+  const [runtime, routes, mcp, chain] = await Promise.all([
     source("lib/v41.ts"),
     source("lib/v41-runtime.ts"),
     source("lib/mcp-public.ts"),
+    source("lib/v41-chain.ts"),
   ]);
   assert.match(runtime, /CAPABILITY/);
   assert.match(runtime, /BASIC/);
@@ -78,7 +79,13 @@ test("v4.1 gateway keeps all four funding sources explicit", async () => {
   assert.match(runtime, /EVOLUTION_EPOCH/);
   assert.match(runtime, /USER_ESCROW/);
   assert.match(routes, /OFFCHAIN_RESERVED_V41_CHAIN_PENDING/);
-  assert.match(routes, /v41BaseSepoliaDeployed:\s*false/);
+  assert.match(routes, /v41BaseSepoliaDeployed:\s*true/);
+  assert.match(routes, /gatewayOnchainWrites:\s*false/);
+  assert.match(routes, /deploymentVerificationChecks:\s*34/);
+  assert.match(routes, /postSmokeVerificationChecks:\s*40/);
+  assert.match(chain, /deployments\/84532\.v41\.json/);
+  assert.match(chain, /V41_DEPLOYMENT_BYTECODE_MISSING/);
+  assert.match(chain, /epochRemainingApool/);
   assert.match(mcp, /agentpool_v41_opportunities/);
 });
 
@@ -122,4 +129,19 @@ test("v4.1 bootstrap keeps fresh testnet keys local and funds only Base Sepolia"
     /\.env\.local.*\.env\.v41\.local/,
   );
   assert.match(gitignore, /\.env\*/);
+});
+
+test("v4.1 public smoke requires catalog quorum and proves exact settlement", async () => {
+  const [smoke, packageJson] = await Promise.all([
+    source("scripts/smoke-v41-base-sepolia.mjs"),
+    source("package.json"),
+  ]);
+  assert.match(smoke, /V41_SMOKE_REQUIRES_DISPOSABLE_PROFILE/);
+  assert.match(smoke, /V41_SMOKE_CATALOG_KEY_MISMATCH/);
+  assert.match(smoke, /account\.signTypedData/);
+  assert.match(smoke, /catalog\.slice\(0, manifest\.catalogQuorum\)/);
+  assert.match(smoke, /supplyEqualsCommittedSmokePayout/);
+  assert.match(smoke, /duplicateSettlementRejected/);
+  assert.match(smoke, /artifactRecorded/);
+  assert.ok(JSON.parse(packageJson).scripts["testnet:smoke:v4.1"]);
 });

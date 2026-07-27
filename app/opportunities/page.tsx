@@ -43,10 +43,9 @@ export default function OpportunitiesPage() {
         </div>
         <div className="warning-box">
           <strong>Alpha board</strong>
-          <p>Reference opportunities are live for integration and economic simulation. The SYSTEM lane is shadow-only and every v4.1 payout remains disabled until contract deployment and rehearsal succeed.</p>
+          <p>The immutable v4.1 contracts and first catalog-signed objective settlement are live on Base Sepolia. Public gateway awards remain disabled until the event-verifying state bridge is connected. The SYSTEM lane remains shadow-only.</p>
         </div>
       </section>
     </PageFrame>
   );
 }
-

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createPublicClient, http, keccak256 } from "viem";
+import { createPublicClient, http, keccak256, parseUnits } from "viem";
 import { baseSepolia } from "viem/chains";
 
 const root = process.cwd();
@@ -8,6 +8,10 @@ const manifestPath =
   process.env.V41_DEPLOYMENT_MANIFEST ??
   path.join(root, "deployments", "84532.v41.json");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+const smokePath = path.join(root, "deployments", "84532.v41.smoke.json");
+const smoke = fs.existsSync(smokePath)
+  ? JSON.parse(fs.readFileSync(smokePath, "utf8"))
+  : null;
 if (manifest.chainId !== 84532 || manifest.version !== "4.1.0-alpha") {
   throw new Error("V41_MANIFEST_INVALID");
 }
@@ -66,7 +70,9 @@ for (const [key, contractName] of Object.entries(names)) {
 check(
   "token.totalSupply",
   await read("AgentPoolV41Token", manifest.contracts.token, "totalSupply"),
-  0n,
+  smoke
+    ? parseUnits(smoke.totalMintedApool, manifest.token.decimals)
+    : 0n,
 );
 check(
   "token.controller",
@@ -155,6 +161,30 @@ for (const key of ["capabilityVault", "basicVault", "validationVault"]) {
     true,
   );
 }
+if (smoke) {
+  for (const [index, hash] of smoke.transactionHashes.entries()) {
+    const receipt = await client.getTransactionReceipt({ hash });
+    check(`smoke.transaction:${index + 1}`, receipt.status, "success");
+  }
+  const assignment = await read(
+    "AgentPoolV41EpochVault",
+    manifest.contracts.basicVault,
+    "assignments",
+    [smoke.assignmentId],
+  );
+  check("smoke.assignmentSettled", Number(assignment[3]), 4);
+  const recordedArtifact = await read(
+    "AgentPoolV41ArtifactRegistry",
+    manifest.contracts.artifactRegistry,
+    "artifacts",
+    [smoke.artifactId],
+  );
+  check(
+    "smoke.artifactAssignment",
+    recordedArtifact[0],
+    smoke.assignmentId,
+  );
+}
 const report = {
   ok: checks.every((entry) => entry.passed),
   chainId: 84532,
@@ -170,4 +200,3 @@ if (!report.ok) throw new Error(`V41_VERIFICATION_FAILED:${reportPath}`);
 process.stdout.write(
   `${JSON.stringify({ ok: true, checks: checks.length, reportPath })}\n`,
 );
-

@@ -1,0 +1,55 @@
+{
+  "version": "4.1.0-alpha",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "deployer": "0x50E32856c32cF7c679Be3bab7a43a9823B6aA3a6",
+  "deployerHasRuntimeAuthority": false,
+  "catalogSigners": [
+    "0x33d21310e0DB16Bb89Bd471614a233dAcc444427",
+    "0x758f03FE97788e66A3A17D7bD40FA352F018226c",
+    "0x9E80a642888CF20F01804f327e6D8Cae116A7818",
+    "0xc737d35E7D0755cfE136d185b1b36974Fb211e18",
+    "0xcad10147327966bEf72deA1F6c6BDB4B8Cb5B891"
+  ],
+  "catalogQuorum": 3,
+  "genesisStart": 1785163575,
+  "token": {
+    "symbol": "tAPOOL",
+    "decimals": 18,
+    "maxSupplyApool": "1000000000000",
+    "premintApool": "0"
+  },
+  "emission": {
+    "genesisCapBps": 50,
+    "genesisDays": 180,
+    "halfLifeYears": 8,
+    "capabilityCapBps": 500,
+    "experimentalProofCapBps": 100,
+    "issueCapBps": 1000
+  },
+  "contracts": {
+    "token": "0x74e69580d822573ad15148e6475f259fedc46ebb",
+    "objectiveVerifier": "0x1813d3ead2f84e02a22d1010a5e192d8d2b79765",
+    "controller": "0x3b96817e5c337b7ecdfc1b87f4c629dfd0145192",
+    "releaseRegistry": "0xcd11f7031db9545d17ad99dcd16f608db4f81f9d",
+    "artifactRegistry": "0x5c58a0d8a92f44c0586f4a62006b0afe1731d2a7",
+    "userEscrow": "0x9e31af74cf13978c5fbf3a6494295acbd201e4d6",
+    "capabilityVault": "0xb8EdcA476d480953150C62aD024fC9013a7AD6a9",
+    "basicVault": "0xD555eEF11dca0088e96B0643B0B865CbF89A14d3",
+    "validationVault": "0xd26ef2f8969d8FF7A7b4c367d25316bD9096DA46"
+  },
+  "transactionHashes": [
+    "0x1649de8b5bd9d3967784baa5b01cc867bf4d15717dbf52ad8a94e45e4f82771a",
+    "0x8f7ce562100d8a32789182340f1f639c762006ad5a9b4948fb9b6ae4f7cc0369",
+    "0xb3a166fbc7c4c71345c67ca9fe42303a37db0b98edb2d0c093e7984c8a18dc5f",
+    "0x501cb1e9256bf7e2f972216a0fd26225923dccdb6f2cb0fe95c1012bbb0a6784",
+    "0xb38d3dd7d4f9617ac15bcd0ce58bc91d9631242d78f971c29ce6693d7205032c",
+    "0x98e11302ba000e166a7bcaa9913025f723ba12eda8669139aeb17bde2f5f8b73",
+    "0x65dd7ae49befb36d13c59d1c601d0877dbc7379728a4939a97e62389ec37b504",
+    "0xfdfba303c192c37899726fb424fe0d5a1d9c6f456c139aae0fcbbf10395338f2",
+    "0x337af1f110e34ceae67e3f4911ab757f77f69f21602f31bbdf9ac6e8e7be3a53",
+    "0xd5c5d81c4a66d93d60f047ff1e7195bedb5c5e4573f4f57545551d2432b97bd3",
+    "0x5538eba77ede4bd8a93686ef11fa9aa6e6988f250d4c361b45d4da1d59c25e2c"
+  ],
+  "deployedAt": "2026-07-27T14:17:09.678Z"
+}

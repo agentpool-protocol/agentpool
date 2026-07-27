@@ -8,6 +8,11 @@ import {
   type V41Market,
   v41Hash,
 } from "@/lib/v41";
+import {
+  V41_DEPLOYMENT,
+  V41_SMOKE,
+  v41ChainStatus,
+} from "@/lib/v41-chain";
 
 interface V41OpportunityRow {
   id: string;
@@ -474,11 +479,12 @@ export async function submitCapabilitySession(input: {
 
 export async function v41Status(): Promise<Record<string, unknown>> {
   await ensureV41Seed();
-  const [opportunities, profiles, assignments, artifacts] = await Promise.all([
+  const [opportunities, profiles, assignments, artifacts, chain] = await Promise.all([
     queryFirst<{ count: number }>("SELECT COUNT(*) AS count FROM v41_opportunities"),
     queryFirst<{ count: number }>("SELECT COUNT(*) AS count FROM v41_execution_profiles"),
     queryFirst<{ count: number }>("SELECT COUNT(*) AS count FROM v41_assignments"),
     queryFirst<{ count: number }>("SELECT COUNT(*) AS count FROM v41_artifacts"),
+    v41ChainStatus().catch(() => null),
   ]);
   return {
     ...V41,
@@ -489,9 +495,25 @@ export async function v41Status(): Promise<Record<string, unknown>> {
       localRehearsalTransactions: 24,
       localRehearsalChecks: 9,
       economySimulationVerified: true,
-      v41BaseSepoliaDeployed: false,
-      onchainSettlement: false,
-      addresses: null,
+      v41BaseSepoliaDeployed: true,
+      contractsVerified: true,
+      deploymentVerificationChecks: 34,
+      postSmokeVerificationChecks: 40,
+      onchainSettlement: true,
+      gatewayOnchainWrites: false,
+      gatewayWriteStatus: "STATE_BRIDGE_PENDING",
+      firstSettlementSmokePassed: V41_SMOKE.ok,
+      firstSettlementAssignmentId: V41_SMOKE.assignmentId,
+      firstSettlementTransactions: V41_SMOKE.transactionHashes,
+      firstSettlementChecks: V41_SMOKE.checks,
+      deployerHasRuntimeAuthority: false,
+      chainId: V41_DEPLOYMENT.chainId,
+      genesisStart: V41_DEPLOYMENT.genesisStart,
+      catalogQuorum: V41_DEPLOYMENT.catalogQuorum,
+      addresses: V41_DEPLOYMENT.contracts,
+      deploymentTransactions: V41_DEPLOYMENT.transactionHashes,
+      rpcAvailable: chain !== null,
+      chain,
     },
     gateway: {
       opportunities: opportunities?.count ?? 0,

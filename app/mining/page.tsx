@@ -56,7 +56,7 @@ export default function MiningPage() {
 
         <div className="warning-box">
           <strong>Current public state</strong>
-          <p>The v4.1 gateway can issue and verify capability exercises after its secret is installed, but records rewards as pending proof only. It cannot mint until the new Base Sepolia controller and EpochVault are deployed.</p>
+          <p>The v4.1 controller, EpochVaults, and first 100 tAPOOL objective settlement are live on Base Sepolia. Capability results remain pending proof until the public state bridge verifies reservation and settlement events.</p>
         </div>
         <Link className="button secondary" href="/opportunities">Compare all four markets <Arrow /></Link>
       </section>

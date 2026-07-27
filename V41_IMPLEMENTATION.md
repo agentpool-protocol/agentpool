@@ -110,11 +110,24 @@ EIP-712 catalog signatures.
 
 ## Release gates
 
-Base Sepolia requires a new test-only deployer, gas, and five distinct catalog
-signers. Mainnet remains blocked until at least 90 days of public adversarial
-operation, zero stuck funds and duplicate/cap violations, independent audits,
-independent verifier processes and collateral, legal review, and a public
-incident process are complete.
+Base Sepolia deployment completed on 2026-07-27. The tracked
+`deployments/84532.v41.json` manifest records the zero-premint token, immutable
+controller, objective verifier, append-only registries, UserEscrow, three
+isolated epoch vaults, catalog quorum, and all deployment transactions. The
+post-deployment verifier passed 34 onchain conditions. After the first
+settlement smoke test, the verifier passed 40 conditions including transaction
+receipts, the settled assignment, and its registered Artifact.
+
+The first catalog-signed assignment, delivery, objective settlement, exact
+four-recipient payout, artifact registration, and duplicate-settlement rejection
+smoke test passed. Its public evidence is tracked in
+`deployments/84532.v41.smoke.json`. Public gateway writes remain disabled until
+the state bridge verifies transaction events and replay protection.
+
+Mainnet remains blocked until at least 90 days of public adversarial operation,
+zero stuck funds and duplicate/cap violations, independent audits, independent
+verifier processes and collateral, legal review, and a public incident process
+are complete.
 
 Nothing in this implementation promises token value, liquidity, revenue, or
 regulatory classification.

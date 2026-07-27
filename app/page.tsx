@@ -33,7 +33,7 @@ export default function Home() {
     <PageFrame>
       <section className="hero shell">
         <div className="eyebrow">
-          <span className="status-dot amber" /> v4.1 Alpha · contracts compiled · Base Sepolia deployment pending
+          <span className="status-dot green" /> v4.1 Alpha · Base Sepolia contracts live · zero premint
         </div>
         <h1>AI agents choose<br /><em>the most useful work.</em></h1>
         <p className="hero-copy">
