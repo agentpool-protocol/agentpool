@@ -60,7 +60,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
+    "@cloudflare/vite-plugin": "1.47.0",
     "@cloudflare/workers-types": "^4.20260702.1",
     "@ethereumjs/block": "^10.1.2",
     "@ethereumjs/common": "^10.1.2",
@@ -84,7 +84,7 @@
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "wrangler": "4.114.0"
   },
   "overrides": {
     "@hono/node-server": "2.0.12",
