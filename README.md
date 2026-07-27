@@ -12,21 +12,31 @@ remain pinned to exact release, module, policy, and evidence hashes.
 - contribution process: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - private security reporting: [SECURITY.md](./SECURITY.md)
 
-AgentPool now has two deliberately separated generations:
+AgentPool now has three deliberately separated generations:
 
 - **v3 Legacy Testnet** is the live Base Sepolia benchmark-mining and fixed-fee
   commerce system. Its deployed contracts and economic rules remain unchanged.
-- **v4.1 public alpha** is the new four-market gateway: capability measurement,
+- **v4.1 Legacy public alpha** is the four-market gateway: capability measurement,
   reusable public-work mining, autonomous AgentPool improvement, and
   buyer-funded external work. Its API, MCP discovery, SDK, D1 projection, UI,
   contracts, simulation, and deployment tooling are implemented. Its tAPOOL
   contracts are deployed to Base Sepolia with zero premint. The first
   catalog-signed objective settlement passed, and the receipt state bridge now
   verifies unsigned local-wallet transactions without holding keys. New
-  reserve-funded awards still require the configured test catalog quorum.
+  reserve-funded awards still require the configured test catalog quorum. Its
+  `BASIC` lane cannot be removed from the already-deployed immutable contracts,
+  so no new v4.1 system-emission work should be opened.
+- **v4.2 improvement-only alpha** removes generic basic mining completely.
+  New tAPOOL can be emitted only after a specific AgentPool issue is
+  objectively reproduced, competing modules are tested in isolation, and a
+  canary reaches the precommitted threshold. Buyer-funded jobs only move
+  existing tokens. v4.2 is implemented and locally rehearsed, but is not yet
+  deployed to Base Sepolia.
 
 The v4.1 implementation boundary and verification evidence are documented in
 [V41_IMPLEMENTATION.md](./V41_IMPLEMENTATION.md).
+The current improvement-only design and executable evidence are documented in
+[V42_IMPROVEMENT_ONLY.md](./V42_IMPROVEMENT_ONLY.md).
 
 ## v3 Legacy
 
@@ -129,6 +139,7 @@ npm run contracts:rehearse
 npm run pilot:v3
 npm run simulate:v4.1
 npm run contracts:rehearse:v4.1
+npm run contracts:rehearse:v4.2
 npm run mcp:bundle
 npm run mcp:self-test
 npm run testnet:pilot:local-mcp:v4.1
@@ -144,6 +155,12 @@ controller, objective verifier, append-only release and artifact registries,
 UserEscrow, and isolated epoch vaults to an in-memory Cancun EVM. It proves
 catalog-quorum admission, reservation-before-work, objective settlement,
 duplicate-settlement rejection, external-job zero emission, and exposure caps.
+
+`contracts:rehearse:v4.2` deploys the ownerless improvement-only token,
+objective verifier, improvement kernel, and buyer-funded escrow. It proves
+that there is no generic mining lane, invalid evidence cannot earn, dynamic
+role bids settle exactly, unused reservation is not emitted, and external work
+creates zero new tAPOOL.
 
 ## v4.1 Base Sepolia deployment
 

@@ -37,6 +37,9 @@
     "pilot:v3": "node scripts/run-codex-pilot-v3.mjs",
     "simulate:v4.1": "node scripts/simulate-v41-economy.mjs",
     "contracts:rehearse:v4.1": "node scripts/rehearse-v41-deployment.mjs",
+    "contracts:rehearse:v4.2": "node scripts/rehearse-v42-improvement-only.mjs",
+    "manifest:v4.2": "node scripts/generate-v42-manifest.mjs",
+    "mcp:self-test:v4.2": "node mcp/agentpool-v42.mjs --self-test",
     "testnet:wallets:v4.1": "node scripts/setup-v41-base-sepolia-wallets.mjs",
     "testnet:fund:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/fund-v41-base-sepolia-deployer.mjs",
     "contracts:preflight:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/preflight-v41-base-sepolia.mjs",
@@ -45,6 +48,9 @@
     "testnet:bridge:verify:v4.1": "node --env-file-if-exists=.env.local scripts/verify-v41-state-bridge.mjs",
     "testnet:pilot:open:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/open-v41-external-pilot.mjs",
     "testnet:pilot:local-mcp:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/run-v41-local-mcp-pilot.mjs",
+    "testnet:user-escrow:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/smoke-v41-user-escrow.mjs",
+    "testnet:user-escrow:recover:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/recover-v41-user-escrow-smoke.mjs",
+    "testnet:user-escrow:refund:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/refund-v41-legacy-user-escrow.mjs",
     "testnet:smoke:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/smoke-v41-base-sepolia.mjs",
     "mcp:bundle": "node scripts/bundle-mcp.mjs",
     "mcp:self-test": "node mcp/agentpool-local.mjs --self-test",
@@ -95,7 +101,12 @@
   "overrides": {
     "@babel/core": "7.29.7",
     "@hono/node-server": "2.0.12",
-    "brace-expansion": "5.0.8",
+    "minimatch@3.1.5": {
+      "brace-expansion": "2.1.2"
+    },
+    "minimatch@10.2.5": {
+      "brace-expansion": "5.0.8"
+    },
     "esbuild": "0.28.1",
     "fast-uri": "3.1.4",
     "js-yaml": "4.3.0",

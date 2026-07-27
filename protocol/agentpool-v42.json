@@ -1,0 +1,93 @@
+{
+  "schema": "https://agentpool.org/schemas/release-manifest-v1.json",
+  "protocol": "AgentPool",
+  "release": "4.2.0-alpha",
+  "authority": "onchain-bytecode-and-content-hashes",
+  "status": "local-rehearsal-only",
+  "generatedAt": "2026-07-27T16:12:37.761Z",
+  "sourceMirrors": [
+    "https://github.com/agentpool-protocol/agentpool"
+  ],
+  "websiteRequired": false,
+  "network": {
+    "name": "Base Sepolia",
+    "chainId": 84532,
+    "rpcHint": "https://sepolia.base.org",
+    "deployment": null
+  },
+  "economy": {
+    "token": "tAPOOL",
+    "maxSupply": "1000000000000",
+    "decimals": 18,
+    "premint": "0",
+    "emissionSources": [
+      "PROVEN_AGENTPOOL_IMPROVEMENT"
+    ],
+    "removedEmissionSources": [
+      "BASIC_MINING",
+      "BENCHMARK_FAUCET",
+      "CAPABILITY_MEASUREMENT_FAUCET",
+      "TRAFFIC",
+      "TOKEN_TRADING",
+      "EXTERNAL_BUYER_JOB"
+    ],
+    "externalJobsMint": false,
+    "fixedRolePercentages": false,
+    "fixedValidationFee": false
+  },
+  "improvementFlow": [
+    "ISSUE_EVIDENCE",
+    "INDEPENDENT_REPRODUCTION",
+    "BUDGET_RESERVATION",
+    "CANDIDATE_REVERSE_AUCTION",
+    "OBJECTIVE_CANARY_PROOF",
+    "ODD_COMMIT_REVEAL_PANEL",
+    "PROVEN",
+    "SLASH_REUSE_THEN_CAPPED_EMISSION"
+  ],
+  "artifacts": {
+    "AgentPoolV42Token": {
+      "source": "contracts/v42/AgentPoolV42Token.sol",
+      "artifactSha256": "0xa98c201e9d97e16c9a374ed8d463dd3f1c8187737676ba689064a22c815d3909",
+      "runtimeCodeHash": "0x78112a4fd17b65582d5654338e8ffa5682ffdc9524da59f47d1dbd170900a50c"
+    },
+    "AgentPoolV42ImprovementKernel": {
+      "source": "contracts/v42/AgentPoolV42ImprovementKernel.sol",
+      "artifactSha256": "0x079a6cec68c702ca8fea1dadedc152fa03a785dc73e8aadabff87b4ed18ede15",
+      "runtimeCodeHash": "0x12ebe4717b6a62f622327abe96f090b75f0d32f171c8e878035ad9a7f19d1943"
+    },
+    "AgentPoolV42HashImprovementVerifier": {
+      "source": "contracts/v42/AgentPoolV42HashImprovementVerifier.sol",
+      "artifactSha256": "0xa555ea2fc34f7f3e0ee81304f99d773511934f9d4928ba965eff643fe1fd6b93",
+      "runtimeCodeHash": "0xcc4d5c85aa83f5682962fa25a4d46415e7756a9fcd155e202eaec40fb1b3b09d"
+    },
+    "AgentPoolV42UserEscrow": {
+      "source": "contracts/v42/AgentPoolV42UserEscrow.sol",
+      "artifactSha256": "0x41ac61f9d139c24827660055f807a38c589a3a0ac768ca412a7e9364ece774ec",
+      "runtimeCodeHash": "0x5d244551668fdfb86210094f576b8a8fef6f3ab3ff2715f4881e126feacb988b"
+    },
+    "AgentPoolV41HashVerifier": {
+      "source": "contracts/v4/AgentPoolV41HashVerifier.sol",
+      "artifactSha256": "0xd5b3019b1e306d4a0c6ea39c7d83f412f57a5afbed9c29277e21d506d761baeb",
+      "runtimeCodeHash": "0x9748f5abd3d527f886d21df500c3bc9c0fb640ba6fae5f01cd6d071779a54cc4"
+    }
+  },
+  "machineInterfaces": {
+    "localMcp": {
+      "command": "node",
+      "args": [
+        "mcp/agentpool-v42.mjs"
+      ],
+      "transport": "stdio",
+      "walletCustody": "local-only"
+    },
+    "rehearsal": "npm run contracts:rehearse:v4.2",
+    "protocolDocument": "V42_IMPROVEMENT_ONLY.md"
+  },
+  "warnings": [
+    "Base Sepolia tAPOOL has no promised value.",
+    "Never send mainnet assets to a generated test wallet.",
+    "A source mirror or website is not protocol authority.",
+    "Actual-value deployment remains blocked on a bonded challenge market."
+  ]
+}

@@ -141,10 +141,19 @@ checks.push({
   name: "final.assignmentSettled",
   passed: Number(assignment[3]) === 4,
 });
+const smokePayout = smoke.payoutApool.reduce(
+  (total, amount) =>
+    total + parseUnits(amount, deployment.token.decimals),
+  0n,
+);
 checks.push({
-  name: "final.supplyExact",
+  name: "final.assignmentPayoutExact",
+  passed: assignment[1] === smokePayout,
+});
+checks.push({
+  name: "final.supplyIncludesHistoricalSettlement",
   passed:
-    supply === parseUnits(smoke.totalMintedApool, deployment.token.decimals),
+    supply >= parseUnits(smoke.totalMintedApool, deployment.token.decimals),
 });
 
 const report = {

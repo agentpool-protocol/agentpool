@@ -67,13 +67,100 @@ for (const [key, contractName] of Object.entries(names)) {
   }
   artifact(contractName);
 }
+const [
+  latestBlock,
+  totalSupply,
+  maxSupply,
+  currentEpoch,
+  genesisStart,
+  genesisDuration,
+  genesisCap,
+  genesisMinted,
+  genesisReserved,
+] = await Promise.all([
+  client.getBlock(),
+  read("AgentPoolV41Token", manifest.contracts.token, "totalSupply"),
+  read("AgentPoolV41Token", manifest.contracts.token, "MAX_SUPPLY"),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "currentEpoch",
+  ),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "genesisStart",
+  ),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "GENESIS_DURATION",
+  ),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "genesisCap",
+  ),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "genesisMinted",
+  ),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "genesisReserved",
+  ),
+]);
+const [epochAllowance, epochMinted, epochReserved] = await Promise.all([
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "epochAllowance",
+    [currentEpoch],
+  ),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "epochMinted",
+    [currentEpoch],
+  ),
+  read(
+    "AgentPoolV41EmissionController",
+    manifest.contracts.controller,
+    "epochReserved",
+    [currentEpoch],
+  ),
+]);
 check(
-  "token.totalSupply",
-  await read("AgentPoolV41Token", manifest.contracts.token, "totalSupply"),
-  smoke
-    ? parseUnits(smoke.totalMintedApool, manifest.token.decimals)
-    : 0n,
+  "token.totalSupplyWithinMax",
+  totalSupply <= maxSupply,
+  true,
 );
+if (smoke) {
+  check(
+    "token.totalSupplyIncludesSmoke",
+    totalSupply >= parseUnits(smoke.totalMintedApool, manifest.token.decimals),
+    true,
+  );
+}
+check(
+  "controller.currentEpochWithinAllowance",
+  epochMinted + epochReserved <= epochAllowance,
+  true,
+);
+check(
+  "controller.genesisWithinCap",
+  genesisMinted + genesisReserved <= genesisCap,
+  true,
+);
+if (latestBlock.timestamp < BigInt(genesisStart) + BigInt(genesisDuration)) {
+  check(
+    "controller.genesisSupplyExact",
+    totalSupply,
+    genesisMinted,
+  );
+}
 check(
   "token.controller",
   await read(

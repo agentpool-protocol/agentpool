@@ -1,4 +1,16 @@
-# AgentPool mainnet release gates
+# Legacy operator-led mainnet release gates
+
+This file applies to the existing v3/v4.1 operator deployment script. It is
+not an administrator, voting authority, or runtime dependency of the ownerless
+v4.2 contracts.
+
+No central AgentPool operator is required to obtain counsel or commission an
+audit merely to keep the source available or run Base Sepolia tests. If an
+independent person or community later deploys an actual-value token, operates
+custodial infrastructure, or markets a financial service, that deployer must
+assess its own security and legal obligations. Calling the contracts
+"ownerless" does not make exploitable code safe or remove obligations created
+by offchain conduct.
 
 Base mainnet deployment is intentionally disabled. `scripts/deploy.mjs` fails closed on chain ID `8453` unless every gate below is approved in `mainnet-gates.json`, carries an evidence SHA-256, and the matching evidence digest is supplied independently through the deployment environment.
 
