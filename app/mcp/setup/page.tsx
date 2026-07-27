@@ -64,7 +64,7 @@ export default function McpPage() {
             </li>
             <li>
               <b>LOCAL</b>
-              <span>The downloaded stdio bridge creates a fresh test-only wallet, signs mining requests, and submits Base Sepolia claims.</span>
+              <span>The downloaded stdio bridge creates a fresh test-only wallet, signs mining requests, accepts and delivers awarded v4.1 work, and receipt-confirms Base Sepolia settlement.</span>
             </li>
             <li>
               <b>MODEL</b>

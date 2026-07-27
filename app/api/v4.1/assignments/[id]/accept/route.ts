@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { execute, queryFirst } from "@/db/runtime";
+import { queryFirst } from "@/db/runtime";
+import { getAddress, type Hex } from "viem";
+import { buildV41AcceptTransaction } from "@/lib/v41-chain-bridge";
 import { signedV41Write } from "@/lib/v41-write";
 
 const schema = z.object({
@@ -16,8 +18,12 @@ export async function POST(
       worker_address: string;
       state: string;
       deadline_at: number;
+      vault_address: string;
     }>(
-      "SELECT worker_address, state, deadline_at FROM v41_assignments WHERE id = ?",
+      `SELECT a.worker_address, a.state, a.deadline_at, c.vault_address
+       FROM v41_assignments a
+       JOIN v41_chain_assignments c ON c.assignment_id = a.id
+       WHERE a.id = ?`,
       id,
     );
     if (!assignment || assignment.worker_address.toLowerCase() !== auth.address.toLowerCase()) {
@@ -26,12 +32,18 @@ export async function POST(
     if (assignment.state !== "AWARDED" || assignment.deadline_at <= Date.now()) {
       throw new Error("INVALID_ASSIGNMENT_STATE");
     }
-    await execute(
-      "UPDATE v41_assignments SET state = 'ACCEPTED', updated_at = ? WHERE id = ? AND state = 'AWARDED'",
-      Date.now(),
-      id,
-    );
-    return { body: { id, state: "ACCEPTED", capacityReserved: true } };
+    return {
+      body: {
+        id,
+        state: "PENDING_CHAIN",
+        requestedAction: "ACCEPT",
+        transactionRequest: buildV41AcceptTransaction({
+          vault: getAddress(assignment.vault_address),
+          assignmentId: id as Hex,
+        }),
+        next:
+          "Sign this Base Sepolia transaction locally, then submit its hash to /api/v4.1/chain/confirm.",
+      },
+    };
   });
 }
-

@@ -426,6 +426,17 @@ export class AgentPoolClient {
     );
   }
 
+  async registerV41Award(
+    opportunityId: string,
+    input: { bidId: string; txHash: `0x${string}` },
+  ): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v4.1/opportunities/${encodeURIComponent(opportunityId)}/award`,
+      "POST",
+      input,
+    );
+  }
+
   async acceptV41Assignment(
     assignmentId: string,
     capacityOfferHash: `0x${string}`,
@@ -446,6 +457,30 @@ export class AgentPoolClient {
       "POST",
       { deliveryHash },
     );
+  }
+
+  async settleV41Assignment(
+    assignmentId: string,
+    input: {
+      proof: `0x${string}`;
+      recipients: `0x${string}`[];
+      amountsApool: string[];
+      artifactContentHash: `0x${string}`;
+    },
+  ): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v4.1/assignments/${encodeURIComponent(assignmentId)}/settle`,
+      "POST",
+      input,
+    );
+  }
+
+  async confirmV41ChainAction(input: {
+    assignmentId: `0x${string}`;
+    action: "ACCEPT" | "DELIVER" | "SETTLE" | "EXPIRE";
+    txHash: `0x${string}`;
+  }): Promise<unknown> {
+    return this.signedWrite("/api/v4.1/chain/confirm", "POST", input);
   }
 
   async v41Artifacts(capability?: string): Promise<unknown> {

@@ -145,3 +145,59 @@ test("v4.1 public smoke requires catalog quorum and proves exact settlement", as
   assert.match(smoke, /artifactRecorded/);
   assert.ok(JSON.parse(packageJson).scripts["testnet:smoke:v4.1"]);
 });
+
+test("v4.1 receipt bridge never advances indexed state without exact chain evidence", async () => {
+  const [
+    bridge,
+    award,
+    confirm,
+    accept,
+    deliver,
+    settle,
+    runtime,
+    schema,
+    mcpBridge,
+    sdk,
+    packageJson,
+  ] =
+    await Promise.all([
+      source("lib/v41-chain-bridge.ts"),
+      source("app/api/v4.1/opportunities/[id]/award/route.ts"),
+      source("app/api/v4.1/chain/confirm/route.ts"),
+      source("app/api/v4.1/assignments/[id]/accept/route.ts"),
+      source("app/api/v4.1/assignments/[id]/deliver/route.ts"),
+      source("app/api/v4.1/assignments/[id]/settle/route.ts"),
+      source("lib/v41-runtime.ts"),
+      source("db/runtime.ts"),
+      source("mcp/agentpool-local.mjs"),
+      source("sdk/index.ts"),
+      source("package.json"),
+    ]);
+  assert.match(bridge, /getTransactionReceipt/);
+  assert.match(bridge, /getTransaction\(/);
+  assert.match(bridge, /decodeFunctionData/);
+  assert.match(bridge, /decodeEventLog/);
+  assert.match(bridge, /INVALID_V41_ACTION_CALLER/);
+  assert.match(bridge, /INVALID_V41_SETTLEMENT_TERMS/);
+  assert.match(award, /verifyV41Award/);
+  assert.match(award, /V41_ASSIGNMENT_OPENED/);
+  assert.match(confirm, /verifyV41EpochAction/);
+  assert.match(confirm, /INSERT OR IGNORE INTO protocol_events/);
+  assert.doesNotMatch(accept, /SET state = 'ACCEPTED'/);
+  assert.match(accept, /buildV41AcceptTransaction/);
+  assert.doesNotMatch(deliver, /SET state = 'DELIVERED'/);
+  assert.match(deliver, /buildV41DeliverTransaction/);
+  assert.match(settle, /validateV41SettlementTerms/);
+  assert.match(runtime, /gatewayWriteStatus:\s*"RECEIPT_BRIDGE_READY"/);
+  assert.match(runtime, /serverCustodiesKeys:\s*false/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS v41_chain_assignments/);
+  assert.match(schema, /open_tx_hash TEXT NOT NULL UNIQUE/);
+  assert.match(mcpBridge, /agentpool_v41_accept_assignment/);
+  assert.match(mcpBridge, /agentpool_v41_deliver_assignment/);
+  assert.match(mcpBridge, /agentpool_v41_settle_assignment/);
+  assert.match(mcpBridge, /executeV41PreparedAction/);
+  assert.match(sdk, /registerV41Award/);
+  assert.match(sdk, /settleV41Assignment/);
+  assert.match(sdk, /confirmV41ChainAction/);
+  assert.ok(JSON.parse(packageJson).scripts["testnet:bridge:verify:v4.1"]);
+});

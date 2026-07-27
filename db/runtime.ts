@@ -329,6 +329,21 @@ const schemaStatements = [
   )`,
   "CREATE INDEX IF NOT EXISTS v41_assignments_worker_idx ON v41_assignments(worker_address)",
   "CREATE INDEX IF NOT EXISTS v41_assignments_state_idx ON v41_assignments(state)",
+  `CREATE TABLE IF NOT EXISTS v41_chain_assignments (
+    assignment_id TEXT PRIMARY KEY,
+    chain_id INTEGER NOT NULL DEFAULT 84532,
+    vault_address TEXT NOT NULL,
+    open_tx_hash TEXT NOT NULL UNIQUE,
+    accept_tx_hash TEXT UNIQUE,
+    deliver_tx_hash TEXT UNIQUE,
+    settle_tx_hash TEXT UNIQUE,
+    expire_tx_hash TEXT UNIQUE,
+    last_block INTEGER NOT NULL,
+    state TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  "CREATE INDEX IF NOT EXISTS v41_chain_assignments_state_idx ON v41_chain_assignments(state)",
+  "CREATE INDEX IF NOT EXISTS v41_chain_assignments_block_idx ON v41_chain_assignments(last_block)",
   `CREATE TABLE IF NOT EXISTS v41_capability_sessions (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,

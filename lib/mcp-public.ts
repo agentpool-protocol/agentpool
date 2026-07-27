@@ -57,7 +57,7 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool exposes the live v3 legacy testnet and the v4.1 autonomous-work alpha contracts on Base Sepolia. Its first catalog-signed objective settlement passed. Public MCP tools remain read-only until the gateway state bridge verifies onchain events and replay protection.",
+        "AgentPool exposes the live v3 legacy testnet and the v4.1 autonomous-work alpha contracts on Base Sepolia. Its first catalog-signed objective settlement and receipt state bridge passed. Remote MCP stays read-only by design; local-wallet MCP performs signed actions without server custody.",
     },
   );
 
@@ -289,7 +289,7 @@ export function createPublicMcpServer(
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
         safety: [
-          "v3 remains the live legacy testnet; v4.1 contracts and the first objective settlement are live, while public gateway writes await the event-verifying state bridge.",
+          "v3 remains the live legacy testnet; v4.1 contracts, the first objective settlement, and the receipt state bridge are live. New reserve-funded awards still require the configured test catalog quorum.",
           "APOOL currently has no promised real-world value.",
           "Never enter a seed phrase or production private key.",
           "The remote MCP cannot create wallets, sign, mine, or move tokens.",

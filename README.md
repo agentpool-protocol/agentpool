@@ -21,8 +21,9 @@ AgentPool now has two deliberately separated generations:
   buyer-funded external work. Its API, MCP discovery, SDK, D1 projection, UI,
   contracts, simulation, and deployment tooling are implemented. Its tAPOOL
   contracts are deployed to Base Sepolia with zero premint. The first
-  catalog-signed objective settlement passed; public gateway writes remain
-  disabled until the event-verifying state bridge is connected.
+  catalog-signed objective settlement passed, and the receipt state bridge now
+  verifies unsigned local-wallet transactions without holding keys. New
+  reserve-funded awards still require the configured test catalog quorum.
 
 The v4.1 implementation boundary and verification evidence are documented in
 [V41_IMPLEMENTATION.md](./V41_IMPLEMENTATION.md).
@@ -42,7 +43,8 @@ AgentPool also exposes one vendor-neutral MCP integration:
 The remote MCP cannot sign or move tokens. The local bridge is hard-locked to
 Base Sepolia chain `84532`, creates a fresh test-only wallet only after an
 explicit tool confirmation, lets the connected AI solve a private benchmark
-task, and submits the validated claim locally.
+task, submits validated claims locally, and executes receipt-confirmed v4.1
+assignment actions without giving the server a wallet key.
 
 The website is an optional reference explorer, not the protocol authority.
 Agents can discover AgentPool without rendering a page:
@@ -218,7 +220,9 @@ npm run wallets:plan-mainnet
 
 - Public v3 explorer/API/D1/R2: fixed-fee settlement, request-based chain confirmation, private mining sessions, and signed claim bundles
 - Public v4.1 alpha: four-market discovery, signed write APIs, capability-session plumbing, MCP/SDK, opportunity UI, and verified Base Sepolia contract addresses
-- Solidity v4.1: Base Sepolia deployment, 34 deployment checks and 40 post-smoke onchain checks passed, including the first exact-payout settlement; public state bridge and independent audit pending
+- Solidity v4.1: Base Sepolia deployment, 34 deployment checks and 40 post-smoke onchain checks passed, including the first exact-payout settlement
+- v4.1 state bridge: unsigned accept/deliver/settle requests plus exact receipt, calldata, caller, event, assignment, and amount verification; the gateway never holds keys
+- v4.1 admission boundary: new reserve-funded awards still require the configured test catalog quorum; permissionless catalog admission and independent audit remain pending
 - Solidity v3: fixed-fee marketplace upgrade; independent audit not complete
 - Base Sepolia contracts: deployed and verified with commerce, mining, and Safe 3-of-5 evidence under `deployments/`
 - Base mainnet: blocked by audit, Korean legal review, trademark, testnet reliability, validator collateral/slashing, and multisig/timelock gates

@@ -5,11 +5,20 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
 };
 var __commonJS = (cb, mod2) => function __require() {
-  return mod2 || (0, cb[__getOwnPropNames(cb)[0]])((mod2 = { exports: {} }).exports, mod2), mod2.exports;
+  try {
+    return mod2 || (0, cb[__getOwnPropNames(cb)[0]])((mod2 = { exports: {} }).exports, mod2), mod2.exports;
+  } catch (e) {
+    throw mod2 = 0, e;
+  }
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -7873,7 +7882,7 @@ var init_size = __esm({
 var version3;
 var init_version2 = __esm({
   "node_modules/viem/_esm/errors/version.js"() {
-    version3 = "2.55.8";
+    version3 = "2.55.10";
   }
 });
 
@@ -41349,7 +41358,7 @@ async function internal_estimateFeesPerGas(client, args) {
     throw new BaseFeeScalarError();
   const decimals = baseFeeMultiplier.toString().split(".")[1]?.length ?? 0;
   const denominator = 10 ** decimals;
-  const multiply = (base) => base * BigInt(Math.ceil(baseFeeMultiplier * denominator)) / BigInt(denominator);
+  const multiply = (base) => base * BigInt(Math.round(baseFeeMultiplier * denominator)) / BigInt(denominator);
   const block = block_ ? block_ : await getAction(client, getBlock, "getBlock")({});
   if (typeof chain?.fees?.estimateFeesPerGas === "function") {
     const fees = await chain.fees.estimateFeesPerGas({
@@ -41717,7 +41726,7 @@ async function fillTransaction(client, parameters) {
       throw new BaseFeeScalarError();
     const decimals = feeMultiplier.toString().split(".")[1]?.length ?? 0;
     const denominator = 10 ** decimals;
-    const multiplyFee = (base) => base * BigInt(Math.ceil(feeMultiplier * denominator)) / BigInt(denominator);
+    const multiplyFee = (base) => base * BigInt(Math.round(feeMultiplier * denominator)) / BigInt(denominator);
     if (!transaction.feePayerSignature) {
       if (transaction.maxFeePerGas && !parameters.maxFeePerGas)
         transaction.maxFeePerGas = multiplyFee(transaction.maxFeePerGas);
@@ -50646,6 +50655,36 @@ async function requireBaseSepolia(account) {
   }
   return { publicClient, walletClient };
 }
+async function executeV41PreparedAction(account, assignmentId, action, prepared) {
+  const { publicClient, walletClient } = await requireBaseSepolia(account);
+  const request = prepared?.transactionRequest;
+  if (prepared?.state !== "PENDING_CHAIN" || prepared?.requestedAction !== action || request?.chainId !== EXPECTED_CHAIN_ID || typeof request?.to !== "string" || typeof request?.data !== "string") {
+    throw new Error("INVALID_V41_TRANSACTION_REQUEST");
+  }
+  const txHash = await walletClient.sendTransaction({
+    account,
+    to: request.to,
+    data: request.data,
+    value: BigInt(request.value ?? "0")
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+    confirmations: 2
+  });
+  if (receipt.status !== "success") {
+    throw new Error(`V41_${action}_TRANSACTION_REVERTED`);
+  }
+  const confirmation = await signedWrite(
+    account,
+    "/api/v4.1/chain/confirm",
+    { assignmentId, action, txHash }
+  );
+  return {
+    ...confirmation,
+    transactionHash: txHash,
+    receipt: `https://sepolia.basescan.org/tx/${txHash}`
+  };
+}
 async function ensureRegisteredMiner(account) {
   let state = encryptionIdentity(loadState());
   if (state.agentId) return { state, agentId: state.agentId };
@@ -50684,7 +50723,7 @@ var readOnly = {
 };
 function createServer() {
   const server = new McpServer(
-    { name: "agentpool-local", version: "0.5.0-v4.1-alpha" },
+    { name: "agentpool-local", version: "0.5.1-v4.1-bridge" },
     {
       instructions: "Base Sepolia only. Never request or import a seed phrase or production key. Ask the user before creating the local test wallet or submitting an onchain claim."
     }
@@ -50761,7 +50800,7 @@ function createServer() {
       saveState(nextState);
       return textResult({
         ...session,
-        instruction: "Solve the returned challenge, then call agentpool_v41_submit_capability. No token is minted until the v4.1 EpochVault is deployed."
+        instruction: "Solve the returned challenge, then call agentpool_v41_submit_capability. The result updates routing evidence; tAPOOL mints only after catalog admission and objective onchain settlement."
       });
     }
   );
@@ -50769,7 +50808,7 @@ function createServer() {
     "agentpool_v41_submit_capability",
     {
       title: "Submit a v4.1 capability result",
-      description: "Submit a private capability answer and record routing evidence. The gateway cannot claim that a token reward was minted while v4.1 contracts are pending.",
+      description: "Submit a private capability answer and record routing evidence. A passing measurement is not itself a mint; it must still be admitted and settled through the objective EpochVault.",
       inputSchema: external_exports.object({
         sessionId: external_exports.string().min(8).max(100),
         answer: external_exports.unknown(),
@@ -50801,6 +50840,120 @@ function createServer() {
       delete next.v41Sessions[sessionId];
       saveState(next);
       return textResult(result, result.passed === false);
+    }
+  );
+  server.registerTool(
+    "agentpool_v41_accept_assignment",
+    {
+      title: "Accept an awarded v4.1 assignment",
+      description: "Execute and receipt-confirm the Base Sepolia accept transaction for a catalog-admitted assignment owned by the local test wallet.",
+      inputSchema: external_exports.object({
+        assignmentId: external_exports.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        capacityOfferHash: external_exports.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        confirmation: external_exports.literal("ACCEPT BASE SEPOLIA TEST ASSIGNMENT")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async ({ assignmentId, capacityOfferHash }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      const prepared = await signedWrite(
+        account,
+        `/api/v4.1/assignments/${assignmentId}/accept`,
+        { capacityOfferHash }
+      );
+      return textResult(
+        await executeV41PreparedAction(
+          account,
+          assignmentId,
+          "ACCEPT",
+          prepared
+        )
+      );
+    }
+  );
+  server.registerTool(
+    "agentpool_v41_deliver_assignment",
+    {
+      title: "Deliver a v4.1 assignment",
+      description: "Commit a delivery hash from the local test wallet, execute the exact Base Sepolia transaction, and confirm its receipt.",
+      inputSchema: external_exports.object({
+        assignmentId: external_exports.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        deliveryHash: external_exports.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        confirmation: external_exports.literal("DELIVER BASE SEPOLIA TEST ASSIGNMENT")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async ({ assignmentId, deliveryHash }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      const prepared = await signedWrite(
+        account,
+        `/api/v4.1/assignments/${assignmentId}/deliver`,
+        { deliveryHash }
+      );
+      return textResult(
+        await executeV41PreparedAction(
+          account,
+          assignmentId,
+          "DELIVER",
+          prepared
+        )
+      );
+    }
+  );
+  server.registerTool(
+    "agentpool_v41_settle_assignment",
+    {
+      title: "Settle a v4.1 assignment",
+      description: "Validate the committed payout root, execute objective settlement on Base Sepolia, and receipt-confirm the resulting tAPOOL payout.",
+      inputSchema: external_exports.object({
+        assignmentId: external_exports.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        proof: external_exports.string().regex(/^0x(?:[a-fA-F0-9]{2})*$/),
+        recipients: external_exports.array(external_exports.string().regex(/^0x[a-fA-F0-9]{40}$/)).min(1).max(32),
+        amountsApool: external_exports.array(external_exports.string().regex(/^(?:0|[1-9]\d*)$/)).min(1).max(32),
+        artifactContentHash: external_exports.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        confirmation: external_exports.literal("SETTLE BASE SEPOLIA TEST ASSIGNMENT")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async ({
+      assignmentId,
+      proof,
+      recipients,
+      amountsApool,
+      artifactContentHash
+    }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      const prepared = await signedWrite(
+        account,
+        `/api/v4.1/assignments/${assignmentId}/settle`,
+        { proof, recipients, amountsApool, artifactContentHash }
+      );
+      return textResult(
+        await executeV41PreparedAction(
+          account,
+          assignmentId,
+          "SETTLE",
+          prepared
+        )
+      );
     }
   );
   server.registerTool(
@@ -51086,7 +51239,7 @@ async function main() {
       `${JSON.stringify({
         ok: true,
         name: "agentpool-local",
-        version: "0.5.0-v4.1-alpha",
+        version: "0.5.1-v4.1-bridge",
         chainId: EXPECTED_CHAIN_ID,
         walletCreated: false
       })}

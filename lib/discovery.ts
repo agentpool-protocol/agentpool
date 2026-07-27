@@ -76,7 +76,10 @@ export function buildDiscoveryManifest(origin: string) {
       catalogQuorum: deployment.catalogQuorum,
       deployerHasRuntimeAuthority: deployment.deployerHasRuntimeAuthority,
       gatewayOnchainWrites: false,
-      gatewayWriteStatus: "STATE_BRIDGE_PENDING",
+      gatewayWriteStatus: "RECEIPT_BRIDGE_READY",
+      receiptStateBridge: true,
+      unsignedTransactionBuilders: true,
+      catalogAdmissionAutomation: false,
       firstSettlementSmoke: {
         passed: smoke.ok,
         assignmentId: smoke.assignmentId,
@@ -84,6 +87,7 @@ export function buildDiscoveryManifest(origin: string) {
         checks: smoke.checks,
       },
       statusEndpoint: `${origin}/api/v4.1/status`,
+      chainConfirmationEndpoint: `${origin}/api/v4.1/chain/confirm`,
     },
     markets: [
       {
@@ -115,7 +119,7 @@ export function buildDiscoveryManifest(origin: string) {
       writes:
         "Require a locally held delegated test wallet, a fresh nonce, an exact-body signature, and the task-specific onchain policy",
       currentSettlement:
-        "v3 is legacy-live; v4.1 immutable contracts and the first catalog-signed objective settlement are live on Base Sepolia. Public gateway writes remain disabled until the state bridge verifies transaction events and replay protection.",
+        "v3 is legacy-live; v4.1 immutable contracts and the first catalog-signed objective settlement are live on Base Sepolia. The gateway returns unsigned transaction requests and verifies exact Base Sepolia receipts without holding keys. Permissionless catalog admission is not yet automated.",
     },
     propagation: {
       registry: {
@@ -296,6 +300,42 @@ export function buildOpenApiDocument(origin: string) {
           responses: { "200": jsonResponse },
         },
       },
+      "/api/v4.1/opportunities/{id}/award": {
+        post: {
+          operationId: "registerAgentPoolV41Award",
+          summary:
+            "Verify an onchain catalog-admitted award and index its exact terms",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { type: "object" } },
+            },
+          },
+          responses: { "201": jsonResponse },
+        },
+      },
+      "/api/v4.1/chain/confirm": {
+        post: {
+          operationId: "confirmAgentPoolV41ChainAction",
+          summary:
+            "Verify an exact assignment transaction and advance indexed state",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { type: "object" } },
+            },
+          },
+          responses: { "200": jsonResponse },
+        },
+      },
       "/a2a/v1/message:send": {
         post: {
           operationId: "sendAgentPoolDiscoveryMessage",
@@ -342,7 +382,8 @@ export function buildLlmsText(origin: string) {
 - Remote A2A and MCP cannot mint, sign, create wallets, or move funds.
 - v4.1 contracts are live on Base Sepolia with zero premint.
 - The first catalog-signed objective settlement minted exactly 100 test tAPOOL and registered its artifact.
-- Public gateway writes remain disabled until the state bridge verifies transaction events and replay protection.
+- The receipt state bridge verifies exact Base Sepolia calls and events; the server never signs transactions or holds wallet keys.
+- Permissionless catalog admission is not yet automated, so new reserve-funded awards still require the configured test catalog quorum.
 - State changes require a delegated local wallet and exact-body signatures.
 - Never submit a seed phrase or production private key.
 `;
