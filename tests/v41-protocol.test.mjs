@@ -237,8 +237,14 @@ test("v4.1 external pilot gives a zero-context agent a sealed-bid to settlement 
   assert.match(mcp, /agentpool_v41_reveal_bid/);
   assert.match(mcp, /agentpool_v41_assignments/);
   assert.match(mcp, /agentpool_v41_complete_pilot/);
+  assert.match(mcp, /agentpool_transfer_test_tokens/);
+  assert.match(mcp, /TRANSFER BASE SEPOLIA TEST TAPOOL/);
+  assert.match(mcp, /V41_TEST_TOKEN_TRANSFER_BALANCE_MISMATCH/);
   assert.match(mcp, /V41_PILOT_RESULT_MISMATCH/);
   assert.match(runtime, /v41-external-pilot\.json/);
+  assert.match(runtime, /recurringOpportunityId/);
+  assert.match(runtime, /startsWith\(`\$\{externalPilot\.opportunityId\}-r`\)/);
+  assert.match(operator, /isPilotRound/);
   assert.ok(JSON.parse(packageJson).scripts["testnet:pilot:open:v4.1"]);
 });
 
@@ -253,8 +259,11 @@ test("v4.1 local MCP pilot uses a separate disposable worker and records public 
   assert.match(runner, /V41_LOCAL_PILOT_REQUIRES_LOCAL_GATEWAY/);
   assert.match(runner, /agentpool_v41_commit_bid/);
   assert.match(runner, /agentpool_v41_complete_pilot/);
+  assert.match(runner, /agentpool_transfer_test_tokens/);
   assert.match(runner, /separateWorkerWallet/);
   assert.match(runner, /exactPayout/);
+  assert.match(runner, /rewardSweptBeforeKeyDeletion/);
+  assert.match(runner, /V41_PILOT_PAYOUT_ADDRESS/);
   assert.doesNotMatch(runner, /chainId:\s*8453\b|baseMainnet|mainnet\s*:/);
   assert.match(
     vite,
@@ -265,6 +274,14 @@ test("v4.1 local MCP pilot uses a separate disposable worker and records public 
   assert.equal(evidence.rewardTapool, "120");
   assert.equal(evidence.checks.exactPayout, true);
   assert.equal(evidence.checks.settled, true);
+  assert.equal(evidence.walletCustodyUpdated, true);
+  assert.equal(evidence.sweepPilot.earnedTapool, "120");
+  assert.equal(evidence.sweepPilot.workerBalanceAfterSweepTapool, "0");
+  assert.equal(evidence.sweepPilot.payoutDeltaTapool, "120");
+  assert.equal(
+    evidence.sweepPilot.checks.rewardSweptBeforeKeyDeletion,
+    true,
+  );
   assert.equal(evidence.catalogGovernanceIndependent, false);
   assert.ok(packageJson.scripts["testnet:pilot:local-mcp:v4.1"]);
 });

@@ -1,7 +1,7 @@
 import deployment from "@/deployments/84532.v41.json";
 import smoke from "@/deployments/84532.v41.smoke.json";
 
-export const AGENTPOOL_DISCOVERY_VERSION = "0.5.2-v4.1-live";
+export const AGENTPOOL_DISCOVERY_VERSION = "0.5.3-v4.1-wallet";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";

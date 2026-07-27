@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.5.2-v4.1-live";
+const SERVER_VERSION = "0.5.3-v4.1-wallet";
 
 type JsonRecord = Record<string, unknown>;
 

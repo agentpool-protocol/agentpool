@@ -1,5 +1,5 @@
 {
-  "version": "v4.1-external-mcp-pilot-v1",
+  "version": "v4.1-external-mcp-pilot-v2",
   "network": "Base Sepolia",
   "chainId": 84532,
   "gatewayMode": "local-D1-R2-projection",
@@ -33,6 +33,32 @@
     "resultVerifiedLocally": true,
     "exactPayout": true,
     "settled": true
+  },
+  "walletCustodyUpdated": true,
+  "sweepPilot": {
+    "opportunityId": "v41-basic-mcp-fixture-1-r2",
+    "worker": "0x35EA560f76b20ba16718F63f7b00A9533F16b51D",
+    "workerPrivateKeyRetained": false,
+    "payoutRecipient": "0x50E32856c32cF7c679Be3bab7a43a9823B6aA3a6",
+    "earnedTapool": "120",
+    "workerBalanceAfterSweepTapool": "0",
+    "payoutDeltaTapool": "120",
+    "transactionHashes": {
+      "testGasFunding": "0x40c5fa280ce6747aa6e5af494d1c239b64aac41f2bda63cf76163f7a14f9aad3",
+      "open": "0x2c4dc40b0f7b769d3ef84d94d510c992fa34da1f1b5115af4a536738008f8425",
+      "accept": "0xbd30c98e3c521e6fe656eccba7a7914d80a98545b6baafb84e34045640e825dc",
+      "deliver": "0x222d55389e5fd45fa640e383ba34f6a83ed0a5a0ce367cd6460056aed1a74382",
+      "settle": "0x986e977b7fa239ba28338aea9f4417e212b3eff08ef44ce06964e1fec4f7455e",
+      "sweep": "0x33f37d4e534b3cfb222ff1371e11326b07c506da1e1121ea89b180a1f097ea6c"
+    },
+    "checks": {
+      "recurringOpportunityRound": true,
+      "exactPayout": true,
+      "rewardSweptBeforeKeyDeletion": true,
+      "workerBalanceZeroAfterSweep": true,
+      "payoutRecipientDeltaExact": true
+    },
+    "completedAt": "2026-07-27T15:26:38.364Z"
   },
   "catalogGovernanceIndependent": false,
   "catalogNote": "The three admission signatures came from co-located disposable Base Sepolia test identities. This proves the client and accounting flow, not decentralized catalog governance.",
