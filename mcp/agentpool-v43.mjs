@@ -177,6 +177,22 @@ async function chainRead(address, abi, functionName, args = []) {
   return chainClient.readContract({ address, abi, functionName, args });
 }
 
+async function waitForChainVisibility(blockNumber) {
+  let lastError;
+  for (let attempt = 1; attempt <= 20; attempt += 1) {
+    try {
+      await chainClient.getBlock({ blockNumber });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+    }
+  }
+  throw new Error(
+    `V43_CHAIN_READ_REPLICA_LAG:${blockNumber}:${lastError?.shortMessage ?? lastError}`,
+  );
+}
+
 async function chainWrite(address, abi, functionName, args = []) {
   const account = localAccount();
   const wallet = createWalletClient({
@@ -184,13 +200,26 @@ async function chainWrite(address, abi, functionName, args = []) {
     chain: baseSepolia,
     transport: http(chainRpcUrl, { timeout: 30_000, retryCount: 3 }),
   });
-  const { request } = await chainClient.simulateContract({
-    account,
-    address,
-    abi,
-    functionName,
-    args,
-  });
+  let simulation;
+  let simulationError;
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    try {
+      simulation = await chainClient.simulateContract({
+        account,
+        address,
+        abi,
+        functionName,
+        args,
+      });
+      break;
+    } catch (error) {
+      simulationError = error;
+      if (attempt === 8) break;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+    }
+  }
+  if (!simulation) throw simulationError;
+  const { request } = simulation;
   const transactionHash = await wallet.writeContract(request);
   const receipt = await chainClient.waitForTransactionReceipt({
     hash: transactionHash,
@@ -200,6 +229,7 @@ async function chainWrite(address, abi, functionName, args = []) {
   if (receipt.status !== "success") {
     throw new Error(`V43_CHAIN_WRITE_FAILED:${transactionHash}`);
   }
+  await waitForChainVisibility(receipt.blockNumber);
   return {
     transactionHash,
     blockNumber: receipt.blockNumber.toString(),
@@ -603,7 +633,8 @@ server.registerTool(
       created: true,
       address: account.address,
       walletPath,
-      faucetGuide: "https://docs.base.org/base-chain/tools/network-faucets",
+      faucetGuide:
+        "https://docs.base.org/base-chain/network-information/network-faucets",
       next:
         "Back up the local wallet file offline, obtain free Base Sepolia ETH, then register and publish capacity.",
       warning: "Never send mainnet ETH or valuable tokens to this wallet.",
@@ -659,6 +690,13 @@ server.registerTool(
 
 const chainJobSchema = {
   plan: z.string().min(1),
+  releaseId: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/)
+    .optional()
+    .describe(
+      "Optional opt-in PROVEN or RECOMMENDED release. Omit to pin the current recommended release.",
+    ),
   worker: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   validatorRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   capability: z.string().min(1),
@@ -774,11 +812,20 @@ async function buildChainJob(args, specificationHash) {
   const planHash = bytes32(args.plan);
   const allocation = workerAmount + validatorAmount;
   const budget = allocation + keeperAmount;
-  const recommendedRelease = await chainRead(
+  const releaseId =
+    args.releaseId ??
+    (await chainRead(
+      contracts.releaseRegistry,
+      abis.registry,
+      "recommendedRelease",
+    ));
+  const releaseUsable = await chainRead(
     contracts.releaseRegistry,
     abis.registry,
-    "recommendedRelease",
+    "isUsable",
+    [releaseId],
   );
+  if (!releaseUsable) throw new Error("V43_RELEASE_NOT_USABLE");
   const nonce = await chainRead(
     contracts.taskMarket,
     abis.market,
@@ -807,7 +854,7 @@ async function buildChainJob(args, specificationHash) {
     deliveryHash,
     planHash,
     budget,
-    recommendedRelease,
+    releaseId,
     jobId: chainJobId(account.address, nonce, planHash),
     terms: [
       {
@@ -842,7 +889,7 @@ async function buildChainJob(args, specificationHash) {
   };
 }
 
-async function buildExternalDag(plan, milestones) {
+async function buildExternalDag(plan, milestones, selectedReleaseId) {
   const account = localAccount();
   const terms = [];
   const policies = [];
@@ -923,7 +970,7 @@ async function buildExternalDag(plan, milestones) {
     });
   }
   const planHash = bytes32(plan);
-  const [releaseId, nonce] = await Promise.all([
+  const [recommendedRelease, nonce] = await Promise.all([
     chainRead(
       contracts.releaseRegistry,
       abis.registry,
@@ -931,6 +978,14 @@ async function buildExternalDag(plan, milestones) {
     ),
     chainRead(contracts.taskMarket, abis.market, "nextJobNonce"),
   ]);
+  const releaseId = selectedReleaseId ?? recommendedRelease;
+  const releaseUsable = await chainRead(
+    contracts.releaseRegistry,
+    abis.registry,
+    "isUsable",
+    [releaseId],
+  );
+  if (!releaseUsable) throw new Error("V43_RELEASE_NOT_USABLE");
   return {
     account,
     budget,
@@ -949,7 +1004,7 @@ server.registerTool(
   {
     title: "Create a buyer-funded Base Sepolia job",
     description:
-      "Approves and locks this AI's existing tAPOOL. The full worker, validator, and keeper payouts are fixed before work; this path can never mint.",
+      "Approves and locks this AI's existing tAPOOL. The full worker, validator, and keeper payouts are fixed before work; this path can never mint. Omit releaseId for the recommended release or explicitly select an opt-in usable release.",
     inputSchema: {
       ...chainJobSchema,
       specification: z.string().min(1),
@@ -970,7 +1025,7 @@ server.registerTool(
       [
         job.budget,
         job.planHash,
-        job.recommendedRelease,
+        job.releaseId,
         job.terms,
         job.policies,
         job.dependencies,
@@ -978,6 +1033,7 @@ server.registerTool(
     );
     return textResult({
       jobId: job.jobId,
+      releaseId: job.releaseId,
       budgetApool: formatUnits(job.budget, 18),
       recipients: job.recipients,
       amountsApool: job.amounts.map((amount) => formatUnits(amount, 18)),
@@ -994,14 +1050,21 @@ server.registerTool(
   {
     title: "Create a buyer-funded Base Sepolia DAG",
     description:
-      "Locks existing tAPOOL for 1-32 dependency-aware milestones. Independent leaves can run in parallel, each payout is precommitted, unused escrow is refundable, and this path can never mint.",
+      "Locks existing tAPOOL for 1-32 dependency-aware milestones. Independent leaves can run in parallel, each payout is precommitted, unused escrow is refundable, and this path can never mint. Omit releaseId for the recommended release or explicitly select an opt-in usable release.",
     inputSchema: {
       plan: z.string().min(1),
+      releaseId: z
+        .string()
+        .regex(/^0x[a-fA-F0-9]{64}$/)
+        .optional()
+        .describe(
+          "Optional opt-in PROVEN or RECOMMENDED release. Omit to pin the current recommended release.",
+        ),
       milestones: z.array(dagMilestoneSchema).min(1).max(32),
     },
   },
-  async ({ plan, milestones }) => {
-    const dag = await buildExternalDag(plan, milestones);
+  async ({ plan, releaseId, milestones }) => {
+    const dag = await buildExternalDag(plan, milestones, releaseId);
     const approval = await chainWrite(
       contracts.token,
       abis.token,
@@ -1084,7 +1147,7 @@ server.registerTool(
         3,
         job.budget,
         job.planHash,
-        job.recommendedRelease,
+        job.releaseId,
         issue,
         admissionProof,
         job.terms,

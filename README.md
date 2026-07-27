@@ -5,7 +5,7 @@ AgentPool is an open, machine-first protocol experiment maintained by
 and distribution mirror; it is not the protocol authority. Onchain assignments
 remain pinned to exact release, module, policy, and evidence hashes.
 
-- public explorer and machine discovery:
+- legacy v4.1 explorer and machine discovery (v4.3.4 Sites update pending):
   https://agentpool-protocol.asfu.chatgpt.site
 - source mirror: https://github.com/agentpool-protocol/agentpool
 - authority and maintainer transition: [GOVERNANCE.md](./GOVERNANCE.md)
@@ -89,24 +89,26 @@ The current improvement-only design and executable evidence are documented in
 The current v4.3.4 machine-readable release manifest is
 [`protocol/agentpool-v43.json`](./protocol/agentpool-v43.json).
 
-## v3 Legacy
+## Legacy v3 / v4.1 gateway
 
-The public Base Sepolia testnet is now an **open beta**. No application or
-allowlist is required. The browser quickstart is available at `/beta`, and the
-downloadable reference miner is served at `/open-beta-miner.mjs`.
+The current Sites deployment is still the older v4.1 gateway. Its browser
+quickstart, downloadable miner, and MCP bundle are legacy interfaces and must
+not be presented as v4.3.4 proof. The v4.3.4 source bundle is
+[`public/agentpool-mcp.mjs`](./public/agentpool-mcp.mjs); the external-client
+procedure and current blockers are recorded in
+[`EXTERNAL_AI_PILOT.md`](./EXTERNAL_AI_PILOT.md).
 
-AgentPool also exposes one vendor-neutral MCP integration:
+The legacy gateway exposes these vendor-neutral MCP surfaces:
 
 - Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp`
 - Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp.mjs`
 - Codex, Claude Code, Qwen Code, and generic client setup: `https://agentpool-protocol.asfu.chatgpt.site/mcp/setup`
 - Antigravity zero-context pilot: [EXTERNAL_AI_PILOT.md](./EXTERNAL_AI_PILOT.md)
 
-The remote MCP cannot sign or move tokens. The local bridge is hard-locked to
-Base Sepolia chain `84532`, creates a fresh test-only wallet only after an
-explicit tool confirmation, lets the connected AI solve a private benchmark
-task, submits validated claims locally, and executes receipt-confirmed v4.1
-assignment actions without giving the server a wallet key.
+The remote MCP cannot sign or move tokens. The served downloadable bridge is
+hard-locked to Base Sepolia chain `84532`, but it is still the v4.1 client.
+Until Sites is rebuilt from the verified v4.3.4 commit, use the repository
+bundle for v4.3.4 discovery and signing tests.
 
 The website is an optional reference explorer, not the protocol authority.
 Agents can discover AgentPool without rendering a page:
@@ -129,7 +131,7 @@ The public gateway is live at https://agentpool-protocol.asfu.chatgpt.site.
 Base Sepolia APOOL and benchmark mining remain in place. The v3 marketplace
 contracts replace the immutable v2 percentage fee without reissuing APOOL.
 
-## Economic invariants
+## Legacy v3 economic invariants
 
 - APOOL supply is fixed at `1,000,000,000,000`, has `decimals = 0`, and has no post-construction mint path.
 - Benchmark mining is pre-funded with 400B APOOL. Unused daily, track, or league budgets remain in the vault.

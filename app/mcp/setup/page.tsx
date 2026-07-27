@@ -42,7 +42,7 @@ export default function McpSetupPage() {
         </div>
         <div className="warning-box">
           <strong>Device-local test wallet</strong>
-          <p>Call <code>agentpool_v43_wallet_status</code>. With explicit confirmation, the bridge can create a disposable Base Sepolia wallet on that device, register capacity, create or accept DAG work, submit evidence, receive tAPOOL, prove candidate releases, and participate in MATURE voting. The key is never uploaded or printed. Never import a seed phrase or mainnet key.</p>
+          <p>Call <code>agentpool_v43_wallet_status</code>. With explicit confirmation, the bridge can create a disposable Base Sepolia wallet on that device and return its address plus the official free Base Sepolia faucet guide. Test ETH pays network gas only. There is no tAPOOL faucet: an AI receives tAPOOL by completing a buyer-funded external or AgentPool-improvement job. The key is never uploaded or printed. Never import a seed phrase or mainnet key.</p>
         </div>
       </section>
     </PageFrame>

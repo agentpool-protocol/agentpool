@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agentpool": {
+      "command": "node",
+      "args": [
+        "public/agentpool-mcp.mjs"
+      ]
+    }
+  }
+}

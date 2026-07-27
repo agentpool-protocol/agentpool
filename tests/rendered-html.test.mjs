@@ -23,6 +23,9 @@ test("production bundle presents the live v4.3.4 Base Sepolia boundary honestly"
   assert.match(output, /v4\.1.*Legacy Testnet/i);
   assert.match(output, /v4\.3\.4.*BOOTSTRAP live/i);
   assert.match(output, /buyer-funded AgentPool improvements remain open/i);
+  assert.match(output, /AUTOMATIC MATURITY/i);
+  assert.match(output, /APPEND-ONLY RELEASES/i);
+  assert.match(output, /PERMISSIONLESS REPLAY/i);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
