@@ -36,7 +36,7 @@ export default function MiningPage() {
         </div>
         <div className="warning-box">
           <strong>Current public state</strong>
-          <p>The contribution ledger and evolution consensus pass a 50-transaction local EVM rehearsal. v4.3 has not yet emitted a Base Sepolia token.</p>
+          <p>v4.3.4 is live on Base Sepolia. Its one finite BOOTSTRAP system-improvement Issue emitted 120 tAPOOL only after objective proof and three-group validator reveal; the following buyer job moved 30 existing tAPOOL and emitted zero.</p>
         </div>
         <Link className="button secondary" href="/system">Inspect system evolution <Arrow /></Link>
       </section>

@@ -1,0 +1,308 @@
+{
+  "contractName": "AgentPoolV43CapacityRegistry",
+  "sourceName": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "configurationAuthority_",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CapacityExceeded",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTerms",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "Unauthorized",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "agent",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "capability",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint32",
+          "name": "capacity",
+          "type": "uint32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "expiresAt",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "runtimeHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "CapacityPublished",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "reservationId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "CapacityReleased",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "reservationId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "agent",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint32",
+          "name": "units",
+          "type": "uint32"
+        }
+      ],
+      "name": "CapacityReserved",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "market",
+          "type": "address"
+        }
+      ],
+      "name": "MarketConfigured",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "configurationAuthority",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "market_",
+          "type": "address"
+        }
+      ],
+      "name": "configureMarket",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "holds",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "agent",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "capability",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "units",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bool",
+          "name": "active",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "market",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "offers",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "capacity",
+          "type": "uint32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "held",
+          "type": "uint32"
+        },
+        {
+          "internalType": "uint64",
+          "name": "expiresAt",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "runtimeHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "capability",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "capacity",
+          "type": "uint32"
+        },
+        {
+          "internalType": "uint64",
+          "name": "expiresAt",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "runtimeHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "publish",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "reservationId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "release",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "reservationId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "agent",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "capability",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "units",
+          "type": "uint32"
+        }
+      ],
+      "name": "reserve",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608034608357601f61074938819003918201601f19168301916001600160401b03831184841017608757808492602094604052833981010312608357516001600160a01b0381169081900360835780156074575f80546001600160a01b0319169190911790556040516106ad908161009c8239f35b630256965f60e01b5f5260045ffd5b5f80fd5b634e487b7160e01b5f52604160045260245ffdfe6080806040526004361015610012575f80fd5b5f3560e01c90816349cbd3881461047257508063517eefa0146103fb5780635ab171f91461034a57806367d42a8b1461024f5780637175a3c2146101f1578063771e0903146100c357806380f556051461009d5763ac2308f414610074575f80fd5b34610099575f3660031901126100995760206001600160a01b035f5416604051908152f35b5f80fd5b34610099575f3660031901126100995760206001600160a01b0360015416604051908152f35b346100995760803660031901126100995760043560243563ffffffff81168091036100995760443567ffffffffffffffff81168082036100995760643591335f52600260205260405f20855f5260205260405f2090851580156101e9575b80156101d6575b80156101cc575b80156101c4575b6101b55783916001918663ffffffff198354161782556fffffffffffffffff000000000000000082549160401b16906fffffffffffffffff000000000000000019161781550155604051928352602083015260408201527f66243fc231e3860a73250d5eee19952dc13630ce0942ea665dddbfa771ee013760603392a3005b630256965f60e01b5f5260045ffd5b508315610136565b504283111561012f565b5063ffffffff825460201c168510610128565b508415610121565b34610099576020366003190112610099576004355f526003602052608060405f2060ff6001600160a01b03825416916002600182015491015490604051938452602084015263ffffffff8116604084015260201c1615156060820152f35b34610099576020366003190112610099576004356001600160a01b0360015416330361033c57805f52600360205260405f20600281019081549160ff8360201c16156101b55764ff0000000019831690556001600160a01b038154165f526002602052600160405f209101545f5260205263ffffffff60405f20911663ffffffff825460201c160363ffffffff811161032857815467ffffffff00000000191660209190911b67ffffffff00000000161790557f0db95bf964bfb6a61f1c1895d773f743528fcac231639f97285216f5c328e4935f80a2005b634e487b7160e01b5f52601160045260245ffd5b6282b42960e81b5f5260045ffd5b3461009957602036600319011261009957610363610661565b5f546001600160a01b038116330361033c576001546001600160a01b0381166103ec576001600160a01b0383169283159081156103e2575b506101b55782906001600160a01b031916176001556001600160a01b0319165f557fe13d4428ff4cc93015eaf8f6217e6ce61fc50657565697bc387ae28c9a0f62585f80a2005b90503b158461039b565b6308db0db560e11b5f5260045ffd5b34610099576040366003190112610099576001600160a01b0361041c610661565b165f52600260205260405f206024355f52602052608060405f206001815491015467ffffffffffffffff6040519263ffffffff8116845263ffffffff8160201c16602085015260401c1660408301526060820152f35b3461009957608036600319011261009957600435602435916001600160a01b038316809303610099576044359060643563ffffffff8116809103610099576001600160a01b0360015416330361033c57845f52600260205260405f20835f5260205260405f2084158015610645575b801561063d575b8015610626575b6101b557805463ffffffff8160201c16908382018092116103285763ffffffff1681116106175763ffffffff811161032857815467ffffffff00000000191660209190911b67ffffffff0000000016179055608082019180831067ffffffffffffffff841117610603577f47a7e4be55ec53b721b2c1f3612b48dc7754ccd79873187bcad9e1f38ccf4b1f9360209360405286825283820190815263ffffffff80600260408501948686526060810194600186528a5f52600389526001600160a01b0360405f209251166001600160a01b0319835416178255516001820155019351161663ffffffff1983541617825551151564ff00000000825491851b169064ff000000001916179055604051908152a3005b634e487b7160e01b5f52604160045260245ffd5b6304ffa0ff60e51b5f5260045ffd5b5067ffffffffffffffff815460401c1642116104ef565b5081156104e8565b50845f52600360205260ff600260405f20015460201c166104e1565b600435906001600160a01b03821682036100995756fea2646970667358221220926822117a3775b2a8676a4f026b40aaf6cc7391dc71c62e74fcef5c7fcc24c064736f6c63430008240033",
+  "deployedBytecode": "0x6080806040526004361015610012575f80fd5b5f3560e01c90816349cbd3881461047257508063517eefa0146103fb5780635ab171f91461034a57806367d42a8b1461024f5780637175a3c2146101f1578063771e0903146100c357806380f556051461009d5763ac2308f414610074575f80fd5b34610099575f3660031901126100995760206001600160a01b035f5416604051908152f35b5f80fd5b34610099575f3660031901126100995760206001600160a01b0360015416604051908152f35b346100995760803660031901126100995760043560243563ffffffff81168091036100995760443567ffffffffffffffff81168082036100995760643591335f52600260205260405f20855f5260205260405f2090851580156101e9575b80156101d6575b80156101cc575b80156101c4575b6101b55783916001918663ffffffff198354161782556fffffffffffffffff000000000000000082549160401b16906fffffffffffffffff000000000000000019161781550155604051928352602083015260408201527f66243fc231e3860a73250d5eee19952dc13630ce0942ea665dddbfa771ee013760603392a3005b630256965f60e01b5f5260045ffd5b508315610136565b504283111561012f565b5063ffffffff825460201c168510610128565b508415610121565b34610099576020366003190112610099576004355f526003602052608060405f2060ff6001600160a01b03825416916002600182015491015490604051938452602084015263ffffffff8116604084015260201c1615156060820152f35b34610099576020366003190112610099576004356001600160a01b0360015416330361033c57805f52600360205260405f20600281019081549160ff8360201c16156101b55764ff0000000019831690556001600160a01b038154165f526002602052600160405f209101545f5260205263ffffffff60405f20911663ffffffff825460201c160363ffffffff811161032857815467ffffffff00000000191660209190911b67ffffffff00000000161790557f0db95bf964bfb6a61f1c1895d773f743528fcac231639f97285216f5c328e4935f80a2005b634e487b7160e01b5f52601160045260245ffd5b6282b42960e81b5f5260045ffd5b3461009957602036600319011261009957610363610661565b5f546001600160a01b038116330361033c576001546001600160a01b0381166103ec576001600160a01b0383169283159081156103e2575b506101b55782906001600160a01b031916176001556001600160a01b0319165f557fe13d4428ff4cc93015eaf8f6217e6ce61fc50657565697bc387ae28c9a0f62585f80a2005b90503b158461039b565b6308db0db560e11b5f5260045ffd5b34610099576040366003190112610099576001600160a01b0361041c610661565b165f52600260205260405f206024355f52602052608060405f206001815491015467ffffffffffffffff6040519263ffffffff8116845263ffffffff8160201c16602085015260401c1660408301526060820152f35b3461009957608036600319011261009957600435602435916001600160a01b038316809303610099576044359060643563ffffffff8116809103610099576001600160a01b0360015416330361033c57845f52600260205260405f20835f5260205260405f2084158015610645575b801561063d575b8015610626575b6101b557805463ffffffff8160201c16908382018092116103285763ffffffff1681116106175763ffffffff811161032857815467ffffffff00000000191660209190911b67ffffffff0000000016179055608082019180831067ffffffffffffffff841117610603577f47a7e4be55ec53b721b2c1f3612b48dc7754ccd79873187bcad9e1f38ccf4b1f9360209360405286825283820190815263ffffffff80600260408501948686526060810194600186528a5f52600389526001600160a01b0360405f209251166001600160a01b0319835416178255516001820155019351161663ffffffff1983541617825551151564ff00000000825491851b169064ff000000001916179055604051908152a3005b634e487b7160e01b5f52604160045260245ffd5b6304ffa0ff60e51b5f5260045ffd5b5067ffffffffffffffff815460401c1642116104ef565b5081156104e8565b50845f52600360205260ff600260405f20015460201c166104e1565b600435906001600160a01b03821682036100995756fea2646970667358221220926822117a3775b2a8676a4f026b40aaf6cc7391dc71c62e74fcef5c7fcc24c064736f6c63430008240033"
+}

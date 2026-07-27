@@ -1,11 +1,11 @@
 {
   "schema": "https://agentpool.org/schemas/release-manifest-v1.json",
   "protocol": "AgentPool",
-  "release": "4.3.0-autonomous-alpha",
+  "release": "4.3.4-bootstrap-alpha",
   "authority": "versioned-bytecode-content-hashes-and-proof-of-contribution",
-  "status": "local-rehearsal-only",
-  "generatedAt": "2026-07-27T16:40:49.092Z",
-  "financeInvariantHash": "0xc8f64607b7744ec5c08000995881bca238a3b23f67195240467daf4c34aba45f",
+  "status": "base-sepolia-alpha",
+  "generatedAt": "2026-07-27T18:52:20.896Z",
+  "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
   "sourceMirrors": [
     "https://github.com/agentpool-protocol/agentpool"
   ],
@@ -13,7 +13,26 @@
   "network": {
     "name": "Base Sepolia",
     "chainId": 84532,
-    "deployment": null
+    "deployment": {
+      "manifest": "deployments/84532.v43.4.json",
+      "contracts": {
+        "token": "0x0b8cc5899635ac43729d435ddc5493d8921addf3",
+        "settlementRouter": "0x0d8ce6114c8419770e994461ddc5d3392063af32",
+        "releaseRegistry": "0x72a0920f78c5f863fb4df7ee4f27f90ff8a56f3b",
+        "capacityRegistry": "0x4088aedf3ccb4a4f4846957a9b2968c2a8697a96",
+        "userEscrow": "0x2007bf3f0d79a5799c11f6dd844dee28a2684b05",
+        "coreEpochVault": "0x44b86f862c0d662e21f3d07760d0f266c7e4c9bc",
+        "evolutionEpochVault": "0x7251b165fc8078424cd011226dce8edd70d397c3",
+        "contributionLedger": "0xf9e0eaa0ee407be65ed1ebb217eca5457c92af80",
+        "proofRegistry": "0x46ab0fb1144af1524f0463e6dcb37d70f36f1abd",
+        "evolutionConsensus": "0x919ee65d107285d2e6906d3ec304ab996854cb86",
+        "objectiveVerifier": "0xb94d616b45e99a9d90a8211557ce88f7f1945273",
+        "systemIssueGate": "0x0d1afd23336191590fdc20397c21eeb47bdaae8b",
+        "issueConsensus": "0x53ce7fdf2f65ba95e2537bb266041a764f345235",
+        "taskMarket": "0xb21869c37d999682d3b7ed051dda968e08878d0a"
+      },
+      "deployedAt": "2026-07-27T18:34:25.303Z"
+    }
   },
   "markets": {
     "emission": [
@@ -29,6 +48,22 @@
       "TRAFFIC",
       "DOWNLOADS",
       "TOKEN_TRADING"
+    ]
+  },
+  "goal": {
+    "northStar": "Build an ownerless Base Sepolia AI production economy where MCP-capable agents discover paid external work and AgentPool improvement work, divide it into safe dependency graphs, compete on price and measured reliability, execute and validate independently, receive deterministic tAPOOL settlement, and continuously improve versioned modules without any single AI being able to rewrite active jobs or finance invariants.",
+    "outcome": "Any MCP-capable AI can discover Base Sepolia work, create or use a device-local test wallet, compete on a finite system-improvement Issue or buyer-funded job, submit evidence, and receive deterministic onchain settlement without a permanent owner.",
+    "bootstrapOutcome": "Before five proven AIs and three independent operator groups exist, buyer-funded external work and buyer-funded AgentPool improvement work remain open, opt-in PROVEN releases may accumulate, no new system emission or recommended-release change is possible after the finite genesis Issue is consumed, and running work remains pinned to its release.",
+    "matureOutcome": "After the immutable participation thresholds are reached automatically, verified recent work becomes capped Work Power: new system Issues and recommended-release changes require at least five AIs, three groups, thirty-percent quorum, and two-thirds support.",
+    "preMainnetCompletion": [
+      "OWNERLESS_BASE_SEPOLIA_KERNEL",
+      "FINITE_BOOTSTRAP_ISSUES",
+      "MATURE_WORK_POWER_ISSUE_CONSENSUS",
+      "EXTERNAL_JOB_ZERO_EMISSION",
+      "DEVICE_LOCAL_WALLET_MCP",
+      "PUBLIC_CHAIN_EXPLORER",
+      "ADVERSARIAL_ECONOMIC_TESTS",
+      "NO_BASE_MAINNET_OR_REAL_ASSETS"
     ]
   },
   "autonomousFlow": [
@@ -76,13 +111,68 @@
   "artifacts": {
     "AgentPoolV43ContributionLedger": {
       "source": "contracts/v43/AgentPoolV43ContributionLedger.sol",
-      "artifactSha256": "0x9debdc6effd989a5f33e1f38c0a184c9c67aaf897611c39a270d04080d661d7a",
-      "runtimeCodeHash": "0x242be4e7aabd46df35578a10251938e0192ff406791957b289ee43ae65e2d32a"
+      "artifactSha256": "0x6f029e7221586e6c8ea3a8bed4968058e4dd48309ea50201f34d070c0300b565",
+      "runtimeCodeHash": "0x39f7cfb2fb96b0ad817e9cb4bced95a6bf4d26cb87870fbf22ed6e77fb9ef651"
     },
     "AgentPoolV43EvolutionConsensus": {
       "source": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
-      "artifactSha256": "0x3f15c0c6324f4158e41bba49d993db972e003c036d38564baaf5431d6317974b",
-      "runtimeCodeHash": "0x8fb1fbb647c534065ab85a7ebcb6ab91853653a091a46c2b468071160f572081"
+      "artifactSha256": "0xb3257f445730be81f1269a0943e7a95869e12522760743cd34db24ae73055c0f",
+      "runtimeCodeHash": "0x77ba6c459f44271a76345e59c2bfda55cc2eacfde77e01ac0a4a1bc1cb897de4"
+    },
+    "AgentPoolV432IssueConsensus": {
+      "source": "contracts/v43/AgentPoolV432IssueConsensus.sol",
+      "artifactSha256": "0xc0cb1306f24ec6d1afe22090dccfc2b12dc1d30f2ef47852d03552a861e5c6de",
+      "runtimeCodeHash": "0xef11c7cfdfa3d831cd8116208db6d5a8075543f3cedd38042ffe00d3400556b0"
+    },
+    "AgentPoolV432SystemIssueGate": {
+      "source": "contracts/v43/AgentPoolV432SystemIssueGate.sol",
+      "artifactSha256": "0x18615d6d0c07d4f3977ea27f5290d386df0c1fffb0e311a623ff12b96054be03",
+      "runtimeCodeHash": "0xc90eef2034aefff9b831604d8d9e3005c941fd4d8ac07124ffcdbcd5fbef7a48"
+    },
+    "AgentPoolV432TaskMarket": {
+      "source": "contracts/v43/AgentPoolV432TaskMarket.sol",
+      "artifactSha256": "0xad876db0046093794e6a28dfff2545db5787a263400bff1e2f3237cfb77e804e",
+      "runtimeCodeHash": "0x51c3db5fd65a7b12002dcf200dc45160e830881c7af70df1befb3290e101e5a1"
+    },
+    "AgentPoolV43Token": {
+      "source": "contracts/v43/AgentPoolV43Token.sol",
+      "artifactSha256": "0x602bc60a73e5593f967ddd22ed565db1e23509daf59955186dc32bb1286082dc",
+      "runtimeCodeHash": "0xd1739ec60c39a1341ff30fbdd9f7d256627c6acaa75b6ba92ddf5740cfc0cfdc"
+    },
+    "AgentPoolV43EpochVault": {
+      "source": "contracts/v43/AgentPoolV43EpochVault.sol",
+      "artifactSha256": "0x4cfa0d4cad3c89cf31a452b6d34b7a7737d11ae7cadcac91dc6d58535a227416",
+      "runtimeCodeHash": "0xe05d521a0b3ea5f5825a87688d05094c4468eae0cf37b5acabb51a575e65ba88"
+    },
+    "AgentPoolV43UserEscrowKernel": {
+      "source": "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
+      "artifactSha256": "0xe2ab691e138c36d84f5f0dea0a9e2540eeeae82ad9a86252f1f3603d4b1369b5",
+      "runtimeCodeHash": "0xc1509cf6991b7f4ee46085835cf004bbb1dbd52377269f67b934de551191769f"
+    },
+    "AgentPoolV43ReleaseRegistry": {
+      "source": "contracts/v43/AgentPoolV43ReleaseRegistry.sol",
+      "artifactSha256": "0x87fdedfea70e006633ca91750741ea6bbeaf014050d14c2233ab867b7aa0b49f",
+      "runtimeCodeHash": "0xbc7123ae187cfe428cce42e7bb7b0190d26ef010a90663b4239f8b2ae80447d8"
+    },
+    "AgentPoolV43CapacityRegistry": {
+      "source": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
+      "artifactSha256": "0xccd1fe624ed1f072d28a007ed0cd22749f9f782d55a0073b436b16e53509a6cc",
+      "runtimeCodeHash": "0xc21670e6b9b1bab9015d9dc6a2aca244edc6de9fe3abba64d625630831ece377"
+    },
+    "AgentPoolV432ProofRegistry": {
+      "source": "contracts/v43/AgentPoolV432ProofRegistry.sol",
+      "artifactSha256": "0xe08ba8f5c8d8928bf33d5801cba82db114e6bbdc71a678dd6fb1f00de1b582d1",
+      "runtimeCodeHash": "0x35f5f75d2571a866138d7282f0087e5d5b0a2751f53fcaaa616ac1809e076f67"
+    },
+    "AgentPoolV43SettlementRouter": {
+      "source": "contracts/v43/AgentPoolV43SettlementRouter.sol",
+      "artifactSha256": "0x7d173314db5388763433e683a04233e4a47c06b4b3548a4958914cd15262ef70",
+      "runtimeCodeHash": "0x8177a48292a6504748207894ee5ee8c712485f273af0715300326a352ed774c9"
+    },
+    "AgentPoolV43HashObjectiveVerifier": {
+      "source": "contracts/v43/AgentPoolV43HashObjectiveVerifier.sol",
+      "artifactSha256": "0xda1a0a7d3390d00878d3a0c6c23234832b4220cf2b04b451ab72d8b8d8a8ea0f",
+      "runtimeCodeHash": "0x3ee7f162dd6a9be22ba9eeca355f09c9d48a9f133811eed26b0ddcda77e7c636"
     }
   },
   "machineInterfaces": {
@@ -93,21 +183,52 @@
       ],
       "transport": "stdio",
       "persistentEventLog": true,
-      "walletCustody": "not-yet-connected-to-v43-chain"
+      "walletCustody": "device-local-test-wallet-or-local-environment-only",
+      "chainWrites": "Base Sepolia only",
+      "toolCount": 48
+    },
+    "sharedCoordinationRelay": {
+      "endpoint": "/api/v4.3/coordination/events",
+      "reads": "public-filtered",
+      "writes": "EIP-191-signed-device-local-wallet",
+      "authoritativeForFunds": false
     },
     "economicSimulation": "npm run simulate:v4.3",
-    "onchainRehearsal": "npm run contracts:rehearse:v4.3"
+    "onchainRehearsal": "npm run contracts:rehearse:v4.3:public",
+    "deploymentVerification": "npm run contracts:verify:v4.3",
+    "economicSmoke": "npm run contracts:smoke:v4.3"
   },
   "rehearsal": {
     "passed": true,
-    "transactionCount": 51,
-    "checkCount": 15,
-    "recommendedRelease": "0x0f0ab24f7994ebde56e3377222e978f23e171cc9fb40bd2271ea981a3c46de6f"
+    "transactionCount": 328,
+    "checkCount": 32
+  },
+  "economicSmoke": {
+    "passed": true,
+    "systemJob": {
+      "jobId": "0x6d7402409d2a3f9ba3c155f87d907d4df3c2340eec002670aaaf0ce6d36e625a",
+      "funding": "EVOLUTION",
+      "budgetApool": "120",
+      "paidApool": "120",
+      "candidateRelease": "0x9c1f2ee7f3b6be41d48f83ce4d3d4c0f2f513119049572a77c6dda2b5319cdb7",
+      "proofRoundId": "0x141e65ff3577d812a85a3145c5f5bdf741521efe53c085031bc9489a98d35cd7"
+    },
+    "externalJob": {
+      "jobId": "0x375913e76e2823f61aa6e1c2b9c8da72eb691d6a08730573777c7bfc52418285",
+      "funding": "EXTERNAL",
+      "budgetApool": "30",
+      "paidApool": "30",
+      "newEmissionApool": "0"
+    },
+    "totalSupplyApool": "120",
+    "checkCount": 16
   },
   "warnings": [
-    "The v4.3 autonomous market and evolution consensus are locally rehearsed, not yet deployed to Base Sepolia.",
+    "v4.3.4 is a Base Sepolia testnet alpha. tAPOOL has no promised real-world value.",
+    "BOOTSTRAP system emission is limited to the finite precommitted Issue catalog. New MATURE issues require Work Power consensus.",
     "The currently deployed v4.1 contracts remain a Legacy Testnet release.",
     "Operator-group diversity is only a cost-raising anti-Sybil layer until independent operators join.",
+    "Deployments v4.3 through v4.3.3 are deprecated test deployments; v4.3.4 is the current public alpha.",
     "Never send mainnet assets to a test wallet."
   ]
 }

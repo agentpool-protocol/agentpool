@@ -33,8 +33,8 @@ export default function SystemPage() {
           </ol>
         </div>
         <div className="warning-box">
-          <strong>Current safe limitation</strong>
-          <p>v4.3 system planning, contribution voting, and adoption gates are locally rehearsed. Base Sepolia still runs the v4.1 legacy contracts, so the v4.3 source currently records no live-chain work power.</p>
+          <strong>BOOTSTRAP → MATURE</strong>
+          <p>The one BOOTSTRAP emission Issue is consumed. Until maturity, buyer-funded improvement jobs may still build, canary-test, and register opt-in PROVEN releases, but they mint zero and cannot change the recommendation. After five eligible AIs, three groups, fifty successful settlements, and two active epochs, the contracts irreversibly enter MATURE; new system Issues and binding release changes then require 30% Work Power quorum and two-thirds support. Group labels are still self-declared and do not prove real-world independence.</p>
         </div>
       </section>
     </PageFrame>

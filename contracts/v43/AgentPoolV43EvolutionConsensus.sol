@@ -7,6 +7,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {
     IAgentPoolV43ContributionLedger
 } from "./interfaces/IAgentPoolV43ContributionLedger.sol";
+import {
+    IAgentPoolV43ReleaseRegistry
+} from "./interfaces/IAgentPoolV43ReleaseRegistry.sol";
 
 /// @notice Ownerless release recommendation consensus. It never upgrades a
 ///         running contract or moves user funds. A release becomes recommended
@@ -53,6 +56,7 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
         uint16 adoptionGroupCount;
         ProposalState state;
         bool sourceActivation;
+        bool alreadyProven;
     }
 
     struct Vote {
@@ -92,6 +96,7 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
 
     IERC20 public immutable token;
     IAgentPoolV43ContributionLedger public immutable ledger;
+    IAgentPoolV43ReleaseRegistry public immutable releaseRegistry;
     bytes32 public immutable financeInvariantHash;
     uint128 public immutable minimumProposalBond;
 
@@ -155,6 +160,7 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
     constructor(
         IERC20 token_,
         IAgentPoolV43ContributionLedger ledger_,
+        IAgentPoolV43ReleaseRegistry releaseRegistry_,
         bytes32 financeInvariantHash_,
         bytes32 genesisRelease_,
         uint128 minimumProposalBond_
@@ -162,12 +168,14 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
         if (
             address(token_) == address(0) ||
             address(ledger_) == address(0) ||
+            address(releaseRegistry_) == address(0) ||
             financeInvariantHash_ == bytes32(0) ||
             genesisRelease_ == bytes32(0) ||
             minimumProposalBond_ == 0
         ) revert InvalidTerms();
         token = token_;
         ledger = ledger_;
+        releaseRegistry = releaseRegistry_;
         financeInvariantHash = financeInvariantHash_;
         minimumProposalBond = minimumProposalBond_;
         recommendedRelease = genesisRelease_;
@@ -229,6 +237,7 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
         uint64 revealDeadline,
         uint64 adoptionDeadline
     ) external nonReentrant returns (uint256 proposalId) {
+        if (!ledger.mature()) revert Unauthorized();
         if (
             releaseStates[parentRelease] != ReleaseState.PROVEN &&
             releaseStates[parentRelease] != ReleaseState.RECOMMENDED
@@ -291,6 +300,8 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             adoptionGroupCount: 0,
             state: ProposalState.COMMIT,
             sourceActivation: sourceActivation
+            ,
+            alreadyProven: false
         });
         releaseStates[releaseId] = ReleaseState.CANDIDATE;
         releaseParents[releaseId] = parentRelease;
@@ -300,6 +311,116 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             proposalId,
             releaseId,
             parentRelease,
+            msg.sender
+        );
+    }
+
+    /// @notice Objective settlement sources may make a release opt-in usable in
+    ///         BOOTSTRAP. This never changes the recommended release, enables a
+    ///         settlement source, or alters any financial invariant.
+    function proveRelease(
+        bytes32 candidateReceiptId,
+        bytes32 parentRelease,
+        bytes32 releaseId,
+        bytes32 moduleHash,
+        bytes32 manifestHash,
+        bytes32 claimedFinanceInvariantHash,
+        CanaryMetrics calldata canary
+    ) external {
+        if (
+            releaseStates[parentRelease] != ReleaseState.PROVEN &&
+            releaseStates[parentRelease] != ReleaseState.RECOMMENDED
+        ) revert InvalidTerms();
+        if (
+            releaseId == bytes32(0) ||
+            releaseStates[releaseId] != ReleaseState.NONE ||
+            moduleHash == bytes32(0) ||
+            manifestHash == bytes32(0) ||
+            claimedFinanceInvariantHash != financeInvariantHash
+        ) revert InvalidTerms();
+        _checkCanary(canary);
+        CandidateAttestation storage attestation = candidateAttestations[
+            candidateReceiptId
+        ];
+        if (
+            attestation.used ||
+            attestation.proposer != msg.sender ||
+            attestation.moduleHash != moduleHash ||
+            attestation.manifestHash != manifestHash ||
+            attestation.canaryHash != keccak256(abi.encode(canary))
+        ) revert InvalidTerms();
+        attestation.used = true;
+        releaseStates[releaseId] = ReleaseState.PROVEN;
+        releaseParents[releaseId] = parentRelease;
+        releaseCanaries[releaseId] = canary;
+        releaseRegistry.registerProven(
+            releaseId,
+            parentRelease,
+            moduleHash,
+            manifestHash
+        );
+        emit ReleaseProven(0, releaseId);
+    }
+
+    /// @notice Once the ledger irreversibly reaches MATURE, an already proven
+    ///         opt-in release can enter binding recommendation consensus.
+    function proposeRecommendation(
+        bytes32 releaseId,
+        address proposedSource,
+        bool sourceActivation,
+        uint128 bond,
+        uint64 commitDeadline,
+        uint64 revealDeadline,
+        uint64 adoptionDeadline
+    ) external nonReentrant returns (uint256 proposalId) {
+        if (!ledger.mature()) revert Unauthorized();
+        if (
+            releaseStates[releaseId] != ReleaseState.PROVEN ||
+            bond < minimumProposalBond ||
+            commitDeadline < block.timestamp + MIN_PHASE_DURATION ||
+            revealDeadline < commitDeadline + MIN_PHASE_DURATION ||
+            adoptionDeadline < revealDeadline + MIN_PHASE_DURATION
+        ) revert InvalidTerms();
+        if (
+            sourceActivation &&
+            (proposedSource == address(0) || proposedSource.code.length == 0)
+        ) revert InvalidTerms();
+        uint64 snapshotEpoch = ledger.currentEpoch();
+        if (
+            ledger.votingPowerAt(
+                msg.sender,
+                snapshotEpoch,
+                CONTRIBUTION_LOOKBACK
+            ) == 0
+        ) revert Unauthorized();
+        proposalId = nextProposalId++;
+        proposals[proposalId] = Proposal({
+            proposer: msg.sender,
+            proposedSource: proposedSource,
+            parentRelease: releaseParents[releaseId],
+            releaseId: releaseId,
+            moduleHash: bytes32(0),
+            manifestHash: bytes32(0),
+            snapshotEpoch: snapshotEpoch,
+            commitDeadline: commitDeadline,
+            revealDeadline: revealDeadline,
+            adoptionDeadline: adoptionDeadline,
+            bond: bond,
+            yesWeight: 0,
+            noWeight: 0,
+            voterCount: 0,
+            groupCount: 0,
+            adoptionCount: 0,
+            adoptionGroupCount: 0,
+            state: ProposalState.COMMIT,
+            sourceActivation: sourceActivation,
+            alreadyProven: true
+        });
+        token.safeTransferFrom(msg.sender, address(this), bond);
+        emit ReleaseProposed(
+            proposalId,
+            releaseId,
+            releaseParents[releaseId],
             msg.sender
         );
     }
@@ -384,7 +505,9 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             cast * SUPERMAJORITY_BPS;
         if (!passes) {
             proposal.state = ProposalState.REJECTED;
-            releaseStates[proposal.releaseId] = ReleaseState.QUARANTINED;
+            if (!proposal.alreadyProven) {
+                releaseStates[proposal.releaseId] = ReleaseState.QUARANTINED;
+            }
             uint256 returned = proposal.bond / 2;
             slashPool += proposal.bond - returned;
             token.safeTransfer(proposal.proposer, returned);
@@ -392,7 +515,15 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             return;
         }
         proposal.state = ProposalState.ADOPTION;
-        releaseStates[proposal.releaseId] = ReleaseState.PROVEN;
+        if (!proposal.alreadyProven) {
+            releaseStates[proposal.releaseId] = ReleaseState.PROVEN;
+            releaseRegistry.registerProven(
+                proposal.releaseId,
+                proposal.parentRelease,
+                proposal.moduleHash,
+                proposal.manifestHash
+            );
+        }
         emit ReleaseProven(proposalId, proposal.releaseId);
     }
 
@@ -430,6 +561,7 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             proposal.state = ProposalState.RECOMMENDED;
             releaseStates[proposal.releaseId] = ReleaseState.RECOMMENDED;
             recommendedRelease = proposal.releaseId;
+            releaseRegistry.recommend(proposal.releaseId);
             if (proposal.sourceActivation) {
                 ledger.setSource(proposal.proposedSource, true);
             }
@@ -445,7 +577,9 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             block.timestamp <= proposal.adoptionDeadline
         ) revert InvalidState();
         proposal.state = ProposalState.EXPIRED;
-        releaseStates[proposal.releaseId] = ReleaseState.QUARANTINED;
+        if (!proposal.alreadyProven) {
+            releaseStates[proposal.releaseId] = ReleaseState.QUARANTINED;
+        }
         uint256 returned = proposal.bond / 2;
         slashPool += proposal.bond - returned;
         token.safeTransfer(proposal.proposer, returned);

@@ -155,8 +155,9 @@ test("legacy beta remains testnet-only while the current skill reports the v4.3 
   assert.match(status, /applicationsRequired:\s*false/);
   assert.match(status, /chainStatus\(\)\.catch\(\(\) => null\)/);
   assert.match(status, /rpcAvailable:\s*chain !== null/);
-  assert.match(skill, /v4\.3 Base Sepolia deployment: not deployed/);
-  assert.match(skill, /v4\.1: live Base Sepolia Legacy Testnet/);
+  assert.match(skill, /v4\.3\.4 contracts: live Base Sepolia BOOTSTRAP/);
+  assert.match(skill, /v4\.1: Base Sepolia Legacy Testnet/);
+  assert.match(skill, /single finite Issue is consumed/);
   assert.match(discovery, /live-base-sepolia-legacy/);
   assert.match(miner, /chainId !== 84532/);
   assert.match(miner, /NEVER SEND REAL ASSETS/);
@@ -184,7 +185,10 @@ test("standard MCP separates public reads, legacy signing, and v4.3 autonomous l
   assert.match(v43Mcp, /agentpool_v43_submit_plan/);
   assert.match(v43Mcp, /agentpool_v43_attest_canary/);
   assert.match(v43Mcp, /agentpool_v43_vote_evolution/);
-  assert.doesNotMatch(v43Mcp, /generatePrivateKey|privateKeyToAccount/);
+  assert.match(v43Mcp, /generatePrivateKey/);
+  assert.match(v43Mcp, /privateKeyToAccount/);
+  assert.match(v43Mcp, /device-local-only/);
+  assert.match(v43Mcp, /EXPECTED_CHAIN_ID|chainId:\s*84532|baseSepolia/);
   assert.match(worker, /handlePublicMcpRequest/);
   assert.match(discovery, /remote:\s*`\$\{origin\}\/api\/mcp`/);
   assert.match(discovery, /remoteMode:\s*"read-only"/);

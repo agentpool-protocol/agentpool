@@ -1,0 +1,163 @@
+{
+  "ok": true,
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "phase": "BOOTSTRAP",
+  "contracts": {
+    "token": "0x5db02d66c6c3cae3799cec32292af31075cc5491",
+    "settlementRouter": "0x3bbee82fe4def409321392ae9b511a2e2019aaa9",
+    "releaseRegistry": "0x61173531d1d905c7c02a5892cb1b35e9720f41a4",
+    "capacityRegistry": "0x8b7a3bf8d9825be2c145b771addcc7d823239885",
+    "userEscrow": "0x5cfc42598d786cd076998cc77e0b82242953b643",
+    "coreEpochVault": "0x21007ad4a4f96046f1f27f176c22016da2cd7cd5",
+    "evolutionEpochVault": "0x8bb129dd5f3490fb6704b201fbf6a2fc53603ade",
+    "contributionLedger": "0x71b2eeefee5fc08bdf5260cb48bce6fd5d261630",
+    "proofRegistry": "0x29f7758208d58f300b3dada844b47c62f6b31170",
+    "evolutionConsensus": "0x842dbe988599a9912053f2b01f09c37fa0d12f77",
+    "objectiveVerifier": "0x73d69cee4de6320157fc570d932c74e6cd7988b0",
+    "systemIssueGate": "0x8431c111c7401ef9e8d65acaa76d11764dc3fb1b",
+    "issueConsensus": "0x23816a0992f03f2d67ce2f858199a0e3995a13e7",
+    "taskMarket": "0x2c322a97f896ca0cebfa2021c4e54f86c8ba99b7"
+  },
+  "roles": {
+    "coordinator": "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+    "worker": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+    "externalWorker": "0xB033F3ffdfa27e9D000A84e0fBc86226e390Ed2e",
+    "validator1": "0x43C4eBA160622834440928d20FC7202a644BAcbd",
+    "validator2": "0x21106dC9965c2Be9d1aBEAD8A77BCa9531835D12",
+    "validator3": "0xEE48E52d5bab5F48c16cE10d5123d2D3f4Ba7057"
+  },
+  "systemJob": {
+    "jobId": "0x91a9abce0d828bfd96c4da9301810aa2143d67188a9f5f8357c8ec3ca7854dc6",
+    "funding": "EVOLUTION",
+    "budgetApool": "120",
+    "paidApool": "120",
+    "candidateRelease": "0x9c1f2ee7f3b6be41d48f83ce4d3d4c0f2f513119049572a77c6dda2b5319cdb7",
+    "proofRoundId": "0x21d3dc81b714e20e2b59d8fc048bf890915fa4db494d5a7a1be08ca840361576"
+  },
+  "externalJob": {
+    "jobId": "0xefa0dfa4321456936324aa1f1166d2ee49517fe8a89f3ea2af40be4a8cda4000",
+    "funding": "EXTERNAL",
+    "budgetApool": "30",
+    "paidApool": "30",
+    "newEmissionApool": "0"
+  },
+  "totalSupplyApool": "120",
+  "gasUsed": "98883",
+  "transactionHashes": [
+    {
+      "role": "worker",
+      "functionName": "publish",
+      "hash": "0x6d8ba350727e0c341ff4f98b9863334dd23b26a468114aeed2df56f65f9c9f1e"
+    },
+    {
+      "role": "externalWorker",
+      "functionName": "publish",
+      "hash": "0x6bf2c8706eb952d0e4c3ed3ff835b713a5dad9bef4a909c89490474e4ad4fd30"
+    },
+    {
+      "role": "coordinator",
+      "functionName": "publish",
+      "hash": "0xcf59a64ace81e0971424f6c8a8b92524c0fd510687efba3889511710203e140d"
+    }
+  ],
+  "checks": [
+    {
+      "name": "system mints only settled payouts",
+      "passed": true,
+      "actual": "120000000000000000000",
+      "expected": "120000000000000000000"
+    },
+    {
+      "name": "system worker receives precommitted payout",
+      "passed": true,
+      "actual": "80000000000000000000",
+      "expected": "80000000000000000000"
+    },
+    {
+      "name": "validator 1 receives precommitted payout",
+      "passed": true,
+      "actual": "10000000000000000000",
+      "expected": "10000000000000000000"
+    },
+    {
+      "name": "validator 2 receives precommitted payout",
+      "passed": true,
+      "actual": "10000000000000000000",
+      "expected": "10000000000000000000"
+    },
+    {
+      "name": "validator 3 receives precommitted payout",
+      "passed": true,
+      "actual": "10000000000000000000",
+      "expected": "10000000000000000000"
+    },
+    {
+      "name": "keeper receives precommitted payout",
+      "passed": true,
+      "actual": "10000000000000000000",
+      "expected": "10000000000000000000"
+    },
+    {
+      "name": "bootstrap candidate is opt-in usable",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "bootstrap candidate cannot replace recommendation",
+      "passed": true,
+      "actual": "0xf0567d77bf002dccc795a3709b2c4691d030a790df1f249577e4e5db0323165a",
+      "expected": "0xf0567d77bf002dccc795a3709b2c4691d030a790df1f249577e4e5db0323165a"
+    },
+    {
+      "name": "external buyer work never mints",
+      "passed": true,
+      "actual": "120000000000000000000",
+      "expected": "120000000000000000000"
+    },
+    {
+      "name": "external worker receives buyer funds",
+      "passed": true,
+      "actual": "23000000000000000000",
+      "expected": "23000000000000000000"
+    },
+    {
+      "name": "external job settles",
+      "passed": true,
+      "actual": 4,
+      "expected": 4
+    },
+    {
+      "name": "system improvement job settles",
+      "passed": true,
+      "actual": 4,
+      "expected": 4
+    },
+    {
+      "name": "validator evidence round becomes ready",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "validator evidence score is recorded",
+      "passed": true,
+      "actual": 9500,
+      "expected": 9500
+    },
+    {
+      "name": "validator evidence spans three operator groups",
+      "passed": true,
+      "actual": 3,
+      "expected": 3
+    },
+    {
+      "name": "the sole BOOTSTRAP system issue is fully consumed",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    }
+  ],
+  "completedAt": "2026-07-27T18:27:03.942Z"
+}

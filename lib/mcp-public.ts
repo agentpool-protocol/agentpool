@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.6.0-v4.3-autonomous";
+const SERVER_VERSION = "0.7.0-v4.3.4-base-sepolia";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,7 +57,7 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool v4.3 is a locally rehearsed autonomous planning, bidding, settlement, and evolution economy. v4.1 remains the live Base Sepolia legacy release. Remote MCP stays read-only; the downloadable v4.3 MCP runs the persistent local alpha flow.",
+        "AgentPool v4.3.4 is live on Base Sepolia testnet. Remote MCP is read-only; the downloadable local bridge keeps its wallet key on the AI's device and can participate in the public chain economy.",
     },
   );
 
@@ -76,13 +76,70 @@ export function createPublicMcpServer(
   server.registerTool(
     "agentpool_v43_status",
     {
-      title: "AgentPool v4.3 autonomous-alpha status",
+      title: "AgentPool v4.3.4 Base Sepolia status",
       description:
-        "Read the exact local rehearsal, immutable finance, contribution consensus, and Base Sepolia deployment boundary.",
+        "Read live contracts, supply, emission reservations, Work Power maturity, finite BOOTSTRAP Issue exposure, and settlement evidence.",
       annotations: readOnlyAnnotations,
     },
     async () =>
       toolResult(await fetchJson(origin, "/api/v4.3/status", fetcher)),
+  );
+
+  server.registerTool(
+    "agentpool_v43_opportunities",
+    {
+      title: "List live AgentPool v4.3.4 opportunities",
+      description:
+        "Read Base Sepolia JobCreated events, current settlement states, and the finite remaining BOOTSTRAP improvement exposure. This tool never assigns work or signs a transaction.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      toolResult(await fetchJson(origin, "/api/v4.3/opportunities", fetcher)),
+  );
+
+  server.registerTool(
+    "agentpool_v43_shared_coordination",
+    {
+      title: "Read signed shared v4.3 planning events",
+      description:
+        "Read the replaceable append-only relay used by independent AIs to announce opportunities, plans, role bids, capacity and delivery notices. Relay records are advisory and cannot settle or mint.",
+      inputSchema: z
+        .object({
+          opportunityId: z.string().min(8).max(128).optional(),
+          eventType: z
+            .enum([
+              "OPPORTUNITY_PROPOSED",
+              "PLAN_COMMIT",
+              "PLAN_REVEAL",
+              "ROLE_BID_COMMIT",
+              "ROLE_BID_REVEAL",
+              "VALIDATION_BID",
+              "CAPACITY_OFFER",
+              "DELIVERY_NOTICE",
+              "WITHDRAWAL_NOTICE",
+            ])
+            .optional(),
+          since: z.number().int().nonnegative().default(0),
+          limit: z.number().int().min(1).max(200).default(100),
+        })
+        .strict(),
+      annotations: readOnlyAnnotations,
+    },
+    async ({ opportunityId, eventType, since, limit }) => {
+      const params = new URLSearchParams({
+        since: String(since),
+        limit: String(limit),
+      });
+      if (opportunityId) params.set("opportunityId", opportunityId);
+      if (eventType) params.set("eventType", eventType);
+      return toolResult(
+        await fetchJson(
+          origin,
+          `/api/v4.3/coordination/events?${params.toString()}`,
+          fetcher,
+        ),
+      );
+    },
   );
 
   server.registerTool(
@@ -301,11 +358,11 @@ export function createPublicMcpServer(
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
         safety: [
-          "v4.1 remains the live Base Sepolia legacy release. v4.3 is locally rehearsed and has no Base Sepolia contract addresses yet.",
+          "v4.3.4 is the current Base Sepolia alpha; v4.1 and earlier v4.3 test deployments are deprecated.",
           "APOOL currently has no promised real-world value.",
           "Never enter a seed phrase or production private key.",
           "The remote MCP cannot create wallets, sign, mine, or move tokens.",
-          "The local bridge stores a newly generated test-only key on the user's own device.",
+          "The local bridge stores a newly generated test-only key on the user's own device and can sign only Base Sepolia transactions.",
         ],
       }),
   );
@@ -334,6 +391,7 @@ export function createPublicMcpServer(
               versions: {
                 v3: "legacy-live",
                 v41: "public-alpha-contracts-live",
+                v434: "current-base-sepolia-bootstrap",
               },
             },
             null,
@@ -347,23 +405,24 @@ export function createPublicMcpServer(
   server.registerPrompt(
     "join_agentpool_open_beta",
     {
-      title: "Join AgentPool Open Beta",
+      title: "Join AgentPool v4.3.4 Alpha",
       description:
-        "Guide an AI client through a testnet-only AgentPool mining session.",
+        "Guide an AI client through testnet-only AgentPool discovery and device-local participation.",
     },
     async () => ({
-      description: "Safely join the AgentPool Base Sepolia open beta.",
+      description: "Safely join the AgentPool v4.3.4 Base Sepolia alpha.",
       messages: [
         {
           role: "user",
           content: {
             type: "text",
             text:
-              `Use AgentPool on Base Sepolia only. First call agentpool_wallet_status. ` +
-              `If no test wallet exists, explain the local-key boundary and ask before calling agentpool_create_test_wallet. ` +
-              `Never request a seed phrase or production key. Once the wallet has free test ETH, call ` +
-              `agentpool_start_mining, solve the returned deterministic task yourself, then call ` +
-              `agentpool_submit_mining_answer to validate and claim test APOOL.`,
+              `Use AgentPool v4.3.4 on Base Sepolia only. First call agentpool_v43_status and ` +
+              `agentpool_v43_opportunities. Remote MCP is read-only. To write, download the local MCP, ` +
+              `call agentpool_v43_wallet_status, and explain the device-local test-key boundary before ` +
+              `creating a test wallet. Never request a seed phrase or production key. External jobs spend ` +
+              `existing tAPOOL. The one BOOTSTRAP emission Issue is consumed; buyer-funded improvements ` +
+              `may still produce opt-in PROVEN releases with zero emission. New reserve-funded Issues require MATURE Work Power consensus.`,
           },
         },
       ],

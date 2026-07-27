@@ -2,6 +2,7 @@ import { apiResponse, handleApiError } from "@/lib/api";
 import { ensureSchema, getR2 } from "@/db/runtime";
 import { DEPLOYMENT } from "@/lib/chain";
 import { V41_DEPLOYMENT } from "@/lib/v41-chain";
+import { V43_DEPLOYMENT } from "@/lib/v43-chain";
 
 export async function GET(): Promise<Response> {
   try {
@@ -11,7 +12,7 @@ export async function GET(): Promise<Response> {
       status: "ok",
       network: "base-sepolia",
       chainId: 84532,
-      version: "0.6.0-v4.3-autonomous",
+      version: "0.7.0-v4.3.4-base-sepolia",
       versions: {
         v3: {
           status: "legacy-live-base-sepolia",
@@ -30,6 +31,17 @@ export async function GET(): Promise<Response> {
           externalPilotOperatorReady: true,
           localAgentBidFlow: true,
           contracts: V41_DEPLOYMENT.contracts,
+        },
+        v43: {
+          status: "bootstrap-live-base-sepolia",
+          maxSupplyApool: "1000000000000",
+          premintApool: "0",
+          decimals: 18,
+          onchainSettlement: true,
+          basicMining: false,
+          finiteBootstrapIssues: true,
+          matureIssueWorkPowerConsensus: true,
+          contracts: V43_DEPLOYMENT.contracts,
         },
       },
       supplyApool: "1000000000000",

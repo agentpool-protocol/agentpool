@@ -1,0 +1,71 @@
+{
+  "version": "4.3.0-bootstrap-alpha",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "phase": "BOOTSTRAP",
+  "deployer": "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+  "deployerHasRuntimeAuthority": false,
+  "genesisStart": 1785175659,
+  "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
+  "genesisRelease": "0xf0567d77bf002dccc795a3709b2c4691d030a790df1f249577e4e5db0323165a",
+  "bootstrapVerifierCodehash": "0x3ee7f162dd6a9be22ba9eeca355f09c9d48a9f133811eed26b0ddcda77e7c636",
+  "token": {
+    "symbol": "tAPOOL",
+    "decimals": 18,
+    "maxSupplyApool": "1000000000000",
+    "premintApool": "0"
+  },
+  "emission": {
+    "epochSeconds": 604800,
+    "coreWeeklyCapApool": "63000",
+    "evolutionWeeklyCapApool": "7000",
+    "coreLifetimeCapApool": "900000000000",
+    "evolutionLifetimeCapApool": "100000000000"
+  },
+  "maturity": {
+    "eligibleAgents": 5,
+    "independentOperatorGroups": 3,
+    "successfulSettlements": 50,
+    "activeEpochs": 2,
+    "maximumSingleGroupShareBps": 5000
+  },
+  "contracts": {
+    "token": "0x052c6915109376a5e12dbaf2a7d8bfc304d5c4c9",
+    "settlementRouter": "0xfc1eece6627031868a5f02fb6cc496f47c396bd6",
+    "releaseRegistry": "0x673b0d909b13afee92740f9756831c202067103b",
+    "capacityRegistry": "0x563616d31ca24b5924026e1b81bb5ca46f87e87a",
+    "proofRegistry": "0xd37f8299192f2a3e3471b3fdc2665f4726c5ed18",
+    "userEscrow": "0xfe45211d37b7f3d7b0b84e415d456fd2a74282ac",
+    "coreEpochVault": "0x311a500b48f8015c8504c0f7d18b6f259520a4c4",
+    "evolutionEpochVault": "0x79e8a09d56f2938e07ad9e13bf09824294355829",
+    "contributionLedger": "0x4a1ad362de08175b540b5bd6025edc2767d6a54b",
+    "evolutionConsensus": "0xf3ac914fccd1bd30ffef6fa21f616b64862fceef",
+    "objectiveVerifier": "0x532ea80802060ccb84f3b4229a5e7aa74a91b1dc",
+    "taskMarket": "0xdb8ce1365b135a1555394ece6012f053b6067664"
+  },
+  "transactionHashes": [
+    "0xfbe77c32371583325d608421132a7f08f0389d0256696b8acf580e90a423a4df",
+    "0x51beec5ca9a5c126237a704d0e926f9d6cb35b86269f7d7d7c022c537f2ffe80",
+    "0x21115415548c43bacff8b153d01167dac85b0e236a7f8009416d596f5b2edaf0",
+    "0x828ae4829a4104161ff6ae5121676316e08d50c82ffa77c6b9f955d23c1bc523",
+    "0x32b9263101aa68083fa2d5c259bd73c145310f2debc77c5144b72668b8753084",
+    "0x4b99b812fbc7cdb9e909363b43927d04dc6571ccf1bcb1fd4a3a17a9bff7e6d2",
+    "0x4a67b99c771000b552c2f2e7d6ce837010cee7adcfdcadb9c178a93033267bb8",
+    "0x685a817bfe961257cd0c2369ac6ac463eef54cbeeb40c9eca301f85befd077b7",
+    "0xfa638bed1ccbf9f25893c2ea616a16495362904296e3833f07fc98baa9a87458",
+    "0x55951b628af4f0f3be97b05dae492feae27ea520900f379ef7f20fb7a22f0c45",
+    "0xd8a841e9cde5da732bbb0192d7121cdc7334b05c1da062195462466e34dea879",
+    "0xded6bd720d7afca8c18b612f107a4da5c85e479e85335f897b0ee5377530f176",
+    "0xab208a4ae3c614433b5f7009b30ce36188d3b17bfb4fe39705ff8a738a963af5",
+    "0x0b27860db71e40fdba3c9967093cf173033935545bcdee6173f64e779173410c",
+    "0xd76c5b58aa8e324b8bbfc4036d6c8b42f8dffe825cef692f2636bab74d3fbd11",
+    "0x7a3fd6697954af8dd9d460b3b6ab25408f2a79018e1b9f7c1235f2e2e95cd41a",
+    "0x42444dda972102d5116bf4fc912f5526fa97e1874fff23b7032dd0156bd24d77",
+    "0x8f6cc92227b92746371da1f9c8a2a548eaed1db250c7b178cd3b573653572ca4",
+    "0x18aa46784d25a8e081549aba76955804283a004130e0c252744a0939f14acb49",
+    "0xef7324ee859df51c1baa48984233b50e7f10ada71ae645184b2f8e3e751508a4",
+    "0xb0b1030e47842c63654a3e3f498c83e2c611912ac38c1fc03d211401122955e4"
+  ],
+  "gasUsed": "13480477",
+  "deployedAt": "2026-07-27T17:09:47.658Z"
+}

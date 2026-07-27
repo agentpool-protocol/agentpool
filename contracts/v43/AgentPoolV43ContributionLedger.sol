@@ -27,16 +27,31 @@ contract AgentPoolV43ContributionLedger is
     uint8 public constant MAX_LOOKBACK = 8;
     uint16 public constant MAX_AGENT_SHARE_BPS = 1_000;
     uint16 public constant BPS = 10_000;
+    uint16 public constant MIN_MATURE_AGENTS = 5;
+    uint16 public constant MIN_MATURE_GROUPS = 3;
+    uint64 public constant MIN_MATURE_SETTLEMENTS = 50;
+    uint16 public constant MAX_MATURE_GROUP_SHARE_BPS = 5_000;
 
     uint64 public immutable genesisStart;
     address public bootstrapAuthority;
     address public consensus;
+    bool public override mature;
+    uint16 public eligibleAgentCount;
+    uint16 public eligibleGroupCount;
+    uint16 public activeEpochCount;
+    uint64 public successfulSettlementCount;
+    uint256 public totalSuccessfulUnits;
+    uint256 public largestGroupSuccessfulUnits;
 
     mapping(address => AgentProfile) public profiles;
     mapping(address => bool) public override isActiveSource;
     mapping(bytes32 => bool) public claimedReceipt;
     mapping(uint64 => mapping(address => Outcome)) public outcomes;
     mapping(uint64 => Outcome) public epochTotals;
+    mapping(address => bool) public agentBecameEligible;
+    mapping(bytes32 => bool) public groupBecameEligible;
+    mapping(bytes32 => uint256) public groupSuccessfulUnits;
+    mapping(uint64 => bool) public epochBecameActive;
 
     event AgentRegistered(
         address indexed agent,
@@ -53,6 +68,12 @@ contract AgentPoolV43ContributionLedger is
     );
     event SourceStatusChanged(address indexed source, bool active);
     event ConsensusConfigured(address indexed consensus);
+    event MaturityReached(
+        uint16 eligibleAgents,
+        uint16 eligibleGroups,
+        uint64 successfulSettlements,
+        uint16 activeEpochs
+    );
 
     error InvalidTerms();
     error Unauthorized();
@@ -146,6 +167,27 @@ contract AgentPoolV43ContributionLedger is
         if (successful) {
             agentOutcome.successful += units;
             total.successful += units;
+            successfulSettlementCount++;
+            totalSuccessfulUnits += units;
+            bytes32 group = profiles[agent].group;
+            uint256 groupTotal = groupSuccessfulUnits[group] + units;
+            groupSuccessfulUnits[group] = groupTotal;
+            if (groupTotal > largestGroupSuccessfulUnits) {
+                largestGroupSuccessfulUnits = groupTotal;
+            }
+            if (!agentBecameEligible[agent]) {
+                agentBecameEligible[agent] = true;
+                eligibleAgentCount++;
+            }
+            if (!groupBecameEligible[group]) {
+                groupBecameEligible[group] = true;
+                eligibleGroupCount++;
+            }
+            if (!epochBecameActive[epoch]) {
+                epochBecameActive[epoch] = true;
+                activeEpochCount++;
+            }
+            _maybeMature();
         }
         emit OutcomeRecorded(
             msg.sender,
@@ -202,5 +244,24 @@ contract AgentPoolV43ContributionLedger is
         }
         isActiveSource[source] = active;
         emit SourceStatusChanged(source, active);
+    }
+
+    function _maybeMature() internal {
+        if (
+            mature ||
+            eligibleAgentCount < MIN_MATURE_AGENTS ||
+            eligibleGroupCount < MIN_MATURE_GROUPS ||
+            successfulSettlementCount < MIN_MATURE_SETTLEMENTS ||
+            activeEpochCount < 2 ||
+            largestGroupSuccessfulUnits * BPS >=
+                totalSuccessfulUnits * MAX_MATURE_GROUP_SHARE_BPS
+        ) return;
+        mature = true;
+        emit MaturityReached(
+            eligibleAgentCount,
+            eligibleGroupCount,
+            successfulSettlementCount,
+            activeEpochCount
+        );
     }
 }

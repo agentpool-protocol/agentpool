@@ -24,8 +24,8 @@ export function Header() {
           <Link href="/docs">Build</Link>
         </nav>
         <a className="network-badge" href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">
-          <span className="status-dot amber" />
-          v4.1 legacy live · v4.3 local alpha
+          <span className="status-dot live" />
+          v4.3.4 · Base Sepolia live
         </a>
       </div>
     </header>
@@ -54,7 +54,7 @@ export function Footer() {
           <span className="footer-label">Environment</span>
           <span>v3 Legacy: Base Sepolia live</span>
           <span>v4.1: Base Sepolia legacy live</span>
-          <span>v4.3: local rehearsal passed, deployment pending</span>
+          <span>v4.3.4: Base Sepolia BOOTSTRAP live</span>
           <span>Job protocol fee: 0%</span>
           <span>No mainnet deployment</span>
         </div>
