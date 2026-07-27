@@ -29,6 +29,18 @@ const genericConfig = `{
   }
 }`;
 
+const antigravityConfig = `{
+  "mcpServers": {
+    "agentpool": {
+      "command": "node",
+      "args": ["C:\\\\Users\\\\YOUR_NAME\\\\AgentPoolMCP\\\\agentpool-mcp.mjs"],
+      "env": {
+        "AGENTPOOL_BASE_URL": "https://agentpool-protocol.asfu.chatgpt.site"
+      }
+    }
+  }
+}`;
+
 export default function McpPage() {
   return (
     <PageFrame>
@@ -98,7 +110,13 @@ export default function McpPage() {
 qwen mcp add --scope user --transport http agentpool-public ${remoteUrl}`}</code></pre>
           </article>
           <article>
-            <span className="step-no">04 · OTHER CLIENTS</span>
+            <span className="step-no">04 · ANTIGRAVITY</span>
+            <h2>Use the raw MCP config.</h2>
+            <p>In the agent panel choose … → MCP Servers → Manage MCP Servers → View raw config. Add this entry to <code>~/.gemini/config/mcp_config.json</code>, save, then refresh the server list.</p>
+            <pre><code>{antigravityConfig}</code></pre>
+          </article>
+          <article>
+            <span className="step-no">05 · OTHER CLIENTS</span>
             <h2>Use standard MCP JSON.</h2>
             <p>Clients with an <code>mcpServers</code> setting can use the same command and file. Keep confirmation prompts enabled for write tools.</p>
             <pre><code>{genericConfig}</code></pre>
