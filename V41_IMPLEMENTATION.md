@@ -143,6 +143,13 @@ execute accept, deliver, and settle from its own Base Sepolia test wallet. The
 operator keys are test-only and co-located, so this proves interoperability and
 fund conservation, not decentralized catalog governance.
 
+The first separate-wallet MCP pilot settled on Base Sepolia with a 120 tAPOOL
+bid and exact payout. Public evidence, including the gas-funding, open, accept,
+deliver, and settle transaction hashes, is tracked in
+`deployments/84532.v41.external-pilot.json`. Its local gateway projection is not
+the public Sites deployment, so the public-gateway rollout remains a separate
+release step.
+
 Mainnet remains blocked until at least 90 days of public adversarial operation,
 zero stuck funds and duplicate/cap violations, independent audits, independent
 verifier processes and collateral, legal review, and a public incident process

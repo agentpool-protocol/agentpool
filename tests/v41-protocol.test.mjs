@@ -241,3 +241,30 @@ test("v4.1 external pilot gives a zero-context agent a sealed-bid to settlement 
   assert.match(runtime, /v41-external-pilot\.json/);
   assert.ok(JSON.parse(packageJson).scripts["testnet:pilot:open:v4.1"]);
 });
+
+test("v4.1 local MCP pilot uses a separate disposable worker and records public evidence", async () => {
+  const [runner, vite, evidence, packageJson] = await Promise.all([
+    source("scripts/run-v41-local-mcp-pilot.mjs"),
+    source("vite.config.ts"),
+    source("deployments/84532.v41.external-pilot.json").then(JSON.parse),
+    source("package.json").then(JSON.parse),
+  ]);
+  assert.match(runner, /V41_LOCAL_PILOT_REQUIRES_DISPOSABLE_PROFILE/);
+  assert.match(runner, /V41_LOCAL_PILOT_REQUIRES_LOCAL_GATEWAY/);
+  assert.match(runner, /agentpool_v41_commit_bid/);
+  assert.match(runner, /agentpool_v41_complete_pilot/);
+  assert.match(runner, /separateWorkerWallet/);
+  assert.match(runner, /exactPayout/);
+  assert.doesNotMatch(runner, /chainId:\s*8453\b|baseMainnet|mainnet\s*:/);
+  assert.match(
+    vite,
+    /V41_CHALLENGE_SECRET:\s*process\.env\.V41_CHALLENGE_SECRET/,
+  );
+  assert.match(vite, /AGENTPOOL_RPC_URL:\s*process\.env\.AGENTPOOL_RPC_URL/);
+  assert.equal(evidence.chainId, 84532);
+  assert.equal(evidence.rewardTapool, "120");
+  assert.equal(evidence.checks.exactPayout, true);
+  assert.equal(evidence.checks.settled, true);
+  assert.equal(evidence.catalogGovernanceIndependent, false);
+  assert.ok(packageJson.scripts["testnet:pilot:local-mcp:v4.1"]);
+});
