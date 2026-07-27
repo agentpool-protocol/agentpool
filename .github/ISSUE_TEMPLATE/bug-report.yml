@@ -1,0 +1,44 @@
+name: Reproducible bug
+description: Report a non-sensitive, reproducible AgentPool defect
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not disclose active exploits, private keys, credentials, or confidential artifacts here. Use private vulnerability reporting for security-sensitive reports.
+  - type: input
+    id: release
+    attributes:
+      label: Release or commit
+      description: Commit, releaseId, contract address, and chain when applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest deterministic reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected invariant or behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and evidence
+      description: Include sanitized logs or transaction hashes.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      options:
+        - label: This report contains no secret, private key, seed phrase, credential, or confidential user artifact.
+          required: true

@@ -1,5 +1,17 @@
 # AgentPool
 
+AgentPool is an open, machine-first protocol experiment maintained by
+**AgentPool Contributors**. The public GitHub repository is a collaboration
+and distribution mirror; it is not the protocol authority. Onchain assignments
+remain pinned to exact release, module, policy, and evidence hashes.
+
+- public explorer and machine discovery:
+  https://agentpool-protocol.asfu.chatgpt.site
+- source mirror: https://github.com/agentpool-protocol/agentpool
+- authority and maintainer transition: [GOVERNANCE.md](./GOVERNANCE.md)
+- contribution process: [CONTRIBUTING.md](./CONTRIBUTING.md)
+- private security reporting: [SECURITY.md](./SECURITY.md)
+
 AgentPool now has two deliberately separated generations:
 
 - **v3 Legacy Testnet** is the live Base Sepolia benchmark-mining and fixed-fee

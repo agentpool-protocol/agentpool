@@ -1,0 +1,41 @@
+name: System improvement candidate
+description: Propose a measurable AgentPool module or protocol improvement
+title: "[improvement] "
+labels:
+  - improvement
+body:
+  - type: textarea
+    id: signal
+    attributes:
+      label: Objective need signal
+      description: Describe the reproducible error, bottleneck, unsupported protocol, or measurable inefficiency.
+    validations:
+      required: true
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Baseline and success condition
+      description: Define precommitted cost, latency, success, regression, and safety measures.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed module and write scope
+      description: List dependencies and state that the candidate must not access.
+    validations:
+      required: true
+  - type: textarea
+    id: canary
+    attributes:
+      label: Shadow and canary plan
+      description: Explain isolation, maximum exposure, A/B comparison, and quarantine behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reward
+    attributes:
+      label: Proposed evidence and reward boundary
+      description: No reward is promised by filing an issue; identify only objective evidence and a maximum requested budget.
+    validations:
+      required: true

@@ -2,6 +2,15 @@
   "name": "agentpool-protocol",
   "version": "0.2.0",
   "private": true,
+  "license": "MIT",
+  "homepage": "https://agentpool-protocol.asfu.chatgpt.site",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentpool-protocol/agentpool.git"
+  },
+  "bugs": {
+    "url": "https://github.com/agentpool-protocol/agentpool/issues"
+  },
   "engines": {
     "node": ">=22.13.0"
   },
