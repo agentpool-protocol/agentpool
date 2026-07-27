@@ -18,9 +18,9 @@ import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 
 const root = process.cwd();
-const manifestPath = path.join(root, "deployments", "84532.v43.4.json");
-const partialPath = path.join(root, "deployments", "84532.v43.4.partial.json");
-if (fs.existsSync(manifestPath)) throw new Error("V43_ALREADY_DEPLOYED");
+const manifestPath = path.join(root, "deployments", "84532.v43.5.json");
+const partialPath = path.join(root, "deployments", "84532.v43.5.partial.json");
+if (fs.existsSync(manifestPath)) throw new Error("V435_ALREADY_DEPLOYED");
 
 function requireEnv(name) {
   const value = process.env[name]?.trim();
@@ -105,7 +105,7 @@ const existingPartial = fs.existsSync(partialPath)
 const now = Math.floor(Date.now() / 1_000);
 const genesisStart =
   existingPartial?.genesisStart ??
-  Number(process.env.V434_GENESIS_TIMESTAMP ?? now + 3_600);
+  Number(process.env.V435_GENESIS_TIMESTAMP ?? now + 3_600);
 if (!Number.isSafeInteger(genesisStart)) {
   throw new Error("V43_GENESIS_TIMESTAMP_INVALID");
 }
@@ -129,9 +129,13 @@ const coreWeeklyCap = parseEther("63000");
 const evolutionWeeklyCap = parseEther("7000");
 const coreLifetimeCap = parseEther("900000000000");
 const evolutionLifetimeCap = parseEther("100000000000");
+const dynamicCandidateBudgetCap = parseEther("10");
+const dynamicIssueBudgetCap = parseEther("30");
+const dynamicMaxCandidates = 3;
+const dynamicMaxLifetime = 60 * 86_400;
 
 const state = existingPartial ?? {
-  version: "4.3.4-bootstrap-alpha",
+  version: "4.3.5-staged-autonomy-alpha",
   chainId,
   network: "Base Sepolia",
   deployer: account.address,
@@ -310,7 +314,7 @@ const bootstrapCapability = keccak256(
   toBytes("agentpool-system-improvement"),
 );
 const bootstrapSpecificationHash = keccak256(
-  toBytes("v432-public-chain-mcp-indexer-adversarial-readiness"),
+  toBytes("v435-public-chain-mcp-indexer-adversarial-readiness-smoke"),
 );
 const bootstrapDeliveryHash = keccak256(
   toBytes("v432-system-improvement-smoke-delivery"),
@@ -390,7 +394,7 @@ const bootstrapObjectiveRoot = keccak256(
   ),
 );
 const bootstrapIssue = {
-  issueId: keccak256(toBytes("AGENTPOOL_V434_BOOTSTRAP_PUBLIC_INTEGRATION")),
+  issueId: keccak256(toBytes("AGENTPOOL_V435_BOOTSTRAP_PUBLIC_INTEGRATION")),
   bootstrapProposer: account.address,
   specificationHash: bootstrapSpecificationHash,
   verifier,
@@ -452,9 +456,24 @@ state.bootstrapValidators = validatorEntries.map((entry, index) => ({
 }));
 savePartial();
 const systemIssueGate = await deploy(
-  "AgentPoolV432SystemIssueGate",
-  [bootstrapIssueRoot, ledger, account.address],
+  "AgentPoolV435SystemIssueGate",
+  [
+    bootstrapIssueRoot,
+    ledger,
+    account.address,
+    verifierCodehash,
+    validatorCatalog.root,
+    dynamicCandidateBudgetCap,
+    dynamicIssueBudgetCap,
+    dynamicMaxCandidates,
+    dynamicMaxLifetime,
+  ],
   "systemIssueGate",
+);
+const transitionIssueConsensus = await deploy(
+  "AgentPoolV435TransitionIssueConsensus",
+  [token, ledger, systemIssueGate, proposalBond],
+  "transitionIssueConsensus",
 );
 const issueConsensus = await deploy(
   "AgentPoolV432IssueConsensus",
@@ -555,19 +574,19 @@ await write(
   })) !== zero,
 );
 await write(
-  "AgentPoolV432SystemIssueGate",
+  "AgentPoolV435SystemIssueGate",
   systemIssueGate,
   "configure",
-  [taskMarket, issueConsensus],
+  [taskMarket, transitionIssueConsensus, issueConsensus],
   (await client.readContract({
     address: systemIssueGate,
-    abi: artifact("AgentPoolV432SystemIssueGate").abi,
+    abi: artifact("AgentPoolV435SystemIssueGate").abi,
     functionName: "market",
   })) !== zero,
 );
 
 const manifest = {
-  version: "4.3.4-bootstrap-alpha",
+  version: "4.3.5-staged-autonomy-alpha",
   chainId,
   network: "Base Sepolia",
   phase: "BOOTSTRAP",
@@ -581,11 +600,28 @@ const manifest = {
   bootstrapObjective: state.bootstrapObjective,
   bootstrapValidators: state.bootstrapValidators,
   bootstrapIssues: [{ ...bootstrapIssueManifest, proof: [] }],
+  transition: {
+    eligibleAgents: 3,
+    claimedOperatorGroups: 2,
+    successfulSettlements: 20,
+    activeEpochs: 2,
+    minimumNonProposerVoters: 2,
+    quorumBps: 1900,
+    supermajorityBps: 6667,
+    dynamicCandidateBudgetCapApool: "10",
+    dynamicIssueBudgetCapApool: "30",
+    dynamicMaxCandidates,
+    dynamicMaxLifetimeSeconds: dynamicMaxLifetime,
+    verifierCodehash,
+    validatorRoot: validatorCatalog.root,
+    groupIndependence: "self-claimed-testnet-not-legal-proof",
+  },
   supersedesTestDeployments: [
     "deployments/84532.v43.json",
     "deployments/84532.v43.1.json",
     "deployments/84532.v43.2.json",
     "deployments/84532.v43.3.json",
+    "deployments/84532.v43.4.json",
   ],
   token: {
     symbol: "tAPOOL",

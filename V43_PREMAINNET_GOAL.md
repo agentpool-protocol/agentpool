@@ -311,7 +311,7 @@ Base mainnet 배포, 실제 가치의 APOOL, 내부 DEX, 가격 상승 약속은
 - 작업자 80, 검증자 3명 각 10, Keeper 10 지급
 - 세 검증자 그룹의 commit/reveal과 중앙값 9,500점
 - 외부 의뢰 30 tAPOOL 정산, 전후 총공급량 120으로 동일
-- v4.3 MCP 도구 48개와 공개 GitHub 저장소
+- v4.3 MCP 도구 52개와 공개 GitHub 저장소
 
 이 증거만으로 새 동적 개선 Issue를 계속 만들 수 있는 것은 아니다. 현재의
 단일 genesis Issue는 이미 소진됐다. 따라서 다음 구현 순서는 다음과 같다.

@@ -413,11 +413,39 @@ const bootstrapIssueByLabel = new Map(
 );
 const bootstrapCatalog = merkleCatalog(bootstrapIssues);
 const bootstrapIssue = bootstrapIssues[0];
-const systemIssueGate = await deploy("AgentPoolV432SystemIssueGate", [
+const dynamicValidatorEntries = agents.slice(0, 4).map((agent, index) => ({
+  ...agent,
+  group: keccak256(toBytes(`operator-group-${index}`)),
+}));
+const dynamicValidatorCatalog = merkleFromLeaves(
+  dynamicValidatorEntries.map((entry) =>
+    validatorLeaf(entry.address, entry.group),
+  ),
+);
+const verifierRuntimeCode = await vm.stateManager.getCode(
+  createAddressFromString(verifier),
+);
+const dynamicVerifierCodehash = keccak256(bytesToHex(verifierRuntimeCode));
+const systemIssueGate = await deploy("AgentPoolV435SystemIssueGate", [
   bootstrapCatalog.root,
   ledger,
   deployer,
+  dynamicVerifierCodehash,
+  dynamicValidatorCatalog.root,
+  parseEther("10"),
+  parseEther("30"),
+  3,
+  60 * 86_400,
 ]);
+const transitionIssueConsensus = await deploy(
+  "AgentPoolV435TransitionIssueConsensus",
+  [
+    token,
+    ledger,
+    systemIssueGate,
+    proposalBond,
+  ],
+);
 const issueConsensus = await deploy("AgentPoolV432IssueConsensus", [
   token,
   ledger,
@@ -437,6 +465,44 @@ const market = await deploy("AgentPoolV432TaskMarket", [
   systemIssueGate,
   financeInvariantHash,
 ]);
+
+function dynamicIssueFor(label, funding = 3) {
+  const specificationHash = keccak256(
+    toBytes(`${label}-specification`),
+  );
+  const evidence = evidenceFor(label, specificationHash);
+  const policy = {
+    validatorRoot: dynamicValidatorCatalog.root,
+    minimumOperatorGroups: 3,
+  };
+  const objective = {
+    verifier,
+    capability,
+    specificationHash,
+    expectedEvidenceHash: evidence.expectedEvidenceHash,
+    minimumReveals: 3,
+    passScoreBps: 9_000,
+    commitWindow: 60,
+    revealWindow: 60,
+  };
+  return {
+    issueId: keccak256(toBytes(`dynamic-issue:${label}`)),
+    bootstrapProposer: "0x0000000000000000000000000000000000000000",
+    specificationHash,
+    verifier,
+    expectedEvidenceHash: evidence.expectedEvidenceHash,
+    objectiveRoot: objectiveLeaf(objective, policy),
+    validatorRoot: dynamicValidatorCatalog.root,
+    candidateBudgetCap: parseEther("10"),
+    totalBudgetCap: parseEther("30"),
+    maxCandidates: 3,
+    minimumReveals: 3,
+    passScoreBps: 9_000,
+    minimumValidatorGroups: 3,
+    funding,
+    expiresAt: Number(blockTimestamp + 60n * 86_400n),
+  };
+}
 
 await write("AgentPoolV43Token", token, "configureMinters", [
   coreVault,
@@ -464,10 +530,12 @@ await write("AgentPoolV43SettlementRouter", settlementRouter, "configure", [
   consensus,
   market,
 ]);
-await write("AgentPoolV432SystemIssueGate", systemIssueGate, "configure", [
-  market,
-  issueConsensus,
-]);
+await write(
+  "AgentPoolV435SystemIssueGate",
+  systemIssueGate,
+  "configure",
+  [market, transitionIssueConsensus, issueConsensus],
+);
 
 check(
   "token minter configuration is ownerless",
@@ -489,6 +557,15 @@ check(
 check(
   "testnet starts in BOOTSTRAP",
   await read("AgentPoolV43ContributionLedger", ledger, "mature"),
+  false,
+);
+check(
+  "dynamic Issue approval is closed before TRANSITION",
+  await read(
+    "AgentPoolV435SystemIssueGate",
+    systemIssueGate,
+    "transitionReady",
+  ),
   false,
 );
 
@@ -663,6 +740,155 @@ async function settleJob({
     amounts,
   ]);
   return { jobId, worker, deliveryHash, proof, allocation, budget };
+}
+
+async function settleDynamicIssue({
+  label,
+  issue,
+  funding,
+  allocation = parseEther("3"),
+  keeperFee = parseEther("1"),
+}) {
+  const creator = agents[5];
+  const worker = agents[4];
+  const planHash = keccak256(toBytes(`${label}-plan`));
+  const evidence = evidenceFor(label, issue.specificationHash);
+  const recipients = [worker.address];
+  const amounts = [allocation];
+  const budget = allocation + keeperFee + parseEther("1");
+  const terms = [
+    {
+      worker: worker.address,
+      verifier,
+      capability,
+      specificationHash: issue.specificationHash,
+      expectedEvidenceHash: issue.expectedEvidenceHash,
+      payoutRoot: payoutRoot(recipients, amounts),
+      allocation,
+      workerBond: 0n,
+      keeperFee,
+      deadline: Number(blockTimestamp + 86_400n),
+      capacityUnits: 2,
+      minimumReveals: issue.minimumReveals,
+      passScoreBps: issue.passScoreBps,
+      commitWindow: 60,
+      revealWindow: 60,
+    },
+  ];
+  const policies = [
+    {
+      validatorRoot: issue.validatorRoot,
+      minimumOperatorGroups: issue.minimumValidatorGroups,
+    },
+  ];
+  const nonce = await read(
+    "AgentPoolV432TaskMarket",
+    market,
+    "nextJobNonce",
+  );
+  const jobId = jobIdFor(creator.address, nonce, planHash);
+  await write(
+    "AgentPoolV432TaskMarket",
+    market,
+    "createSystemJobV2",
+    [
+      funding,
+      budget,
+      planHash,
+      genesisRelease,
+      issue,
+      [],
+      terms,
+      policies,
+      [0],
+      [[]],
+    ],
+    creator.key,
+  );
+  await write(
+    "AgentPoolV432TaskMarket",
+    market,
+    "acceptMilestone",
+    [jobId, 0],
+    worker.key,
+  );
+  await write(
+    "AgentPoolV432TaskMarket",
+    market,
+    "deliver",
+    [jobId, 0, evidence.deliveryHash],
+    worker.key,
+  );
+  const roundId = keccak256(
+    encodeAbiParameters(
+      [
+        { type: "string" },
+        { type: "bytes32" },
+        { type: "uint32" },
+      ],
+      ["PROOF", jobId, 0],
+    ),
+  );
+  const validators = dynamicValidatorEntries.slice(1, 4);
+  const score = 9_500;
+  const salts = validators.map((_, index) =>
+    keccak256(toBytes(`${label}-validator-salt-${index}`)),
+  );
+  const evidenceHashes = validators.map((_, index) =>
+    keccak256(toBytes(`${label}-validator-evidence-${index}`)),
+  );
+  for (let index = 0; index < validators.length; index++) {
+    const validator = validators[index];
+    const commitment = await read(
+      "AgentPoolV432ProofRegistry",
+      proofRegistry,
+      "commitmentFor",
+      [
+        roundId,
+        validator.address,
+        score,
+        evidenceHashes[index],
+        salts[index],
+      ],
+    );
+    await write(
+      "AgentPoolV432ProofRegistry",
+      proofRegistry,
+      "commitWithProof",
+      [
+        roundId,
+        commitment,
+        dynamicValidatorCatalog.proofs.get(
+          validatorLeaf(validator.address, validator.group),
+        ),
+      ],
+      validator.key,
+    );
+  }
+  blockTimestamp += 61n;
+  for (let index = 0; index < validators.length; index++) {
+    await write(
+      "AgentPoolV432ProofRegistry",
+      proofRegistry,
+      "reveal",
+      [
+        roundId,
+        score,
+        evidenceHashes[index],
+        salts[index],
+      ],
+      validators[index].key,
+    );
+  }
+  blockTimestamp += 61n;
+  await write("AgentPoolV432TaskMarket", market, "resolve", [
+    jobId,
+    0,
+    evidence.proof,
+    recipients,
+    amounts,
+  ]);
+  return { jobId, worker, budget, allocation };
 }
 
 await expectRevert(
@@ -1367,7 +1593,194 @@ for (let index = 0; index < 23; index++) {
   });
 }
 blockTimestamp += 7n * 86_400n + 1n;
-for (let index = 0; index < 25; index++) {
+await settleJob({
+  funding: 3,
+  workerIndex: 0,
+  releaseId: genesisRelease,
+  allocation: parseEther("1"),
+  keeperFee: parseEther("1"),
+  capacityUnits: 1,
+  label: "epoch-one-0",
+});
+check(
+  "two active epochs and real work open limited TRANSITION",
+  await read(
+    "AgentPoolV435SystemIssueGate",
+    systemIssueGate,
+    "transitionReady",
+  ),
+  true,
+);
+check(
+  "TRANSITION opens before irreversible MATURE",
+  await read("AgentPoolV43ContributionLedger", ledger, "mature"),
+  false,
+);
+
+const transitionIssue = dynamicIssueFor(
+  "transition-dynamic-improvement",
+  3,
+);
+const transitionNeedEvidence = keccak256(
+  toBytes("transition-dynamic-improvement-need-evidence"),
+);
+await write(
+  "AgentPoolV43Token",
+  token,
+  "approve",
+  [transitionIssueConsensus, proposalBond],
+  agents[0].key,
+);
+const transitionCommitDeadline = Number(blockTimestamp + 86_500n);
+const transitionRevealDeadline = transitionCommitDeadline + 86_500;
+const unsafeTransitionIssue = {
+  ...dynamicIssueFor("unsafe-transition-budget", 3),
+  candidateBudgetCap: parseEther("11"),
+};
+const proposerBalanceBeforeUnsafeIssue = await read(
+  "AgentPoolV43Token",
+  token,
+  "balanceOf",
+  [agents[0].address],
+);
+await expectRevert(
+  "unsafe TRANSITION Issue is rejected before its bond can be locked",
+  () =>
+    write(
+      "AgentPoolV435TransitionIssueConsensus",
+      transitionIssueConsensus,
+      "propose",
+      [
+        unsafeTransitionIssue,
+        keccak256(toBytes("unsafe-transition-evidence")),
+        proposalBond,
+        transitionCommitDeadline,
+        transitionRevealDeadline,
+      ],
+      agents[0].key,
+    ),
+);
+check(
+  "rejected unsafe TRANSITION Issue leaves proposer funds untouched",
+  await read("AgentPoolV43Token", token, "balanceOf", [
+    agents[0].address,
+  ]),
+  proposerBalanceBeforeUnsafeIssue,
+);
+await write(
+  "AgentPoolV435TransitionIssueConsensus",
+  transitionIssueConsensus,
+  "propose",
+  [
+    transitionIssue,
+    transitionNeedEvidence,
+    proposalBond,
+    transitionCommitDeadline,
+    transitionRevealDeadline,
+  ],
+  agents[0].key,
+);
+const transitionVoters = agents.slice(1, 3);
+const transitionSalts = transitionVoters.map((_, index) =>
+  keccak256(toBytes(`transition-issue-vote-${index}`)),
+);
+const transitionEvidenceHashes = transitionVoters.map((_, index) =>
+  keccak256(toBytes(`transition-issue-evidence-${index}`)),
+);
+const proposerCommitment = await read(
+  "AgentPoolV435TransitionIssueConsensus",
+  transitionIssueConsensus,
+  "voteCommitment",
+  [
+    1n,
+    agents[0].address,
+    true,
+    transitionNeedEvidence,
+    keccak256(toBytes("proposer-self-vote")),
+  ],
+);
+await expectRevert(
+  "TRANSITION proposer cannot validate its own dynamic Issue",
+  () =>
+    write(
+      "AgentPoolV435TransitionIssueConsensus",
+      transitionIssueConsensus,
+      "commitVote",
+      [1n, proposerCommitment],
+      agents[0].key,
+    ),
+);
+for (let index = 0; index < transitionVoters.length; index++) {
+  const voter = transitionVoters[index];
+  const commitment = await read(
+    "AgentPoolV435TransitionIssueConsensus",
+    transitionIssueConsensus,
+    "voteCommitment",
+    [
+      1n,
+      voter.address,
+      true,
+      transitionEvidenceHashes[index],
+      transitionSalts[index],
+    ],
+  );
+  await write(
+    "AgentPoolV435TransitionIssueConsensus",
+    transitionIssueConsensus,
+    "commitVote",
+    [1n, commitment],
+    voter.key,
+  );
+}
+blockTimestamp = BigInt(transitionCommitDeadline + 1);
+for (let index = 0; index < transitionVoters.length; index++) {
+  await write(
+    "AgentPoolV435TransitionIssueConsensus",
+    transitionIssueConsensus,
+    "revealVote",
+    [
+      1n,
+      true,
+      transitionEvidenceHashes[index],
+      transitionSalts[index],
+    ],
+    transitionVoters[index].key,
+  );
+}
+blockTimestamp = BigInt(transitionRevealDeadline + 1);
+await write(
+  "AgentPoolV435TransitionIssueConsensus",
+  transitionIssueConsensus,
+  "finalize",
+  [1n],
+);
+check(
+  "two non-proposer voters across multiple groups approve capped TRANSITION Issue",
+  await read(
+    "AgentPoolV435SystemIssueGate",
+    systemIssueGate,
+    "transitionApprovedIssueHash",
+    [issueTermsHash(transitionIssue)],
+  ),
+  true,
+);
+const supplyBeforeTransitionIssue = await read(
+  "AgentPoolV43Token",
+  token,
+  "totalSupply",
+);
+await settleDynamicIssue({
+  label: "transition-dynamic-improvement",
+  issue: transitionIssue,
+  funding: 3,
+});
+check(
+  "TRANSITION dynamic Issue emits only objective settled payouts",
+  await read("AgentPoolV43Token", token, "totalSupply"),
+  supplyBeforeTransitionIssue + parseEther("4"),
+);
+
+for (let index = 1; index < 25; index++) {
   await settleJob({
     funding: 3,
     workerIndex: index % 5,
@@ -1396,13 +1809,7 @@ check(
   true,
 );
 
-const matureIssue = {
-  ...issueFor("mature-core-approved-issue", 2),
-  candidateBudgetCap: parseEther("10"),
-  totalBudgetCap: parseEther("30"),
-  maxCandidates: 3,
-  expiresAt: Number(blockTimestamp + 60n * 86_400n),
-};
+const matureIssue = dynamicIssueFor("mature-core-approved-issue", 2);
 await write(
   "AgentPoolV43Token",
   token,
@@ -1462,22 +1869,17 @@ await write(
 check(
   "MATURE new system issue requires and receives Work Power consensus",
   await read(
-    "AgentPoolV432SystemIssueGate",
+    "AgentPoolV435SystemIssueGate",
     systemIssueGate,
     "approvedIssueHash",
     [issueTermsHash(matureIssue)],
   ),
   true,
 );
-await settleJob({
-  funding: 2,
-  workerIndex: 0,
-  releaseId: genesisRelease,
-  allocation: parseEther("1"),
-  keeperFee: parseEther("1"),
-  capacityUnits: 1,
+await settleDynamicIssue({
   label: "mature-core-approved-issue",
   issue: matureIssue,
+  funding: 2,
 });
 
 await write(
@@ -1607,6 +2009,7 @@ const output = {
     contributionLedger: ledger,
     evolutionConsensus: consensus,
     systemIssueGate,
+    transitionIssueConsensus,
     issueConsensus,
     releaseRegistry,
     taskMarket: market,

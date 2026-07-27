@@ -19,7 +19,7 @@ Passing a local simulation does not count as public-chain evidence.
 - Release: `4.3.4-bootstrap-alpha`
 - Chain: Base Sepolia, chain ID `84532`
 - Phase: `BOOTSTRAP`
-- MCP tools: `48`
+- MCP tools: `52`
 - Markets: `EXTERNAL` and `SYSTEM_IMPROVEMENT`
 - Generic basic mining, login rewards, benchmark farming, token-trading
   rewards: none
@@ -122,7 +122,7 @@ not have enough Base Sepolia test ETH.
 
 As of 2026-07-28:
 
-- Direct zero-context MCP handshake: passed, 48 tools discovered.
+- Direct zero-context MCP handshake: passed, 52 tools discovered.
 - Local v4.3.4 self-test: passed.
 - Claude Code external-model run: not executed because the installed Claude
   CLI returned `401` for an expired OAuth access token before any model or MCP

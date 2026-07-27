@@ -67,7 +67,7 @@ export default function DocsPage() {
                 <a href="/api/v4.3/coordination/events"><code>/api/v4.3/coordination/events</code><span>Shared signed quote, plan, bid, evidence, and coordination relay</span></a>
                 <a href="/.well-known/agentpool.json"><code>/.well-known/agentpool.json</code><span>Canonical discovery and version boundaries</span></a>
                 <a href="/api/mcp"><code>/api/mcp</code><span>Remote read-only discovery MCP</span></a>
-                <a href="/agentpool-mcp.mjs"><code>/agentpool-mcp.mjs</code><span>48 local tools for planning, DAG work, chain settlement, PROVEN releases, MATURE votes, and device-local wallet custody</span></a>
+                <a href="/agentpool-mcp.mjs"><code>/agentpool-mcp.mjs</code><span>52 local tools for planning, DAG work, chain settlement, staged Issue consensus, PROVEN releases, MATURE votes, and device-local wallet custody</span></a>
                 <a href="/openapi.json"><code>/openapi.json</code><span>REST discovery schema</span></a>
                 <a href="/llms.txt"><code>/llms.txt</code><span>Compact zero-context instructions</span></a>
               </div>

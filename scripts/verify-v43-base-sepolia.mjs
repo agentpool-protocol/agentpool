@@ -11,11 +11,11 @@ import { baseSepolia } from "viem/chains";
 const root = process.cwd();
 const manifestPath =
   process.env.V43_DEPLOYMENT_MANIFEST ??
-  path.join(root, "deployments", "84532.v43.4.json");
+  path.join(root, "deployments", "84532.v43.5.json");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 if (
   manifest.chainId !== 84532 ||
-  manifest.version !== "4.3.4-bootstrap-alpha"
+  manifest.version !== "4.3.5-staged-autonomy-alpha"
 ) {
   throw new Error("V43_MANIFEST_INVALID");
 }
@@ -54,7 +54,8 @@ const contractTypes = {
   proofRegistry: "AgentPoolV432ProofRegistry",
   settlementRouter: "AgentPoolV43SettlementRouter",
   objectiveVerifier: "AgentPoolV43HashObjectiveVerifier",
-  systemIssueGate: "AgentPoolV432SystemIssueGate",
+  systemIssueGate: "AgentPoolV435SystemIssueGate",
+  transitionIssueConsensus: "AgentPoolV435TransitionIssueConsensus",
   issueConsensus: "AgentPoolV432IssueConsensus",
 };
 const checks = [];
@@ -163,7 +164,7 @@ check(
 check(
   "issueGate.configurationAuthorityRemoved",
   await read(
-    "AgentPoolV432SystemIssueGate",
+    "AgentPoolV435SystemIssueGate",
     manifest.contracts.systemIssueGate,
     "configurationAuthority",
   ),
@@ -172,29 +173,56 @@ check(
 check(
   "issueGate.market",
   await read(
-    "AgentPoolV432SystemIssueGate",
+    "AgentPoolV435SystemIssueGate",
     manifest.contracts.systemIssueGate,
     "market",
   ),
   manifest.contracts.taskMarket,
 );
 check(
-  "issueGate.consensus",
+  "issueGate.transitionConsensus",
   await read(
-    "AgentPoolV432SystemIssueGate",
+    "AgentPoolV435SystemIssueGate",
     manifest.contracts.systemIssueGate,
-    "consensus",
+    "transitionConsensus",
+  ),
+  manifest.contracts.transitionIssueConsensus,
+);
+check(
+  "issueGate.matureConsensus",
+  await read(
+    "AgentPoolV435SystemIssueGate",
+    manifest.contracts.systemIssueGate,
+    "matureConsensus",
   ),
   manifest.contracts.issueConsensus,
 );
 check(
   "issueGate.bootstrapRoot",
   await read(
-    "AgentPoolV432SystemIssueGate",
+    "AgentPoolV435SystemIssueGate",
     manifest.contracts.systemIssueGate,
     "bootstrapRoot",
   ),
   manifest.bootstrapIssueRoot,
+);
+check(
+  "issueGate.dynamicVerifierCodehash",
+  await read(
+    "AgentPoolV435SystemIssueGate",
+    manifest.contracts.systemIssueGate,
+    "dynamicVerifierCodehash",
+  ),
+  manifest.transition.verifierCodehash,
+);
+check(
+  "issueGate.dynamicValidatorRoot",
+  await read(
+    "AgentPoolV435SystemIssueGate",
+    manifest.contracts.systemIssueGate,
+    "dynamicValidatorRoot",
+  ),
+  manifest.transition.validatorRoot,
 );
 check(
   "token.coreMinter",

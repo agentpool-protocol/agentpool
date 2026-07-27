@@ -30,7 +30,9 @@ import capacityArtifact from "../artifacts/AgentPoolV43CapacityRegistry.json" wi
 import proofArtifact from "../artifacts/AgentPoolV432ProofRegistry.json" with { type: "json" };
 import vaultArtifact from "../artifacts/AgentPoolV43EpochVault.json" with { type: "json" };
 import registryArtifact from "../artifacts/AgentPoolV43ReleaseRegistry.json" with { type: "json" };
-import issueGateArtifact from "../artifacts/AgentPoolV432SystemIssueGate.json" with { type: "json" };
+import issueGateV432Artifact from "../artifacts/AgentPoolV432SystemIssueGate.json" with { type: "json" };
+import issueGateV435Artifact from "../artifacts/AgentPoolV435SystemIssueGate.json" with { type: "json" };
+import transitionIssueConsensusArtifact from "../artifacts/AgentPoolV435TransitionIssueConsensus.json" with { type: "json" };
 import issueConsensusArtifact from "../artifacts/AgentPoolV432IssueConsensus.json" with { type: "json" };
 import evolutionConsensusArtifact from "../artifacts/AgentPoolV43EvolutionConsensus.json" with { type: "json" };
 import {
@@ -56,6 +58,7 @@ const chainClient = createPublicClient({
   transport: http(chainRpcUrl, { timeout: 30_000, retryCount: 3 }),
 });
 const contracts = deployment.contracts;
+const stagedAutonomyAvailable = Boolean(contracts.transitionIssueConsensus);
 const abis = {
   token: tokenArtifact.abi,
   market: marketArtifact.abi,
@@ -64,10 +67,21 @@ const abis = {
   proof: proofArtifact.abi,
   vault: vaultArtifact.abi,
   registry: registryArtifact.abi,
-  issueGate: issueGateArtifact.abi,
+  issueGate: stagedAutonomyAvailable
+    ? issueGateV435Artifact.abi
+    : issueGateV432Artifact.abi,
+  transitionIssueConsensus: transitionIssueConsensusArtifact.abi,
   issueConsensus: issueConsensusArtifact.abi,
   evolutionConsensus: evolutionConsensusArtifact.abi,
 };
+
+function requireStagedAutonomy() {
+  if (!stagedAutonomyAvailable) {
+    throw new Error(
+      "V435_STAGED_AUTONOMY_NOT_DEPLOYED:current public contracts remain v4.3.4",
+    );
+  }
+}
 
 async function sha256Hex(value) {
   const digestBytes = await globalThis.crypto.subtle.digest(
@@ -450,9 +464,9 @@ server.registerTool(
 server.registerTool(
   "agentpool_v43_chain_status",
   {
-    title: "Read live AgentPool v4.3.4 Base Sepolia state",
+    title: "Read live AgentPool v4.3 Base Sepolia state",
     description:
-      "Reads the ownerless Base Sepolia contracts directly: phase, supply, epoch emission, Work Power maturity, recommended release, and finite bootstrap Issue exposure.",
+      "Reads the ownerless Base Sepolia contracts directly: BOOTSTRAP/TRANSITION/MATURE phase, supply, epoch emission, Work Power, recommended release, and bounded Issue exposure.",
     inputSchema: {},
   },
   async () => {
@@ -460,6 +474,7 @@ server.registerTool(
       blockNumber,
       totalSupply,
       mature,
+      transitionReady,
       eligibleAgents,
       eligibleGroups,
       settlements,
@@ -475,6 +490,13 @@ server.registerTool(
       chainClient.getBlockNumber(),
       chainRead(contracts.token, abis.token, "totalSupply"),
       chainRead(contracts.contributionLedger, abis.ledger, "mature"),
+      stagedAutonomyAvailable
+        ? chainRead(
+            contracts.systemIssueGate,
+            abis.issueGate,
+            "transitionReady",
+          )
+        : Promise.resolve(false),
       chainRead(
         contracts.contributionLedger,
         abis.ledger,
@@ -524,7 +546,12 @@ server.registerTool(
       network: "Base Sepolia",
       chainId: 84532,
       release: deployment.version,
-      phase: mature ? "MATURE" : "BOOTSTRAP",
+      phase: mature
+        ? "MATURE"
+        : transitionReady
+          ? "TRANSITION"
+          : "BOOTSTRAP",
+      stagedAutonomyAvailable,
       blockNumber: blockNumber.toString(),
       contracts,
       totalSupplyApool: formatUnits(totalSupply, 18),
@@ -2048,6 +2075,158 @@ server.registerTool(
 );
 
 server.registerTool(
+  "agentpool_v43_propose_transition_issue_onchain",
+  {
+    title: "Propose a capped TRANSITION system Issue",
+    description:
+      "v4.3.5 only. After real activity opens TRANSITION, bonds tAPOOL and proposes an EVOLUTION Issue whose verifier, validator root, budgets, candidate count, and lifetime are bounded by immutable gate policy.",
+    inputSchema: {
+      issue: matureIssueSchema,
+      needEvidenceHash: z.string().min(1),
+      bondApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+      commitDeadline: z.number().int().positive(),
+      revealDeadline: z.number().int().positive(),
+    },
+  },
+  async ({
+    issue,
+    needEvidenceHash,
+    bondApool,
+    commitDeadline,
+    revealDeadline,
+  }) => {
+    requireStagedAutonomy();
+    if (issue.funding !== 3) {
+      throw new Error("V435_TRANSITION_REQUIRES_EVOLUTION_FUNDING");
+    }
+    const terms = issueTuple(issue);
+    const bond = apool(bondApool);
+    const approval = await chainWrite(
+      contracts.token,
+      abis.token,
+      "approve",
+      [contracts.transitionIssueConsensus, bond],
+    );
+    const proposalId = await chainRead(
+      contracts.transitionIssueConsensus,
+      abis.transitionIssueConsensus,
+      "nextProposalId",
+    );
+    const proposal = await chainWrite(
+      contracts.transitionIssueConsensus,
+      abis.transitionIssueConsensus,
+      "propose",
+      [
+        terms,
+        bytes32(needEvidenceHash),
+        bond,
+        commitDeadline,
+        revealDeadline,
+      ],
+    );
+    return textResult({
+      proposalId: proposalId.toString(),
+      approval,
+      proposal,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_commit_transition_issue_vote_onchain",
+  {
+    title: "Commit an evidence-backed TRANSITION Issue vote",
+    description:
+      "v4.3.5 only. The Issue proposer cannot vote. Other proven agents commit support plus a private evidence hash and salt; at least two voters and two represented groups are required.",
+    inputSchema: {
+      proposalId: z.string().regex(/^\d+$/),
+      support: z.boolean(),
+      evidenceHash: z.string().min(1),
+      salt: z.string().min(1),
+    },
+  },
+  async ({ proposalId, support, evidenceHash, salt }) => {
+    requireStagedAutonomy();
+    const account = localAccount();
+    const evidenceDigest = bytes32(evidenceHash);
+    const saltHash = bytes32(salt);
+    const commitment = await chainRead(
+      contracts.transitionIssueConsensus,
+      abis.transitionIssueConsensus,
+      "voteCommitment",
+      [
+        BigInt(proposalId),
+        account.address,
+        support,
+        evidenceDigest,
+        saltHash,
+      ],
+    );
+    return textResult({
+      commitment,
+      ...(await chainWrite(
+        contracts.transitionIssueConsensus,
+        abis.transitionIssueConsensus,
+        "commitVote",
+        [BigInt(proposalId), commitment],
+      )),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_reveal_transition_issue_vote_onchain",
+  {
+    title: "Reveal a TRANSITION Issue vote and evidence",
+    description:
+      "v4.3.5 only. Reveals the exact support value, evidence hash, and salt committed earlier.",
+    inputSchema: {
+      proposalId: z.string().regex(/^\d+$/),
+      support: z.boolean(),
+      evidenceHash: z.string().min(1),
+      salt: z.string().min(1),
+    },
+  },
+  async ({ proposalId, support, evidenceHash, salt }) => {
+    requireStagedAutonomy();
+    return textResult(
+      await chainWrite(
+        contracts.transitionIssueConsensus,
+        abis.transitionIssueConsensus,
+        "revealVote",
+        [
+          BigInt(proposalId),
+          support,
+          bytes32(evidenceHash),
+          bytes32(salt),
+        ],
+      ),
+    );
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_finalize_transition_issue_onchain",
+  {
+    title: "Finalize capped TRANSITION Issue consensus",
+    description:
+      "v4.3.5 only. After reveal closes, enforces two non-proposer voters, multiple operator groups, contribution quorum, and two-thirds support before the bounded Issue can reserve emission.",
+    inputSchema: { proposalId: z.string().regex(/^\d+$/) },
+  },
+  async ({ proposalId }) => {
+    requireStagedAutonomy();
+    return textResult(
+      await chainWrite(
+        contracts.transitionIssueConsensus,
+        abis.transitionIssueConsensus,
+        "finalize",
+        [BigInt(proposalId)],
+      ),
+    );
+  },
+);
+
+server.registerTool(
   "agentpool_v43_propose_system_issue_onchain",
   {
     title: "Open a MATURE Work Power system-Issue vote",
@@ -2171,7 +2350,7 @@ server.registerTool(
       work:
         "read shared signed opportunities -> publish commit/reveal plans and role bids -> compete on DAG plans -> reserve budget and capacity onchain -> execute/subcontract -> evidence-only evaluation -> deterministic settlement -> update work power -> reinvest",
       evolution:
-        "buyer-funded or admitted system improvement -> objective canary -> opt-in PROVEN release; after automatic MATURE -> capped Work Power vote -> independent adoption -> recommended release",
+        "buyer-funded or fixed BOOTSTRAP improvement -> objective canary -> opt-in PROVEN release; after verified activity opens TRANSITION -> capped non-proposer Issue consensus; after automatic MATURE -> capped Work Power vote -> independent adoption -> recommended release",
       immutable:
         "maximum supply, external-job zero emission, reservation cap, refund path, signature/receipt replay protection, and evaluator inability to set payouts",
       evolvable:
@@ -2179,7 +2358,9 @@ server.registerTool(
       authority:
         "No single AI or owner upgrades running jobs. Releases are append-only; each job stays pinned to its creation release.",
       status:
-        "The one finite BOOTSTRAP emission Issue is consumed. Buyer-funded work and buyer-funded AgentPool improvements remain open and may produce opt-in PROVEN releases without emission. Only ownerless Base Sepolia contracts can move escrow or emit test APOOL.",
+        stagedAutonomyAvailable
+          ? "v4.3.5 exposes BOOTSTRAP, capped TRANSITION, and irreversible MATURE paths. Buyer-funded improvements stay open in every phase; only admitted objective work can emit test tAPOOL."
+          : "The current public contracts remain v4.3.4. Its finite BOOTSTRAP emission Issue is consumed; buyer-funded work and opt-in PROVEN releases remain open while v4.3.5 staged autonomy is not yet deployed.",
     }),
 );
 
@@ -2214,7 +2395,7 @@ async function selfTest() {
     `${JSON.stringify({
       ok: true,
       release: deployment.version,
-      tools: 48,
+      tools: 52,
       persistentEventLog: true,
       evaluatorCanSetPayout: false,
       baseSepoliaDeployment: true,

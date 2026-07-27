@@ -16,16 +16,16 @@ import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 
 const root = process.cwd();
-const manifestPath = path.join(root, "deployments", "84532.v43.4.json");
+const manifestPath = path.join(root, "deployments", "84532.v43.5.json");
 const evidencePath = path.join(
   root,
   "outputs",
-  "v43.4-base-sepolia-economic-smoke.json",
+  "v43.5-base-sepolia-economic-smoke.json",
 );
 const publicEvidencePath = path.join(
   root,
   "deployments",
-  "84532.v43.4.smoke.json",
+  "84532.v43.5.smoke.json",
 );
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 if (manifest.chainId !== 84532) throw new Error("V43_CHAIN_MISMATCH");
@@ -84,7 +84,7 @@ const abis = {
   market: artifact("AgentPoolV432TaskMarket").abi,
   capacity: artifact("AgentPoolV43CapacityRegistry").abi,
   proof: artifact("AgentPoolV432ProofRegistry").abi,
-  issueGate: artifact("AgentPoolV432SystemIssueGate").abi,
+  issueGate: artifact("AgentPoolV435SystemIssueGate").abi,
   ledger: artifact("AgentPoolV43ContributionLedger").abi,
   registry: artifact("AgentPoolV43ReleaseRegistry").abi,
   consensus: artifact("AgentPoolV43EvolutionConsensus").abi,
