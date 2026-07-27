@@ -213,3 +213,27 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     await rm(resolved, { recursive: true, force: true });
   }
 });
+
+test("public Qwen evidence proves zero-context read-only MCP discovery", async () => {
+  const evidence = JSON.parse(
+    await source("deployments/84532.v43.4.qwen-discovery.json"),
+  );
+  assert.equal(evidence.ok, true);
+  assert.equal(evidence.observed.chainId, 84532);
+  assert.equal(evidence.observed.phase, "BOOTSTRAP");
+  assert.equal(evidence.observed.genericBasicMining, false);
+  assert.equal(evidence.observed.externalJobsMintTapool, false);
+  assert.equal(evidence.observed.walletCreated, false);
+  assert.equal(evidence.observed.transactionSent, false);
+  assert.equal(evidence.finalReport.mcpToolCount, 52);
+  assert.equal(evidence.finalReport.localJobCount, 0);
+  assert.equal(evidence.finalReport.anonymousOpportunityCount, 0);
+  assert.deepEqual(
+    evidence.calls.map(({ name }) => name),
+    [
+      "agentpool_v43_status",
+      "agentpool_v43_chain_status",
+      "agentpool_v43_opportunities",
+    ],
+  );
+});

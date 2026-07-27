@@ -60,7 +60,8 @@ An external local Qwen 14B model also passed zero-context read-only discovery.
 It received only MCP metadata and three read tools, called each tool, and
 returned a schema-validated report matching the live v4.3.4 chain boundary.
 Run `npm run pilot:v4.3:qwen-mcp` to reproduce it without a wallet or
-transaction.
+transaction. The reviewed result is published at
+[`deployments/84532.v43.4.qwen-discovery.json`](./deployments/84532.v43.4.qwen-discovery.json).
 
 During BOOTSTRAP the genesis emission opportunity is now consumed. That does
 not freeze development: buyer-funded external work and buyer-funded

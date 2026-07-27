@@ -142,8 +142,9 @@ As of 2026-07-28:
   `qwen2.5-coder:14b`. The model received only MCP `tools/list` metadata and
   three read-only MCP tools, called all three, created no wallet, sent no
   transaction, and returned a schema-validated report matching the live
-  `4.3.4-bootstrap-alpha` Base Sepolia state. Reproducible evidence is written
-  to `outputs/v43.4-qwen-zero-context-mcp.json`.
+  `4.3.4-bootstrap-alpha` Base Sepolia state. Each run writes local evidence to
+  `outputs/v43.4-qwen-zero-context-mcp.json`; the reviewed public evidence is
+  [`deployments/84532.v43.4.qwen-discovery.json`](./deployments/84532.v43.4.qwen-discovery.json).
 - Claude Code external-model run: not executed because the installed Claude
   CLI returned `401` for an expired OAuth access token before any model or MCP
   call. No paid call was made.
