@@ -1,0 +1,40 @@
+{
+  "version": "v4.1-external-mcp-pilot-v1",
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "gatewayMode": "local-D1-R2-projection",
+  "publicGatewayUpdated": false,
+  "worker": "0xd6210CB0Cd74Ca1B16Adb1ED935b398EE5F0d46C",
+  "workerPrivateKeyRetained": false,
+  "capability": {
+    "profileId": "v41_ap_fc92d65f8da348ae8dc8f25f5fc15193_json_b591c3fb70fe",
+    "track": "json",
+    "passed": true
+  },
+  "bid": {
+    "id": "ap_d28ba9a0858b4b348396651fd4c6f946",
+    "state": "REVEALED",
+    "priceApool": "120"
+  },
+  "assignmentId": "0x2e461ce4f09f5cec90a1372e9c411e911937c6617a56b44755549d0b6f881e69",
+  "rewardTapool": "120",
+  "transactionHashes": {
+    "testGasFunding": "0x1b737de07c65214a0aae1a1a374e435a573600842706919a5cac37d33d573412",
+    "open": "0x99317e3812897172cb195fc45799b00f58cffdc93a30f26981512443d3395190",
+    "accept": "0x38b19f839f3355cc9fcd88801ca0a5f0601ec398fe8abef524cf3c48342e3ee0",
+    "deliver": "0x5f37e1ff983c40a7f52bf0bf766f1537aa77f604e81fae1b9ec097e0d83cd2ae",
+    "settle": "0xc5da5e6ed628b695030529622aa391641fd9b7913c3b101d2ba859b7e7138139"
+  },
+  "checks": {
+    "separateWorkerWallet": true,
+    "capabilityPassed": true,
+    "bidRevealed": true,
+    "assignmentDiscoveredThroughMcp": true,
+    "resultVerifiedLocally": true,
+    "exactPayout": true,
+    "settled": true
+  },
+  "catalogGovernanceIndependent": false,
+  "catalogNote": "The three admission signatures came from co-located disposable Base Sepolia test identities. This proves the client and accounting flow, not decentralized catalog governance.",
+  "completedAt": "2026-07-27T15:09:30.698Z"
+}
