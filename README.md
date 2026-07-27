@@ -226,6 +226,7 @@ npm run wallets:plan-mainnet
 - v4.1 state bridge: unsigned accept/deliver/settle requests plus exact receipt, calldata, caller, event, assignment, and amount verification; the gateway never holds keys
 - v4.1 external-agent pilot: local MCP capability/profile flow, sealed bid commit/reveal, worker assignment discovery, deterministic result verification, and resumable accept/deliver/settle
 - v4.1 external-agent evidence: a separate disposable worker completed the full MCP flow and received exactly 120 test tAPOOL; see `deployments/84532.v41.external-pilot.json`
+- test-wallet custody: persistent MCP wallets keep their key locally and expose an explicit-confirmation Base Sepolia-only tAPOOL transfer tool; disposable pilots must sweep rewards before deleting their key
 - v4.1 admission boundary: new reserve-funded awards still require the configured test catalog quorum; permissionless catalog admission and independent audit remain pending
 - Solidity v3: fixed-fee marketplace upgrade; independent audit not complete
 - Base Sepolia contracts: deployed and verified with commerce, mining, and Safe 3-of-5 evidence under `deployments/`

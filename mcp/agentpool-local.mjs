@@ -10,8 +10,11 @@ import {
   createPublicClient,
   createWalletClient,
   formatEther,
+  formatUnits,
+  getAddress,
   http,
   keccak256,
+  parseUnits,
   toBytes,
 } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -33,6 +36,28 @@ const DATA_HOME = path.resolve(
 const WALLET_FILE = path.join(DATA_HOME, "wallet.json");
 const STATE_FILE = path.join(DATA_HOME, "state.json");
 const EXPECTED_CHAIN_ID = 84532;
+const V41_TOKEN_ADDRESS = "0x74e69580d822573ad15148e6475f259fedc46ebb";
+const V41_TOKEN_DECIMALS = 18;
+const V41_TOKEN_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+];
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 function readJson(file) {
   return fs.existsSync(file)
@@ -284,7 +309,7 @@ const readOnly = {
 
 function createServer() {
   const server = new McpServer(
-    { name: "agentpool-local", version: "0.5.2-v4.1-pilot" },
+    { name: "agentpool-local", version: "0.5.3-v4.1-wallet" },
     {
       instructions:
         "Base Sepolia only. Never request or import a seed phrase or production key. Ask the user before creating the local test wallet or submitting an onchain claim.",
@@ -854,13 +879,27 @@ function createServer() {
         });
       }
       const { publicClient } = await requireBaseSepolia(account);
-      const balance = await publicClient.getBalance({ address: account.address });
+      const [balance, tokenBytecode, tokenBalance] = await Promise.all([
+        publicClient.getBalance({ address: account.address }),
+        publicClient.getBytecode({ address: V41_TOKEN_ADDRESS }),
+        publicClient.readContract({
+          address: V41_TOKEN_ADDRESS,
+          abi: V41_TOKEN_ABI,
+          functionName: "balanceOf",
+          args: [account.address],
+        }),
+      ]);
+      if (!tokenBytecode || tokenBytecode === "0x") {
+        throw new Error("V41_TEST_TOKEN_BYTECODE_MISSING");
+      }
       return textResult({
         exists: true,
         network: "Base Sepolia",
         chainId: EXPECTED_CHAIN_ID,
         address: account.address,
         testEth: formatEther(balance),
+        tapool: formatUnits(tokenBalance, V41_TOKEN_DECIMALS),
+        tokenAddress: V41_TOKEN_ADDRESS,
         fundedForClaim: balance > 0n,
         dataHome: DATA_HOME,
       });
@@ -899,6 +938,153 @@ function createServer() {
           "https://docs.base.org/base-chain/network-information/network-faucets",
         warning:
           "Never send mainnet ETH, real tokens, a seed phrase, or a production key.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "agentpool_transfer_test_tokens",
+    {
+      title: "Transfer Base Sepolia test tAPOOL",
+      description:
+        "Transfer tAPOOL from this computer's persistent AgentPool test wallet to a supplied Base Sepolia address. The local MCP signs without revealing the private key.",
+      inputSchema: z
+        .object({
+          recipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+          amountTapool: z
+            .string()
+            .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/),
+          confirmation: z.literal("TRANSFER BASE SEPOLIA TEST TAPOOL"),
+        })
+        .strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ recipient, amountTapool }) => {
+      const account = storedAccount();
+      if (!account) {
+        return textResult(
+          {
+            error: "NO_TEST_WALLET",
+            next: "Create a Base Sepolia-only wallet after user approval.",
+          },
+          true,
+        );
+      }
+      const destination = getAddress(recipient);
+      if (
+        destination.toLowerCase() === ZERO_ADDRESS ||
+        destination.toLowerCase() === account.address.toLowerCase()
+      ) {
+        return textResult(
+          {
+            error: "INVALID_TEST_TOKEN_RECIPIENT",
+            message:
+              "The recipient must be a different nonzero Base Sepolia address.",
+          },
+          true,
+        );
+      }
+      const amount = parseUnits(amountTapool, V41_TOKEN_DECIMALS);
+      if (amount <= 0n) {
+        return textResult(
+          {
+            error: "INVALID_TEST_TOKEN_AMOUNT",
+            message: "The transfer amount must be greater than zero.",
+          },
+          true,
+        );
+      }
+      const { publicClient, walletClient } = await requireBaseSepolia(account);
+      const [tokenBytecode, testEth, senderBefore, recipientBefore] =
+        await Promise.all([
+          publicClient.getBytecode({ address: V41_TOKEN_ADDRESS }),
+          publicClient.getBalance({ address: account.address }),
+          publicClient.readContract({
+            address: V41_TOKEN_ADDRESS,
+            abi: V41_TOKEN_ABI,
+            functionName: "balanceOf",
+            args: [account.address],
+          }),
+          publicClient.readContract({
+            address: V41_TOKEN_ADDRESS,
+            abi: V41_TOKEN_ABI,
+            functionName: "balanceOf",
+            args: [destination],
+          }),
+        ]);
+      if (!tokenBytecode || tokenBytecode === "0x") {
+        throw new Error("V41_TEST_TOKEN_BYTECODE_MISSING");
+      }
+      if (testEth === 0n) {
+        return textResult(
+          {
+            error: "TEST_GAS_REQUIRED",
+            address: account.address,
+            network: "Base Sepolia",
+          },
+          true,
+        );
+      }
+      if (senderBefore < amount) {
+        return textResult(
+          {
+            error: "INSUFFICIENT_TEST_TOKEN_BALANCE",
+            availableTapool: formatUnits(senderBefore, V41_TOKEN_DECIMALS),
+            requestedTapool: amountTapool,
+          },
+          true,
+        );
+      }
+      const txHash = await walletClient.writeContract({
+        account,
+        address: V41_TOKEN_ADDRESS,
+        abi: V41_TOKEN_ABI,
+        functionName: "transfer",
+        args: [destination, amount],
+      });
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 2,
+      });
+      if (receipt.status !== "success") {
+        throw new Error("V41_TEST_TOKEN_TRANSFER_REVERTED");
+      }
+      const [senderAfter, recipientAfter] = await Promise.all([
+        publicClient.readContract({
+          address: V41_TOKEN_ADDRESS,
+          abi: V41_TOKEN_ABI,
+          functionName: "balanceOf",
+          args: [account.address],
+        }),
+        publicClient.readContract({
+          address: V41_TOKEN_ADDRESS,
+          abi: V41_TOKEN_ABI,
+          functionName: "balanceOf",
+          args: [destination],
+        }),
+      ]);
+      if (
+        senderBefore - senderAfter !== amount ||
+        recipientAfter - recipientBefore !== amount
+      ) {
+        throw new Error("V41_TEST_TOKEN_TRANSFER_BALANCE_MISMATCH");
+      }
+      return textResult({
+        status: "transferred",
+        network: "Base Sepolia",
+        chainId: EXPECTED_CHAIN_ID,
+        tokenAddress: V41_TOKEN_ADDRESS,
+        sender: account.address,
+        recipient: destination,
+        amountTapool: formatUnits(amount, V41_TOKEN_DECIMALS),
+        senderBalanceTapool: formatUnits(senderAfter, V41_TOKEN_DECIMALS),
+        transactionHash: txHash,
+        receipt: `https://sepolia.basescan.org/tx/${txHash}`,
       });
     },
   );
@@ -1133,7 +1319,7 @@ async function main() {
       `${JSON.stringify({
         ok: true,
         name: "agentpool-local",
-        version: "0.5.2-v4.1-pilot",
+        version: "0.5.3-v4.1-wallet",
         chainId: EXPECTED_CHAIN_ID,
         walletCreated: false,
       })}\n`,

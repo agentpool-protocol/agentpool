@@ -132,7 +132,11 @@ if (manifest.chainId !== 84532 || manifest.network !== "Base Sepolia") {
 const bidId = argument("bid-id");
 if (!bidId) throw new Error("--bid-id is required");
 const opportunityId = argument("opportunity-id", pilot.opportunityId);
-if (opportunityId !== pilot.opportunityId) {
+const isPilotRound =
+  opportunityId === pilot.opportunityId ||
+  (opportunityId.startsWith(`${pilot.opportunityId}-r`) &&
+    /^\d+$/u.test(opportunityId.slice(`${pilot.opportunityId}-r`.length)));
+if (!isPilotRound) {
   throw new Error("V41_PILOT_ONLY_SUPPORTS_COMMITTED_FIXTURE");
 }
 const baseUrl = argument(

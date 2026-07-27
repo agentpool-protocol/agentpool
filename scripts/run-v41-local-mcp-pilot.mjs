@@ -10,7 +10,9 @@ import {
   createWalletClient,
   formatEther,
   formatUnits,
+  getAddress,
   http,
+  isAddress,
   parseEther,
 } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -61,6 +63,11 @@ const publicClient = createPublicClient({
   transport: http(rpcUrl),
 });
 const deployer = privateKeyToAccount(deployerKey);
+const configuredPayout = process.env.V41_PILOT_PAYOUT_ADDRESS?.trim();
+if (configuredPayout && !isAddress(configuredPayout)) {
+  throw new Error("V41_LOCAL_PILOT_INVALID_PAYOUT_ADDRESS");
+}
+const payoutRecipient = getAddress(configuredPayout ?? deployer.address);
 const deployerClient = createWalletClient({
   account: deployer,
   chain: baseSepolia,
@@ -128,6 +135,7 @@ try {
     "agentpool_v41_reveal_bid",
     "agentpool_v41_assignments",
     "agentpool_v41_complete_pilot",
+    "agentpool_transfer_test_tokens",
   ]) {
     if (!tools.tools.some((tool) => tool.name === name)) {
       throw new Error(`V41_LOCAL_PILOT_MISSING_TOOL:${name}`);
@@ -174,7 +182,9 @@ try {
     successProbabilityBps: 9_000,
   });
   const opportunity = opportunities.opportunities.find(
-    (candidate) => candidate.id === "v41-basic-mcp-fixture-1",
+    (candidate) =>
+      candidate.state === "OPEN" &&
+      candidate.pilot?.task?.type === "canonical-mcp-fixture",
   );
   if (!opportunity?.pilot?.task) {
     throw new Error("V41_LOCAL_PILOT_OPPORTUNITY_UNAVAILABLE");
@@ -198,6 +208,8 @@ try {
       "scripts/open-v41-external-pilot.mjs",
       "--bid-id",
       committed.id,
+      "--opportunity-id",
+      opportunity.id,
       "--base-url",
       baseUrl,
     ],
@@ -233,6 +245,34 @@ try {
   if (tokenBalance !== 120n * 10n ** 18n) {
     throw new Error("V41_LOCAL_PILOT_WRONG_TOKEN_BALANCE");
   }
+  if (payoutRecipient.toLowerCase() === worker.toLowerCase()) {
+    throw new Error("V41_LOCAL_PILOT_PAYOUT_MUST_DIFFER_FROM_WORKER");
+  }
+  const payoutBefore = await publicClient.readContract({
+    address: manifest.contracts.token,
+    abi: tokenAbi,
+    functionName: "balanceOf",
+    args: [payoutRecipient],
+  });
+  const sweep = await call("agentpool_transfer_test_tokens", {
+    recipient: payoutRecipient,
+    amountTapool: "120",
+    confirmation: "TRANSFER BASE SEPOLIA TEST TAPOOL",
+  });
+  const [workerAfterSweep, payoutAfter] = await Promise.all([
+    publicClient.readContract({
+      address: manifest.contracts.token,
+      abi: tokenAbi,
+      functionName: "balanceOf",
+      args: [worker],
+    }),
+    publicClient.readContract({
+      address: manifest.contracts.token,
+      abi: tokenAbi,
+      functionName: "balanceOf",
+      args: [payoutRecipient],
+    }),
+  ]);
   const output = {
     ok: true,
     testnetOnly: true,
@@ -257,7 +297,17 @@ try {
       (transaction) => transaction.transactionHash,
     ),
     finalState: settlement.state,
-    balanceTapool: formatUnits(tokenBalance, manifest.token.decimals),
+    earnedTapool: formatUnits(tokenBalance, manifest.token.decimals),
+    payoutRecipient,
+    payoutTransactionHash: sweep.transactionHash,
+    workerBalanceAfterSweepTapool: formatUnits(
+      workerAfterSweep,
+      manifest.token.decimals,
+    ),
+    payoutDeltaTapool: formatUnits(
+      payoutAfter - payoutBefore,
+      manifest.token.decimals,
+    ),
     checks: {
       separateWorkerWallet: worker.toLowerCase() !== deployer.address.toLowerCase(),
       capabilityPassed: measured.passed === true,
@@ -266,6 +316,9 @@ try {
       resultVerifiedLocally: settlement.resultHash === opened.expectedResultHash,
       exactPayout: tokenBalance === 120n * 10n ** 18n,
       settled: settlement.state === "SETTLED",
+      rewardSweptBeforeKeyDeletion:
+        workerAfterSweep === 0n &&
+        payoutAfter - payoutBefore === 120n * 10n ** 18n,
     },
     fundingTransactionHash: fundingHash,
     completedAt: new Date().toISOString(),

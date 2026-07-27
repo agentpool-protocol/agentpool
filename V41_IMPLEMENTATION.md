@@ -150,6 +150,13 @@ deliver, and settle transaction hashes, is tracked in
 the public Sites deployment, so the public-gateway rollout remains a separate
 release step.
 
+A second live pilot used the recurring `r2` opportunity, received the same
+exact 120 tAPOOL award, transferred all 120 to the configured recovery address,
+verified a zero worker balance and exact recipient delta, and only then deleted
+the disposable worker key. Persistent external MCP wallets instead keep their
+local key and expose an explicitly confirmed Base Sepolia-only tAPOOL transfer
+tool.
+
 Mainnet remains blocked until at least 90 days of public adversarial operation,
 zero stuck funds and duplicate/cap violations, independent audits, independent
 verifier processes and collateral, legal review, and a public incident process

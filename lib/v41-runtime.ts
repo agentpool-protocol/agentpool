@@ -101,52 +101,118 @@ function referenceOpportunities(now: number) {
   }));
 }
 
+function recurringOpportunityId(templateId: string, round: number): string {
+  return round <= 1 ? templateId : `${templateId}-r${round}`;
+}
+
+function materializeOpportunity(
+  template: ReturnType<typeof referenceOpportunities>[number],
+  id: string,
+  now: number,
+) {
+  return {
+    ...template,
+    id,
+    specificationHash: v41Hash({
+      id,
+      capability: template.capability,
+      proofPolicy: template.proofPolicy,
+    }),
+    deadlineAt: now + 4 * WEEK,
+  };
+}
+
+async function insertReferenceOpportunity(
+  opportunity: ReturnType<typeof referenceOpportunities>[number],
+  now: number,
+): Promise<void> {
+  await execute(
+    `INSERT OR IGNORE INTO v41_opportunities
+      (id, market, funding_source, title, summary, capability,
+       specification_hash, release_id, proof_policy, max_budget_apool,
+       estimated_cost_apool, risk_bps, deadline_at, state, created_by,
+       created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    opportunity.id,
+    opportunity.market,
+    opportunity.fundingSource,
+    opportunity.title,
+    opportunity.summary,
+    opportunity.capability,
+    opportunity.specificationHash,
+    opportunity.releaseId,
+    opportunity.proofPolicy,
+    opportunity.maxBudget,
+    opportunity.estimatedCost,
+    opportunity.riskBps,
+    opportunity.deadlineAt,
+    opportunity.market === "SYSTEM" ? "SHADOW_ONLY" : "OPEN",
+    "agentpool-v4.1-bootstrap",
+    now,
+    now,
+  );
+}
+
 export async function ensureV41Seed(): Promise<void> {
   const existing = await queryFirst<{ count: number }>(
     "SELECT COUNT(*) AS count FROM v41_opportunities",
   );
   const now = Date.now();
-  if ((existing?.count ?? 0) !== 0) {
-    await execute(
-      `UPDATE v41_opportunities
-       SET deadline_at = ?, updated_at = ?
-       WHERE created_by = 'agentpool-v4.1-bootstrap'
-         AND deadline_at <= ?`,
-      now + 4 * WEEK,
-      now,
-      now,
+  const templates = referenceOpportunities(now);
+  if ((existing?.count ?? 0) === 0) {
+    await executeBatch(
+      templates.map((opportunity) => ({
+        sql: `INSERT OR IGNORE INTO v41_opportunities
+          (id, market, funding_source, title, summary, capability,
+           specification_hash, release_id, proof_policy, max_budget_apool,
+           estimated_cost_apool, risk_bps, deadline_at, state, created_by,
+           created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        bindings: [
+          opportunity.id,
+          opportunity.market,
+          opportunity.fundingSource,
+          opportunity.title,
+          opportunity.summary,
+          opportunity.capability,
+          opportunity.specificationHash,
+          opportunity.releaseId,
+          opportunity.proofPolicy,
+          opportunity.maxBudget,
+          opportunity.estimatedCost,
+          opportunity.riskBps,
+          opportunity.deadlineAt,
+          opportunity.market === "SYSTEM" ? "SHADOW_ONLY" : "OPEN",
+          "agentpool-v4.1-bootstrap",
+          now,
+          now,
+        ],
+      })),
     );
     return;
   }
-  await executeBatch(
-    referenceOpportunities(now).map((opportunity) => ({
-      sql: `INSERT OR IGNORE INTO v41_opportunities
-        (id, market, funding_source, title, summary, capability,
-         specification_hash, release_id, proof_policy, max_budget_apool,
-         estimated_cost_apool, risk_bps, deadline_at, state, created_by,
-         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      bindings: [
-        opportunity.id,
-        opportunity.market,
-        opportunity.fundingSource,
-        opportunity.title,
-        opportunity.summary,
-        opportunity.capability,
-        opportunity.specificationHash,
-        opportunity.releaseId,
-        opportunity.proofPolicy,
-        opportunity.maxBudget,
-        opportunity.estimatedCost,
-        opportunity.riskBps,
-        opportunity.deadlineAt,
-        opportunity.market === "SYSTEM" ? "SHADOW_ONLY" : "OPEN",
-        "agentpool-v4.1-bootstrap",
+  for (const template of templates) {
+    if (template.market === "SYSTEM") continue;
+    const rounds = await queryFirst<{ total: number; open: number }>(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN state = 'OPEN' AND deadline_at > ? THEN 1 ELSE 0 END) AS open
+       FROM v41_opportunities
+       WHERE id = ? OR id LIKE ?`,
+      now,
+      template.id,
+      `${template.id}-r%`,
+    );
+    if ((rounds?.open ?? 0) > 0) continue;
+    const round = (rounds?.total ?? 0) + 1;
+    await insertReferenceOpportunity(
+      materializeOpportunity(
+        template,
+        recurringOpportunityId(template.id, round),
         now,
-        now,
-      ],
-    })),
-  );
+      ),
+      now,
+    );
+  }
 }
 
 export async function listV41Opportunities(input?: {
@@ -202,7 +268,8 @@ export async function listV41Opportunities(input?: {
       subtaskCostApool: 0,
       opportunityCostApool: 0,
     }),
-    ...(row.id === externalPilot.opportunityId
+    ...((row.id === externalPilot.opportunityId ||
+      row.id.startsWith(`${externalPilot.opportunityId}-r`))
       ? {
           pilot: {
             version: externalPilot.version,

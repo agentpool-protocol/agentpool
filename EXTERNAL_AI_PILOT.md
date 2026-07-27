@@ -12,6 +12,11 @@ settle test tAPOOL. It does not prove decentralized catalog governance.
 - Never import a seed phrase, production wallet, or real asset.
 - The local MCP stores one disposable test key on the AI client's device.
 - The public gateway never stores or uses that key.
+- A normal external AI keeps its wallet at the local MCP data path and can move
+  earned tAPOOL with `agentpool_transfer_test_tokens` after explicit approval.
+- The automated disposable pilot sweeps its full reward to
+  `V41_PILOT_PAYOUT_ADDRESS` (or the test deployer by default) before deleting
+  the temporary key.
 - The current catalog operator uses three co-located disposable test signers.
   It can open the pilot assignment but cannot change its committed payout or
   evidence after opening.
@@ -76,6 +81,8 @@ The AI should call, in order:
 8. `agentpool_v41_reveal_bid`
 9. `agentpool_v41_assignments`
 10. `agentpool_v41_complete_pilot`
+11. `agentpool_transfer_test_tokens` when the user wants to move the earned
+    test tAPOOL to another Base Sepolia address
 
 After step 8, the test catalog operator opens the exact assignment:
 
