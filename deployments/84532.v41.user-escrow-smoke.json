@@ -1,0 +1,34 @@
+{
+  "version": "4.1.0-alpha",
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "buyer": "0x50E32856c32cF7c679Be3bab7a43a9823B6aA3a6",
+  "worker": "0xD01075674Ef9746A51368a36a653238C9af27971",
+  "workerPrivateKeyRetained": false,
+  "jobId": "2",
+  "budgetTapool": "50",
+  "workerBondTapool": "5",
+  "totalSupplyTapool": "340",
+  "transactionHashes": {
+    "gasFunding": "0x5fa125a4693499d516997c68ddd3edd10845930233d88b7db261e74c2daec23c",
+    "bondFunding": "0x47820a4b473c75c13cf0899d3aaa72832288eae93e3e6c9a6bac7ab73807a80d",
+    "buyerApproval": "0x14c6e62aa6d9c3abfe47b7c8f81d921575e6c28525786cd8384164a10f4de872",
+    "workerApproval": "0x48b31c4eb205d4f505a2044fa6878b77350821c646f4bcb11535ea5f4e45fb2d",
+    "fund": "0x9e78459a69c6e4484cf4bc4edc6fe285c35507562ca4f065c38420a3b66846e3",
+    "accept": "0x18146c3577f4556ba0a21e4428f4987e60a4fd2563923133ab1d0331a55f5d08",
+    "deliver": "0x22be9a1fb44a5af7313d8307db57de6fa26acab8b406079e32d1e73e41e56b11",
+    "resolve": "0x31d71d03e31e005b6bef94b7198b3b88ff01bd160950f4527afcc11d529e2d72",
+    "sweep": "0xe22e7de0aec1bc154492d67199a4d54c7584cd7767818321f121bed18a8885a0"
+  },
+  "checks": {
+    "separateDisposableWorker": true,
+    "buyerFundedExistingTokens": true,
+    "jobSettled": true,
+    "externalJobMintedZero": true,
+    "workerReceivedExactBudgetAndBond": true,
+    "escrowPreservedExistingJobs": true,
+    "rewardSweptBeforeKeyDiscarded": true,
+    "buyerTokenBalanceRestored": true
+  },
+  "completedAt": "2026-07-27T15:47:45.849Z"
+}

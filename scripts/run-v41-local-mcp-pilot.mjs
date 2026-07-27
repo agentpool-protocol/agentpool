@@ -161,7 +161,7 @@ try {
       throw new Error(`V41_LOCAL_PILOT_GAS_FUNDING_REVERTED:${fundingHash}`);
     }
   }
-  const walletStatus = await call("agentpool_wallet_status");
+  await call("agentpool_wallet_status");
   const capability = await call("agentpool_v41_start_capability", {
     track: "json",
     runtimeLabel: "external-mcp-pilot-runtime-v1",

@@ -34,10 +34,10 @@ keccak256(
 )
 ```
 
-The relevant Base deployment and `ReleaseRegistry` event are authoritative
-once v4.1 is deployed. Before that deployment, all v4.1 releases must be
-described as local rehearsal or public alpha software, never as live onchain
-settlement.
+The relevant Base deployment and append-only release event are authoritative.
+v4.1 is now Legacy. v4.2 is described as a local improvement-only alpha until
+its separate Base Sepolia contracts are deployed; it must not be presented as
+live onchain settlement before then.
 
 Anyone may mirror the source and reproduce a release. A mirror is valid when
 its content hashes match the registered release; the domain or account hosting
@@ -55,7 +55,10 @@ it does not confer special authority.
 7. New assignments may select it; existing assignments remain pinned to their
    original release and policy.
 
-No pull request by itself changes live settlement rules.
+No pull request, website, GitHub maintainer, or API server by itself changes
+live settlement rules. v4.2 removes the generic public-work mining lane:
+system artifacts and tests earn only as bounded subtasks of one objectively
+reproduced AgentPool improvement issue.
 
 ## Maintainer transition
 

@@ -176,8 +176,20 @@ async function expectRevert(label, action) {
   try {
     await action();
   } catch {
+    checks.push({
+      name: label,
+      passed: true,
+      actual: "reverted",
+      expected: "reverted",
+    });
     return;
   }
+  checks.push({
+    name: label,
+    passed: false,
+    actual: "succeeded",
+    expected: "reverted",
+  });
   throw new Error(`${label}_UNEXPECTEDLY_SUCCEEDED`);
 }
 
@@ -364,6 +376,27 @@ const task = {
   moduleId: zeroHash,
 };
 const signatures = await admissionSignatures(basicVault, task);
+await expectRevert("catalog quorum rejects two signatures", () =>
+  write(
+    "AgentPoolV41EpochVault",
+    basicVault,
+    "openAssignment",
+    [
+      task.assignmentId,
+      task.worker,
+      task.reservedPayout,
+      task.deadline,
+      task.specificationHash,
+      task.expectedEvidenceHash,
+      task.payoutRoot,
+      task.artifactId,
+      task.provenanceHash,
+      task.licenseHash,
+      task.moduleId,
+      signatures.slice(0, 2),
+    ],
+  ),
+);
 await write(
   "AgentPoolV41EpochVault",
   basicVault,
@@ -393,6 +426,15 @@ check(
   ),
   parseEther("700"),
 );
+await expectRevert("non-worker cannot accept assignment", () =>
+  write(
+    "AgentPoolV41EpochVault",
+    basicVault,
+    "accept",
+    [assignmentId],
+    plannerKey,
+  ),
+);
 await write("AgentPoolV41EpochVault", basicVault, "accept", [assignmentId], workerKey);
 await write(
   "AgentPoolV41EpochVault",
@@ -400,6 +442,28 @@ await write(
   "deliver",
   [assignmentId, deliveryHash],
   workerKey,
+);
+await expectRevert("wrong proof cannot settle reserve work", () =>
+  write(
+    "AgentPoolV41EpochVault",
+    basicVault,
+    "settle",
+    [assignmentId, toHex("wrong proof"), recipients, amounts, zeroHash],
+  ),
+);
+await expectRevert("changed payout cannot settle reserve work", () =>
+  write(
+    "AgentPoolV41EpochVault",
+    basicVault,
+    "settle",
+    [
+      assignmentId,
+      proof,
+      recipients,
+      [parseEther("599"), parseEther("81"), parseEther("20")],
+      zeroHash,
+    ],
+  ),
 );
 await write(
   "AgentPoolV41EpochVault",
@@ -435,6 +499,65 @@ await expectRevert("duplicate settlement", () =>
     [assignmentId, proof, recipients, amounts, zeroHash],
   ),
 );
+
+const expiringAssignmentId = keccak256(toBytes("expiring-basic-assignment"));
+const expiringTask = {
+  ...task,
+  assignmentId: expiringAssignmentId,
+  reservedPayout: parseEther("50"),
+  deadline: Number(blockTimestamp + 30n),
+  payoutRoot: payoutRoot([worker], [parseEther("50")]),
+};
+const expiringSignatures = await admissionSignatures(basicVault, expiringTask);
+await write(
+  "AgentPoolV41EpochVault",
+  basicVault,
+  "openAssignment",
+  [
+    expiringTask.assignmentId,
+    expiringTask.worker,
+    expiringTask.reservedPayout,
+    expiringTask.deadline,
+    expiringTask.specificationHash,
+    expiringTask.expectedEvidenceHash,
+    expiringTask.payoutRoot,
+    expiringTask.artifactId,
+    expiringTask.provenanceHash,
+    expiringTask.licenseHash,
+    expiringTask.moduleId,
+    expiringSignatures,
+  ],
+);
+check(
+  "second assignment reserves without changing supply",
+  await read("AgentPoolV41Token", token, "totalSupply"),
+  parseEther("700"),
+);
+blockTimestamp += 31n;
+await write(
+  "AgentPoolV41EpochVault",
+  basicVault,
+  "expire",
+  [expiringAssignmentId],
+  plannerKey,
+);
+check(
+  "expired assignment releases its full reservation",
+  await read(
+    "AgentPoolV41EmissionController",
+    controller,
+    "vaultReserved",
+    [basicVault],
+  ),
+  0n,
+);
+const expiredAssignment = await read(
+  "AgentPoolV41EpochVault",
+  basicVault,
+  "assignments",
+  [expiringAssignmentId],
+);
+check("expired assignment reaches terminal state", Number(expiredAssignment[3]), 5);
 
 const supplyBeforeExternal = await read(
   "AgentPoolV41Token",
@@ -507,6 +630,101 @@ check(
   0n,
 );
 
+const failedExternalSupply = await read(
+  "AgentPoolV41Token",
+  token,
+  "totalSupply",
+);
+const failedBuyerBefore = await read(
+  "AgentPoolV41Token",
+  token,
+  "balanceOf",
+  [buyer],
+);
+const failedWorkerBefore = await read(
+  "AgentPoolV41Token",
+  token,
+  "balanceOf",
+  [worker],
+);
+await write(
+  "AgentPoolV41Token",
+  token,
+  "approve",
+  [userEscrow, parseEther("100")],
+  buyerKey,
+);
+await write(
+  "AgentPoolV41Token",
+  token,
+  "approve",
+  [userEscrow, parseEther("10")],
+  workerKey,
+);
+const failedJobId = await read(
+  "AgentPoolV41UserEscrow",
+  userEscrow,
+  "nextJobId",
+);
+await write(
+  "AgentPoolV41UserEscrow",
+  userEscrow,
+  "fundJob",
+  [
+    worker,
+    verifier,
+    parseEther("100"),
+    parseEther("10"),
+    Number(blockTimestamp + 3_600n),
+    externalSpec,
+    externalExpected,
+    [worker],
+    [parseEther("100")],
+  ],
+  buyerKey,
+);
+await write(
+  "AgentPoolV41UserEscrow",
+  userEscrow,
+  "accept",
+  [failedJobId],
+  workerKey,
+);
+await write(
+  "AgentPoolV41UserEscrow",
+  userEscrow,
+  "deliver",
+  [failedJobId, externalDelivery],
+  workerKey,
+);
+await write(
+  "AgentPoolV41UserEscrow",
+  userEscrow,
+  "resolve",
+  [failedJobId, toHex("wrong external proof"), [worker], [parseEther("100")]],
+  plannerKey,
+);
+check(
+  "failed external work creates zero new tAPOOL",
+  await read("AgentPoolV41Token", token, "totalSupply"),
+  failedExternalSupply,
+);
+check(
+  "failed external work refunds budget and transfers worker bond",
+  await read("AgentPoolV41Token", token, "balanceOf", [buyer]),
+  failedBuyerBefore + parseEther("10"),
+);
+check(
+  "failed external worker loses exactly its bond",
+  await read("AgentPoolV41Token", token, "balanceOf", [worker]),
+  failedWorkerBefore - parseEther("10"),
+);
+check(
+  "failed external work leaves escrow empty",
+  await read("AgentPoolV41Token", token, "balanceOf", [userEscrow]),
+  0n,
+);
+
 const capabilityVault = await createVault({
   epoch: 0,
   lane: 0,
@@ -552,6 +770,237 @@ await expectRevert("capability lane cap", () =>
   ),
 );
 
+await expectRevert("system vault requires a nonzero issue hash", () =>
+  write(
+    "AgentPoolV41EmissionController",
+    controller,
+    "createEpochVault",
+    [0, 2, zeroHash, false, keccak256(toBytes("invalid-system-vault"))],
+  ),
+);
+await expectRevert("non-system vault rejects an issue hash", () =>
+  write(
+    "AgentPoolV41EmissionController",
+    controller,
+    "createEpochVault",
+    [
+      0,
+      1,
+      keccak256(toBytes("unexpected-issue")),
+      false,
+      keccak256(toBytes("invalid-basic-vault")),
+    ],
+  ),
+);
+await expectRevert("vault cannot be created more than one epoch ahead", () =>
+  write(
+    "AgentPoolV41EmissionController",
+    controller,
+    "createEpochVault",
+    [2, 1, zeroHash, false, keccak256(toBytes("far-future-vault"))],
+  ),
+);
+
+const systemIssueHash = keccak256(
+  toBytes("rpc-read-after-write-lag-and-recoverable-worker-state"),
+);
+const systemVault = await createVault({
+  epoch: 0,
+  lane: 2,
+  issueHash: systemIssueHash,
+  experimental: true,
+  salt: keccak256(toBytes("system-improvement-vault")),
+});
+const moduleCodeHash = keccak256(
+  toBytes("poll-chain-state-and-persist-worker-before-funding"),
+);
+const moduleManifestHash = keccak256(
+  toBytes("agentpool-v41-resilient-user-escrow-runner-v1"),
+);
+const moduleId = keccak256(
+  encodeAbiParameters(
+    [
+      { type: "address" },
+      { type: "bytes32" },
+      { type: "bytes32" },
+      { type: "bytes32" },
+    ],
+    [deployerAddress, moduleCodeHash, moduleManifestHash, zeroHash],
+  ),
+);
+await write(
+  "AgentPoolV41ReleaseRegistry",
+  releases,
+  "registerModule",
+  [moduleCodeHash, moduleManifestHash, zeroHash],
+);
+const registeredModule = await read(
+  "AgentPoolV41ReleaseRegistry",
+  releases,
+  "modules",
+  [moduleId],
+);
+check("system candidate is append-only registered", Number(registeredModule[4]), 1);
+
+const systemAssignmentId = keccak256(
+  toBytes("system-improvement-assignment-1"),
+);
+const systemSpecificationHash = keccak256(
+  toBytes("reproduce-rpc-lag-and-prove-polling-recovery"),
+);
+const systemDeliveryHash = keccak256(
+  toBytes("resilient-user-escrow-runner-artifact"),
+);
+const systemProof = toHex(
+  "39 local transactions and Base Sepolia retry/recovery checks passed",
+);
+const systemExpectedEvidenceHash = keccak256(
+  encodeAbiParameters(
+    [{ type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }],
+    [
+      systemSpecificationHash,
+      systemDeliveryHash,
+      keccak256(systemProof),
+    ],
+  ),
+);
+const systemRecipients = [worker, planner, deployerAddress];
+const systemAmounts = [
+  parseEther("45"),
+  parseEther("10"),
+  parseEther("5"),
+];
+const systemTask = {
+  assignmentId: systemAssignmentId,
+  worker,
+  reservedPayout: parseEther("60"),
+  deadline: Number(blockTimestamp + 3_600n),
+  specificationHash: systemSpecificationHash,
+  expectedEvidenceHash: systemExpectedEvidenceHash,
+  payoutRoot: payoutRoot(systemRecipients, systemAmounts),
+  artifactId: zeroHash,
+  provenanceHash: zeroHash,
+  licenseHash: zeroHash,
+  moduleId,
+};
+const systemSignatures = await admissionSignatures(systemVault, systemTask);
+await write(
+  "AgentPoolV41EpochVault",
+  systemVault,
+  "openAssignment",
+  [
+    systemTask.assignmentId,
+    systemTask.worker,
+    systemTask.reservedPayout,
+    systemTask.deadline,
+    systemTask.specificationHash,
+    systemTask.expectedEvidenceHash,
+    systemTask.payoutRoot,
+    systemTask.artifactId,
+    systemTask.provenanceHash,
+    systemTask.licenseHash,
+    systemTask.moduleId,
+    systemSignatures,
+  ],
+);
+await write(
+  "AgentPoolV41EpochVault",
+  systemVault,
+  "accept",
+  [systemAssignmentId],
+  workerKey,
+);
+await write(
+  "AgentPoolV41EpochVault",
+  systemVault,
+  "deliver",
+  [systemAssignmentId, systemDeliveryHash],
+  workerKey,
+);
+await write(
+  "AgentPoolV41EpochVault",
+  systemVault,
+  "settle",
+  [
+    systemAssignmentId,
+    systemProof,
+    systemRecipients,
+    systemAmounts,
+    zeroHash,
+  ],
+);
+const provenModule = await read(
+  "AgentPoolV41ReleaseRegistry",
+  releases,
+  "modules",
+  [moduleId],
+);
+check("system candidate becomes PROVEN only through system vault", Number(provenModule[4]), 2);
+check(
+  "system improvement mints only its committed payout",
+  await read("AgentPoolV41Token", token, "totalSupply"),
+  parseEther("760"),
+);
+check(
+  "system improvement is isolated in SYSTEM lane accounting",
+  await read(
+    "AgentPoolV41EmissionController",
+    controller,
+    "laneMinted",
+    [0, 2],
+  ),
+  parseEther("60"),
+);
+check(
+  "experimental system improvement uses the proof experiment cap",
+  await read(
+    "AgentPoolV41EmissionController",
+    controller,
+    "experimentalMinted",
+    [0],
+  ),
+  parseEther("60"),
+);
+check(
+  "system improvement is charged to exactly one issue",
+  await read(
+    "AgentPoolV41EmissionController",
+    controller,
+    "issueMinted",
+    [0, systemIssueHash],
+  ),
+  parseEther("60"),
+);
+const systemPolicyHash = keccak256(
+  toBytes("resilient-user-escrow-policy-v1"),
+);
+await write(
+  "AgentPoolV41ReleaseRegistry",
+  releases,
+  "registerRelease",
+  [[moduleId], systemPolicyHash],
+);
+const systemModuleSetRoot = keccak256(
+  encodeAbiParameters([{ type: "bytes32[]" }], [[moduleId]]),
+);
+const systemReleaseId = keccak256(
+  encodeAbiParameters(
+    [{ type: "address" }, { type: "bytes32" }, { type: "bytes32" }],
+    [deployerAddress, systemModuleSetRoot, systemPolicyHash],
+  ),
+);
+const systemRelease = await read(
+  "AgentPoolV41ReleaseRegistry",
+  releases,
+  "releases",
+  [systemReleaseId],
+);
+check(
+  "proven system module composes into an append-only release",
+  systemRelease[1],
+  systemModuleSetRoot,
+);
+
 const requiredContracts = [
   token,
   controller,
@@ -561,6 +1010,7 @@ const requiredContracts = [
   artifacts,
   basicVault,
   capabilityVault,
+  systemVault,
 ];
 for (const address of requiredContracts) {
   const code = await vm.stateManager.getCode(createAddressFromString(address));
@@ -581,6 +1031,7 @@ const report = {
     artifacts,
     basicVault,
     capabilityVault,
+    systemVault,
   },
   checks,
   passed: checks.every((entry) => entry.passed),
@@ -596,4 +1047,3 @@ process.stdout.write(
     output,
   })}\n`,
 );
-

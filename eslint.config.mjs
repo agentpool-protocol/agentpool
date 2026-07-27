@@ -11,6 +11,10 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "artifacts/**",
+    "outputs/**",
+    "work/**",
+    "public/agentpool-mcp.mjs",
     "next-env.d.ts",
   ]),
 ]);

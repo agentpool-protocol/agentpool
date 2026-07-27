@@ -153,7 +153,7 @@ const artifactRegistry = await deploy(
   [controller],
   "artifactRegistry",
 );
-const userEscrow = await deploy(
+await deploy(
   "AgentPoolV41UserEscrow",
   [token],
   "userEscrow",
@@ -242,4 +242,3 @@ process.stdout.write(
     premint: "0",
   })}\n`,
 );
-
