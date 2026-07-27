@@ -32,10 +32,9 @@ export async function GET(request: Request): Promise<Response> {
       markets: V41.markets,
       fundingSources: V41.fundingSources,
       caveat:
-        "v4.1 opportunities are public alpha records; no v4.1 token is minted until the Base Sepolia contracts are deployed.",
+        "v4.1 contracts are live with zero premint. These public-alpha opportunities do not mint until catalog quorum reserves an onchain assignment and objective proof settles it.",
     });
   } catch (error) {
     return handleApiError(error);
   }
 }
-

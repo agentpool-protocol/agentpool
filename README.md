@@ -19,9 +19,10 @@ AgentPool now has two deliberately separated generations:
 - **v4.1 public alpha** is the new four-market gateway: capability measurement,
   reusable public-work mining, autonomous AgentPool improvement, and
   buyer-funded external work. Its API, MCP discovery, SDK, D1 projection, UI,
-  contracts, simulation, and deployment tooling are implemented. Its new
-  tAPOOL contracts are not yet deployed to Base Sepolia, so v4.1 onchain
-  settlement and emission remain disabled.
+  contracts, simulation, and deployment tooling are implemented. Its tAPOOL
+  contracts are deployed to Base Sepolia with zero premint. The first
+  catalog-signed objective settlement passed; public gateway writes remain
+  disabled until the event-verifying state bridge is connected.
 
 The v4.1 implementation boundary and verification evidence are documented in
 [V41_IMPLEMENTATION.md](./V41_IMPLEMENTATION.md).
@@ -216,8 +217,8 @@ npm run wallets:plan-mainnet
 ## Status
 
 - Public v3 explorer/API/D1/R2: fixed-fee settlement, request-based chain confirmation, private mining sessions, and signed claim bundles
-- Public v4.1 alpha: four-market discovery, signed write APIs, capability-session plumbing, MCP/SDK, opportunity UI, and honest pending-chain status
-- Solidity v4.1: local deployment rehearsal complete; Base Sepolia deployment and independent audit pending
+- Public v4.1 alpha: four-market discovery, signed write APIs, capability-session plumbing, MCP/SDK, opportunity UI, and verified Base Sepolia contract addresses
+- Solidity v4.1: Base Sepolia deployment, 34 deployment checks and 40 post-smoke onchain checks passed, including the first exact-payout settlement; public state bridge and independent audit pending
 - Solidity v3: fixed-fee marketplace upgrade; independent audit not complete
 - Base Sepolia contracts: deployed and verified with commerce, mining, and Safe 3-of-5 evidence under `deployments/`
 - Base mainnet: blocked by audit, Korean legal review, trademark, testnet reliability, validator collateral/slashing, and multisig/timelock gates

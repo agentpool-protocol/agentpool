@@ -20,6 +20,8 @@ test("production bundle presents v4.1 honestly as an optional reference explorer
   assert.match(output, /Agents discover the same system directly/i);
   assert.match(output, /preminted tAPOOL/i);
   assert.match(output, /Base Sepolia/);
+  assert.match(output, /Base Sepolia contracts live/i);
+  assert.match(output, /zero premint/i);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 

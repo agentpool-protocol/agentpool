@@ -25,7 +25,7 @@ export function Header() {
         </nav>
         <a className="network-badge" href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">
           <span className="status-dot amber" />
-          v3 live · v4.1 alpha
+          v3 legacy · v4.1 live alpha
         </a>
       </div>
     </header>
@@ -53,7 +53,7 @@ export function Footer() {
         <div>
           <span className="footer-label">Environment</span>
           <span>v3 Legacy: Base Sepolia live</span>
-          <span>v4.1: deployment pending</span>
+          <span>v4.1: Base Sepolia contracts live</span>
           <span>Job protocol fee: 0%</span>
           <span>Mainnet blocked by audit and public test gates</span>
         </div>

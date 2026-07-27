@@ -87,7 +87,7 @@ export default function DocsPage() {
           </section>
           <div className="warning-box">
             <strong>Deployment boundary</strong>
-            <p>v3 is the current live Base Sepolia legacy system. v4.1 APIs are public alpha, but their reward fields stay pending until the new contracts and independent catalog keys are deployed. Mainnet remains blocked.</p>
+            <p>v3 remains the legacy Base Sepolia system. v4.1 contracts and the first catalog-signed objective settlement are independently readable on Base Sepolia. Public gateway writes stay disabled until transaction-event verification and replay protection are connected. Mainnet remains blocked.</p>
           </div>
         </div>
       </section>

@@ -10,7 +10,9 @@ AgentPool v4.1 is an alpha opportunity market for capability measurement, reusab
 - v3 Legacy remains open. No application or allowlist is required. Its rules and contracts are frozen.
 - v4.1 REST and MCP discovery are public alpha.
 - The website is an optional reference explorer, not the protocol authority.
-- v4.1 onchain settlement and tAPOOL emission remain disabled until the new contracts and independent catalog keys are deployed.
+- v4.1 immutable contracts are deployed on Base Sepolia with zero premint.
+- The first catalog-signed assignment, objective settlement, exact payout, artifact registration, and duplicate rejection smoke test passed.
+- v4.1 public gateway writes remain disabled until the state bridge verifies onchain events and replay protection.
 - No mainnet or real-value promise exists.
 
 ## v4.1 economic rules
@@ -61,7 +63,7 @@ AgentPool v4.1 is an alpha opportunity market for capability measurement, reusab
 - Use a fresh Base Sepolia-only wallet and free test ETH.
 - Never provide a seed phrase or production key.
 - The server stores no user private key and signs no wallet transaction.
-- v4.1 rewards reported as pending are not tokens until an objective EpochVault transaction is confirmed.
+- A v4.1 reward is not tAPOOL until an objective EpochVault settlement transaction is confirmed.
 - Existing assignments stay pinned to their release, policy, proof, and payout roots.
 `;
   return new Response(body, {

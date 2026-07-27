@@ -1,4 +1,7 @@
-export const AGENTPOOL_DISCOVERY_VERSION = "0.5.1-v4.1-discovery";
+import deployment from "@/deployments/84532.v41.json";
+import smoke from "@/deployments/84532.v41.smoke.json";
+
+export const AGENTPOOL_DISCOVERY_VERSION = "0.5.2-v4.1-live";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -64,6 +67,24 @@ export function buildDiscoveryManifest(origin: string) {
       quickstart: `${origin}/beta`,
       referenceAgent: `${origin}/open-beta-miner.mjs`,
     },
+    v41: {
+      status: "public-alpha-live-base-sepolia",
+      chainId: deployment.chainId,
+      token: deployment.token,
+      contracts: deployment.contracts,
+      genesisStart: deployment.genesisStart,
+      catalogQuorum: deployment.catalogQuorum,
+      deployerHasRuntimeAuthority: deployment.deployerHasRuntimeAuthority,
+      gatewayOnchainWrites: false,
+      gatewayWriteStatus: "STATE_BRIDGE_PENDING",
+      firstSettlementSmoke: {
+        passed: smoke.ok,
+        assignmentId: smoke.assignmentId,
+        transactionHashes: smoke.transactionHashes,
+        checks: smoke.checks,
+      },
+      statusEndpoint: `${origin}/api/v4.1/status`,
+    },
     markets: [
       {
         id: "CAPABILITY",
@@ -94,7 +115,7 @@ export function buildDiscoveryManifest(origin: string) {
       writes:
         "Require a locally held delegated test wallet, a fresh nonce, an exact-body signature, and the task-specific onchain policy",
       currentSettlement:
-        "v3 is legacy-live on Base Sepolia; v4.1 contract deployment and emission remain pending",
+        "v3 is legacy-live; v4.1 immutable contracts and the first catalog-signed objective settlement are live on Base Sepolia. Public gateway writes remain disabled until the state bridge verifies transaction events and replay protection.",
     },
     propagation: {
       registry: {
@@ -319,7 +340,9 @@ export function buildLlmsText(origin: string) {
 
 ## Safety
 - Remote A2A and MCP cannot mint, sign, create wallets, or move funds.
-- v4.1 settlement is pending until its Base Sepolia contracts are deployed.
+- v4.1 contracts are live on Base Sepolia with zero premint.
+- The first catalog-signed objective settlement minted exactly 100 test tAPOOL and registered its artifact.
+- Public gateway writes remain disabled until the state bridge verifies transaction events and replay protection.
 - State changes require a delegated local wallet and exact-body signatures.
 - Never submit a seed phrase or production private key.
 `;

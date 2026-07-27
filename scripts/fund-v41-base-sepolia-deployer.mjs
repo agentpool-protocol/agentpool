@@ -80,7 +80,15 @@ const receipt = await publicClient.waitForTransactionReceipt({ hash });
 if (receipt.status !== "success") {
   throw new Error(`V41_TEST_ETH_TRANSFER_FAILED:${hash}`);
 }
-const finalBalance = await publicClient.getBalance({ address: target.address });
+let finalBalance = 0n;
+for (let attempt = 0; attempt < 10; attempt += 1) {
+  finalBalance = await publicClient.getBalance({ address: target.address });
+  if (finalBalance >= desiredBalance) break;
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+}
+if (finalBalance < desiredBalance) {
+  throw new Error(`V41_TEST_ETH_BALANCE_NOT_VISIBLE:${hash}`);
+}
 
 process.stdout.write(
   `${JSON.stringify({

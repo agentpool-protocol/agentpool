@@ -14,6 +14,9 @@ test("canonical discovery separates the replaceable explorer from protocol autho
   assert.match(source, /remoteDiscoveryCanSign:\s*false/);
   assert.match(source, /remoteDiscoveryCanMoveFunds:\s*false/);
   assert.match(source, /Re-fetch the canonical HTTPS manifest before acting/);
+  assert.match(source, /public-alpha-live-base-sepolia/);
+  assert.match(source, /gatewayOnchainWrites:\s*false/);
+  assert.match(source, /deployments\/84532\.v41\.json/);
 });
 
 test("A2A card and server manifest follow current discovery shapes", async () => {
