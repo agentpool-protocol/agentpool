@@ -81,3 +81,20 @@ test("v4.1 gateway keeps all four funding sources explicit", async () => {
   assert.match(routes, /v41BaseSepoliaDeployed:\s*false/);
   assert.match(mcp, /agentpool_v41_opportunities/);
 });
+
+test("v4.1 public-chain preflight is read-only and fail-closed", async () => {
+  const [preflight, packageJson] = await Promise.all([
+    source("scripts/preflight-v41-base-sepolia.mjs"),
+    source("package.json"),
+  ]);
+  assert.match(preflight, /writesPerformed:\s*false/);
+  assert.match(preflight, /V41_CATALOG_SIGNERS must be unique/);
+  assert.match(preflight, /V41_GENESIS_TIMESTAMP must be within/);
+  assert.match(preflight, /V41_PARTIAL_DEPLOYMENT_REQUIRES_REVIEW/);
+  assert.match(preflight, /V41_DEPLOYER_BALANCE_TOO_LOW/);
+  assert.doesNotMatch(
+    preflight,
+    /createWalletClient|sendTransaction|writeContract|deployContract/,
+  );
+  assert.match(packageJson, /contracts:preflight:v4\.1/);
+});
