@@ -11,7 +11,7 @@ export async function GET(): Promise<Response> {
       status: "ok",
       network: "base-sepolia",
       chainId: 84532,
-      version: "0.5.3-v4.1-wallet",
+      version: "0.6.0-v4.3-autonomous",
       versions: {
         v3: {
           status: "legacy-live-base-sepolia",

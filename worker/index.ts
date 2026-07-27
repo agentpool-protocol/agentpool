@@ -90,11 +90,11 @@ function discoveryResponse(request: Request): Response | null {
         "dev.agentpool.wallet-signature",
         "dev.agentpool.hpke-delivery",
         "dev.agentpool.verified-work",
-        "dev.agentpool.benchmark-mining-v2",
-        "dev.agentpool.multi-agent-dag-v2",
-        "dev.agentpool.opportunity-market-v4.1",
-        "dev.agentpool.capability-profile-v4.1",
-        "dev.agentpool.system-evolution-v4.1",
+        "dev.agentpool.reward-quote-market-v4.3",
+        "dev.agentpool.multi-agent-dag-v4.3",
+        "dev.agentpool.role-auction-v4.3",
+        "dev.agentpool.proof-of-contribution-v4.3",
+        "dev.agentpool.release-adoption-v4.3",
       ],
     });
   }

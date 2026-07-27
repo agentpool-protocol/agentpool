@@ -123,7 +123,7 @@ test("verifier identities are versioned and validation outages fail to refunds",
   assert.match(job, /apool\.safeTransfer\(job\.seller, job\.sellerBond\)/);
 });
 
-test("API routes keep mining, production, and chain authority separate", async () => {
+test("API routes preserve legacy authority while v4.3 removes generic emission lanes", async () => {
   const [listing, jobState, tracks, discovery] = await Promise.all([
     source("app/api/v1/listings/route.ts"),
     source("app/api/v1/jobs/[id]/route.ts"),
@@ -136,14 +136,15 @@ test("API routes keep mining, production, and chain authority separate", async (
   assert.doesNotMatch(jobState, /UPDATE jobs SET state/);
   assert.match(tracks, /marketplaceOrdersEarnMiningRewards: false/);
   assert.match(tracks, /tokenTradesEarnMiningRewards: false/);
-  assert.match(discovery, /benchmarkMining: true/);
-  assert.match(discovery, /multiAgentProjects: true/);
-  assert.match(discovery, /validationPricing: "fixed-by-verifier"/);
-  assert.match(discovery, /validators: 9000/);
-  assert.match(discovery, /burn: 0/);
+  assert.match(discovery, /legacyV41/);
+  assert.match(discovery, /SYSTEM_IMPROVEMENT/);
+  assert.match(discovery, /EXTERNAL/);
+  assert.match(discovery, /"BASIC_MINING"/);
+  assert.match(discovery, /"CAPABILITY_FAUCET"/);
+  assert.match(discovery, /evaluatorCanSetPayout:\s*false/);
 });
 
-test("open beta discovery is public, testnet-only, and ships a mainnet-refusing reference miner", async () => {
+test("legacy beta remains testnet-only while the current skill reports the v4.3 boundary", async () => {
   const [status, skill, discovery, miner] = await Promise.all([
     source("app/api/v2/status/route.ts"),
     source("app/skill.md/route.ts"),
@@ -154,18 +155,20 @@ test("open beta discovery is public, testnet-only, and ships a mainnet-refusing 
   assert.match(status, /applicationsRequired:\s*false/);
   assert.match(status, /chainStatus\(\)\.catch\(\(\) => null\)/);
   assert.match(status, /rpcAvailable:\s*chain !== null/);
-  assert.match(skill, /No application or allowlist is required/);
-  assert.match(discovery, /referenceAgent/);
+  assert.match(skill, /v4\.3 Base Sepolia deployment: not deployed/);
+  assert.match(skill, /v4\.1: live Base Sepolia Legacy Testnet/);
+  assert.match(discovery, /live-base-sepolia-legacy/);
   assert.match(miner, /chainId !== 84532/);
   assert.match(miner, /NEVER SEND REAL ASSETS/);
   assert.match(miner, /validatorSignatures\?\.length !== 3/);
   assert.match(miner, /OPEN BETA PASS/);
 });
 
-test("standard MCP separates public reads from local wallet signing", async () => {
-  const [publicMcp, localMcp, worker, discovery] = await Promise.all([
+test("standard MCP separates public reads, legacy signing, and v4.3 autonomous local state", async () => {
+  const [publicMcp, localMcp, v43Mcp, worker, discovery] = await Promise.all([
     source("lib/mcp-public.ts"),
     source("mcp/agentpool-local.mjs"),
+    source("mcp/agentpool-v43.mjs"),
     source("worker/index.ts"),
     source("lib/discovery.ts"),
   ]);
@@ -177,9 +180,14 @@ test("standard MCP separates public reads from local wallet signing", async () =
   assert.match(localMcp, /agentpool_submit_mining_answer/);
   assert.match(localMcp, /The calling AI must solve/);
   assert.doesNotMatch(localMcp, /baseMainnet|mainnet\.chain/);
+  assert.match(v43Mcp, /agentpool_v43_quote_reward/);
+  assert.match(v43Mcp, /agentpool_v43_submit_plan/);
+  assert.match(v43Mcp, /agentpool_v43_attest_canary/);
+  assert.match(v43Mcp, /agentpool_v43_vote_evolution/);
+  assert.doesNotMatch(v43Mcp, /generatePrivateKey|privateKeyToAccount/);
   assert.match(worker, /handlePublicMcpRequest/);
-  assert.match(discovery, /endpoint:\s*`\$\{origin\}\/api\/mcp`/);
-  assert.match(discovery, /mode:\s*"read-only"/);
+  assert.match(discovery, /remote:\s*`\$\{origin\}\/api\/mcp`/);
+  assert.match(discovery, /remoteMode:\s*"read-only"/);
 });
 
 test("every state-creating API requires replay protection", async () => {

@@ -1,0 +1,113 @@
+{
+  "schema": "https://agentpool.org/schemas/release-manifest-v1.json",
+  "protocol": "AgentPool",
+  "release": "4.3.0-autonomous-alpha",
+  "authority": "versioned-bytecode-content-hashes-and-proof-of-contribution",
+  "status": "local-rehearsal-only",
+  "generatedAt": "2026-07-27T16:40:49.092Z",
+  "financeInvariantHash": "0xc8f64607b7744ec5c08000995881bca238a3b23f67195240467daf4c34aba45f",
+  "sourceMirrors": [
+    "https://github.com/agentpool-protocol/agentpool"
+  ],
+  "websiteRequired": false,
+  "network": {
+    "name": "Base Sepolia",
+    "chainId": 84532,
+    "deployment": null
+  },
+  "markets": {
+    "emission": [
+      "PROVEN_AGENTPOOL_SYSTEM_IMPROVEMENT"
+    ],
+    "existingToken": [
+      "EXTERNAL_BUYER_WORK"
+    ],
+    "removed": [
+      "BASIC_MINING",
+      "CAPABILITY_FAUCET",
+      "BENCHMARK_FAUCET",
+      "TRAFFIC",
+      "DOWNLOADS",
+      "TOKEN_TRADING"
+    ]
+  },
+  "autonomousFlow": [
+    "OPPORTUNITY_DISCOVERY",
+    "REWARD_QUOTE_MARKET",
+    "DAG_PLAN_MARKET",
+    "RISK_ADJUSTED_ROLE_AUCTION",
+    "BUDGET_AND_CAPACITY_RESERVATION",
+    "EXECUTION_AND_SUBCONTRACTING",
+    "EVIDENCE_ONLY_EVALUATION",
+    "DETERMINISTIC_SETTLEMENT",
+    "CONTRIBUTION_UPDATE",
+    "REINVESTMENT"
+  ],
+  "evolution": {
+    "weight": "verified-recent-work-times-reliability",
+    "perAgentCapBps": 1000,
+    "quorumBps": 3000,
+    "supermajorityBps": 6667,
+    "minimumVoters": 5,
+    "minimumOperatorGroups": 3,
+    "minimumIndependentAdoptions": 5,
+    "minimumAdoptionGroups": 3,
+    "runningJobsRemainPinned": true,
+    "singleAgentUpgrade": false
+  },
+  "immutableFinance": [
+    "MAXIMUM_SUPPLY",
+    "EXTERNAL_JOB_ZERO_EMISSION",
+    "PAYOUT_NEVER_EXCEEDS_RESERVATION",
+    "NO_OWNER_WITHDRAWAL",
+    "NO_EVALUATOR_PAYOUT_FIELD",
+    "RECEIPT_REPLAY_PROTECTION"
+  ],
+  "evolvableModules": [
+    "PLANNER",
+    "ROUTER",
+    "MODEL_ADAPTER",
+    "MCP_ADAPTER",
+    "VERIFIER",
+    "BENCHMARK",
+    "INDEXER",
+    "EXPLORER"
+  ],
+  "artifacts": {
+    "AgentPoolV43ContributionLedger": {
+      "source": "contracts/v43/AgentPoolV43ContributionLedger.sol",
+      "artifactSha256": "0x9debdc6effd989a5f33e1f38c0a184c9c67aaf897611c39a270d04080d661d7a",
+      "runtimeCodeHash": "0x242be4e7aabd46df35578a10251938e0192ff406791957b289ee43ae65e2d32a"
+    },
+    "AgentPoolV43EvolutionConsensus": {
+      "source": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
+      "artifactSha256": "0x3f15c0c6324f4158e41bba49d993db972e003c036d38564baaf5431d6317974b",
+      "runtimeCodeHash": "0x8fb1fbb647c534065ab85a7ebcb6ab91853653a091a46c2b468071160f572081"
+    }
+  },
+  "machineInterfaces": {
+    "localMcp": {
+      "command": "node",
+      "args": [
+        "mcp/agentpool-v43.mjs"
+      ],
+      "transport": "stdio",
+      "persistentEventLog": true,
+      "walletCustody": "not-yet-connected-to-v43-chain"
+    },
+    "economicSimulation": "npm run simulate:v4.3",
+    "onchainRehearsal": "npm run contracts:rehearse:v4.3"
+  },
+  "rehearsal": {
+    "passed": true,
+    "transactionCount": 51,
+    "checkCount": 15,
+    "recommendedRelease": "0x0f0ab24f7994ebde56e3377222e978f23e171cc9fb40bd2271ea981a3c46de6f"
+  },
+  "warnings": [
+    "The v4.3 autonomous market and evolution consensus are locally rehearsed, not yet deployed to Base Sepolia.",
+    "The currently deployed v4.1 contracts remain a Legacy Testnet release.",
+    "Operator-group diversity is only a cost-raising anti-Sybil layer until independent operators join.",
+    "Never send mainnet assets to a test wallet."
+  ]
+}

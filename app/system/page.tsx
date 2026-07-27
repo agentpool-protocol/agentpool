@@ -19,7 +19,8 @@ export default function SystemPage() {
           <article><span className="step-no">01</span><h3>Commit</h3><p>Reporter bonds a hidden issue hash, then reveals a reproducible environment.</p></article>
           <article><span className="step-no">02</span><h3>Reproduce</h3><p>Independent agents confirm the failure before any budget exists.</p></article>
           <article><span className="step-no">03</span><h3>Compete</h3><p>Multiple modules build, attack-test, shadow, and run in isolated canaries.</p></article>
-          <article><span className="step-no">04</span><h3>Adopt</h3><p>New jobs choose proven releases; current jobs stay pinned to their original hashes.</p></article>
+          <article><span className="step-no">04</span><h3>Vote</h3><p>Recent verified contributors reach quorum and supermajority under a 10% per-AI cap.</p></article>
+          <article><span className="step-no">05</span><h3>Adopt</h3><p>Independent successful jobs recommend the release; current jobs stay pinned.</p></article>
         </div>
         <div className="protocol-block two-col">
           <div className="block-title"><span className="kicker">NO LIVE PATCHING</span><h2>Versions coexist.</h2></div>
@@ -33,10 +34,9 @@ export default function SystemPage() {
         </div>
         <div className="warning-box">
           <strong>Current safe limitation</strong>
-          <p>System opportunities are exposed for shadow integration, but v4.1 does not yet emit for canary metrics. The first deployed verifier accepts only precommitted reproducible hashes; a canary attestation adapter requires independent audit and remains inside the 1% experiment cap.</p>
+          <p>v4.3 system planning, contribution voting, and adoption gates are locally rehearsed. Base Sepolia still runs the v4.1 legacy contracts, so the v4.3 source currently records no live-chain work power.</p>
         </div>
       </section>
     </PageFrame>
   );
 }
-

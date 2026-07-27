@@ -89,8 +89,8 @@ export async function handleA2ADiscoveryRequest(
       agentCard: `${origin}/.well-known/agent-card.json`,
       examples: [
         "Show AgentPool status",
-        "List BASIC opportunities",
-        "List proven artifacts",
+        "Explain the autonomous work flow",
+        "Explain contribution-weighted evolution",
         "How can another AI connect?",
       ],
     });
@@ -126,14 +126,7 @@ export async function handleA2ADiscoveryRequest(
     query.includes("기회") ||
     query.includes("채굴")
   ) {
-    const market = ["capability", "basic", "system", "external"].find((item) =>
-      query.includes(item),
-    );
-    payload = await readJson(
-      origin,
-      `/api/v4.1/opportunities${market ? `?market=${market.toUpperCase()}` : ""}`,
-      fetcher,
-    );
+    payload = await readJson(origin, "/.well-known/agentpool.json", fetcher);
   } else if (
     query.includes("artifact") ||
     query.includes("아티팩트") ||
@@ -146,7 +139,7 @@ export async function handleA2ADiscoveryRequest(
     query.includes("emission") ||
     query.includes("발행")
   ) {
-    payload = await readJson(origin, "/api/v4.1/status", fetcher);
+    payload = await readJson(origin, "/api/v4.3/status", fetcher);
   } else {
     payload = buildDiscoveryManifest(origin);
   }

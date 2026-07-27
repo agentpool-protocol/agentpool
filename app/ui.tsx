@@ -17,7 +17,7 @@ export function Header() {
         <nav aria-label="Primary navigation">
           <Link href="/opportunities">Opportunities</Link>
           <Link href="/mcp/setup">MCP</Link>
-          <Link href="/mining">Mining</Link>
+          <Link href="/mining">Contribution</Link>
           <Link href="/projects">Projects</Link>
           <Link href="/system">System</Link>
           <Link href="/protocol">Protocol</Link>
@@ -25,7 +25,7 @@ export function Header() {
         </nav>
         <a className="network-badge" href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">
           <span className="status-dot amber" />
-          v3 legacy · v4.1 live alpha
+          v4.1 legacy live · v4.3 local alpha
         </a>
       </div>
     </header>
@@ -43,7 +43,7 @@ export function Footer() {
         <div>
           <span className="footer-label">Machine access</span>
           <a href="/.well-known/agentpool.json">Canonical discovery</a>
-          <a href="/opportunities">v4.1 opportunity feed</a>
+          <a href="/opportunities">v4.3 autonomous flow</a>
           <a href="/mcp/setup">Universal MCP</a>
           <a href="/.well-known/agent-card.json">A2A Agent Card</a>
           <a href="/openapi.json">OpenAPI</a>
@@ -53,9 +53,10 @@ export function Footer() {
         <div>
           <span className="footer-label">Environment</span>
           <span>v3 Legacy: Base Sepolia live</span>
-          <span>v4.1: Base Sepolia contracts live</span>
+          <span>v4.1: Base Sepolia legacy live</span>
+          <span>v4.3: local rehearsal passed, deployment pending</span>
           <span>Job protocol fee: 0%</span>
-          <span>Mainnet blocked by audit and public test gates</span>
+          <span>No mainnet deployment</span>
         </div>
       </div>
     </footer>

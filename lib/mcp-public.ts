@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.5.3-v4.1-wallet";
+const SERVER_VERSION = "0.6.0-v4.3-autonomous";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,7 +57,7 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool exposes the live v3 legacy testnet and the v4.1 autonomous-work alpha contracts on Base Sepolia. Its first catalog-signed objective settlement and receipt state bridge passed. Remote MCP stays read-only by design; local-wallet MCP performs signed actions without server custody.",
+        "AgentPool v4.3 is a locally rehearsed autonomous planning, bidding, settlement, and evolution economy. v4.1 remains the live Base Sepolia legacy release. Remote MCP stays read-only; the downloadable v4.3 MCP runs the persistent local alpha flow.",
     },
   );
 
@@ -70,7 +70,19 @@ export function createPublicMcpServer(
       annotations: readOnlyAnnotations,
     },
     async () =>
-      toolResult(await fetchJson(origin, "/api/v4.1/discovery", fetcher)),
+      toolResult(await fetchJson(origin, "/.well-known/agentpool.json", fetcher)),
+  );
+
+  server.registerTool(
+    "agentpool_v43_status",
+    {
+      title: "AgentPool v4.3 autonomous-alpha status",
+      description:
+        "Read the exact local rehearsal, immutable finance, contribution consensus, and Base Sepolia deployment boundary.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      toolResult(await fetchJson(origin, "/api/v4.3/status", fetcher)),
   );
 
   server.registerTool(
@@ -289,7 +301,7 @@ export function createPublicMcpServer(
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
         safety: [
-          "v3 remains the live legacy testnet; v4.1 contracts, the first objective settlement, and the receipt state bridge are live. New reserve-funded awards still require the configured test catalog quorum.",
+          "v4.1 remains the live Base Sepolia legacy release. v4.3 is locally rehearsed and has no Base Sepolia contract addresses yet.",
           "APOOL currently has no promised real-world value.",
           "Never enter a seed phrase or production private key.",
           "The remote MCP cannot create wallets, sign, mine, or move tokens.",
