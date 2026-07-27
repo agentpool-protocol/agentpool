@@ -98,3 +98,28 @@ test("v4.1 public-chain preflight is read-only and fail-closed", async () => {
   );
   assert.match(packageJson, /contracts:preflight:v4\.1/);
 });
+
+test("v4.1 bootstrap keeps fresh testnet keys local and funds only Base Sepolia", async () => {
+  const [setup, funding, packageJson, gitignore] = await Promise.all([
+    source("scripts/setup-v41-base-sepolia-wallets.mjs"),
+    source("scripts/fund-v41-base-sepolia-deployer.mjs"),
+    source("package.json"),
+    source(".gitignore"),
+  ]);
+  assert.match(setup, /\.env\.v41\.local already exists/);
+  assert.match(setup, /generatePrivateKey/);
+  assert.match(setup, /catalogQuorum:\s*3/);
+  assert.match(setup, /privateMaterial:\s*"\.env\.v41\.local"/);
+  assert.doesNotMatch(setup, /privateKey:\s*deployerPrivateKey/);
+  assert.match(funding, /SOURCE_WALLET_MUST_BE_DISPOSABLE_BASE_SEPOLIA/);
+  assert.match(funding, /TARGET_WALLET_MUST_BE_DISPOSABLE_BASE_SEPOLIA/);
+  assert.match(funding, /getChainId\(\)\) !== 84532/);
+  assert.match(funding, /V41_DEPLOYER_MUST_BE_FRESH/);
+  const scripts = JSON.parse(packageJson).scripts;
+  assert.ok(scripts["testnet:wallets:v4.1"]);
+  assert.match(
+    scripts["contracts:deploy:v4.1"],
+    /\.env\.local.*\.env\.v41\.local/,
+  );
+  assert.match(gitignore, /\.env\*/);
+});
