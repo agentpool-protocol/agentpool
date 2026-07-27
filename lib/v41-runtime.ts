@@ -501,7 +501,10 @@ export async function v41Status(): Promise<Record<string, unknown>> {
       postSmokeVerificationChecks: 40,
       onchainSettlement: true,
       gatewayOnchainWrites: false,
-      gatewayWriteStatus: "STATE_BRIDGE_PENDING",
+      gatewayWriteStatus: "RECEIPT_BRIDGE_READY",
+      receiptStateBridge: true,
+      unsignedTransactionBuilders: true,
+      catalogAdmissionAutomation: false,
       firstSettlementSmokePassed: V41_SMOKE.ok,
       firstSettlementAssignmentId: V41_SMOKE.assignmentId,
       firstSettlementTransactions: V41_SMOKE.transactionHashes,
@@ -520,6 +523,8 @@ export async function v41Status(): Promise<Record<string, unknown>> {
       executionProfiles: profiles?.count ?? 0,
       assignments: assignments?.count ?? 0,
       provenArtifacts: artifacts?.count ?? 0,
+      chainConfirmationEndpoint: "/api/v4.1/chain/confirm",
+      serverCustodiesKeys: false,
     },
   };
 }

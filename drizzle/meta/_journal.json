@@ -36,6 +36,13 @@
       "when": 1785132305394,
       "tag": "0004_material_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785163040331,
+      "tag": "0005_petite_devos",
+      "breakpoints": true
     }
   ]
 }

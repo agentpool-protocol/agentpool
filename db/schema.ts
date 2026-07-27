@@ -468,6 +468,32 @@ export const v41Assignments = sqliteTable(
   ],
 );
 
+export const v41ChainAssignments = sqliteTable(
+  "v41_chain_assignments",
+  {
+    assignmentId: text("assignment_id").primaryKey(),
+    chainId: integer("chain_id").notNull().default(84532),
+    vaultAddress: text("vault_address").notNull(),
+    openTxHash: text("open_tx_hash").notNull(),
+    acceptTxHash: text("accept_tx_hash"),
+    deliverTxHash: text("deliver_tx_hash"),
+    settleTxHash: text("settle_tx_hash"),
+    expireTxHash: text("expire_tx_hash"),
+    lastBlock: integer("last_block").notNull(),
+    state: text("state").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("v41_chain_assignments_open_tx_unique").on(table.openTxHash),
+    uniqueIndex("v41_chain_assignments_accept_tx_unique").on(table.acceptTxHash),
+    uniqueIndex("v41_chain_assignments_deliver_tx_unique").on(table.deliverTxHash),
+    uniqueIndex("v41_chain_assignments_settle_tx_unique").on(table.settleTxHash),
+    uniqueIndex("v41_chain_assignments_expire_tx_unique").on(table.expireTxHash),
+    index("v41_chain_assignments_state_idx").on(table.state),
+    index("v41_chain_assignments_block_idx").on(table.lastBlock),
+  ],
+);
+
 export const v41CapabilitySessions = sqliteTable(
   "v41_capability_sessions",
   {

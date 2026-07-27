@@ -42,6 +42,7 @@
     "contracts:preflight:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/preflight-v41-base-sepolia.mjs",
     "contracts:deploy:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/deploy-v41-base-sepolia.mjs",
     "contracts:verify:v4.1": "node --env-file-if-exists=.env.local scripts/verify-v41-base-sepolia.mjs",
+    "testnet:bridge:verify:v4.1": "node --env-file-if-exists=.env.local scripts/verify-v41-state-bridge.mjs",
     "testnet:smoke:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/smoke-v41-base-sepolia.mjs",
     "mcp:bundle": "node scripts/bundle-mcp.mjs",
     "mcp:self-test": "node mcp/agentpool-local.mjs --self-test",

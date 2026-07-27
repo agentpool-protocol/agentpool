@@ -121,8 +121,19 @@ receipts, the settled assignment, and its registered Artifact.
 The first catalog-signed assignment, delivery, objective settlement, exact
 four-recipient payout, artifact registration, and duplicate-settlement rejection
 smoke test passed. Its public evidence is tracked in
-`deployments/84532.v41.smoke.json`. Public gateway writes remain disabled until
-the state bridge verifies transaction events and replay protection.
+`deployments/84532.v41.smoke.json`.
+
+The public gateway now treats the chain as authority. Award registration checks
+the successful `openAssignment` call and event against the selected bid,
+worker, specification, budget ceiling, deadline, and expected Vault. Worker
+actions return unsigned Base Sepolia calldata. D1 moves to `ACCEPTED`,
+`DELIVERED`, `SETTLED`, or `EXPIRED` only after `/api/v4.1/chain/confirm`
+verifies the exact transaction caller, contract, calldata, event, assignment,
+and evidence. The gateway stores no signing key.
+
+This does not make reserve-funded opportunity admission permissionless. The
+deployed alpha still requires its configured 3-of-5 test catalog quorum before
+an `openAssignment` transaction can reserve emission.
 
 Mainnet remains blocked until at least 90 days of public adversarial operation,
 zero stuck funds and duplicate/cap violations, independent audits, independent

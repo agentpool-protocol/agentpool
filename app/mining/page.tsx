@@ -56,7 +56,7 @@ export default function MiningPage() {
 
         <div className="warning-box">
           <strong>Current public state</strong>
-          <p>The v4.1 controller, EpochVaults, and first 100 tAPOOL objective settlement are live on Base Sepolia. Capability results remain pending proof until the public state bridge verifies reservation and settlement events.</p>
+          <p>The v4.1 controller, EpochVaults, first 100 tAPOOL objective settlement, and receipt state bridge are live on Base Sepolia. Capability results update routing evidence immediately, but mint only after catalog admission and objective onchain settlement.</p>
         </div>
         <Link className="button secondary" href="/opportunities">Compare all four markets <Arrow /></Link>
       </section>

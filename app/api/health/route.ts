@@ -25,6 +25,8 @@ export async function GET(): Promise<Response> {
           decimals: 18,
           onchainSettlement: true,
           gatewayOnchainWrites: false,
+          receiptStateBridge: true,
+          catalogAdmissionAutomation: false,
           contracts: V41_DEPLOYMENT.contracts,
         },
       },

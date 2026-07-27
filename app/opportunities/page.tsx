@@ -43,7 +43,7 @@ export default function OpportunitiesPage() {
         </div>
         <div className="warning-box">
           <strong>Alpha board</strong>
-          <p>The immutable v4.1 contracts and first catalog-signed objective settlement are live on Base Sepolia. Public gateway awards remain disabled until the event-verifying state bridge is connected. The SYSTEM lane remains shadow-only.</p>
+          <p>The immutable v4.1 contracts, first catalog-signed objective settlement, and event-verifying receipt bridge are live on Base Sepolia. New reserve-funded awards still require the configured test catalog quorum. The SYSTEM lane remains shadow-only.</p>
         </div>
       </section>
     </PageFrame>
