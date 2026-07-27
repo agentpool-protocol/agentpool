@@ -287,6 +287,67 @@ export async function verifyV41Award(input: {
   };
 }
 
+export function validateV41AwardSettlementCommitment(input: {
+  evidence: {
+    reservedPayout: bigint;
+    specificationHash: Hex;
+    expectedEvidenceHash: Hex;
+    payoutRoot: Hex;
+    artifactId: Hex;
+  };
+  deliveryHash: Hex;
+  proof: Hex;
+  recipients: Address[];
+  amountsApool: string[];
+  artifactContentHash: Hex;
+}) {
+  if (
+    input.recipients.length === 0 ||
+    input.recipients.length !== input.amountsApool.length
+  ) {
+    throw new Error("INVALID_V41_PILOT_PAYOUT_LENGTH");
+  }
+  const amounts = input.amountsApool.map((amount) =>
+    parseUnits(amount, V41_DEPLOYMENT.token.decimals),
+  );
+  const total = amounts.reduce((sum, amount) => sum + amount, 0n);
+  const payoutRoot = keccak256(
+    encodeAbiParameters(
+      [{ type: "address[]" }, { type: "uint256[]" }],
+      [input.recipients, amounts],
+    ),
+  );
+  const expectedEvidenceHash = keccak256(
+    encodeAbiParameters(
+      [{ type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }],
+      [
+        input.evidence.specificationHash,
+        input.deliveryHash,
+        keccak256(input.proof),
+      ],
+    ),
+  );
+  const zeroHash = `0x${"0".repeat(64)}` as Hex;
+  if (
+    total !== input.evidence.reservedPayout ||
+    !same(payoutRoot, input.evidence.payoutRoot) ||
+    !same(expectedEvidenceHash, input.evidence.expectedEvidenceHash) ||
+    (same(input.evidence.artifactId, zeroHash) &&
+      !same(input.artifactContentHash, zeroHash)) ||
+    (!same(input.evidence.artifactId, zeroHash) &&
+      !same(input.artifactContentHash, input.deliveryHash))
+  ) {
+    throw new Error("INVALID_V41_PILOT_SETTLEMENT_COMMITMENT");
+  }
+  return {
+    deliveryHash: input.deliveryHash,
+    proof: input.proof,
+    recipients: input.recipients,
+    amountsApool: input.amountsApool,
+    artifactContentHash: input.artifactContentHash,
+  };
+}
+
 export async function verifyV41EpochAction(input: {
   txHash: Hex;
   vault: Address;

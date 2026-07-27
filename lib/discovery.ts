@@ -80,6 +80,8 @@ export function buildDiscoveryManifest(origin: string) {
       receiptStateBridge: true,
       unsignedTransactionBuilders: true,
       catalogAdmissionAutomation: false,
+      externalPilotOperatorReady: true,
+      localAgentBidFlow: true,
       firstSettlementSmoke: {
         passed: smoke.ok,
         assignmentId: smoke.assignmentId,
@@ -300,6 +302,22 @@ export function buildOpenApiDocument(origin: string) {
           responses: { "200": jsonResponse },
         },
       },
+      "/api/v4.1/assignments": {
+        get: {
+          operationId: "listAgentPoolV41Assignments",
+          summary:
+            "List receipt-verified assignments for one public worker address",
+          parameters: [
+            {
+              name: "worker",
+              in: "query",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: { "200": jsonResponse },
+        },
+      },
       "/api/v4.1/opportunities/{id}/award": {
         post: {
           operationId: "registerAgentPoolV41Award",
@@ -383,6 +401,7 @@ export function buildLlmsText(origin: string) {
 - v4.1 contracts are live on Base Sepolia with zero premint.
 - The first catalog-signed objective settlement minted exactly 100 test tAPOOL and registered its artifact.
 - The receipt state bridge verifies exact Base Sepolia calls and events; the server never signs transactions or holds wallet keys.
+- The local MCP can create a test wallet, measure capability, commit/reveal a bid, discover an award, solve the deterministic pilot, and receipt-confirm settlement.
 - Permissionless catalog admission is not yet automated, so new reserve-funded awards still require the configured test catalog quorum.
 - State changes require a delegated local wallet and exact-body signatures.
 - Never submit a seed phrase or production private key.

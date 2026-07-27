@@ -4,6 +4,7 @@ import { executeBatch, queryFirst } from "@/db/runtime";
 import { requestId } from "@/lib/api";
 import { v41Hash } from "@/lib/v41";
 import {
+  validateV41AwardSettlementCommitment,
   verifyV41Award,
   v41VaultForMarket,
 } from "@/lib/v41-chain-bridge";
@@ -12,6 +13,22 @@ import { signedV41Write } from "@/lib/v41-write";
 const schema = z.object({
   bidId: z.string().min(8).max(100),
   txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  settlementTerms: z
+    .object({
+      deliveryHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      proof: z.string().regex(/^0x(?:[a-fA-F0-9]{2})*$/),
+      recipients: z
+        .array(z.string().regex(/^0x[a-fA-F0-9]{40}$/))
+        .min(1)
+        .max(32),
+      amountsApool: z
+        .array(z.string().regex(/^(?:0|[1-9]\d*)$/))
+        .min(1)
+        .max(32),
+      artifactContentHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      task: z.unknown(),
+    })
+    .optional(),
 });
 
 interface Opportunity {
@@ -58,12 +75,6 @@ export async function POST(
     if (!opportunity || !bid || bid.state !== "REVEALED" || !bid.price_apool) {
       throw new Error("INVALID_V41_AWARD_CANDIDATE");
     }
-    if (
-      auth.address.toLowerCase() !== bid.bidder_address.toLowerCase() &&
-      auth.address.toLowerCase() !== opportunity.created_by.toLowerCase()
-    ) {
-      throw new Error("AUTH_V41_AWARD_PARTICIPANT");
-    }
     if (!["OPEN", "SOFT_HELD"].includes(opportunity.state)) {
       throw new Error("INVALID_V41_AWARD_STATE");
     }
@@ -79,6 +90,25 @@ export async function POST(
       maxBudgetApool: opportunity.max_budget_apool,
       maxDeadlineAt: opportunity.deadline_at,
     });
+    const settlementTerms = input.settlementTerms
+      ? validateV41AwardSettlementCommitment({
+          evidence,
+          deliveryHash: input.settlementTerms.deliveryHash as Hex,
+          proof: input.settlementTerms.proof as Hex,
+          recipients: input.settlementTerms.recipients.map((address) =>
+            getAddress(address),
+          ),
+          amountsApool: input.settlementTerms.amountsApool,
+          artifactContentHash:
+            input.settlementTerms.artifactContentHash as Hex,
+        })
+      : null;
+    if (input.settlementTerms) {
+      const taskJson = JSON.stringify(input.settlementTerms.task);
+      if (!taskJson || taskJson.length > 16_384) {
+        throw new Error("INVALID_V41_PILOT_TASK_SIZE");
+      }
+    }
     const existing = await queryFirst<{
       assignment_id: string;
       open_tx_hash: string;
@@ -169,6 +199,15 @@ export async function POST(
             opportunityId: opportunity.id,
             vault,
             reservedPayoutApool: evidence.reservedPayoutApool,
+            indexedBy: auth.address,
+            ...(settlementTerms
+              ? {
+                  settlementTerms: {
+                    ...settlementTerms,
+                    task: input.settlementTerms?.task,
+                  },
+                }
+              : {}),
           }),
           Number(evidence.blockNumber),
           evidence.logIndex,
@@ -198,6 +237,7 @@ export async function POST(
         reservedPayoutApool: evidence.reservedPayoutApool,
         transactionHash: input.txHash,
         blockNumber: evidence.blockNumber.toString(),
+        settlementTermsPublished: settlementTerms !== null,
       },
       status: 201,
     };

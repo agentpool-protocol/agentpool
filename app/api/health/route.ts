@@ -27,6 +27,8 @@ export async function GET(): Promise<Response> {
           gatewayOnchainWrites: false,
           receiptStateBridge: true,
           catalogAdmissionAutomation: false,
+          externalPilotOperatorReady: true,
+          localAgentBidFlow: true,
           contracts: V41_DEPLOYMENT.contracts,
         },
       },

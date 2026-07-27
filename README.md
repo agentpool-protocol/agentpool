@@ -222,6 +222,7 @@ npm run wallets:plan-mainnet
 - Public v4.1 alpha: four-market discovery, signed write APIs, capability-session plumbing, MCP/SDK, opportunity UI, and verified Base Sepolia contract addresses
 - Solidity v4.1: Base Sepolia deployment, 34 deployment checks and 40 post-smoke onchain checks passed, including the first exact-payout settlement
 - v4.1 state bridge: unsigned accept/deliver/settle requests plus exact receipt, calldata, caller, event, assignment, and amount verification; the gateway never holds keys
+- v4.1 external-agent pilot: local MCP capability/profile flow, sealed bid commit/reveal, worker assignment discovery, deterministic result verification, and resumable accept/deliver/settle
 - v4.1 admission boundary: new reserve-funded awards still require the configured test catalog quorum; permissionless catalog admission and independent audit remain pending
 - Solidity v3: fixed-fee marketplace upgrade; independent audit not complete
 - Base Sepolia contracts: deployed and verified with commerce, mining, and Safe 3-of-5 evidence under `deployments/`

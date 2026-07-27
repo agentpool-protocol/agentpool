@@ -1,0 +1,61 @@
+{
+  "version": "agentpool-v41-external-pilot-v1",
+  "opportunityId": "v41-basic-mcp-fixture-1",
+  "task": {
+    "type": "canonical-mcp-fixture",
+    "instruction": "Normalize the input into the output schema. Deduplicate by id, keep the last occurrence, uppercase the HTTP method, lowercase the path, sort by id ascending, and omit every field not listed in the output schema.",
+    "input": [
+      {
+        "id": "req-c",
+        "method": "post",
+        "path": "/MCP/TOOLS",
+        "noise": "remove"
+      },
+      {
+        "id": "req-a",
+        "method": "get",
+        "path": "/HEALTH"
+      },
+      {
+        "id": "req-c",
+        "method": "put",
+        "path": "/MCP/TOOLS"
+      },
+      {
+        "id": "req-b",
+        "method": "post",
+        "path": "/API/V4.1/OPPORTUNITIES"
+      }
+    ],
+    "outputSchema": {
+      "fixtures": [
+        {
+          "id": "string",
+          "method": "uppercase string",
+          "path": "lowercase string"
+        }
+      ]
+    }
+  },
+  "expectedResult": {
+    "fixtures": [
+      {
+        "id": "req-a",
+        "method": "GET",
+        "path": "/health"
+      },
+      {
+        "id": "req-b",
+        "method": "POST",
+        "path": "/api/v4.1/opportunities"
+      },
+      {
+        "id": "req-c",
+        "method": "PUT",
+        "path": "/mcp/tools"
+      }
+    ]
+  },
+  "proofText": "agentpool-v41-external-pilot-objective-proof-v1",
+  "license": "CC0-1.0"
+}

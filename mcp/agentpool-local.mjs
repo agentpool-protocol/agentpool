@@ -11,6 +11,8 @@ import {
   createWalletClient,
   formatEther,
   http,
+  keccak256,
+  toBytes,
 } from "viem";
 import { baseSepolia } from "viem/chains";
 import {
@@ -260,6 +262,19 @@ function sha256Label(value) {
   return `0x${crypto.createHash("sha256").update(value).digest("hex")}`;
 }
 
+function stableJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+    .join(",")}}`;
+}
+
+function v41Hash(value) {
+  return keccak256(toBytes(stableJson(value)));
+}
+
 const readOnly = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -269,7 +284,7 @@ const readOnly = {
 
 function createServer() {
   const server = new McpServer(
-    { name: "agentpool-local", version: "0.5.1-v4.1-bridge" },
+    { name: "agentpool-local", version: "0.5.2-v4.1-pilot" },
     {
       instructions:
         "Base Sepolia only. Never request or import a seed phrase or production key. Ask the user before creating the local test wallet or submitting an onchain claim.",
@@ -349,6 +364,10 @@ function createServer() {
       );
       const nextState = {
         ...state,
+        v41Profiles: {
+          ...(state.v41Profiles ?? {}),
+          [track]: profileId,
+        },
         v41Sessions: {
           ...(state.v41Sessions ?? {}),
           [session.id]: { ...session, profileId, track },
@@ -359,6 +378,269 @@ function createServer() {
         ...session,
         instruction:
           "Solve the returned challenge, then call agentpool_v41_submit_capability. The result updates routing evidence; tAPOOL mints only after catalog admission and objective onchain settlement.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_commit_bid",
+    {
+      title: "Commit a sealed v4.1 bid",
+      description:
+        "Create a locally salted sealed bid for one Base Sepolia opportunity. Price and capacity remain local until reveal.",
+      inputSchema: z
+        .object({
+          opportunityId: z.string().min(3).max(100),
+          profileId: z.string().min(8).max(100),
+          priceApool: z.string().regex(/^[1-9]\d*$/),
+          capacityUnits: z.number().int().min(1).max(1_000),
+          confirmation: z.literal("COMMIT BASE SEPOLIA TEST BID"),
+        })
+        .strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ opportunityId, profileId, priceApool, capacityUnits }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      await requireBaseSepolia(account);
+      const salt = `0x${crypto.randomBytes(32).toString("hex")}`;
+      const commitment = v41Hash({
+        opportunityId,
+        bidderAddress: account.address.toLowerCase(),
+        profileId,
+        priceApool,
+        capacityUnits,
+        salt,
+      });
+      const committed = await signedWrite(
+        account,
+        `/api/v4.1/auctions/${encodeURIComponent(opportunityId)}/commit`,
+        { profileId, commitment },
+      );
+      const state = loadState();
+      saveState({
+        ...state,
+        v41Bids: {
+          ...(state.v41Bids ?? {}),
+          [opportunityId]: {
+            bidId: committed.id,
+            profileId,
+            priceApool,
+            capacityUnits,
+            salt,
+            state: "COMMITTED",
+          },
+        },
+      });
+      return textResult({
+        ...committed,
+        priceApool,
+        capacityUnits,
+        next:
+          "Call agentpool_v41_reveal_bid after reviewing the exact testnet price and capacity.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_reveal_bid",
+    {
+      title: "Reveal a sealed v4.1 bid",
+      description:
+        "Reveal the locally stored price, capacity, and salt for a prior Base Sepolia test bid.",
+      inputSchema: z
+        .object({
+          opportunityId: z.string().min(3).max(100),
+          confirmation: z.literal("REVEAL BASE SEPOLIA TEST BID"),
+        })
+        .strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ opportunityId }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      const state = loadState();
+      const bid = state.v41Bids?.[opportunityId];
+      if (!bid || bid.state !== "COMMITTED") {
+        return textResult({ error: "UNKNOWN_LOCAL_V41_BID" }, true);
+      }
+      const revealed = await signedWrite(
+        account,
+        `/api/v4.1/auctions/${encodeURIComponent(opportunityId)}/reveal`,
+        {
+          profileId: bid.profileId,
+          priceApool: bid.priceApool,
+          capacityUnits: bid.capacityUnits,
+          salt: bid.salt,
+        },
+      );
+      saveState({
+        ...state,
+        v41Bids: {
+          ...state.v41Bids,
+          [opportunityId]: { ...bid, state: "REVEALED" },
+        },
+      });
+      return textResult({
+        ...revealed,
+        next:
+          "The catalog operator may now reserve a testnet assignment. No tAPOOL has minted yet.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_assignments",
+    {
+      title: "Find my v4.1 assignments",
+      description:
+        "List exact Base Sepolia assignments indexed for the local test wallet, including any public deterministic pilot task.",
+      annotations: readOnly,
+    },
+    async () => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      return textResult(
+        await getJson(
+          `/api/v4.1/assignments?worker=${encodeURIComponent(account.address)}`,
+        ),
+      );
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_complete_pilot",
+    {
+      title: "Complete an objective v4.1 pilot",
+      description:
+        "Verify a solved public pilot result locally, then resume accept, deliver, and objective settlement with the local Base Sepolia test wallet.",
+      inputSchema: z
+        .object({
+          assignmentId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+          result: z.unknown(),
+          confirmation: z.literal("COMPLETE BASE SEPOLIA TEST PILOT"),
+        })
+        .strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ assignmentId, result }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      await requireBaseSepolia(account);
+      let payout = await getJson(
+        `/api/v4.1/jobs/${encodeURIComponent(assignmentId)}/payouts`,
+      );
+      const terms = payout.settlementTerms;
+      if (
+        !terms ||
+        !Array.isArray(terms.recipients) ||
+        !Array.isArray(terms.amountsApool)
+      ) {
+        return textResult(
+          { error: "V41_PILOT_SETTLEMENT_TERMS_UNAVAILABLE" },
+          true,
+        );
+      }
+      const resultHash = keccak256(toBytes(stableJson(result)));
+      if (resultHash.toLowerCase() !== terms.deliveryHash.toLowerCase()) {
+        return textResult(
+          {
+            error: "V41_PILOT_RESULT_MISMATCH",
+            computedDeliveryHash: resultHash,
+            instruction:
+              "Re-read the public task and submit the exact normalized JSON result.",
+          },
+          true,
+        );
+      }
+      const transactions = [];
+      if (payout.assignment.state === "AWARDED") {
+        const prepared = await signedWrite(
+          account,
+          `/api/v4.1/assignments/${assignmentId}/accept`,
+          {
+            capacityOfferHash: v41Hash({
+              assignmentId,
+              worker: account.address.toLowerCase(),
+              capacityUnits: 1,
+            }),
+          },
+        );
+        transactions.push(
+          await executeV41PreparedAction(
+            account,
+            assignmentId,
+            "ACCEPT",
+            prepared,
+          ),
+        );
+        payout = await getJson(
+          `/api/v4.1/jobs/${encodeURIComponent(assignmentId)}/payouts`,
+        );
+      }
+      if (["ACCEPTED", "RUNNING"].includes(payout.assignment.state)) {
+        const prepared = await signedWrite(
+          account,
+          `/api/v4.1/assignments/${assignmentId}/deliver`,
+          { deliveryHash: resultHash },
+        );
+        transactions.push(
+          await executeV41PreparedAction(
+            account,
+            assignmentId,
+            "DELIVER",
+            prepared,
+          ),
+        );
+        payout = await getJson(
+          `/api/v4.1/jobs/${encodeURIComponent(assignmentId)}/payouts`,
+        );
+      }
+      if (["DELIVERED", "PROOF_PENDING"].includes(payout.assignment.state)) {
+        const prepared = await signedWrite(
+          account,
+          `/api/v4.1/assignments/${assignmentId}/settle`,
+          {
+            proof: terms.proof,
+            recipients: terms.recipients,
+            amountsApool: terms.amountsApool,
+            artifactContentHash: terms.artifactContentHash,
+          },
+        );
+        transactions.push(
+          await executeV41PreparedAction(
+            account,
+            assignmentId,
+            "SETTLE",
+            prepared,
+          ),
+        );
+        payout = await getJson(
+          `/api/v4.1/jobs/${encodeURIComponent(assignmentId)}/payouts`,
+        );
+      }
+      return textResult({
+        assignmentId,
+        state: payout.assignment.state,
+        resultHash,
+        rewardApool: payout.assignment.awarded_apool,
+        transactions,
+        testnetOnly: true,
       });
     },
   );
@@ -851,7 +1133,7 @@ async function main() {
       `${JSON.stringify({
         ok: true,
         name: "agentpool-local",
-        version: "0.5.1-v4.1-bridge",
+        version: "0.5.2-v4.1-pilot",
         chainId: EXPECTED_CHAIN_ID,
         walletCreated: false,
       })}\n`,

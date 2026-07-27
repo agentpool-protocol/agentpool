@@ -24,10 +24,27 @@ export async function GET(
        FROM v41_proofs WHERE assignment_id = ? ORDER BY created_at ASC`,
       id,
     );
+    const opened = await queryFirst<{ payload_json: string }>(
+      `SELECT payload_json FROM protocol_events
+       WHERE entity_id = ? AND type = 'V41_ASSIGNMENT_OPENED'
+       ORDER BY created_at ASC LIMIT 1`,
+      id,
+    );
+    let settlementTerms: unknown = null;
+    if (opened?.payload_json) {
+      try {
+        settlementTerms = (
+          JSON.parse(opened.payload_json) as Record<string, unknown>
+        ).settlementTerms ?? null;
+      } catch {
+        settlementTerms = null;
+      }
+    }
     return apiResponse({
       assignment,
       proofs,
-      mintCreated: false,
+      settlementTerms,
+      mintCreated: (assignment as { state?: string }).state === "SETTLED",
       accountingRule:
         "USER_ESCROW moves existing APOOL; CORE_EPOCH and EVOLUTION_EPOCH may mint only after objective onchain proof.",
     });
@@ -35,4 +52,3 @@ export async function GET(
     return handleApiError(error);
   }
 }
-
