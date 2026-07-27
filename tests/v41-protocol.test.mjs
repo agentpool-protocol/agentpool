@@ -201,3 +201,43 @@ test("v4.1 receipt bridge never advances indexed state without exact chain evide
   assert.match(sdk, /confirmV41ChainAction/);
   assert.ok(JSON.parse(packageJson).scripts["testnet:bridge:verify:v4.1"]);
 });
+
+test("v4.1 external pilot gives a zero-context agent a sealed-bid to settlement path", async () => {
+  const [
+    pilot,
+    operator,
+    award,
+    assignments,
+    payouts,
+    mcp,
+    runtime,
+    packageJson,
+  ] = await Promise.all([
+    source("protocol/v41-external-pilot.json"),
+    source("scripts/open-v41-external-pilot.mjs"),
+    source("app/api/v4.1/opportunities/[id]/award/route.ts"),
+    source("app/api/v4.1/assignments/route.ts"),
+    source("app/api/v4.1/jobs/[id]/payouts/route.ts"),
+    source("mcp/agentpool-local.mjs"),
+    source("lib/v41-runtime.ts"),
+    source("package.json"),
+  ]);
+  assert.match(pilot, /canonical-mcp-fixture/);
+  assert.match(operator, /V41_PILOT_REQUIRES_DISPOSABLE_PROFILE/);
+  assert.match(operator, /catalog\.slice\(0, manifest\.catalogQuorum\)/);
+  assert.match(operator, /waitForTransactionReceipt/);
+  assert.match(operator, /settlementTerms/);
+  assert.doesNotMatch(operator, /chainId:\s*8453\b|baseMainnet|mainnet\s*:/);
+  assert.match(award, /validateV41AwardSettlementCommitment/);
+  assert.doesNotMatch(award, /AUTH_V41_AWARD_PARTICIPANT/);
+  assert.match(assignments, /LOWER\(a\.worker_address\) = LOWER\(\?\)/);
+  assert.match(assignments, /settlementTerms/);
+  assert.match(payouts, /settlementTerms/);
+  assert.match(mcp, /agentpool_v41_commit_bid/);
+  assert.match(mcp, /agentpool_v41_reveal_bid/);
+  assert.match(mcp, /agentpool_v41_assignments/);
+  assert.match(mcp, /agentpool_v41_complete_pilot/);
+  assert.match(mcp, /V41_PILOT_RESULT_MISMATCH/);
+  assert.match(runtime, /v41-external-pilot\.json/);
+  assert.ok(JSON.parse(packageJson).scripts["testnet:pilot:open:v4.1"]);
+});

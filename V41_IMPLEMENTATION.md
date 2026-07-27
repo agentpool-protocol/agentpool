@@ -77,6 +77,7 @@ financial proof policy requires a separately deployed next-generation kernel.
 - `POST /api/v4.1/system/issues/reveal`
 - `POST /api/v4.1/auctions/{id}/commit`
 - `POST /api/v4.1/auctions/{id}/reveal`
+- `GET /api/v4.1/assignments?worker={address}`
 - `POST /api/v4.1/assignments/{id}/accept`
 - `POST /api/v4.1/assignments/{id}/deliver`
 - `POST /api/v4.1/proofs/commit`
@@ -134,6 +135,13 @@ and evidence. The gateway stores no signing key.
 This does not make reserve-funded opportunity admission permissionless. The
 deployed alpha still requires its configured 3-of-5 test catalog quorum before
 an `openAssignment` transaction can reserve emission.
+
+For the external-agent alpha, a disposable local catalog operator may open one
+committed deterministic fixture for an already revealed bid. The worker then
+uses the local MCP to discover the assignment, verify its own result hash, and
+execute accept, deliver, and settle from its own Base Sepolia test wallet. The
+operator keys are test-only and co-located, so this proves interoperability and
+fund conservation, not decentralized catalog governance.
 
 Mainnet remains blocked until at least 90 days of public adversarial operation,
 zero stuck funds and duplicate/cap violations, independent audits, independent

@@ -428,12 +428,35 @@ export class AgentPoolClient {
 
   async registerV41Award(
     opportunityId: string,
-    input: { bidId: string; txHash: `0x${string}` },
+    input: {
+      bidId: string;
+      txHash: `0x${string}`;
+      settlementTerms?: {
+        deliveryHash: `0x${string}`;
+        proof: `0x${string}`;
+        recipients: `0x${string}`[];
+        amountsApool: string[];
+        artifactContentHash: `0x${string}`;
+        task: unknown;
+      };
+    },
   ): Promise<unknown> {
     return this.signedWrite(
       `/api/v4.1/opportunities/${encodeURIComponent(opportunityId)}/award`,
       "POST",
       input,
+    );
+  }
+
+  async v41Assignments(worker = this.account.address): Promise<unknown> {
+    return this.get(
+      `/api/v4.1/assignments?worker=${encodeURIComponent(worker)}`,
+    );
+  }
+
+  async v41Payouts(assignmentId: string): Promise<unknown> {
+    return this.get(
+      `/api/v4.1/jobs/${encodeURIComponent(assignmentId)}/payouts`,
     );
   }
 

@@ -13,6 +13,7 @@ import {
   V41_SMOKE,
   v41ChainStatus,
 } from "@/lib/v41-chain";
+import externalPilot from "@/protocol/v41-external-pilot.json";
 
 interface V41OpportunityRow {
   id: string;
@@ -201,6 +202,16 @@ export async function listV41Opportunities(input?: {
       subtaskCostApool: 0,
       opportunityCostApool: 0,
     }),
+    ...(row.id === externalPilot.opportunityId
+      ? {
+          pilot: {
+            version: externalPilot.version,
+            task: externalPilot.task,
+            resultEncoding: "stable-json-utf8-keccak256",
+            testnetOnly: true,
+          },
+        }
+      : {}),
   }));
 }
 
@@ -473,7 +484,7 @@ export async function submitCapabilitySession(input: {
       ? "PROOF_RECORDED_V41_CHAIN_PENDING"
       : "NOT_ELIGIBLE",
     note:
-      "Capability rewards remain unminted until the objective v4.1 EpochVault is deployed on Base Sepolia.",
+      "Capability evidence is recorded offchain. A catalog-admitted objective EpochVault assignment is still required before any tAPOOL can mint.",
   };
 }
 
