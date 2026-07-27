@@ -214,6 +214,10 @@ function textResult(value, isError = false) {
   };
 }
 
+function sha256Label(value) {
+  return `0x${crypto.createHash("sha256").update(value).digest("hex")}`;
+}
+
 const readOnly = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -223,10 +227,139 @@ const readOnly = {
 
 function createServer() {
   const server = new McpServer(
-    { name: "agentpool-local", version: "0.4.0-testnet" },
+    { name: "agentpool-local", version: "0.5.0-v4.1-alpha" },
     {
       instructions:
         "Base Sepolia only. Never request or import a seed phrase or production key. Ask the user before creating the local test wallet or submitting an onchain claim.",
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_status",
+    {
+      title: "AgentPool v4.1 status",
+      description:
+        "Read the v4.1 deployment boundary, four markets, emission caps, and gateway counts.",
+      annotations: readOnly,
+    },
+    async () => textResult(await getJson("/api/v4.1/status")),
+  );
+
+  server.registerTool(
+    "agentpool_v41_opportunities",
+    {
+      title: "Find AgentPool v4.1 opportunities",
+      description:
+        "Compare capability, basic mining, system improvement, and external jobs by expected net profit.",
+      inputSchema: z
+        .object({
+          market: z.enum(["CAPABILITY", "BASIC", "SYSTEM", "EXTERNAL"]).optional(),
+          agentCostApool: z.number().nonnegative().default(0),
+          successProbabilityBps: z.number().int().min(0).max(10_000).default(7500),
+        })
+        .strict(),
+      annotations: readOnly,
+    },
+    async ({ market, agentCostApool, successProbabilityBps }) => {
+      const params = new URLSearchParams({
+        agentCostApool: String(agentCostApool),
+        successProbabilityBps: String(successProbabilityBps),
+      });
+      if (market) params.set("market", market);
+      return textResult(
+        await getJson(`/api/v4.1/opportunities?${params.toString()}`),
+      );
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_start_capability",
+    {
+      title: "Start a v4.1 capability measurement",
+      description:
+        "Request a private low-reward capability check. It updates routing evidence and is separate from reusable public-work mining.",
+      inputSchema: z
+        .object({
+          track: z.enum(["math", "json", "api"]),
+          runtimeLabel: z.string().min(2).max(120),
+          modelLabel: z.string().min(2).max(120),
+        })
+        .strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ track, runtimeLabel, modelLabel }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      await requireBaseSepolia(account);
+      const { state, agentId } = await ensureRegisteredMiner(account);
+      const runtimeHash = sha256Label(runtimeLabel);
+      const modelHash = sha256Label(modelLabel);
+      const profileId = `v41_${agentId}_${track}_${runtimeHash.slice(2, 14)}`;
+      const session = await signedWrite(
+        account,
+        "/api/v4.1/capabilities/sessions",
+        { agentId, profileId, track, runtimeHash, modelHash },
+      );
+      const nextState = {
+        ...state,
+        v41Sessions: {
+          ...(state.v41Sessions ?? {}),
+          [session.id]: { ...session, profileId, track },
+        },
+      };
+      saveState(nextState);
+      return textResult({
+        ...session,
+        instruction:
+          "Solve the returned challenge, then call agentpool_v41_submit_capability. No token is minted until the v4.1 EpochVault is deployed.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_submit_capability",
+    {
+      title: "Submit a v4.1 capability result",
+      description:
+        "Submit a private capability answer and record routing evidence. The gateway cannot claim that a token reward was minted while v4.1 contracts are pending.",
+      inputSchema: z
+        .object({
+          sessionId: z.string().min(8).max(100),
+          answer: z.unknown(),
+          latencyMs: z.number().int().min(1).max(1_200_000),
+        })
+        .strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ sessionId, answer, latencyMs }) => {
+      const account = storedAccount();
+      if (!account) return textResult({ error: "NO_TEST_WALLET" }, true);
+      const state = loadState();
+      if (!state.v41Sessions?.[sessionId]) {
+        return textResult({ error: "UNKNOWN_LOCAL_V41_SESSION" }, true);
+      }
+      const result = await signedWrite(
+        account,
+        "/api/v4.1/capabilities/submissions",
+        { sessionId, answer, latencyMs },
+      );
+      const next = {
+        ...state,
+        v41Sessions: { ...(state.v41Sessions ?? {}) },
+      };
+      delete next.v41Sessions[sessionId];
+      saveState(next);
+      return textResult(result, result.passed === false);
     },
   );
 
@@ -550,7 +683,7 @@ async function main() {
       `${JSON.stringify({
         ok: true,
         name: "agentpool-local",
-        version: "0.4.0-testnet",
+        version: "0.5.0-v4.1-alpha",
         chainId: EXPECTED_CHAIN_ID,
         walletCreated: false,
       })}\n`,

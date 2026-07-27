@@ -1,0 +1,160 @@
+{
+  "contractName": "AgentPoolV41ArtifactRegistry",
+  "sourceName": "contracts/v4/AgentPoolV41ArtifactRegistry.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract IAgentPoolV41EmissionController",
+          "name": "controller_",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyExists",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTerms",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "Unauthorized",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "artifactId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "assignmentId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "author",
+          "type": "address"
+        }
+      ],
+      "name": "ArtifactRecorded",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "artifacts",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "assignmentId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "provenanceHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "licenseHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "author",
+          "type": "address"
+        },
+        {
+          "internalType": "uint64",
+          "name": "registeredAt",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "controller",
+      "outputs": [
+        {
+          "internalType": "contract IAgentPoolV41EmissionController",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "artifactId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "assignmentId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "provenanceHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "licenseHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "author",
+          "type": "address"
+        }
+      ],
+      "name": "recordArtifact",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60a034608057601f61043038819003918201601f19168301916001600160401b03831184841017608457808492602094604052833981010312608057516001600160a01b0381168082036080571560715760805260405161039790816100998239608051818181605c01526101460152f35b630256965f60e01b5f5260045ffd5b5f80fd5b634e487b7160e01b5f52604160045260245ffdfe6080806040526004361015610012575f80fd5b5f3560e01c90816361baafc3146100f557508063a63e3a37146100845763f77c47911461003d575f80fd5b34610080575f3660031901126100805760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b5f80fd5b34610080576020366003190112610080576004355f525f60205260c060405f2067ffffffffffffffff815491600181015490600281015460046003830154920154926040519586526020860152604085015260608401526001600160a01b038116608084015260a01c1660a0820152f35b346100805760c0366003190112610080576004356024359060443592606435906084359060a435906001600160a01b0382168092036100805763652b9b4160e01b81523360048201526020816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115610356575f91610305575b50156102f757831580156102ef575b80156102e7575b80156102df575b80156102d7575b80156102cf575b6102c057835f525f60205267ffffffffffffffff600460405f20015460a01c166102b1576040519260c084019284841067ffffffffffffffff85111761029d576001600160a01b0360047f461bad8b81c870dab56378109ec3e0cd989b80eece7a6fb6138852691093e22196602096604052898152868101938b85526040820195865260608201908152608082019587875260a083019567ffffffffffffffff421687528b5f525f8a5260405f20935184555160018401555160028301555160038201550192511682549167ffffffffffffffff60a01b905160a01b169163ffffffff60e01b1617179055604051908152a4005b634e487b7160e01b5f52604160045260245ffd5b63119b4fd360e11b5f5260045ffd5b630256965f60e01b5f5260045ffd5b5080156101a9565b5081156101a2565b50821561019b565b508515610194565b50841561018d565b6282b42960e81b5f5260045ffd5b905060203d60201161034f575b601f8101601f1916820167ffffffffffffffff81118382101761029d5760209183916040528101031261008057518015158103610080578761017e565b503d610312565b6040513d5f823e3d90fdfea26469706673582212204013a2092dd1399d242bea8303b9c17ba390ae19dc92336065fa9d596217627064736f6c63430008240033",
+  "deployedBytecode": "0x6080806040526004361015610012575f80fd5b5f3560e01c90816361baafc3146100f557508063a63e3a37146100845763f77c47911461003d575f80fd5b34610080575f3660031901126100805760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b5f80fd5b34610080576020366003190112610080576004355f525f60205260c060405f2067ffffffffffffffff815491600181015490600281015460046003830154920154926040519586526020860152604085015260608401526001600160a01b038116608084015260a01c1660a0820152f35b346100805760c0366003190112610080576004356024359060443592606435906084359060a435906001600160a01b0382168092036100805763652b9b4160e01b81523360048201526020816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115610356575f91610305575b50156102f757831580156102ef575b80156102e7575b80156102df575b80156102d7575b80156102cf575b6102c057835f525f60205267ffffffffffffffff600460405f20015460a01c166102b1576040519260c084019284841067ffffffffffffffff85111761029d576001600160a01b0360047f461bad8b81c870dab56378109ec3e0cd989b80eece7a6fb6138852691093e22196602096604052898152868101938b85526040820195865260608201908152608082019587875260a083019567ffffffffffffffff421687528b5f525f8a5260405f20935184555160018401555160028301555160038201550192511682549167ffffffffffffffff60a01b905160a01b169163ffffffff60e01b1617179055604051908152a4005b634e487b7160e01b5f52604160045260245ffd5b63119b4fd360e11b5f5260045ffd5b630256965f60e01b5f5260045ffd5b5080156101a9565b5081156101a2565b50821561019b565b508515610194565b50841561018d565b6282b42960e81b5f5260045ffd5b905060203d60201161034f575b601f8101601f1916820167ffffffffffffffff81118382101761029d5760209183916040528101031261008057518015158103610080578761017e565b503d610312565b6040513d5f823e3d90fdfea26469706673582212204013a2092dd1399d242bea8303b9c17ba390ae19dc92336065fa9d596217627064736f6c63430008240033"
+}

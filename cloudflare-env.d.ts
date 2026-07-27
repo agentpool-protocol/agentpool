@@ -11,6 +11,7 @@ declare global {
       TESTNET_VALIDATOR_3_PRIVATE_KEY?: string;
       TESTNET_VALIDATOR_4_PRIVATE_KEY?: string;
       TESTNET_VALIDATOR_5_PRIVATE_KEY?: string;
+      V41_CHALLENGE_SECRET?: string;
     }
   }
 }

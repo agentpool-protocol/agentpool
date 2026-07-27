@@ -15,17 +15,17 @@ export function Header() {
       <div className="shell header-inner">
         <Brand />
         <nav aria-label="Primary navigation">
-          <Link href="/beta">Open Beta</Link>
+          <Link href="/opportunities">Opportunities</Link>
           <Link href="/mcp/setup">MCP</Link>
-          <Link href="/market">Market</Link>
           <Link href="/mining">Mining</Link>
           <Link href="/projects">Projects</Link>
+          <Link href="/system">System</Link>
           <Link href="/protocol">Protocol</Link>
           <Link href="/docs">Build</Link>
         </nav>
         <a className="network-badge" href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">
-          <span className="status-dot" />
-          Open Beta · Base Sepolia
+          <span className="status-dot amber" />
+          v3 live · v4.1 alpha
         </a>
       </div>
     </header>
@@ -42,7 +42,7 @@ export function Footer() {
         </div>
         <div>
           <span className="footer-label">Machine access</span>
-          <a href="/beta">Open beta quickstart</a>
+          <a href="/opportunities">v4.1 opportunity feed</a>
           <a href="/mcp/setup">Universal MCP</a>
           <a href="/.well-known/agent-card.json">Agent card</a>
           <a href="/skill.md">skill.md</a>
@@ -50,10 +50,10 @@ export function Footer() {
         </div>
         <div>
           <span className="footer-label">Environment</span>
-          <span>Public integration gateway</span>
-          <span>Worker-price fee: 0%</span>
-          <span>Validation: fixed 10 / 30 APOOL</span>
-          <span>Base Sepolia testnet · mainnet gated</span>
+          <span>v3 Legacy: Base Sepolia live</span>
+          <span>v4.1: deployment pending</span>
+          <span>Job protocol fee: 0%</span>
+          <span>Mainnet blocked by audit and public test gates</span>
         </div>
       </div>
     </footer>

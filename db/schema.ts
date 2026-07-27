@@ -357,3 +357,227 @@ export const artifacts = sqliteTable(
     index("artifacts_job_idx").on(table.jobId),
   ],
 );
+
+export const v41ExecutionProfiles = sqliteTable(
+  "v41_execution_profiles",
+  {
+    id: text("id").primaryKey(),
+    agentId: text("agent_id").notNull(),
+    ownerAddress: text("owner_address").notNull(),
+    capability: text("capability").notNull(),
+    runtimeHash: text("runtime_hash").notNull(),
+    modelHash: text("model_hash").notNull(),
+    conservativeSuccessBps: integer("conservative_success_bps").notNull().default(0),
+    p50LatencyMs: integer("p50_latency_ms").notNull().default(0),
+    p95LatencyMs: integer("p95_latency_ms").notNull().default(0),
+    reproducibleResults: integer("reproducible_results").notNull().default(0),
+    externalResults: integer("external_results").notNull().default(0),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("v41_profiles_agent_runtime_track_unique").on(
+      table.agentId,
+      table.runtimeHash,
+      table.capability,
+    ),
+    index("v41_profiles_capability_idx").on(table.capability),
+    index("v41_profiles_owner_idx").on(table.ownerAddress),
+  ],
+);
+
+export const v41Opportunities = sqliteTable(
+  "v41_opportunities",
+  {
+    id: text("id").primaryKey(),
+    market: text("market").notNull(),
+    fundingSource: text("funding_source").notNull(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    capability: text("capability").notNull(),
+    specificationHash: text("specification_hash").notNull(),
+    releaseId: text("release_id").notNull(),
+    proofPolicy: text("proof_policy").notNull(),
+    maxBudgetApool: text("max_budget_apool").notNull(),
+    estimatedCostApool: text("estimated_cost_apool").notNull(),
+    riskBps: integer("risk_bps").notNull(),
+    deadlineAt: integer("deadline_at", { mode: "timestamp_ms" }).notNull(),
+    state: text("state").notNull().default("OPEN"),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("v41_opportunities_market_idx").on(table.market),
+    index("v41_opportunities_state_idx").on(table.state),
+    index("v41_opportunities_deadline_idx").on(table.deadlineAt),
+  ],
+);
+
+export const v41Bids = sqliteTable(
+  "v41_bids",
+  {
+    id: text("id").primaryKey(),
+    opportunityId: text("opportunity_id").notNull(),
+    bidderAddress: text("bidder_address").notNull(),
+    profileId: text("profile_id").notNull(),
+    commitment: text("commitment").notNull(),
+    priceApool: text("price_apool"),
+    capacityUnits: integer("capacity_units"),
+    revealSaltHash: text("reveal_salt_hash"),
+    state: text("state").notNull().default("COMMITTED"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    revealedAt: integer("revealed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("v41_bids_opportunity_bidder_unique").on(
+      table.opportunityId,
+      table.bidderAddress,
+    ),
+    index("v41_bids_state_idx").on(table.state),
+  ],
+);
+
+export const v41Assignments = sqliteTable(
+  "v41_assignments",
+  {
+    id: text("id").primaryKey(),
+    opportunityId: text("opportunity_id").notNull(),
+    workerAddress: text("worker_address").notNull(),
+    profileId: text("profile_id").notNull(),
+    market: text("market").notNull(),
+    fundingSource: text("funding_source").notNull(),
+    releaseId: text("release_id").notNull(),
+    policyHash: text("policy_hash").notNull(),
+    awardedApool: text("awarded_apool").notNull(),
+    reservedApool: text("reserved_apool").notNull(),
+    state: text("state").notNull().default("AWARDED"),
+    deliveryHash: text("delivery_hash"),
+    proofCommitment: text("proof_commitment"),
+    proofHash: text("proof_hash"),
+    txHash: text("tx_hash"),
+    deadlineAt: integer("deadline_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("v41_assignments_opportunity_unique").on(table.opportunityId),
+    index("v41_assignments_worker_idx").on(table.workerAddress),
+    index("v41_assignments_state_idx").on(table.state),
+  ],
+);
+
+export const v41CapabilitySessions = sqliteTable(
+  "v41_capability_sessions",
+  {
+    id: text("id").primaryKey(),
+    agentId: text("agent_id").notNull(),
+    ownerAddress: text("owner_address").notNull(),
+    profileId: text("profile_id").notNull(),
+    track: text("track").notNull(),
+    challengeCommitment: text("challenge_commitment").notNull(),
+    submissionHash: text("submission_hash"),
+    scoreBps: integer("score_bps"),
+    latencyMs: integer("latency_ms"),
+    rewardApool: text("reward_apool").notNull(),
+    state: text("state").notNull().default("ACTIVE"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("v41_capability_active_profile_track_unique").on(
+      table.profileId,
+      table.track,
+      table.challengeCommitment,
+    ),
+    index("v41_capability_owner_idx").on(table.ownerAddress),
+    index("v41_capability_state_idx").on(table.state),
+  ],
+);
+
+export const v41SystemIssues = sqliteTable(
+  "v41_system_issues",
+  {
+    id: text("id").primaryKey(),
+    reporterAddress: text("reporter_address").notNull(),
+    issueCommitment: text("issue_commitment").notNull(),
+    evidenceHash: text("evidence_hash"),
+    reproductionHash: text("reproduction_hash"),
+    affectedReleaseId: text("affected_release_id"),
+    maxBudgetApool: text("max_budget_apool"),
+    state: text("state").notNull().default("COMMITTED"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    revealedAt: integer("revealed_at", { mode: "timestamp_ms" }),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("v41_system_issue_commitment_unique").on(table.issueCommitment),
+    index("v41_system_issue_state_idx").on(table.state),
+  ],
+);
+
+export const v41Proofs = sqliteTable(
+  "v41_proofs",
+  {
+    id: text("id").primaryKey(),
+    assignmentId: text("assignment_id").notNull(),
+    verifierAddress: text("verifier_address").notNull(),
+    commitment: text("commitment").notNull(),
+    decision: text("decision"),
+    evidenceHash: text("evidence_hash"),
+    saltHash: text("salt_hash"),
+    state: text("state").notNull().default("COMMITTED"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    revealedAt: integer("revealed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("v41_proofs_assignment_verifier_unique").on(
+      table.assignmentId,
+      table.verifierAddress,
+    ),
+    index("v41_proofs_state_idx").on(table.state),
+  ],
+);
+
+export const v41Artifacts = sqliteTable(
+  "v41_artifacts",
+  {
+    id: text("id").primaryKey(),
+    assignmentId: text("assignment_id").notNull(),
+    authorAddress: text("author_address").notNull(),
+    contentHash: text("content_hash").notNull(),
+    provenanceHash: text("provenance_hash").notNull(),
+    licenseHash: text("license_hash").notNull(),
+    releaseId: text("release_id").notNull(),
+    capability: text("capability").notNull(),
+    proofHash: text("proof_hash").notNull(),
+    reusePriceApool: text("reuse_price_apool").notNull().default("0"),
+    state: text("state").notNull().default("PROVEN"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("v41_artifacts_content_unique").on(table.contentHash),
+    index("v41_artifacts_capability_idx").on(table.capability),
+    index("v41_artifacts_release_idx").on(table.releaseId),
+  ],
+);
+
+export const v41EpochAccounting = sqliteTable(
+  "v41_epoch_accounting",
+  {
+    epoch: integer("epoch").primaryKey(),
+    allowanceApool: text("allowance_apool").notNull(),
+    capabilityReservedApool: text("capability_reserved_apool").notNull().default("0"),
+    capabilityMintedApool: text("capability_minted_apool").notNull().default("0"),
+    basicReservedApool: text("basic_reserved_apool").notNull().default("0"),
+    basicMintedApool: text("basic_minted_apool").notNull().default("0"),
+    systemReservedApool: text("system_reserved_apool").notNull().default("0"),
+    systemMintedApool: text("system_minted_apool").notNull().default("0"),
+    validationReservedApool: text("validation_reserved_apool").notNull().default("0"),
+    validationMintedApool: text("validation_minted_apool").notNull().default("0"),
+    experimentalMintedApool: text("experimental_minted_apool").notNull().default("0"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+);

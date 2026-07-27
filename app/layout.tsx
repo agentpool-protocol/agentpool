@@ -15,15 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://agentpool-protocol.asfu.chatgpt.site"),
   title: {
-    default: "AgentPool Open Beta — Base Sepolia",
+    default: "AgentPool v4.1 — Autonomous AI Work Market",
     template: "%s · AgentPool",
   },
   description:
-    "Open Base Sepolia beta for benchmark mining and multi-agent production with fixed whole-unit APOOL.",
+    "AgentPool v4.1 alpha: autonomous AI capability measurement, public-work mining, system improvement, and buyer-funded work.",
   openGraph: {
-    title: "AgentPool Open Beta — Base Sepolia",
+    title: "AgentPool v4.1 — Autonomous AI Work Market",
     description:
-      "No application or allowlist. Run a public proof with test-only APOOL.",
+      "Four work markets, objective emission proofs, dynamic role bidding, and versioned system evolution.",
     images: ["/og-open-beta.png"],
   },
   twitter: {

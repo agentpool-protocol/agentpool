@@ -1,0 +1,83 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+async function source(file) {
+  return readFile(new URL(`../${file}`, import.meta.url), "utf8");
+}
+
+test("v4.1 token starts empty and only its one-time controller can mint", async () => {
+  const token = await source("contracts/v4/AgentPoolV41Token.sol");
+  assert.match(token, /MAX_SUPPLY = 1_000_000_000_000 ether/);
+  assert.match(token, /emissionController/);
+  assert.match(token, /totalSupply\(\) \+ amount > MAX_SUPPLY/);
+  const constructorBody = token.slice(
+    token.indexOf("constructor"),
+    token.indexOf("function setEmissionController"),
+  );
+  assert.doesNotMatch(token, /Ownable/);
+  assert.doesNotMatch(constructorBody, /_mint\(/);
+  assert.match(token, /msg\.sender != emissionController/);
+  assert.doesNotMatch(token, /burn\(/);
+});
+
+test("v4.1 controller caps capability, proof experiments, and one issue", async () => {
+  const controller = await source("contracts/v4/AgentPoolV41EmissionController.sol");
+  assert.match(controller, /CAPABILITY_CAP_BPS = 500/);
+  assert.match(controller, /EXPERIMENT_CAP_BPS = 100/);
+  assert.match(controller, /ISSUE_CAP_BPS = 1_000/);
+  assert.match(controller, /GENESIS_DURATION = 180 days/);
+  assert.match(controller, /HALF_LIFE = 8 \* 365 days/);
+  assert.match(controller, /genesisCap = token_\.MAX_SUPPLY\(\) \/ 200/);
+  assert.match(controller, /epochReserved/);
+  assert.match(controller, /releaseReservationFromVault/);
+  assert.doesNotMatch(
+    controller,
+    /onlyOwner|function\s+pause|function\s+emergencyWithdraw|delegatecall/,
+  );
+});
+
+test("reserve settlement is fixed before work and evaluator cannot set payout", async () => {
+  const vault = await source("contracts/v4/AgentPoolV41EpochVault.sol");
+  assert.match(vault, /expectedEvidenceHash/);
+  assert.match(vault, /payoutRoot/);
+  assert.match(vault, /keccak256\(abi\.encode\(recipients, amounts\)\) != assignment\.payoutRoot/);
+  assert.match(vault, /controller\.reserveFromVault\(reservedPayout\)/);
+  assert.match(vault, /controller\.mintBatchFromVault\(recipients, amounts\)/);
+  assert.match(vault, /controller\.releaseReservationFromVault/);
+  assert.doesNotMatch(vault, /evaluator.*payout|score.*amount|onlyOwner/si);
+});
+
+test("external UserEscrow has no mint-controller reference", async () => {
+  const escrow = await source("contracts/v4/AgentPoolV41UserEscrow.sol");
+  assert.match(escrow, /safeTransferFrom\(msg\.sender, address\(this\), budget\)/);
+  assert.match(escrow, /keccak256\(abi\.encode\(recipients, amounts\)\)/);
+  assert.doesNotMatch(escrow, /EmissionController|\.mint\(|onlyOwner/);
+});
+
+test("system versions are append-only and proven only by a system vault", async () => {
+  const registry = await source("contracts/v4/AgentPoolV41ReleaseRegistry.sol");
+  assert.match(registry, /controller\.isSystemVault\(msg\.sender\)/);
+  assert.match(registry, /REGISTERED/);
+  assert.match(registry, /PROVEN/);
+  assert.match(registry, /CONTESTED/);
+  assert.doesNotMatch(registry, /delete\s+modules|setOfficial|onlyOwner/);
+});
+
+test("v4.1 gateway keeps all four funding sources explicit", async () => {
+  const [runtime, routes, mcp] = await Promise.all([
+    source("lib/v41.ts"),
+    source("lib/v41-runtime.ts"),
+    source("lib/mcp-public.ts"),
+  ]);
+  assert.match(runtime, /CAPABILITY/);
+  assert.match(runtime, /BASIC/);
+  assert.match(runtime, /SYSTEM/);
+  assert.match(runtime, /EXTERNAL/);
+  assert.match(runtime, /CORE_EPOCH/);
+  assert.match(runtime, /EVOLUTION_EPOCH/);
+  assert.match(runtime, /USER_ESCROW/);
+  assert.match(routes, /OFFCHAIN_RESERVED_V41_CHAIN_PENDING/);
+  assert.match(routes, /v41BaseSepoliaDeployed:\s*false/);
+  assert.match(mcp, /agentpool_v41_opportunities/);
+});

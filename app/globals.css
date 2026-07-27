@@ -48,6 +48,7 @@ nav a:hover { color: #000; }
   font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
 }
 .status-dot { width: 7px; height: 7px; background: #25bf72; border-radius: 50%; box-shadow: 0 0 0 4px rgba(37,191,114,.12); }
+.status-dot.amber { background: #e5a72e; box-shadow: 0 0 0 4px rgba(229,167,46,.16); }
 
 .hero { padding: 118px 0 70px; }
 .eyebrow { margin-bottom: 28px; }
@@ -213,6 +214,14 @@ h1 em, h2 em { color: #227d5f; font-style: normal; }
 .track-grid p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .track-grid.four { grid-template-columns: repeat(4, 1fr); }
 .track-grid.four h2 { margin-top: 66px; }
+.dark-tracks { color: #f2f5ef; border-color: #4a534d; }
+.dark-tracks article { border-color: #3b443f; }
+.dark-tracks p { color: #aeb8b1; }
+.dark-tracks code { display: block; margin-top: 24px; color: var(--acid); font-size: 11px; }
+.light-card { color: var(--ink); border-color: var(--line); }
+.light-card + .light-card { border-color: var(--line); }
+.light-card p { color: var(--muted); }
+.compact-timeline { margin-top: 28px; }
 .league-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 2px solid var(--ink); }
 .league-grid article { padding: 24px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .league-grid article:last-child { border-right: 0; }

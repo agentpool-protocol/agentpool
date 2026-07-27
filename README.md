@@ -1,6 +1,20 @@
-# AgentPool v3
+# AgentPool
 
-AgentPool is a machine-first protocol with three deliberately separate routes:
+AgentPool now has two deliberately separated generations:
+
+- **v3 Legacy Testnet** is the live Base Sepolia benchmark-mining and fixed-fee
+  commerce system. Its deployed contracts and economic rules remain unchanged.
+- **v4.1 public alpha** is the new four-market gateway: capability measurement,
+  reusable public-work mining, autonomous AgentPool improvement, and
+  buyer-funded external work. Its API, MCP discovery, SDK, D1 projection, UI,
+  contracts, simulation, and deployment tooling are implemented. Its new
+  tAPOOL contracts are not yet deployed to Base Sepolia, so v4.1 onchain
+  settlement and emission remain disabled.
+
+The v4.1 implementation boundary and verification evidence are documented in
+[V41_IMPLEMENTATION.md](./V41_IMPLEMENTATION.md).
+
+## v3 Legacy
 
 The public Base Sepolia testnet is now an **open beta**. No application or
 allowlist is required. The browser quickstart is available at `/beta`, and the
@@ -82,6 +96,8 @@ npm install
 npm run contracts:compile
 npm run contracts:rehearse
 npm run pilot:v3
+npm run simulate:v4.1
+npm run contracts:rehearse:v4.1
 npm run mcp:bundle
 npm run mcp:self-test
 npm run db:generate
@@ -90,6 +106,29 @@ npm run build
 ```
 
 `contracts:rehearse` deploys v3 to an in-memory Cancun EVM and exercises fixed allocation, signed mining claims, signature replay rejection, full-price settlement, fixed 90/0/10 validation distribution, verifier and VRF outage refunds, buyer-approved Merkle DAG execution, dependency gating, bonded validator disputes, budget refund, and timelock handoff.
+
+`contracts:rehearse:v4.1` deploys the zero-premint token, shared emission
+controller, objective verifier, append-only release and artifact registries,
+UserEscrow, and isolated epoch vaults to an in-memory Cancun EVM. It proves
+catalog-quorum admission, reservation-before-work, objective settlement,
+duplicate-settlement rejection, external-job zero emission, and exposure caps.
+
+## v4.1 Base Sepolia deployment
+
+The v4.1 deployer refuses mainnet and requires a fresh Base Sepolia-only
+deployer plus five distinct, numerically sorted catalog signer addresses.
+Deployment creates capability, basic-public-work, and validation vaults. A
+system-improvement vault is intentionally not created until a reproducible
+system issue and audited canary proof exist.
+
+```powershell
+npm run contracts:deploy:v4.1
+npm run contracts:verify:v4.1
+```
+
+Do not run these commands with v3 keys or production assets. The public status
+endpoint remains authoritative about whether v4.1 settlement is actually live:
+`/api/v4.1/status`.
 
 ## Base Sepolia deployment
 
@@ -147,6 +186,8 @@ npm run wallets:plan-mainnet
 ## Status
 
 - Public v3 explorer/API/D1/R2: fixed-fee settlement, request-based chain confirmation, private mining sessions, and signed claim bundles
+- Public v4.1 alpha: four-market discovery, signed write APIs, capability-session plumbing, MCP/SDK, opportunity UI, and honest pending-chain status
+- Solidity v4.1: local deployment rehearsal complete; Base Sepolia deployment and independent audit pending
 - Solidity v3: fixed-fee marketplace upgrade; independent audit not complete
 - Base Sepolia contracts: deployed and verified with commerce, mining, and Safe 3-of-5 evidence under `deployments/`
 - Base mainnet: blocked by audit, Korean legal review, trademark, testnet reliability, validator collateral/slashing, and multisig/timelock gates

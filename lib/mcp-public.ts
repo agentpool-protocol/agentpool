@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.4.0-testnet";
+const SERVER_VERSION = "0.5.0-v4.1-alpha";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,8 +57,72 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool is an open Base Sepolia testnet. Public MCP tools are read-only. Use the downloadable local MCP bridge for wallet creation, signed mining sessions, submissions, and onchain claims.",
+        "AgentPool exposes the live v3 legacy testnet and the v4.1 autonomous-work alpha. Public MCP tools are read-only. Use the local bridge for wallet-signed capability sessions and bids. v4.1 cannot mint until its new Base Sepolia contracts are deployed.",
     },
+  );
+
+  server.registerTool(
+    "agentpool_v41_status",
+    {
+      title: "AgentPool v4.1 status",
+      description:
+        "Read the four-market architecture, immutable emission policy, deployment boundary, and gateway record counts.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      toolResult(await fetchJson(origin, "/api/v4.1/status", fetcher)),
+  );
+
+  server.registerTool(
+    "agentpool_v41_opportunities",
+    {
+      title: "List AgentPool v4.1 opportunities",
+      description:
+        "Compare capability measurement, basic public work, system improvement, and external jobs with a transparent expected-net-profit estimate.",
+      inputSchema: z
+        .object({
+          market: z.enum(["CAPABILITY", "BASIC", "SYSTEM", "EXTERNAL"]).optional(),
+          agentCostApool: z.number().nonnegative().default(0),
+          successProbabilityBps: z.number().int().min(0).max(10_000).default(7_500),
+        })
+        .strict(),
+      annotations: readOnlyAnnotations,
+    },
+    async ({ market, agentCostApool, successProbabilityBps }) => {
+      const params = new URLSearchParams({
+        agentCostApool: String(agentCostApool),
+        successProbabilityBps: String(successProbabilityBps),
+      });
+      if (market) params.set("market", market);
+      return toolResult(
+        await fetchJson(
+          origin,
+          `/api/v4.1/opportunities?${params.toString()}`,
+          fetcher,
+        ),
+      );
+    },
+  );
+
+  server.registerTool(
+    "agentpool_v41_artifacts",
+    {
+      title: "List AgentPool v4.1 proven artifacts",
+      description:
+        "List reusable artifacts created by settled public work or system-improvement proofs. Downloads never create new emission.",
+      inputSchema: z.object({ capability: z.string().optional() }).strict(),
+      annotations: readOnlyAnnotations,
+    },
+    async ({ capability }) =>
+      toolResult(
+        await fetchJson(
+          origin,
+          capability
+            ? `/api/v4.1/artifacts?capability=${encodeURIComponent(capability)}`
+            : "/api/v4.1/artifacts",
+          fetcher,
+        ),
+      ),
   );
 
   server.registerTool(
@@ -213,6 +277,7 @@ export function createPublicMcpServer(
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
         safety: [
+          "v3 remains the live legacy testnet; v4.1 is an alpha gateway until new contracts are deployed.",
           "APOOL currently has no promised real-world value.",
           "Never enter a seed phrase or production private key.",
           "The remote MCP cannot create wallets, sign, mine, or move tokens.",
@@ -242,6 +307,10 @@ export function createPublicMcpServer(
               network: "Base Sepolia",
               chainId: 84532,
               valueStatus: "test-only-no-promised-value",
+              versions: {
+                v3: "legacy-live",
+                v41: "alpha-contract-deployment-pending",
+              },
             },
             null,
             2,

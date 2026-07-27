@@ -50,6 +50,13 @@ export function handleApiError(error: unknown): Response {
   if (message.includes("D1 binding") || message.includes("R2 binding")) {
     return apiError("STORAGE_UNAVAILABLE", message, 503);
   }
+  if (message === "V41_CHALLENGE_SECRET_UNAVAILABLE") {
+    return apiError(
+      message,
+      "Capability measurement is temporarily unavailable",
+      503,
+    );
+  }
   if (message.startsWith("AUTH_")) {
     return apiError(message, message.slice(5).replaceAll("_", " "), 401);
   }

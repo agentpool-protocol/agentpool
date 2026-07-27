@@ -14,6 +14,11 @@ import {
 
 const CHAIN_ID = 84532;
 const textEncoder = new TextEncoder();
+export const V41_MAX_SUPPLY_APOOL = 1_000_000_000_000n;
+export const V41_DECIMALS = 18;
+export const V41_CAPABILITY_CAP_BPS = 500;
+export const V41_EXPERIMENTAL_PROOF_CAP_BPS = 100;
+export const V41_ISSUE_CAP_BPS = 1_000;
 export const VALIDATOR_SHARE_BPS = 9_000;
 export const SECURITY_SHARE_BPS = 1_000;
 export const BURN_SHARE_BPS = 0;
@@ -148,6 +153,41 @@ export interface MiningSubmissionInput {
   minerAgentId: string;
   recipientAddress: `0x${string}`;
   answer: unknown;
+}
+
+export interface V41CapabilitySessionInput {
+  agentId: string;
+  profileId: string;
+  track: "math" | "json" | "api";
+  runtimeHash: `0x${string}`;
+  modelHash: `0x${string}`;
+}
+
+export function v41BidCommitment(input: {
+  opportunityId: string;
+  bidderAddress: `0x${string}`;
+  profileId: string;
+  priceApool: string;
+  capacityUnits: number;
+  salt: string;
+}): `0x${string}` {
+  return keccak256(
+    toBytes(JSON.stringify({
+      capacityUnits: input.capacityUnits,
+      opportunityId: input.opportunityId,
+      priceApool: input.priceApool,
+      profileId: input.profileId,
+      bidderAddress: input.bidderAddress.toLowerCase(),
+      salt: input.salt,
+    }, Object.keys({
+      capacityUnits: 0,
+      opportunityId: "",
+      priceApool: "",
+      profileId: "",
+      bidderAddress: "",
+      salt: "",
+    }).sort())),
+  );
 }
 
 async function sha256Hex(data: string | Uint8Array): Promise<`0x${string}`> {
@@ -312,6 +352,108 @@ export class AgentPoolClient {
 
   async protocolStatus(): Promise<unknown> {
     return this.get("/api/v2/status");
+  }
+
+  async v41Status(): Promise<unknown> {
+    return this.get("/api/v4.1/status");
+  }
+
+  async v41Opportunities(filter?: {
+    market?: "CAPABILITY" | "BASIC" | "SYSTEM" | "EXTERNAL";
+    agentCostApool?: number;
+    successProbabilityBps?: number;
+  }): Promise<unknown> {
+    const query = new URLSearchParams();
+    if (filter?.market) query.set("market", filter.market);
+    if (filter?.agentCostApool !== undefined) {
+      query.set("agentCostApool", String(filter.agentCostApool));
+    }
+    if (filter?.successProbabilityBps !== undefined) {
+      query.set("successProbabilityBps", String(filter.successProbabilityBps));
+    }
+    const suffix = query.size > 0 ? `?${query.toString()}` : "";
+    return this.get(`/api/v4.1/opportunities${suffix}`);
+  }
+
+  async startV41Capability(
+    input: V41CapabilitySessionInput,
+  ): Promise<unknown> {
+    return this.signedWrite("/api/v4.1/capabilities/sessions", "POST", input);
+  }
+
+  async submitV41Capability(input: {
+    sessionId: string;
+    answer: unknown;
+    latencyMs: number;
+  }): Promise<unknown> {
+    return this.signedWrite(
+      "/api/v4.1/capabilities/submissions",
+      "POST",
+      input,
+    );
+  }
+
+  async commitV41Bid(
+    opportunityId: string,
+    input: { profileId: string; commitment: `0x${string}` },
+  ): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v4.1/auctions/${encodeURIComponent(opportunityId)}/commit`,
+      "POST",
+      input,
+    );
+  }
+
+  async revealV41Bid(
+    opportunityId: string,
+    input: {
+      profileId: string;
+      priceApool: string;
+      capacityUnits: number;
+      salt: string;
+    },
+  ): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v4.1/auctions/${encodeURIComponent(opportunityId)}/reveal`,
+      "POST",
+      input,
+    );
+  }
+
+  async v41Allocation(opportunityId: string): Promise<unknown> {
+    return this.get(
+      `/api/v4.1/opportunities/${encodeURIComponent(opportunityId)}/allocation`,
+    );
+  }
+
+  async acceptV41Assignment(
+    assignmentId: string,
+    capacityOfferHash: `0x${string}`,
+  ): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v4.1/assignments/${encodeURIComponent(assignmentId)}/accept`,
+      "POST",
+      { capacityOfferHash },
+    );
+  }
+
+  async deliverV41Assignment(
+    assignmentId: string,
+    deliveryHash: `0x${string}`,
+  ): Promise<unknown> {
+    return this.signedWrite(
+      `/api/v4.1/assignments/${encodeURIComponent(assignmentId)}/deliver`,
+      "POST",
+      { deliveryHash },
+    );
+  }
+
+  async v41Artifacts(capability?: string): Promise<unknown> {
+    return this.get(
+      capability
+        ? `/api/v4.1/artifacts?capability=${encodeURIComponent(capability)}`
+        : "/api/v4.1/artifacts",
+    );
   }
 
   async directPaymentRequirements(listingId: string): Promise<unknown> {

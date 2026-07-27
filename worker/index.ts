@@ -30,8 +30,8 @@ function discoveryResponse(request: Request): Response | null {
   if (url.pathname === "/.well-known/agent-card.json") {
     return Response.json({
       name: "AgentPool Protocol",
-      description: "Open Base Sepolia beta for machine-native benchmark mining and multi-agent production.",
-      version: "0.4.0-testnet",
+      description: "Machine-native opportunity market for capability evidence, public-work mining, system evolution, and buyer-funded production.",
+      version: "0.5.0-v4.1-alpha",
       url: origin,
       beta: {
         phase: "open",
@@ -53,6 +53,10 @@ function discoveryResponse(request: Request): Response | null {
         onchainSettlement: true,
         humanCheckout: false,
         modelContextProtocol: true,
+        autonomousOpportunityMarketV41: true,
+        capabilityProfilesV41: true,
+        publicWorkMiningV41: true,
+        systemEvolutionV41: true,
       },
       authentication: {
         type: "eip191-wallet-signature",
@@ -61,22 +65,29 @@ function discoveryResponse(request: Request): Response | null {
       payment: {
         network: "Base Sepolia",
         chainId: 84532,
-        asset: "APOOL",
+        versions: {
+          v3: {
+            asset: "APOOL",
+            status: "legacy-live-base-sepolia",
+            decimals: 0,
+            validationPricing: "fixed-by-verifier",
+            validationSplitBps: {
+              validators: 9000,
+              burn: 0,
+              security: 1000,
+            },
+          },
+          v41: {
+            asset: "tAPOOL",
+            status: "alpha-contract-deployment-pending",
+            decimals: 18,
+            premint: "0",
+            validationPricing: "dynamic-private-auction",
+            onchainSettlement: false,
+          },
+        },
         workerPriceFeeBps: 0,
-        validationPricing: "fixed-by-verifier",
-        validationFeesApool: {
-          deterministic: 10,
-          sandbox: 30,
-          dispute: 50,
-        },
-        workerBondBps: 1000,
-        minimumWorkerBondApool: 10,
-        validationSplitBps: {
-          validators: 9000,
-          burn: 0,
-          security: 1000,
-        },
-        status: "live-base-sepolia",
+        burnBps: 0,
       },
       endpoints: {
         agents: `${origin}/api/v1/agents`,
@@ -91,6 +102,14 @@ function discoveryResponse(request: Request): Response | null {
         protocolStatus: `${origin}/api/v2/status`,
         directPayment: `${origin}/api/v1/payments/direct`,
         projects: `${origin}/api/v2/projects`,
+        v41Status: `${origin}/api/v4.1/status`,
+        v41Opportunities: `${origin}/api/v4.1/opportunities`,
+        v41CapabilitySessions: `${origin}/api/v4.1/capabilities/sessions`,
+        v41CapabilitySubmissions: `${origin}/api/v4.1/capabilities/submissions`,
+        v41PublicNeedSignals: `${origin}/api/v4.1/mining/issues`,
+        v41SystemIssueCommit: `${origin}/api/v4.1/system/issues/commit`,
+        v41SystemIssueReveal: `${origin}/api/v4.1/system/issues/reveal`,
+        v41Artifacts: `${origin}/api/v4.1/artifacts`,
         openBeta: `${origin}/beta`,
         mcp: `${origin}/api/mcp`,
         mcpSetup: `${origin}/mcp/setup`,
@@ -112,6 +131,9 @@ function discoveryResponse(request: Request): Response | null {
         "dev.agentpool.verified-work",
         "dev.agentpool.benchmark-mining-v2",
         "dev.agentpool.multi-agent-dag-v2",
+        "dev.agentpool.opportunity-market-v4.1",
+        "dev.agentpool.capability-profile-v4.1",
+        "dev.agentpool.system-evolution-v4.1",
       ],
     });
   }

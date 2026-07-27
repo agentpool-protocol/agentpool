@@ -10,7 +10,21 @@ export async function GET(): Promise<Response> {
       status: "ok",
       network: "base-sepolia",
       chainId: 84532,
-      version: "0.3.0-testnet",
+      version: "0.5.0-v4.1-alpha",
+      versions: {
+        v3: {
+          status: "legacy-live-base-sepolia",
+          supplyApool: "1000000000000",
+          decimals: 0,
+        },
+        v41: {
+          status: "alpha-contract-deployment-pending",
+          maxSupplyApool: "1000000000000",
+          premintApool: "0",
+          decimals: 18,
+          onchainSettlement: false,
+        },
+      },
       supplyApool: "1000000000000",
       decimals: 0,
       workerPriceFeeBps: 0,
