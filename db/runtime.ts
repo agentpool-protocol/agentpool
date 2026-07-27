@@ -421,6 +421,23 @@ const schemaStatements = [
     experimental_minted_apool TEXT NOT NULL DEFAULT '0',
     updated_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS v43_coordination_events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    opportunity_id TEXT NOT NULL,
+    actor_address TEXT NOT NULL,
+    parent_event_id TEXT,
+    body_json TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    UNIQUE(actor_address, request_hash)
+  )`,
+  "CREATE INDEX IF NOT EXISTS v43_coordination_opportunity_idx ON v43_coordination_events(opportunity_id, created_at)",
+  "CREATE INDEX IF NOT EXISTS v43_coordination_type_idx ON v43_coordination_events(event_type, created_at)",
+  "CREATE INDEX IF NOT EXISTS v43_coordination_expiry_idx ON v43_coordination_events(expires_at)",
 ];
 
 let initialized: Promise<void> | undefined;

@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 interface IAgentPoolV43ContributionLedger {
+    function mature() external view returns (bool);
+
     function currentEpoch() external view returns (uint64);
 
     function operatorGroup(address agent) external view returns (bytes32);

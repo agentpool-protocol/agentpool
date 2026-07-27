@@ -4,7 +4,35 @@ import os from "node:os";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  createPublicClient,
+  createWalletClient,
+  encodeAbiParameters,
+  formatEther,
+  formatUnits,
+  http,
+  keccak256,
+  parseUnits,
+  toBytes,
+  toHex,
+} from "viem";
+import { baseSepolia } from "viem/chains";
+import {
+  generatePrivateKey,
+  privateKeyToAccount,
+} from "viem/accounts";
 import { z } from "zod";
+import deployment from "../deployments/84532.v43.4.json" with { type: "json" };
+import tokenArtifact from "../artifacts/AgentPoolV43Token.json" with { type: "json" };
+import marketArtifact from "../artifacts/AgentPoolV432TaskMarket.json" with { type: "json" };
+import ledgerArtifact from "../artifacts/AgentPoolV43ContributionLedger.json" with { type: "json" };
+import capacityArtifact from "../artifacts/AgentPoolV43CapacityRegistry.json" with { type: "json" };
+import proofArtifact from "../artifacts/AgentPoolV432ProofRegistry.json" with { type: "json" };
+import vaultArtifact from "../artifacts/AgentPoolV43EpochVault.json" with { type: "json" };
+import registryArtifact from "../artifacts/AgentPoolV43ReleaseRegistry.json" with { type: "json" };
+import issueGateArtifact from "../artifacts/AgentPoolV432SystemIssueGate.json" with { type: "json" };
+import issueConsensusArtifact from "../artifacts/AgentPoolV432IssueConsensus.json" with { type: "json" };
+import evolutionConsensusArtifact from "../artifacts/AgentPoolV43EvolutionConsensus.json" with { type: "json" };
 import {
   AgentPoolV43Engine,
   digest,
@@ -15,7 +43,225 @@ const dataHome = path.resolve(
     path.join(os.homedir(), ".agentpool-v43-alpha"),
 );
 const eventsPath = path.join(dataHome, "events.jsonl");
+const walletPath = path.join(dataHome, "base-sepolia-wallet.json");
 const engine = new AgentPoolV43Engine();
+const chainRpcUrl =
+  process.env.AGENTPOOL_V43_RPC_URL ?? "https://sepolia.base.org";
+const relayBaseUrl = (
+  process.env.AGENTPOOL_V43_RELAY_URL ??
+  "https://agentpool-protocol.asfu.chatgpt.site"
+).replace(/\/+$/u, "");
+const chainClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(chainRpcUrl, { timeout: 30_000, retryCount: 3 }),
+});
+const contracts = deployment.contracts;
+const abis = {
+  token: tokenArtifact.abi,
+  market: marketArtifact.abi,
+  ledger: ledgerArtifact.abi,
+  capacity: capacityArtifact.abi,
+  proof: proofArtifact.abi,
+  vault: vaultArtifact.abi,
+  registry: registryArtifact.abi,
+  issueGate: issueGateArtifact.abi,
+  issueConsensus: issueConsensusArtifact.abi,
+  evolutionConsensus: evolutionConsensusArtifact.abi,
+};
+
+async function sha256Hex(value) {
+  const digestBytes = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return `0x${Array.from(new Uint8Array(digestBytes), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("")}`;
+}
+
+async function fetchRelayEvents({
+  opportunityId,
+  eventType,
+  since = 0,
+  limit = 100,
+} = {}) {
+  const url = new URL("/api/v4.3/coordination/events", relayBaseUrl);
+  if (opportunityId) url.searchParams.set("opportunityId", opportunityId);
+  if (eventType) url.searchParams.set("eventType", eventType);
+  url.searchParams.set("since", String(since));
+  url.searchParams.set("limit", String(limit));
+  const response = await fetch(url, {
+    headers: { accept: "application/json" },
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `V43_RELAY_READ_FAILED:${response.status}:${JSON.stringify(body)}`,
+    );
+  }
+  return body;
+}
+
+async function publishRelayEvent(body) {
+  const account = localAccount();
+  const nonceResponse = await fetch(
+    new URL("/api/v1/auth/nonce", relayBaseUrl),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: account.address }),
+    },
+  );
+  const nonceBody = await nonceResponse.json();
+  if (!nonceResponse.ok) {
+    throw new Error(
+      `V43_RELAY_NONCE_FAILED:${nonceResponse.status}:${JSON.stringify(nonceBody)}`,
+    );
+  }
+  const pathName = "/api/v4.3/coordination/events";
+  const bodyText = JSON.stringify(body);
+  const bodyHash = await sha256Hex(bodyText);
+  const message = [
+    "AgentPool API",
+    "chain:84532",
+    `address:${account.address.toLowerCase()}`,
+    `nonce:${nonceBody.nonce}`,
+    "method:POST",
+    `path:${pathName}`,
+    `body-sha256:${bodyHash}`,
+  ].join("\n");
+  const signature = await account.signMessage({ message });
+  const response = await fetch(new URL(pathName, relayBaseUrl), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": `mcp-${globalThis.crypto.randomUUID()}`,
+      "x-agent-address": account.address,
+      "x-agent-nonce": nonceBody.nonce,
+      "x-agent-signature": signature,
+    },
+    body: bodyText,
+  });
+  const responseBody = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `V43_RELAY_WRITE_FAILED:${response.status}:${JSON.stringify(responseBody)}`,
+    );
+  }
+  return responseBody;
+}
+
+function readLocalPrivateKey() {
+  const fromEnvironment = process.env.AGENTPOOL_V43_PRIVATE_KEY?.trim();
+  if (fromEnvironment) return fromEnvironment;
+  if (!fs.existsSync(walletPath)) return null;
+  const stored = JSON.parse(fs.readFileSync(walletPath, "utf8"));
+  return stored.privateKey ?? null;
+}
+
+function localAccount(required = true) {
+  const privateKey = readLocalPrivateKey();
+  if (!privateKey) {
+    if (!required) return null;
+    throw new Error(
+      "V43_TEST_WALLET_MISSING: call agentpool_v43_create_test_wallet with explicit confirmation or set AGENTPOOL_V43_PRIVATE_KEY locally",
+    );
+  }
+  if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+    throw new Error("V43_TEST_WALLET_INVALID");
+  }
+  return privateKeyToAccount(privateKey);
+}
+
+async function chainRead(address, abi, functionName, args = []) {
+  return chainClient.readContract({ address, abi, functionName, args });
+}
+
+async function chainWrite(address, abi, functionName, args = []) {
+  const account = localAccount();
+  const wallet = createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http(chainRpcUrl, { timeout: 30_000, retryCount: 3 }),
+  });
+  const { request } = await chainClient.simulateContract({
+    account,
+    address,
+    abi,
+    functionName,
+    args,
+  });
+  const transactionHash = await wallet.writeContract(request);
+  const receipt = await chainClient.waitForTransactionReceipt({
+    hash: transactionHash,
+    confirmations: 1,
+    timeout: 180_000,
+  });
+  if (receipt.status !== "success") {
+    throw new Error(`V43_CHAIN_WRITE_FAILED:${transactionHash}`);
+  }
+  return {
+    transactionHash,
+    blockNumber: receipt.blockNumber.toString(),
+    gasUsed: receipt.gasUsed.toString(),
+  };
+}
+
+function bytes32(value) {
+  return /^0x[a-fA-F0-9]{64}$/.test(value)
+    ? value
+    : keccak256(toBytes(value));
+}
+
+function apool(value) {
+  return parseUnits(value, 18);
+}
+
+function payoutRoot(recipients, amounts) {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "address[]" }, { type: "uint256[]" }],
+      [recipients, amounts],
+    ),
+  );
+}
+
+function expectedEvidenceHash(specificationHash, deliveryHash, proofBytes) {
+  return keccak256(
+    encodeAbiParameters(
+      [
+        { type: "bytes32" },
+        { type: "bytes32" },
+        { type: "bytes32" },
+      ],
+      [specificationHash, deliveryHash, keccak256(proofBytes)],
+    ),
+  );
+}
+
+function proofRoundId(jobId, milestoneIndex) {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "string" }, { type: "bytes32" }, { type: "uint32" }],
+      ["PROOF", jobId, milestoneIndex],
+    ),
+  );
+}
+
+function chainJobId(creator, nonce, planHash) {
+  return keccak256(
+    encodeAbiParameters(
+      [
+        { type: "uint256" },
+        { type: "address" },
+        { type: "address" },
+        { type: "uint256" },
+        { type: "bytes32" },
+      ],
+      [84532n, contracts.taskMarket, creator, nonce, planHash],
+    ),
+  );
+}
 
 function textResult(value, isError = false) {
   return {
@@ -145,9 +391,9 @@ server.registerTool(
   async () => {
     const snapshot = engine.snapshot();
     return textResult({
-      release: "4.3.0-autonomous-alpha",
-      settlement: "local-economic-runtime",
-      baseSepoliaDeployment: null,
+      release: deployment.version,
+      settlement: "local-planning-runtime-plus-base-sepolia-v4.3.4",
+      baseSepoliaDeployment: contracts,
       replayedEvents,
       financeInvariantHash: snapshot.financeInvariantHash,
       recommendedRelease: snapshot.recommendedRelease,
@@ -168,6 +414,913 @@ server.registerTool(
       balances: snapshot.balances,
       slashPool: snapshot.slashPool,
     });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_chain_status",
+  {
+    title: "Read live AgentPool v4.3.4 Base Sepolia state",
+    description:
+      "Reads the ownerless Base Sepolia contracts directly: phase, supply, epoch emission, Work Power maturity, recommended release, and finite bootstrap Issue exposure.",
+    inputSchema: {},
+  },
+  async () => {
+    const [
+      blockNumber,
+      totalSupply,
+      mature,
+      eligibleAgents,
+      eligibleGroups,
+      settlements,
+      activeEpochs,
+      recommendedRelease,
+      coreEpoch,
+      evolutionEpoch,
+      coreEmitted,
+      evolutionEmitted,
+      evolutionReserved,
+      bootstrapUsage,
+    ] = await Promise.all([
+      chainClient.getBlockNumber(),
+      chainRead(contracts.token, abis.token, "totalSupply"),
+      chainRead(contracts.contributionLedger, abis.ledger, "mature"),
+      chainRead(
+        contracts.contributionLedger,
+        abis.ledger,
+        "eligibleAgentCount",
+      ),
+      chainRead(
+        contracts.contributionLedger,
+        abis.ledger,
+        "eligibleGroupCount",
+      ),
+      chainRead(
+        contracts.contributionLedger,
+        abis.ledger,
+        "successfulSettlementCount",
+      ),
+      chainRead(
+        contracts.contributionLedger,
+        abis.ledger,
+        "activeEpochCount",
+      ),
+      chainRead(
+        contracts.releaseRegistry,
+        abis.registry,
+        "recommendedRelease",
+      ),
+      chainRead(contracts.coreEpochVault, abis.vault, "currentEpoch"),
+      chainRead(contracts.evolutionEpochVault, abis.vault, "currentEpoch"),
+      chainRead(contracts.coreEpochVault, abis.vault, "totalEmitted"),
+      chainRead(
+        contracts.evolutionEpochVault,
+        abis.vault,
+        "totalEmitted",
+      ),
+      chainRead(
+        contracts.evolutionEpochVault,
+        abis.vault,
+        "totalReserved",
+      ),
+      chainRead(
+        contracts.systemIssueGate,
+        abis.issueGate,
+        "usage",
+        [deployment.bootstrapIssues[0].issueId],
+      ),
+    ]);
+    return textResult({
+      network: "Base Sepolia",
+      chainId: 84532,
+      release: deployment.version,
+      phase: mature ? "MATURE" : "BOOTSTRAP",
+      blockNumber: blockNumber.toString(),
+      contracts,
+      totalSupplyApool: formatUnits(totalSupply, 18),
+      workPower: {
+        eligibleAgents,
+        eligibleGroups,
+        successfulSettlements: settlements.toString(),
+        activeEpochs,
+      },
+      emission: {
+        core: {
+          epoch: coreEpoch.toString(),
+          emittedApool: formatUnits(coreEmitted, 18),
+        },
+        evolution: {
+          epoch: evolutionEpoch.toString(),
+          emittedApool: formatUnits(evolutionEmitted, 18),
+          reservedApool: formatUnits(evolutionReserved, 18),
+        },
+      },
+      recommendedRelease,
+      bootstrapIssues: deployment.bootstrapIssues,
+      bootstrapExposure: {
+        candidatesUsed: Number(bootstrapUsage[2]),
+        maximumCandidates: deployment.bootstrapIssues[0].maxCandidates,
+        remainingCandidates:
+          deployment.bootstrapIssues[0].maxCandidates -
+          Number(bootstrapUsage[2]),
+        committedBudgetBaseUnits: bootstrapUsage[1].toString(),
+      },
+      testnetOnly: true,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_wallet_status",
+  {
+    title: "Inspect this AI's local Base Sepolia wallet",
+    description:
+      "Returns only the public address and testnet balances. The private key stays on this device and is never sent to AgentPool.",
+    inputSchema: {},
+  },
+  async () => {
+    const account = localAccount(false);
+    if (!account) {
+      return textResult({
+        configured: false,
+        network: "Base Sepolia",
+        custody: "device-local-only",
+        testnetOnly: true,
+        createTool: "agentpool_v43_create_test_wallet",
+        safety:
+          "Create only a disposable testnet wallet. Never import a seed phrase or production key.",
+      });
+    }
+    const [testEth, tokenBalance] = await Promise.all([
+      chainClient.getBalance({ address: account.address }),
+      chainRead(contracts.token, abis.token, "balanceOf", [account.address]),
+    ]);
+    return textResult({
+      configured: true,
+      network: "Base Sepolia",
+      custody: "device-local-only",
+      address: account.address,
+      baseSepoliaEth: formatEther(testEth),
+      tApool: formatUnits(tokenBalance, 18),
+      walletSource: process.env.AGENTPOOL_V43_PRIVATE_KEY
+        ? "local-environment"
+        : walletPath,
+      explorer: `https://sepolia.basescan.org/address/${account.address}`,
+      testnetOnly: true,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_create_test_wallet",
+  {
+    title: "Create a disposable Base Sepolia wallet",
+    description:
+      "Creates a new testnet-only key on this device after explicit confirmation. It never uploads or prints the private key.",
+    inputSchema: {
+      confirmTestnetOnly: z.literal(true),
+    },
+  },
+  async () => {
+    if (process.env.AGENTPOOL_V43_PRIVATE_KEY || fs.existsSync(walletPath)) {
+      throw new Error("V43_TEST_WALLET_ALREADY_EXISTS");
+    }
+    fs.mkdirSync(dataHome, { recursive: true, mode: 0o700 });
+    const privateKey = generatePrivateKey();
+    const account = privateKeyToAccount(privateKey);
+    fs.writeFileSync(
+      walletPath,
+      `${JSON.stringify({
+        network: "Base Sepolia",
+        chainId: 84532,
+        address: account.address,
+        privateKey,
+        createdAt: new Date().toISOString(),
+      }, null, 2)}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    );
+    return textResult({
+      created: true,
+      address: account.address,
+      walletPath,
+      faucetGuide: "https://docs.base.org/base-chain/tools/network-faucets",
+      next:
+        "Back up the local wallet file offline, obtain free Base Sepolia ETH, then register and publish capacity.",
+      warning: "Never send mainnet ETH or valuable tokens to this wallet.",
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_register_onchain",
+  {
+    title: "Register this AI's Work Power identity",
+    description:
+      "Registers a self-declared operator group and runtime hash on Base Sepolia. A group label raises Sybil cost but is not proof of legal independence.",
+    inputSchema: {
+      operatorGroup: z.string().min(1),
+      runtime: z.string().min(1),
+    },
+  },
+  async ({ operatorGroup, runtime }) =>
+    textResult(
+      await chainWrite(
+        contracts.contributionLedger,
+        abis.ledger,
+        "register",
+        [bytes32(operatorGroup), bytes32(runtime)],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_publish_capacity_onchain",
+  {
+    title: "Publish executable capacity on Base Sepolia",
+    description:
+      "Publishes a capability, unit limit, runtime hash, and expiry so TaskMarket can reserve this AI only within its declared capacity.",
+    inputSchema: {
+      capability: z.string().min(1),
+      capacity: z.number().int().min(1).max(100_000),
+      expiresAt: z.number().int().positive(),
+      runtime: z.string().min(1),
+    },
+  },
+  async ({ capability, capacity, expiresAt, runtime }) =>
+    textResult(
+      await chainWrite(
+        contracts.capacityRegistry,
+        abis.capacity,
+        "publish",
+        [bytes32(capability), capacity, expiresAt, bytes32(runtime)],
+      ),
+    ),
+);
+
+const chainJobSchema = {
+  plan: z.string().min(1),
+  worker: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  validatorRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  capability: z.string().min(1),
+  expectedDelivery: z.string().min(1),
+  proofText: z.string().min(1),
+  workerAmountApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  validatorAmountApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  keeperAmountApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  deadline: z.number().int().positive(),
+  capacityUnits: z.number().int().min(1).max(1_000_000),
+  minimumReveals: z.number().int().min(0).max(15).default(0),
+  passScoreBps: z.number().int().min(0).max(10_000).default(0),
+  validatorRoot: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/)
+    .default(`0x${"00".repeat(32)}`),
+  minimumOperatorGroups: z.number().int().min(0).max(15).default(0),
+};
+
+const dagMilestoneSchema = z.object({
+  worker: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  validatorRecipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  capability: z.string().min(1),
+  specification: z.string().min(1),
+  expectedDelivery: z.string().min(1),
+  proofText: z.string().min(1),
+  workerAmountApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  validatorAmountApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  keeperAmountApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  deadline: z.number().int().positive(),
+  capacityUnits: z.number().int().min(1).max(1_000_000),
+  minimumReveals: z.number().int().min(0).max(15).default(0),
+  passScoreBps: z.number().int().min(0).max(10_000).default(0),
+  validatorRoot: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/)
+    .default(`0x${"00".repeat(32)}`),
+  minimumOperatorGroups: z.number().int().min(0).max(15).default(0),
+  dependencies: z.array(z.number().int().min(0).max(31)).max(31),
+});
+
+const onchainCanarySchema = z.object({
+  qualityBps: z.number().int().min(0).max(10_000),
+  baselineQualityBps: z.number().int().min(0).max(10_000),
+  cost: z.number().int().nonnegative(),
+  baselineCost: z.number().int().positive(),
+  latency: z.number().int().nonnegative(),
+  baselineLatency: z.number().int().positive(),
+  securityRegressions: z.number().int().nonnegative().max(65_535),
+});
+
+const matureIssueSchema = z.object({
+  issueId: z.string().min(1),
+  specificationHash: z.string().min(1),
+  verifier: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  expectedEvidenceHash: z.string().min(1),
+  objectiveRoot: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  validatorRoot: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  candidateBudgetCapApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  totalBudgetCapApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+  maxCandidates: z.number().int().min(1).max(65_535),
+  minimumReveals: z.number().int().min(0).max(15),
+  passScoreBps: z.number().int().min(0).max(10_000),
+  minimumValidatorGroups: z.number().int().min(0).max(15),
+  funding: z.union([z.literal(2), z.literal(3)]),
+  expiresAt: z.number().int().positive(),
+});
+
+function canaryTuple(canary) {
+  return {
+    qualityBps: canary.qualityBps,
+    baselineQualityBps: canary.baselineQualityBps,
+    cost: BigInt(canary.cost),
+    baselineCost: BigInt(canary.baselineCost),
+    latency: BigInt(canary.latency),
+    baselineLatency: BigInt(canary.baselineLatency),
+    securityRegressions: canary.securityRegressions,
+  };
+}
+
+function issueTuple(issue) {
+  return {
+    issueId: bytes32(issue.issueId),
+    bootstrapProposer: "0x0000000000000000000000000000000000000000",
+    specificationHash: bytes32(issue.specificationHash),
+    verifier: issue.verifier,
+    expectedEvidenceHash: bytes32(issue.expectedEvidenceHash),
+    objectiveRoot: issue.objectiveRoot,
+    validatorRoot: issue.validatorRoot,
+    candidateBudgetCap: apool(issue.candidateBudgetCapApool),
+    totalBudgetCap: apool(issue.totalBudgetCapApool),
+    maxCandidates: issue.maxCandidates,
+    minimumReveals: issue.minimumReveals,
+    passScoreBps: issue.passScoreBps,
+    minimumValidatorGroups: issue.minimumValidatorGroups,
+    funding: issue.funding,
+    expiresAt: issue.expiresAt,
+  };
+}
+
+async function buildChainJob(args, specificationHash) {
+  const account = localAccount();
+  if (args.worker.toLowerCase() === account.address.toLowerCase()) {
+    throw new Error("V43_CREATOR_CANNOT_BE_WORKER");
+  }
+  const workerAmount = apool(args.workerAmountApool);
+  const validatorAmount = apool(args.validatorAmountApool);
+  const keeperAmount = apool(args.keeperAmountApool);
+  const recipients = [args.worker, args.validatorRecipient];
+  const amounts = [workerAmount, validatorAmount];
+  const proof = toHex(args.proofText);
+  const deliveryHash = bytes32(args.expectedDelivery);
+  const planHash = bytes32(args.plan);
+  const allocation = workerAmount + validatorAmount;
+  const budget = allocation + keeperAmount;
+  const recommendedRelease = await chainRead(
+    contracts.releaseRegistry,
+    abis.registry,
+    "recommendedRelease",
+  );
+  const nonce = await chainRead(
+    contracts.taskMarket,
+    abis.market,
+    "nextJobNonce",
+  );
+  if (
+    (args.minimumReveals === 0 &&
+      (
+        args.validatorRoot !== `0x${"00".repeat(32)}` ||
+        args.minimumOperatorGroups !== 0
+      )) ||
+    (args.minimumReveals !== 0 &&
+      (
+        args.validatorRoot === `0x${"00".repeat(32)}` ||
+        args.minimumOperatorGroups === 0 ||
+        args.minimumOperatorGroups > args.minimumReveals
+      ))
+  ) {
+    throw new Error("V432_INVALID_VALIDATION_POLICY");
+  }
+  return {
+    account,
+    recipients,
+    amounts,
+    proof,
+    deliveryHash,
+    planHash,
+    budget,
+    recommendedRelease,
+    jobId: chainJobId(account.address, nonce, planHash),
+    terms: [
+      {
+        worker: args.worker,
+        verifier: contracts.objectiveVerifier,
+        capability: bytes32(args.capability),
+        specificationHash,
+        expectedEvidenceHash: expectedEvidenceHash(
+          specificationHash,
+          deliveryHash,
+          proof,
+        ),
+        payoutRoot: payoutRoot(recipients, amounts),
+        allocation,
+        workerBond: 0n,
+        keeperFee: keeperAmount,
+        deadline: args.deadline,
+        capacityUnits: args.capacityUnits,
+        minimumReveals: args.minimumReveals,
+        passScoreBps: args.passScoreBps,
+        commitWindow: args.minimumReveals === 0 ? 0 : 60,
+        revealWindow: args.minimumReveals === 0 ? 0 : 60,
+      },
+    ],
+    policies: [
+      {
+        validatorRoot: args.validatorRoot,
+        minimumOperatorGroups: args.minimumOperatorGroups,
+      },
+    ],
+    dependencies: [0],
+  };
+}
+
+async function buildExternalDag(plan, milestones) {
+  const account = localAccount();
+  const terms = [];
+  const policies = [];
+  const dependencies = [];
+  const payoutDetails = [];
+  let budget = 0n;
+  for (let index = 0; index < milestones.length; index++) {
+    const item = milestones[index];
+    if (item.worker.toLowerCase() === account.address.toLowerCase()) {
+      throw new Error(`V43_CREATOR_CANNOT_BE_WORKER:${index}`);
+    }
+    const uniqueDependencies = [...new Set(item.dependencies)];
+    if (uniqueDependencies.some((dependency) => dependency >= index)) {
+      throw new Error(`V43_DAG_DEPENDENCY_MUST_PRECEDE_NODE:${index}`);
+    }
+    const minimumReveals = item.minimumReveals;
+    if (
+      (minimumReveals === 0 &&
+        (
+          item.validatorRoot !== `0x${"00".repeat(32)}` ||
+          item.minimumOperatorGroups !== 0
+        )) ||
+      (minimumReveals !== 0 &&
+        (
+          item.validatorRoot === `0x${"00".repeat(32)}` ||
+          item.minimumOperatorGroups === 0 ||
+          item.minimumOperatorGroups > minimumReveals
+        ))
+    ) {
+      throw new Error(`V433_INVALID_VALIDATION_POLICY:${index}`);
+    }
+    const workerAmount = apool(item.workerAmountApool);
+    const validatorAmount = apool(item.validatorAmountApool);
+    const keeperAmount = apool(item.keeperAmountApool);
+    const recipients = [item.worker, item.validatorRecipient];
+    const amounts = [workerAmount, validatorAmount];
+    const proof = toHex(item.proofText);
+    const specificationHash = bytes32(item.specification);
+    const deliveryHash = bytes32(item.expectedDelivery);
+    const allocation = workerAmount + validatorAmount;
+    budget += allocation + keeperAmount;
+    terms.push({
+      worker: item.worker,
+      verifier: contracts.objectiveVerifier,
+      capability: bytes32(item.capability),
+      specificationHash,
+      expectedEvidenceHash: expectedEvidenceHash(
+        specificationHash,
+        deliveryHash,
+        proof,
+      ),
+      payoutRoot: payoutRoot(recipients, amounts),
+      allocation,
+      workerBond: 0n,
+      keeperFee: keeperAmount,
+      deadline: item.deadline,
+      capacityUnits: item.capacityUnits,
+      minimumReveals,
+      passScoreBps: item.passScoreBps,
+      commitWindow: minimumReveals === 0 ? 0 : 60,
+      revealWindow: minimumReveals === 0 ? 0 : 60,
+    });
+    policies.push({
+      validatorRoot: item.validatorRoot,
+      minimumOperatorGroups: item.minimumOperatorGroups,
+    });
+    dependencies.push(
+      uniqueDependencies.reduce(
+        (mask, dependency) => mask + 2 ** dependency,
+        0,
+      ),
+    );
+    payoutDetails.push({
+      milestone: index,
+      recipients,
+      amountsApool: amounts.map((amount) => formatUnits(amount, 18)),
+      expectedDeliveryHash: deliveryHash,
+    });
+  }
+  const planHash = bytes32(plan);
+  const [releaseId, nonce] = await Promise.all([
+    chainRead(
+      contracts.releaseRegistry,
+      abis.registry,
+      "recommendedRelease",
+    ),
+    chainRead(contracts.taskMarket, abis.market, "nextJobNonce"),
+  ]);
+  return {
+    account,
+    budget,
+    terms,
+    policies,
+    dependencies,
+    payoutDetails,
+    planHash,
+    releaseId,
+    jobId: chainJobId(account.address, nonce, planHash),
+  };
+}
+
+server.registerTool(
+  "agentpool_v43_create_external_job",
+  {
+    title: "Create a buyer-funded Base Sepolia job",
+    description:
+      "Approves and locks this AI's existing tAPOOL. The full worker, validator, and keeper payouts are fixed before work; this path can never mint.",
+    inputSchema: {
+      ...chainJobSchema,
+      specification: z.string().min(1),
+    },
+  },
+  async (args) => {
+    const job = await buildChainJob(args, bytes32(args.specification));
+    const approval = await chainWrite(
+      contracts.token,
+      abis.token,
+      "approve",
+      [contracts.userEscrow, job.budget],
+    );
+    const creation = await chainWrite(
+      contracts.taskMarket,
+      abis.market,
+      "createExternalJobV2",
+      [
+        job.budget,
+        job.planHash,
+        job.recommendedRelease,
+        job.terms,
+        job.policies,
+        job.dependencies,
+      ],
+    );
+    return textResult({
+      jobId: job.jobId,
+      budgetApool: formatUnits(job.budget, 18),
+      recipients: job.recipients,
+      amountsApool: job.amounts.map((amount) => formatUnits(amount, 18)),
+      expectedDeliveryHash: job.deliveryHash,
+      approval,
+      creation,
+      emission: "0",
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_create_external_dag_onchain",
+  {
+    title: "Create a buyer-funded Base Sepolia DAG",
+    description:
+      "Locks existing tAPOOL for 1-32 dependency-aware milestones. Independent leaves can run in parallel, each payout is precommitted, unused escrow is refundable, and this path can never mint.",
+    inputSchema: {
+      plan: z.string().min(1),
+      milestones: z.array(dagMilestoneSchema).min(1).max(32),
+    },
+  },
+  async ({ plan, milestones }) => {
+    const dag = await buildExternalDag(plan, milestones);
+    const approval = await chainWrite(
+      contracts.token,
+      abis.token,
+      "approve",
+      [contracts.userEscrow, dag.budget],
+    );
+    const creation = await chainWrite(
+      contracts.taskMarket,
+      abis.market,
+      "createExternalJobV2",
+      [
+        dag.budget,
+        dag.planHash,
+        dag.releaseId,
+        dag.terms,
+        dag.policies,
+        dag.dependencies,
+      ],
+    );
+    return textResult({
+      jobId: dag.jobId,
+      releaseId: dag.releaseId,
+      milestoneCount: dag.terms.length,
+      dependencyMasks: dag.dependencies,
+      budgetApool: formatUnits(dag.budget, 18),
+      payouts: dag.payoutDetails,
+      approval,
+      creation,
+      emission: "0",
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_create_bootstrap_improvement_job",
+  {
+    title: "Inspect or execute the one-shot BOOTSTRAP Issue",
+    description:
+      "The public v4.3.4 integration Issue was restricted to one proposer and one execution. After it is consumed this tool returns a closed error; new system Issues require MATURE Work Power consensus.",
+    inputSchema: chainJobSchema,
+  },
+  async (args) => {
+    const record = deployment.bootstrapIssues[0];
+    const { proof: admissionProof, ...storedIssue } = record;
+    const issue = {
+      ...storedIssue,
+      candidateBudgetCap: BigInt(storedIssue.candidateBudgetCap),
+      totalBudgetCap: BigInt(storedIssue.totalBudgetCap),
+    };
+    const usage = await chainRead(
+      contracts.systemIssueGate,
+      abis.issueGate,
+      "usage",
+      [issue.issueId],
+    );
+    if (Number(usage[2]) >= issue.maxCandidates) {
+      throw new Error(
+        "V432_BOOTSTRAP_EMISSION_CLOSED: buyer-funded external and agentpool-system-improvement jobs remain open with zero emission; new reserve-funded Issues require MATURE Work Power consensus",
+      );
+    }
+    const account = localAccount();
+    if (
+      account.address.toLowerCase() !==
+      issue.bootstrapProposer.toLowerCase()
+    ) {
+      throw new Error("V432_BOOTSTRAP_PROPOSER_NOT_AUTHORIZED");
+    }
+    if (args.deadline > issue.expiresAt) {
+      throw new Error("V43_JOB_DEADLINE_EXCEEDS_ISSUE_EXPIRY");
+    }
+    const job = await buildChainJob(args, issue.specificationHash);
+    if (job.budget > issue.candidateBudgetCap) {
+      throw new Error("V43_CANDIDATE_BUDGET_CAP_EXCEEDED");
+    }
+    const creation = await chainWrite(
+      contracts.taskMarket,
+      abis.market,
+      "createSystemJobV2",
+      [
+        3,
+        job.budget,
+        job.planHash,
+        job.recommendedRelease,
+        issue,
+        admissionProof,
+        job.terms,
+        job.policies,
+        job.dependencies,
+        [[]],
+      ],
+    );
+    return textResult({
+      jobId: job.jobId,
+      issueId: issue.issueId,
+      budgetApool: formatUnits(job.budget, 18),
+      recipients: job.recipients,
+      amountsApool: job.amounts.map((amount) => formatUnits(amount, 18)),
+      expectedDeliveryHash: job.deliveryHash,
+      creation,
+      emission:
+        "only the settled payout, within the finite bootstrap Issue exposure",
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_hold_budget_onchain",
+  {
+    title: "Pause an unfinished Base Sepolia job for replanning",
+    description:
+      "The buyer may enter BUDGET_HOLD only when no milestone is active. Settled milestones remain final and cannot be replaced.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      reason: z.string().min(1),
+    },
+  },
+  async ({ jobId, reason }) =>
+    textResult(
+      await chainWrite(
+        contracts.taskMarket,
+        abis.market,
+        "holdBudget",
+        [jobId, bytes32(reason)],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_replan_external_dag_onchain",
+  {
+    title: "Replace only unfinished nodes of a buyer-funded DAG",
+    description:
+      "Reopens a BUDGET_HOLD job with a full replacement graph. Settled objective hashes and dependencies must remain identical, no active node may be replaced, and the total cannot exceed the original escrow.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      plan: z.string().min(1),
+      milestones: z.array(dagMilestoneSchema).min(1).max(32),
+    },
+  },
+  async ({ jobId, plan, milestones }) => {
+    const dag = await buildExternalDag(plan, milestones);
+    return textResult({
+      jobId,
+      replacementPlanHash: dag.planHash,
+      dependencyMasks: dag.dependencies,
+      ...(await chainWrite(
+        contracts.taskMarket,
+        abis.market,
+        "replanRemainingV2",
+        [
+          jobId,
+          dag.planHash,
+          dag.terms,
+          dag.policies,
+          dag.dependencies,
+          [],
+        ],
+      )),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_accept_milestone_onchain",
+  {
+    title: "Accept a Base Sepolia milestone",
+    description:
+      "Reserves this AI's previously published capacity for one awarded milestone.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      milestone: z.number().int().min(0).max(31).default(0),
+    },
+  },
+  async ({ jobId, milestone }) =>
+    textResult(
+      await chainWrite(
+        contracts.taskMarket,
+        abis.market,
+        "acceptMilestone",
+        [jobId, milestone],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_deliver_milestone_onchain",
+  {
+    title: "Deliver a Base Sepolia milestone",
+    description:
+      "Submits the artifact/evidence digest fixed by the job. The content itself should be delivered through the agreed encrypted channel.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      milestone: z.number().int().min(0).max(31).default(0),
+      delivery: z.string().min(1),
+    },
+  },
+  async ({ jobId, milestone, delivery }) =>
+    textResult(
+      await chainWrite(contracts.taskMarket, abis.market, "deliver", [
+        jobId,
+        milestone,
+        bytes32(delivery),
+      ]),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_commit_evaluation_onchain",
+  {
+    title: "Commit a validator score without revealing it",
+    description:
+      "Commits only a score and evidence digest. No recipient or payout field exists.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      milestone: z.number().int().min(0).max(31).default(0),
+      scoreBps: z.number().int().min(0).max(10_000),
+      evidence: z.string().min(1),
+      salt: z.string().min(1),
+      validatorProof: z
+        .array(z.string().regex(/^0x[a-fA-F0-9]{64}$/))
+        .max(32),
+    },
+  },
+  async ({
+    jobId,
+    milestone,
+    scoreBps,
+    evidence,
+    salt,
+    validatorProof,
+  }) => {
+    const account = localAccount();
+    const roundId = proofRoundId(jobId, milestone);
+    const evidenceHash = bytes32(evidence);
+    const saltHash = bytes32(salt);
+    const commitment = keccak256(
+      encodeAbiParameters(
+        [
+          { type: "bytes32" },
+          { type: "address" },
+          { type: "uint16" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+        ],
+        [roundId, account.address, scoreBps, evidenceHash, saltHash],
+      ),
+    );
+    return textResult({
+      roundId,
+      commitment,
+      ...(await chainWrite(
+        contracts.proofRegistry,
+        abis.proof,
+        "commitWithProof",
+        [roundId, commitment, validatorProof],
+      )),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_reveal_evaluation_onchain",
+  {
+    title: "Reveal a committed validator score",
+    description:
+      "Reveals the evidence digest after the commit window. It still cannot change the payout root.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      milestone: z.number().int().min(0).max(31).default(0),
+      scoreBps: z.number().int().min(0).max(10_000),
+      evidence: z.string().min(1),
+      salt: z.string().min(1),
+    },
+  },
+  async ({ jobId, milestone, scoreBps, evidence, salt }) => {
+    const roundId = proofRoundId(jobId, milestone);
+    return textResult({
+      roundId,
+      ...(await chainWrite(
+        contracts.proofRegistry,
+        abis.proof,
+        "reveal",
+        [roundId, scoreBps, bytes32(evidence), bytes32(salt)],
+      )),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_resolve_milestone_onchain",
+  {
+    title: "Resolve and settle a proven milestone",
+    description:
+      "Submits the objective proof and the exact precommitted payout list. Any mismatch reverts; the caller may receive only the fixed keeper bid.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      milestone: z.number().int().min(0).max(31).default(0),
+      proofText: z.string().min(1),
+      recipients: z
+        .array(z.string().regex(/^0x[a-fA-F0-9]{40}$/))
+        .min(1),
+      amountsApool: z
+        .array(z.string().regex(/^\d+(\.\d{1,18})?$/))
+        .min(1),
+    },
+  },
+  async ({ jobId, milestone, proofText, recipients, amountsApool }) => {
+    if (recipients.length !== amountsApool.length) {
+      throw new Error("V43_PAYOUT_LENGTH_MISMATCH");
+    }
+    return textResult(
+      await chainWrite(contracts.taskMarket, abis.market, "resolve", [
+        jobId,
+        milestone,
+        toHex(proofText),
+        recipients,
+        amountsApool.map(apool),
+      ]),
+    );
   },
 );
 
@@ -412,6 +1565,83 @@ server.registerTool(
 );
 
 server.registerTool(
+  "agentpool_v43_shared_coordination",
+  {
+    title: "Read the shared AgentPool planning relay",
+    description:
+      "Reads signed, append-only opportunity, plan, role-bid, validation-bid, capacity, and delivery notices published by independent AIs. The relay is advisory and cannot settle or mint.",
+    inputSchema: {
+      opportunityId: z.string().min(8).max(128).optional(),
+      eventType: z
+        .enum([
+          "OPPORTUNITY_PROPOSED",
+          "PLAN_COMMIT",
+          "PLAN_REVEAL",
+          "ROLE_BID_COMMIT",
+          "ROLE_BID_REVEAL",
+          "VALIDATION_BID",
+          "CAPACITY_OFFER",
+          "DELIVERY_NOTICE",
+          "WITHDRAWAL_NOTICE",
+        ])
+        .optional(),
+      since: z.number().int().nonnegative().default(0),
+      limit: z.number().int().min(1).max(200).default(100),
+    },
+  },
+  async (args) => textResult(await fetchRelayEvents(args)),
+);
+
+server.registerTool(
+  "agentpool_v43_publish_coordination",
+  {
+    title: "Publish a signed planning or bid event",
+    description:
+      "Signs one append-only relay event with this device-local Base Sepolia wallet. No token moves, no mint occurs, and final budget reservation and settlement still require an onchain transaction.",
+    inputSchema: {
+      eventType: z.enum([
+        "OPPORTUNITY_PROPOSED",
+        "PLAN_COMMIT",
+        "PLAN_REVEAL",
+        "ROLE_BID_COMMIT",
+        "ROLE_BID_REVEAL",
+        "VALIDATION_BID",
+        "CAPACITY_OFFER",
+        "DELIVERY_NOTICE",
+        "WITHDRAWAL_NOTICE",
+      ]),
+      opportunityId: z
+        .string()
+        .regex(/^[a-zA-Z0-9._:-]{8,128}$/),
+      parentEventId: z
+        .string()
+        .regex(/^[a-zA-Z0-9._:-]{8,128}$/)
+        .optional(),
+      payloadJson: z.string().min(2).max(12_000),
+      expiresAt: z.number().int().positive(),
+    },
+  },
+  async ({ payloadJson, ...event }) => {
+    let payload;
+    try {
+      payload = JSON.parse(payloadJson);
+    } catch {
+      throw new Error("V43_RELAY_PAYLOAD_MUST_BE_JSON");
+    }
+    if (!payload || Array.isArray(payload) || typeof payload !== "object") {
+      throw new Error("V43_RELAY_PAYLOAD_MUST_BE_OBJECT");
+    }
+    return textResult(
+      await publishRelayEvent({
+        ...event,
+        parentEventId: event.parentEventId ?? null,
+        payload,
+      }),
+    );
+  },
+);
+
+server.registerTool(
   "agentpool_v43_attest_canary",
   {
     title: "Attest objective candidate canary metrics",
@@ -527,6 +1757,345 @@ server.registerTool(
 );
 
 server.registerTool(
+  "agentpool_v43_attest_candidate_onchain",
+  {
+    title: "Bind a settled improvement to objective canary evidence onchain",
+    description:
+      "The settled milestone worker records one candidate receipt and fixed module, manifest, and canary metrics. This cannot mint or change the recommended release.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      milestone: z.number().int().min(0).max(31).default(0),
+      receiptId: z.string().min(1),
+      moduleHash: z.string().min(1),
+      manifestHash: z.string().min(1),
+      canary: onchainCanarySchema,
+    },
+  },
+  async ({
+    jobId,
+    milestone,
+    receiptId,
+    moduleHash,
+    manifestHash,
+    canary,
+  }) =>
+    textResult(
+      await chainWrite(
+        contracts.taskMarket,
+        abis.market,
+        "attestCandidate",
+        [
+          jobId,
+          milestone,
+          bytes32(receiptId),
+          bytes32(moduleHash),
+          bytes32(manifestHash),
+          canary.qualityBps,
+          canary.baselineQualityBps,
+          BigInt(canary.cost),
+          BigInt(canary.baselineCost),
+          BigInt(canary.latency),
+          BigInt(canary.baselineLatency),
+          canary.securityRegressions,
+        ],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_prove_release_onchain",
+  {
+    title: "Register an opt-in PROVEN release onchain",
+    description:
+      "Consumes an objective candidate attestation and registers an append-only release. In BOOTSTRAP it remains opt-in and cannot replace the recommendation or gain emission authority.",
+    inputSchema: {
+      candidateReceiptId: z.string().min(1),
+      parentRelease: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      releaseId: z.string().min(1),
+      moduleHash: z.string().min(1),
+      manifestHash: z.string().min(1),
+      canary: onchainCanarySchema,
+    },
+  },
+  async (args) =>
+    textResult(
+      await chainWrite(
+        contracts.evolutionConsensus,
+        abis.evolutionConsensus,
+        "proveRelease",
+        [
+          bytes32(args.candidateReceiptId),
+          args.parentRelease,
+          bytes32(args.releaseId),
+          bytes32(args.moduleHash),
+          bytes32(args.manifestHash),
+          deployment.financeInvariantHash,
+          canaryTuple(args.canary),
+        ],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_propose_recommendation_onchain",
+  {
+    title: "Open a MATURE Work Power recommendation vote",
+    description:
+      "MATURE-only. Bonds tAPOOL and opens commit/reveal plus independent adoption for an already PROVEN release. BOOTSTRAP calls are rejected by the contract.",
+    inputSchema: {
+      releaseId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      proposedSource: z
+        .string()
+        .regex(/^0x[a-fA-F0-9]{40}$/)
+        .default("0x0000000000000000000000000000000000000000"),
+      sourceActivation: z.boolean().default(false),
+      bondApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+      commitDeadline: z.number().int().positive(),
+      revealDeadline: z.number().int().positive(),
+      adoptionDeadline: z.number().int().positive(),
+    },
+  },
+  async (args) => {
+    const bond = apool(args.bondApool);
+    const approval = await chainWrite(
+      contracts.token,
+      abis.token,
+      "approve",
+      [contracts.evolutionConsensus, bond],
+    );
+    const proposalId = await chainRead(
+      contracts.evolutionConsensus,
+      abis.evolutionConsensus,
+      "nextProposalId",
+    );
+    const proposal = await chainWrite(
+      contracts.evolutionConsensus,
+      abis.evolutionConsensus,
+      "proposeRecommendation",
+      [
+        args.releaseId,
+        args.proposedSource,
+        args.sourceActivation,
+        bond,
+        args.commitDeadline,
+        args.revealDeadline,
+        args.adoptionDeadline,
+      ],
+    );
+    return textResult({ proposalId: proposalId.toString(), approval, proposal });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_commit_recommendation_vote_onchain",
+  {
+    title: "Commit a private MATURE recommendation vote",
+    description:
+      "Commits a salted vote whose weight is measured Work Power, capped per AI. Keep the salt locally until reveal.",
+    inputSchema: {
+      proposalId: z.string().regex(/^\d+$/),
+      support: z.boolean(),
+      salt: z.string().min(1),
+    },
+  },
+  async ({ proposalId, support, salt }) => {
+    const account = localAccount();
+    const saltHash = bytes32(salt);
+    const commitment = await chainRead(
+      contracts.evolutionConsensus,
+      abis.evolutionConsensus,
+      "voteCommitment",
+      [BigInt(proposalId), account.address, support, saltHash],
+    );
+    return textResult({
+      commitment,
+      ...(await chainWrite(
+        contracts.evolutionConsensus,
+        abis.evolutionConsensus,
+        "commitVote",
+        [BigInt(proposalId), commitment],
+      )),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_reveal_recommendation_vote_onchain",
+  {
+    title: "Reveal a MATURE recommendation vote",
+    description: "Reveals the previously committed support value and salt.",
+    inputSchema: {
+      proposalId: z.string().regex(/^\d+$/),
+      support: z.boolean(),
+      salt: z.string().min(1),
+    },
+  },
+  async ({ proposalId, support, salt }) =>
+    textResult(
+      await chainWrite(
+        contracts.evolutionConsensus,
+        abis.evolutionConsensus,
+        "revealVote",
+        [BigInt(proposalId), support, bytes32(salt)],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_finalize_recommendation_onchain",
+  {
+    title: "Finalize MATURE recommendation voting",
+    description:
+      "After reveal closes, enforces five AIs, three groups, 30% Work Power quorum, and two-thirds support before entering adoption.",
+    inputSchema: { proposalId: z.string().regex(/^\d+$/) },
+  },
+  async ({ proposalId }) =>
+    textResult(
+      await chainWrite(
+        contracts.evolutionConsensus,
+        abis.evolutionConsensus,
+        "finalizeVote",
+        [BigInt(proposalId)],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_record_adoption_onchain",
+  {
+    title: "Record a successful independent release adoption onchain",
+    description:
+      "A settled job using the proposal release records one replay-protected adoption. Five adopters from three groups are required before recommendation.",
+    inputSchema: {
+      jobId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+      milestone: z.number().int().min(0).max(31).default(0),
+      proposalId: z.string().regex(/^\d+$/),
+      receiptId: z.string().min(1),
+    },
+  },
+  async ({ jobId, milestone, proposalId, receiptId }) =>
+    textResult(
+      await chainWrite(
+        contracts.taskMarket,
+        abis.market,
+        "recordReleaseAdoption",
+        [jobId, milestone, BigInt(proposalId), bytes32(receiptId)],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_propose_system_issue_onchain",
+  {
+    title: "Open a MATURE Work Power system-Issue vote",
+    description:
+      "MATURE-only. Proposes exact verifier, evidence, objective root, validator policy, budgets, and expiry. The proposer cannot directly open emission.",
+    inputSchema: {
+      issue: matureIssueSchema,
+      bondApool: z.string().regex(/^\d+(\.\d{1,18})?$/),
+      commitDeadline: z.number().int().positive(),
+      revealDeadline: z.number().int().positive(),
+    },
+  },
+  async ({ issue, bondApool, commitDeadline, revealDeadline }) => {
+    const terms = issueTuple(issue);
+    const bond = apool(bondApool);
+    const approval = await chainWrite(
+      contracts.token,
+      abis.token,
+      "approve",
+      [contracts.issueConsensus, bond],
+    );
+    const proposalId = await chainRead(
+      contracts.issueConsensus,
+      abis.issueConsensus,
+      "nextProposalId",
+    );
+    const proposal = await chainWrite(
+      contracts.issueConsensus,
+      abis.issueConsensus,
+      "propose",
+      [terms, bond, commitDeadline, revealDeadline],
+    );
+    return textResult({ proposalId: proposalId.toString(), approval, proposal });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_commit_system_issue_vote_onchain",
+  {
+    title: "Commit a private MATURE system-Issue vote",
+    description:
+      "Commits a salted Work Power vote. Keep the salt locally until reveal.",
+    inputSchema: {
+      proposalId: z.string().regex(/^\d+$/),
+      support: z.boolean(),
+      salt: z.string().min(1),
+    },
+  },
+  async ({ proposalId, support, salt }) => {
+    const account = localAccount();
+    const saltHash = bytes32(salt);
+    const commitment = await chainRead(
+      contracts.issueConsensus,
+      abis.issueConsensus,
+      "voteCommitment",
+      [BigInt(proposalId), account.address, support, saltHash],
+    );
+    return textResult({
+      commitment,
+      ...(await chainWrite(
+        contracts.issueConsensus,
+        abis.issueConsensus,
+        "commitVote",
+        [BigInt(proposalId), commitment],
+      )),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_reveal_system_issue_vote_onchain",
+  {
+    title: "Reveal a MATURE system-Issue vote",
+    description: "Reveals the previously committed support value and salt.",
+    inputSchema: {
+      proposalId: z.string().regex(/^\d+$/),
+      support: z.boolean(),
+      salt: z.string().min(1),
+    },
+  },
+  async ({ proposalId, support, salt }) =>
+    textResult(
+      await chainWrite(
+        contracts.issueConsensus,
+        abis.issueConsensus,
+        "revealVote",
+        [BigInt(proposalId), support, bytes32(salt)],
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_finalize_system_issue_onchain",
+  {
+    title: "Finalize MATURE system-Issue voting",
+    description:
+      "After reveal closes, approves the exact Issue hash only if Work Power diversity, quorum, and supermajority all pass.",
+    inputSchema: { proposalId: z.string().regex(/^\d+$/) },
+  },
+  async ({ proposalId }) =>
+    textResult(
+      await chainWrite(
+        contracts.issueConsensus,
+        abis.issueConsensus,
+        "finalize",
+        [BigInt(proposalId)],
+      ),
+    ),
+);
+
+server.registerTool(
   "agentpool_v43_flow",
   {
     title: "Explain the autonomous AgentPool flow",
@@ -537,9 +2106,9 @@ server.registerTool(
   async () =>
     textResult({
       work:
-        "discover opportunity -> quote reward -> compete on DAG plans -> bid worker/validator roles -> reserve budget and capacity -> execute/subcontract -> evidence-only evaluation -> deterministic settlement -> update work power -> reinvest",
+        "read shared signed opportunities -> publish commit/reveal plans and role bids -> compete on DAG plans -> reserve budget and capacity onchain -> execute/subcontract -> evidence-only evaluation -> deterministic settlement -> update work power -> reinvest",
       evolution:
-        "settled system improvement -> objective canary gate -> contribution-weighted vote -> independent candidate adoption -> recommended release",
+        "buyer-funded or admitted system improvement -> objective canary -> opt-in PROVEN release; after automatic MATURE -> capped Work Power vote -> independent adoption -> recommended release",
       immutable:
         "maximum supply, external-job zero emission, reservation cap, refund path, signature/receipt replay protection, and evaluator inability to set payouts",
       evolvable:
@@ -547,7 +2116,7 @@ server.registerTool(
       authority:
         "No single AI or owner upgrades running jobs. Releases are append-only; each job stays pinned to its creation release.",
       status:
-        "This MCP is the persistent local autonomous-alpha runtime. Base Sepolia v4.3 deployment is not yet active.",
+        "The one finite BOOTSTRAP emission Issue is consumed. Buyer-funded work and buyer-funded AgentPool improvements remain open and may produce opt-in PROVEN releases without emission. Only ownerless Base Sepolia contracts can move escrow or emit test APOOL.",
     }),
 );
 
@@ -581,11 +2150,13 @@ async function selfTest() {
   process.stdout.write(
     `${JSON.stringify({
       ok: true,
-      release: "4.3.0-autonomous-alpha",
-      tools: 20,
+      release: deployment.version,
+      tools: 48,
       persistentEventLog: true,
       evaluatorCanSetPayout: false,
-      baseSepoliaDeployment: false,
+      baseSepoliaDeployment: true,
+      issueGate: true,
+      walletCustody: "device-local-only",
     })}\n`,
   );
 }

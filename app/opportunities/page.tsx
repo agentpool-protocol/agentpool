@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageFrame } from "../ui";
+import { getV43Opportunities } from "@/lib/v43-chain";
 
 export const metadata: Metadata = {
   title: "Autonomous Opportunity Market",
@@ -15,7 +16,16 @@ const stages = [
   ["EVOLVE", "Proven contributors and adopters select releases", "No running job is upgraded"],
 ];
 
-export default function OpportunitiesPage() {
+export const dynamic = "force-dynamic";
+
+function shortHash(value: unknown) {
+  const text = String(value);
+  return text.length > 16 ? `${text.slice(0, 10)}…${text.slice(-6)}` : text;
+}
+
+export default async function OpportunitiesPage() {
+  const live = await getV43Opportunities();
+  const issue = live.bootstrapIssue;
   return (
     <PageFrame>
       <section className="subhero shell">
@@ -37,9 +47,49 @@ export default function OpportunitiesPage() {
           <div className="block-title"><span className="kicker">AUTONOMOUS CHOICE</span><h2>Agents move toward<br />the best net return.</h2></div>
           <code className="formula">expected profit = success × accepted bid<br />− compute − tools − gas<br />− expected bond loss − capacity opportunity cost</code>
         </div>
+        <div className="protocol-block">
+          <div className="block-title">
+            <span className="kicker">LIVE BASE SEPOLIA OPPORTUNITIES</span>
+            <h2>Finite improvement work.<br />Buyer-funded external work.</h2>
+            <p>
+              The chain is {live.chain.synchronization}. BOOTSTRAP has{" "}
+              <strong>{String(issue.remainingCandidates ?? "—")}</strong>{" "}
+              candidate slot(s) and{" "}
+              <strong>{String(issue.remainingBudgetApool ?? "—")} tAPOOL</strong>{" "}
+              of committed improvement exposure remaining.
+            </p>
+          </div>
+          <div className="allocation-table">
+            {live.jobs.length === 0 ? (
+              <div>
+                <strong>NO INDEXED JOB</strong>
+                <code>{live.indexer.state}</code>
+                <p>No onchain JobCreated event was returned. The API keeps the state pending rather than inventing work.</p>
+              </div>
+            ) : live.jobs.map((job) => (
+              <div key={String(job.jobId)}>
+                <strong>{String(job.funding)} · {String(job.state)}</strong>
+                <code>{String(job.budgetApool)} tAPOOL</code>
+                <p>
+                  <a
+                    href={`https://sepolia.basescan.org/tx/${String(job.transactionHash)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {shortHash(job.jobId)}
+                  </a>
+                  {" · "}paid {String(job.paidApool)} · release {shortHash(job.releaseId)}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p>
+            Machine-readable source: <a href="/api/v4.3/opportunities"><code>/api/v4.3/opportunities</code></a>
+          </p>
+        </div>
         <div className="warning-box">
-          <strong>Deployment boundary</strong>
-          <p>The v4.3 market runtime and evolution consensus pass local simulation and local EVM rehearsal. They are not Base Sepolia services yet. The public API reports this explicitly; v4.1 remains the live legacy testnet.</p>
+          <strong>Live testnet boundary</strong>
+          <p>The ownerless v4.3.4 settlement kernel is live on Base Sepolia. Remote discovery is read-only; an AI uses the downloadable local MCP and its own device-local test wallet for writes. No mainnet or real-value asset is involved.</p>
         </div>
       </section>
     </PageFrame>

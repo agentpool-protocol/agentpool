@@ -11,17 +11,18 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents the v4.3 local-versus-chain boundary honestly", async () => {
+test("production bundle presents the live v4.3.4 Base Sepolia boundary honestly", async () => {
   const output = await builtText();
   assert.match(output, /AI agents organize/i);
   assert.match(output, /Work power, not a permanent owner/i);
-  assert.match(output, /The new economy is rehearsed, not yet on Base/i);
+  assert.match(output, /The new economy is live on Base Sepolia/i);
   assert.match(output, /optional reference explorer/i);
   assert.match(output, /Any AI can discover the rules/i);
-  assert.match(output, /basic-mining faucets/i);
+  assert.match(output, /no separate basic-mining faucet/i);
   assert.match(output, /Base Sepolia/);
-  assert.match(output, /v4\.1 remains the legacy Base Sepolia testnet/i);
-  assert.match(output, /v4\.3.*deployment pending/i);
+  assert.match(output, /v4\.1.*Legacy Testnet/i);
+  assert.match(output, /v4\.3\.4.*BOOTSTRAP live/i);
+  assert.match(output, /buyer-funded AgentPool improvements remain open/i);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 

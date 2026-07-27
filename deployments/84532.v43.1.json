@@ -1,0 +1,91 @@
+{
+  "version": "4.3.1-bootstrap-alpha",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "phase": "BOOTSTRAP",
+  "deployer": "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+  "deployerHasRuntimeAuthority": false,
+  "genesisStart": 1785176722,
+  "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
+  "genesisRelease": "0xf0567d77bf002dccc795a3709b2c4691d030a790df1f249577e4e5db0323165a",
+  "bootstrapVerifierCodehash": "0x3ee7f162dd6a9be22ba9eeca355f09c9d48a9f133811eed26b0ddcda77e7c636",
+  "bootstrapIssueRoot": "0xbbac21cb13987fbce2fa72e408eefaac2963bfdb8c3f9483c71daf9b6139f189",
+  "bootstrapIssues": [
+    {
+      "issueId": "0x24f5c1d315edf72f3656df39d65417354ee0ef2c9f654f9322ec9d856445f370",
+      "specificationHash": "0xc90e85e00fd511b1354ec75a32b0e4b7f89b707972cb136b456364b24b947b18",
+      "verifierCodehash": "0x3ee7f162dd6a9be22ba9eeca355f09c9d48a9f133811eed26b0ddcda77e7c636",
+      "candidateBudgetCap": "200000000000000000000",
+      "totalBudgetCap": "600000000000000000000",
+      "maxCandidates": 3,
+      "funding": 3,
+      "expiresAt": 1787768722,
+      "proof": []
+    }
+  ],
+  "supersedesUnsafeTestDeployment": "deployments/84532.v43.json",
+  "token": {
+    "symbol": "tAPOOL",
+    "decimals": 18,
+    "maxSupplyApool": "1000000000000",
+    "premintApool": "0"
+  },
+  "emission": {
+    "epochSeconds": 604800,
+    "coreWeeklyCapApool": "63000",
+    "evolutionWeeklyCapApool": "7000",
+    "coreLifetimeCapApool": "900000000000",
+    "evolutionLifetimeCapApool": "100000000000"
+  },
+  "maturity": {
+    "eligibleAgents": 5,
+    "independentOperatorGroups": 3,
+    "successfulSettlements": 50,
+    "activeEpochs": 2,
+    "maximumSingleGroupShareBps": 5000
+  },
+  "contracts": {
+    "token": "0x5b9d2676ff71616342cf59a5f603a63805184524",
+    "settlementRouter": "0x5ae5fce1f27dc20d358147908512e1159bc86579",
+    "releaseRegistry": "0xd395e081816ee755eb92d0f727fbe1989491275f",
+    "capacityRegistry": "0x637820b966699aebbdc4201bee1a98a5ca970bcb",
+    "proofRegistry": "0xf9472298b1766d517723a2c92b41f0521ddd1eea",
+    "userEscrow": "0xf33b51633fe7c6488d5f89c264936462184f0790",
+    "coreEpochVault": "0x7f5162d34a6ce0ea32bde77fc650735375ab367d",
+    "evolutionEpochVault": "0x4d2e16a8d9ece67a3b874d987923b1743402f780",
+    "contributionLedger": "0xb03fc148afb1d9ffeabdd5499bcab92313564ac6",
+    "evolutionConsensus": "0x09a73630b8d97d6c4c67f24efaaba5b7ef8bf036",
+    "objectiveVerifier": "0x25f7e7c946b2685c5f4fe29027d375b941f58f40",
+    "systemIssueGate": "0x69c8a45abf622b06d745d5cc37284a7a046d6e18",
+    "issueConsensus": "0xd950cb7ed3c555c4b4c2c431b4abcc9cedb659a2",
+    "taskMarket": "0xcf662b1266cb32fcea2509626d79ee6b4ec5d2dd"
+  },
+  "transactionHashes": [
+    "0x9bbb7c3b831eb0e563168c9384cf6902722b2ac34d0fc213c0fb62cabeeae955",
+    "0x29c2d5c1545dfc25acc64d46e2077031057d632299b28964c0063dff7d8792b7",
+    "0xd7a8e1785fd98644703a535b540dded4238c4c8be7030c6aa34a2b0b53450067",
+    "0x44dca5c4f17e459b4213940e28e64dafe7ba4cac499d0b5c44aa64d72417fa8a",
+    "0x9691c737f9ada60a5bb6a8319239a3faa83c90c3de90a284a2081fa2630cf0c7",
+    "0x02c54cca0a0447318f1462e957d4a28078469ee1c9d27248e36f4ed08f724d0c",
+    "0x3338b9b42b0836ba84a5d31fd35dc44f5f26227d6f2419af7283fbb124e0ffd8",
+    "0xc04f1d5b7cf9fd15cc7ec054cd61334781d4be9393a5f794af752925a0dbd76f",
+    "0xf177035c8d8fcda16051d8c5af89e53a0cd5050483013ead4ee3374f91d787d7",
+    "0xd6655199c532ffaebb7d0eca3bea78e1d9e021060ee1c9fc13f0cc0adab42a1b",
+    "0x9d903f2d4663b1e347bda89d5f40c34dad47b86dfe56e16259f6ac8543bfd192",
+    "0x79c3226494f8889e2dea9abede74838c972e271f2ef4cb8bf5f33f1e1af2e8a5",
+    "0x66f5981f51b7f92dfbf7b60d0e32e61932f55f4dabbe4518e5c50dc3dde7151e",
+    "0x06499b0b8a60f7a6b2b144a82169c5682f43c0c2e780c5a730260864a0d0cd88",
+    "0x584b9b677bccfdb1c8a5904c4c9eb8e9a016a123bdb15e7b442ec634db30ef77",
+    "0x465edcdb9a1de128bf6c9e528a8d73337e5a898527e36ddcacdb4c57ba889e8f",
+    "0x996b1df71dc0cf7101719c06522fbf84db8e49560f90d007755e583fc1b9b5cf",
+    "0x76ba6eb323a9e2362f0c79adeb1ee02754abec0bc99b2031f3971eb696cde971",
+    "0xe95384b5a55be96be35c1eb63a4a3b31c0f2f38b5f36db6cf554766588c9378e",
+    "0xbd80f5abd50db5048f350ca0c3176057f6faad4e548f7622a8023fbce1a67008",
+    "0x3565624cfde4cf836f64d50742b5110b58bdf1c419ad7e222b06d84fa62b4f68",
+    "0x5c9110200142205d8aaa40dbd5e7bf2cbecf4262b01619568918933325fc4c6c",
+    "0xa9aae699ff900894722e51e539f054fcd69bcf7bdc193d94ea110e16c9c71949",
+    "0x109ccd29d1a6daad0c25db5013e9f7ceeecaba133abbab37cf2b85f07fcd0b7e"
+  ],
+  "gasUsed": "15637909",
+  "deployedAt": "2026-07-27T17:26:01.088Z"
+}
