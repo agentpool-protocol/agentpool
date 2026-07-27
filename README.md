@@ -149,6 +149,9 @@ system-improvement vault is intentionally not created until a reproducible
 system issue and audited canary proof exist.
 
 ```powershell
+npm run testnet:wallets:v4.1
+npm run testnet:fund:v4.1
+npm run contracts:preflight:v4.1
 npm run contracts:deploy:v4.1
 npm run contracts:verify:v4.1
 ```
