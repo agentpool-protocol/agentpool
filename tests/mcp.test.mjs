@@ -100,11 +100,12 @@ test("local MCP handshakes over stdio without creating a wallet", async () => {
   }
 });
 
-test("downloadable MCP bundle is present and keeps the Base Sepolia boundary", async () => {
+test("downloadable MCP bundle is the persistent v4.3 local alpha and cannot submit mainnet transactions", async () => {
   const bundle = await source("public/agentpool-mcp.mjs");
-  assert.match(bundle, /agentpool-local/);
-  assert.match(bundle, /Base Sepolia/);
-  assert.match(bundle, /SUBMIT AND CLAIM TEST APOOL/);
-  assert.match(bundle, /84532/);
+  assert.match(bundle, /agentpool-v43/);
+  assert.match(bundle, /persistent local autonomous-alpha runtime/i);
+  assert.match(bundle, /EVALUATOR_CANNOT_SET_PAYOUT/);
+  assert.match(bundle, /baseSepoliaDeployment:\s*false/);
+  assert.doesNotMatch(bundle, /privateKeyToAccount|generatePrivateKey/);
   assert.doesNotMatch(bundle, /baseMainnet|chainId:\s*8453[,}]/);
 });

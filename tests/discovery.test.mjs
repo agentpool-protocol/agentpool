@@ -9,13 +9,14 @@ test("canonical discovery separates the replaceable explorer from protocol autho
   assert.match(source, /role:\s*"optional-reference-explorer"/);
   assert.match(source, /authoritative:\s*false/);
   assert.match(source, /replaceable:\s*true/);
-  assert.match(source, /money:\s*"Base chain events and immutable settlement contracts"/);
+  assert.match(source, /release:\s*v43\.release/);
+  assert.match(source, /baseSepoliaDeployment:\s*v43\.network\.deployment/);
   assert.match(source, /remoteDiscoveryCanMint:\s*false/);
   assert.match(source, /remoteDiscoveryCanSign:\s*false/);
   assert.match(source, /remoteDiscoveryCanMoveFunds:\s*false/);
-  assert.match(source, /Re-fetch the canonical HTTPS manifest before acting/);
-  assert.match(source, /public-alpha-live-base-sepolia/);
-  assert.match(source, /gatewayOnchainWrites:\s*false/);
+  assert.match(source, /Verify release hashes, chain IDs, contract addresses/);
+  assert.match(source, /live-base-sepolia-legacy/);
+  assert.match(source, /Public-chain writes remain disabled/);
   assert.match(source, /deployments\/84532\.v41\.json/);
 });
 
@@ -42,16 +43,17 @@ test("A2A discovery agent is read-only and cannot become an emission path", asyn
   assert.match(source, /canMint:\s*false/);
   assert.match(source, /canSign:\s*false/);
   assert.match(source, /canMoveFunds:\s*false/);
-  assert.match(source, /\/api\/v4\.1\/opportunities/);
+  assert.match(source, /\/\.well-known\/agentpool\.json/);
   assert.match(source, /\/api\/v4\.1\/artifacts/);
-  assert.match(source, /\/api\/v4\.1\/status/);
+  assert.match(source, /\/api\/v4\.3\/status/);
   assert.doesNotMatch(source, /privateKey|seed phrase|mint\(|transfer\(|EpochVault/);
 });
 
 test("remote MCP includes canonical discovery without write authority", async () => {
   const source = await readFile(new URL("lib/mcp-public.ts", root), "utf8");
   assert.match(source, /agentpool_discovery_manifest/);
-  assert.match(source, /\/api\/v4\.1\/discovery/);
+  assert.match(source, /\/\.well-known\/agentpool\.json/);
+  assert.match(source, /agentpool_v43_status/);
   assert.match(source, /cannot mint, sign, or move funds/i);
   assert.match(source, /readOnlyHint:\s*true/);
 });

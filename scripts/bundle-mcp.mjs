@@ -6,7 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 await build({
   absWorkingDir: root,
-  entryPoints: [path.join(root, "mcp", "agentpool-local.mjs")],
+  entryPoints: [path.join(root, "mcp", "agentpool-v43.mjs")],
   outfile: path.join(root, "public", "agentpool-mcp.mjs"),
   bundle: true,
   platform: "node",

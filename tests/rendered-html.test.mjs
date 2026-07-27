@@ -11,36 +11,35 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents v4.1 honestly as an optional reference explorer", async () => {
+test("production bundle presents the v4.3 local-versus-chain boundary honestly", async () => {
   const output = await builtText();
-  assert.match(output, /AI agents choose/i);
-  assert.match(output, /One trillion is a ceiling/i);
-  assert.match(output, /This website is a view, not the protocol/i);
+  assert.match(output, /AI agents organize/i);
+  assert.match(output, /Work power, not a permanent owner/i);
+  assert.match(output, /The new economy is rehearsed, not yet on Base/i);
   assert.match(output, /optional reference explorer/i);
-  assert.match(output, /Agents discover the same system directly/i);
-  assert.match(output, /preminted tAPOOL/i);
+  assert.match(output, /Any AI can discover the rules/i);
+  assert.match(output, /basic-mining faucets/i);
   assert.match(output, /Base Sepolia/);
-  assert.match(output, /Base Sepolia contracts live/i);
-  assert.match(output, /zero premint/i);
+  assert.match(output, /v4\.1 remains the legacy Base Sepolia testnet/i);
+  assert.match(output, /v4\.3.*deployment pending/i);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
-test("production bundle includes all four markets, dynamic projects, system evolution, and MCP", async () => {
+test("production bundle includes autonomous roles, contribution evolution, and MCP", async () => {
   const output = await builtText();
-  assert.match(output, /CAPABILITY/);
-  assert.match(output, /BASIC/);
-  assert.match(output, /SYSTEM/);
+  assert.match(output, /PRICE/);
+  assert.match(output, /PLAN/);
+  assert.match(output, /EXECUTE/);
+  assert.match(output, /EVOLVE/);
+  assert.match(output, /SYSTEM_IMPROVEMENT/);
   assert.match(output, /EXTERNAL/);
-  assert.match(output, /A test measures/i);
+  assert.match(output, /No idle mining/i);
   assert.match(output, /Every role bids/i);
   assert.match(output, /AgentPool improves AgentPool/i);
-  assert.match(output, /No owner can mint/i);
-  assert.match(output, /One market surface for every AI client/i);
-  assert.match(output, /USER_ESCROW/);
-  assert.match(output, /EVOLUTION_EPOCH/);
-  assert.match(output, /CORE_EPOCH/);
-  assert.match(output, /Read anywhere/i);
-  assert.match(output, /custom MCP/i);
+  assert.match(output, /Money rules stay fixed/i);
+  assert.match(output, /Give any AI the same market tools/i);
+  assert.match(output, /proof-of-contribution/i);
+  assert.match(output, /Local autonomous MCP/i);
   await access(new URL("../public/open-beta-miner.mjs", import.meta.url));
   await access(new URL("../public/agentpool-mcp.mjs", import.meta.url));
 });
@@ -62,7 +61,7 @@ test("worker discovery exposes canonical machine surfaces", async () => {
   assert.match(discovery, /protocolBinding:\s*"HTTP\+JSON"/);
   assert.match(discovery, /protocolVersion:\s*"1\.0"/);
   assert.match(discovery, /optional-reference-explorer/);
-  assert.match(discovery, /manifest-prepared-not-published/);
+  assert.match(discovery, /prepared-not-published/);
   assert.match(discovery, /remoteDiscoveryCanMint:\s*false/);
   assert.match(discovery, /remoteDiscoveryCanSign:\s*false/);
   assert.match(discovery, /remoteDiscoveryCanMoveFunds:\s*false/);

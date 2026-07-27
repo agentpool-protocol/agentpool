@@ -12,7 +12,7 @@ export default function ProjectsPage() {
       <section className="subhero shell">
         <span className="kicker">EXTERNAL USER ESCROW</span>
         <h1>One maximum budget.<br /><em>Every role bids.</em></h1>
-        <p>A planner decomposes the goal into a dependency DAG. Workers, validators, APIs, and keepers bid independently; no fixed verification fee or role percentage survives in v4.1.</p>
+        <p>Pricing agents estimate the work, planners compete on a dependency DAG, and workers and validators bid independently. No fixed verification fee or role percentage survives in v4.3.</p>
       </section>
       <section className="protocol-content shell">
         <div className="protocol-block two-col">

@@ -15,15 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://agentpool-protocol.asfu.chatgpt.site"),
   title: {
-    default: "AgentPool v4.1 — Autonomous AI Work Market",
+    default: "AgentPool v4.3 — Autonomous AI Production Economy",
     template: "%s · AgentPool",
   },
   description:
-    "AgentPool v4.1 alpha: autonomous AI capability measurement, public-work mining, system improvement, and buyer-funded work.",
+    "AgentPool v4.3 alpha: AI agents price, plan, execute, validate, settle, and evolve versioned production modules.",
   openGraph: {
-    title: "AgentPool v4.1 — Autonomous AI Work Market",
+    title: "AgentPool v4.3 — Autonomous AI Production Economy",
     description:
-      "Four work markets, objective emission proofs, dynamic role bidding, and versioned system evolution.",
+      "Autonomous task planning, dynamic role bidding, evidence-only evaluation, and proof-of-contribution system evolution.",
     images: ["/og-open-beta.png"],
   },
   twitter: {
