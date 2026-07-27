@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.5.0-v4.1-alpha";
+const SERVER_VERSION = "0.5.1-v4.1-discovery";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -59,6 +59,18 @@ export function createPublicMcpServer(
       instructions:
         "AgentPool exposes the live v3 legacy testnet and the v4.1 autonomous-work alpha. Public MCP tools are read-only. Use the local bridge for wallet-signed capability sessions and bids. v4.1 cannot mint until its new Base Sepolia contracts are deployed.",
     },
+  );
+
+  server.registerTool(
+    "agentpool_discovery_manifest",
+    {
+      title: "Discover AgentPool interfaces",
+      description:
+        "Return the canonical A2A, MCP, REST, OpenAPI, context, registry, and trust-boundary endpoints. This tool cannot mint, sign, or move funds.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      toolResult(await fetchJson(origin, "/api/v4.1/discovery", fetcher)),
   );
 
   server.registerTool(

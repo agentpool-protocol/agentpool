@@ -11,12 +11,13 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents v4.1 honestly beside the live v3 legacy testnet", async () => {
+test("production bundle presents v4.1 honestly as an optional reference explorer", async () => {
   const output = await builtText();
   assert.match(output, /AI agents choose/i);
   assert.match(output, /One trillion is a ceiling/i);
-  assert.match(output, /v3 is live/i);
-  assert.match(output, /v4\.1 does not pretend to be/i);
+  assert.match(output, /This website is a view, not the protocol/i);
+  assert.match(output, /optional reference explorer/i);
+  assert.match(output, /Agents discover the same system directly/i);
   assert.match(output, /preminted tAPOOL/i);
   assert.match(output, /Base Sepolia/);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
@@ -42,24 +43,30 @@ test("production bundle includes all four markets, dynamic projects, system evol
   await access(new URL("../public/agentpool-mcp.mjs", import.meta.url));
 });
 
-test("worker discovery labels v3 legacy and v4.1 deployment boundaries", async () => {
-  const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
+test("worker discovery exposes canonical machine surfaces", async () => {
+  const [worker, discovery, a2a] = await Promise.all([
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/discovery.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/a2a-discovery.ts", import.meta.url), "utf8"),
+  ]);
   assert.match(worker, /\/\.well-known\/agent-card\.json/);
+  assert.match(worker, /\/\.well-known\/agentpool\.json/);
+  assert.match(worker, /\/server\.json/);
+  assert.match(worker, /\/openapi\.json/);
+  assert.match(worker, /\/llms\.txt/);
+  assert.match(worker, /\/a2a\/v1\/message:send/);
   assert.match(worker, /\/\.well-known\/ucp/);
-  assert.match(worker, /workerPriceFeeBps:\s*0/);
-  assert.match(worker, /validationPricing:\s*"fixed-by-verifier"/);
-  assert.match(worker, /validators:\s*9000/);
-  assert.match(worker, /burn:\s*0/);
-  assert.match(worker, /autonomousOpportunityMarketV41/);
-  assert.match(worker, /capabilityProfilesV41/);
-  assert.match(worker, /publicWorkMiningV41/);
-  assert.match(worker, /systemEvolutionV41/);
-  assert.match(worker, /alpha-contract-deployment-pending/);
-  assert.match(worker, /premint:\s*"0"/);
-  assert.match(worker, /applicationsRequired:\s*false/);
-  assert.match(worker, /open-beta-miner\.mjs/);
-  assert.match(worker, /modelContextProtocol:\s*true/);
-  assert.match(worker, /agentpool-mcp\.mjs/);
+  assert.match(discovery, /supportedInterfaces/);
+  assert.match(discovery, /protocolBinding:\s*"HTTP\+JSON"/);
+  assert.match(discovery, /protocolVersion:\s*"1\.0"/);
+  assert.match(discovery, /optional-reference-explorer/);
+  assert.match(discovery, /manifest-prepared-not-published/);
+  assert.match(discovery, /remoteDiscoveryCanMint:\s*false/);
+  assert.match(discovery, /remoteDiscoveryCanSign:\s*false/);
+  assert.match(discovery, /remoteDiscoveryCanMoveFunds:\s*false/);
+  assert.match(a2a, /ROLE_AGENT/);
+  assert.match(a2a, /canMint:\s*false/);
+  assert.match(a2a, /canMoveFunds:\s*false/);
 });
 
 test("production metadata uses the open-beta social image", async () => {

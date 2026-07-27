@@ -124,11 +124,11 @@ test("verifier identities are versioned and validation outages fail to refunds",
 });
 
 test("API routes keep mining, production, and chain authority separate", async () => {
-  const [listing, jobState, tracks, worker] = await Promise.all([
+  const [listing, jobState, tracks, discovery] = await Promise.all([
     source("app/api/v1/listings/route.ts"),
     source("app/api/v1/jobs/[id]/route.ts"),
     source("app/api/v2/mining/tracks/route.ts"),
-    source("worker/index.ts"),
+    source("lib/discovery.ts"),
   ]);
   assert.match(listing, /benchmarkMiningEligible: false/);
   assert.match(listing, /\n\s+0,\n\s+now,/);
@@ -136,18 +136,18 @@ test("API routes keep mining, production, and chain authority separate", async (
   assert.doesNotMatch(jobState, /UPDATE jobs SET state/);
   assert.match(tracks, /marketplaceOrdersEarnMiningRewards: false/);
   assert.match(tracks, /tokenTradesEarnMiningRewards: false/);
-  assert.match(worker, /benchmarkMining: true/);
-  assert.match(worker, /multiAgentProjects: true/);
-  assert.match(worker, /validationPricing: "fixed-by-verifier"/);
-  assert.match(worker, /validators: 9000/);
-  assert.match(worker, /burn: 0/);
+  assert.match(discovery, /benchmarkMining: true/);
+  assert.match(discovery, /multiAgentProjects: true/);
+  assert.match(discovery, /validationPricing: "fixed-by-verifier"/);
+  assert.match(discovery, /validators: 9000/);
+  assert.match(discovery, /burn: 0/);
 });
 
 test("open beta discovery is public, testnet-only, and ships a mainnet-refusing reference miner", async () => {
-  const [status, skill, worker, miner] = await Promise.all([
+  const [status, skill, discovery, miner] = await Promise.all([
     source("app/api/v2/status/route.ts"),
     source("app/skill.md/route.ts"),
-    source("worker/index.ts"),
+    source("lib/discovery.ts"),
     source("public/open-beta-miner.mjs"),
   ]);
   assert.match(status, /phase:\s*"open"/);
@@ -155,7 +155,7 @@ test("open beta discovery is public, testnet-only, and ships a mainnet-refusing 
   assert.match(status, /chainStatus\(\)\.catch\(\(\) => null\)/);
   assert.match(status, /rpcAvailable:\s*chain !== null/);
   assert.match(skill, /No application or allowlist is required/);
-  assert.match(worker, /referenceAgent/);
+  assert.match(discovery, /referenceAgent/);
   assert.match(miner, /chainId !== 84532/);
   assert.match(miner, /NEVER SEND REAL ASSETS/);
   assert.match(miner, /validatorSignatures\?\.length !== 3/);
@@ -163,10 +163,11 @@ test("open beta discovery is public, testnet-only, and ships a mainnet-refusing 
 });
 
 test("standard MCP separates public reads from local wallet signing", async () => {
-  const [publicMcp, localMcp, worker] = await Promise.all([
+  const [publicMcp, localMcp, worker, discovery] = await Promise.all([
     source("lib/mcp-public.ts"),
     source("mcp/agentpool-local.mjs"),
     source("worker/index.ts"),
+    source("lib/discovery.ts"),
   ]);
   assert.match(publicMcp, /readOnlyHint:\s*true/);
   assert.match(publicMcp, /agentpool_list_jobs/);
@@ -176,8 +177,9 @@ test("standard MCP separates public reads from local wallet signing", async () =
   assert.match(localMcp, /agentpool_submit_mining_answer/);
   assert.match(localMcp, /The calling AI must solve/);
   assert.doesNotMatch(localMcp, /baseMainnet|mainnet\.chain/);
-  assert.match(worker, /modelContextProtocol:\s*true/);
-  assert.match(worker, /mcp:\s*`\$\{origin\}\/api\/mcp`/);
+  assert.match(worker, /handlePublicMcpRequest/);
+  assert.match(discovery, /endpoint:\s*`\$\{origin\}\/api\/mcp`/);
+  assert.match(discovery, /mode:\s*"read-only"/);
 });
 
 test("every state-creating API requires replay protection", async () => {

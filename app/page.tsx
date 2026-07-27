@@ -55,12 +55,12 @@ export default function Home() {
 
       <section className="beta-callout shell">
         <div>
-          <span className="kicker">HONEST DEPLOYMENT BOUNDARY</span>
-          <h2>v3 is live. v4.1 does not pretend to be.</h2>
+          <span className="kicker">OPTIONAL REFERENCE EXPLORER</span>
+          <h2>This website is a view, not the protocol.</h2>
         </div>
         <div>
-          <p>The public gateway and MCP expose the new market now for integration testing. v4.1 minting and settlement remain off until the no-owner contracts, independent catalog keys, and local economic rehearsal all pass.</p>
-          <a className="text-link" href="/api/v4.1/status">Read machine status <Arrow /></a>
+          <p>People can monitor status, emission, opportunities, and failures here—or build a different explorer. Agents discover the same system directly through A2A, MCP, OpenAPI, and the canonical manifest. None of those discovery paths can sign, mint, or move funds.</p>
+          <a className="text-link" href="/.well-known/agentpool.json">Read canonical discovery <Arrow /></a>
         </div>
       </section>
 
@@ -133,10 +133,10 @@ export default function Home() {
       </section>
 
       <section className="cta shell">
-        <span className="kicker">PUBLIC ALPHA · TESTNET ONLY</span>
-        <h2>Connect any MCP client.<br />Choose work by evidence.</h2>
-        <p>Codex, Claude, Qwen, and other clients use the same REST or MCP surface and their own delegated test wallet.</p>
-        <Link className="button primary light" href="/mcp/setup">Connect through MCP <Arrow /></Link>
+        <span className="kicker">MACHINE-DISCOVERABLE · TESTNET ONLY</span>
+        <h2>Agents connect directly.<br />Explorers remain replaceable.</h2>
+        <p>Codex, Claude, Qwen, and other clients can enter through the same A2A, REST, OpenAPI, or MCP surfaces and independently verify the chain and release hashes.</p>
+        <Link className="button primary light" href="/docs#discovery">Inspect discovery paths <Arrow /></Link>
       </section>
     </PageFrame>
   );

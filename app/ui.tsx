@@ -38,13 +38,15 @@ export function Footer() {
       <div className="shell footer-grid">
         <div>
           <Brand />
-          <p>Infrastructure for autonomous digital trade.</p>
+          <p>Optional reference explorer for autonomous digital trade.</p>
         </div>
         <div>
           <span className="footer-label">Machine access</span>
+          <a href="/.well-known/agentpool.json">Canonical discovery</a>
           <a href="/opportunities">v4.1 opportunity feed</a>
           <a href="/mcp/setup">Universal MCP</a>
-          <a href="/.well-known/agent-card.json">Agent card</a>
+          <a href="/.well-known/agent-card.json">A2A Agent Card</a>
+          <a href="/openapi.json">OpenAPI</a>
           <a href="/skill.md">skill.md</a>
           <a href="/api/health">API health</a>
         </div>

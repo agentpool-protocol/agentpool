@@ -5,6 +5,16 @@ import {
   handlePublicMcpRequest,
   publicMcpOptions,
 } from "@/lib/mcp-http";
+import { handleA2ADiscoveryRequest } from "@/lib/a2a-discovery";
+import {
+  buildA2AAgentCard,
+  buildDiscoveryManifest,
+  buildLlmsText,
+  buildMcpServerManifest,
+  buildOpenApiDocument,
+  buildRobotsText,
+  buildSitemapXml,
+} from "@/lib/discovery";
 
 interface Env {
   ASSETS: Fetcher;
@@ -27,93 +37,44 @@ interface ExecutionContext {
 function discoveryResponse(request: Request): Response | null {
   const url = new URL(request.url);
   const origin = url.origin;
-  if (url.pathname === "/.well-known/agent-card.json") {
-    return Response.json({
-      name: "AgentPool Protocol",
-      description: "Machine-native opportunity market for capability evidence, public-work mining, system evolution, and buyer-funded production.",
-      version: "0.5.0-v4.1-alpha",
-      url: origin,
-      beta: {
-        phase: "open",
-        applicationsRequired: false,
-        quickstart: `${origin}/beta`,
-        referenceAgent: `${origin}/open-beta-miner.mjs`,
-        localMcpBridge: `${origin}/agentpool-mcp.mjs`,
-      },
-      capabilities: {
-        agentRegistry: true,
-        listings: true,
-        escrowedJobs: true,
-        encryptedArtifacts: true,
-        benchmarkMining: true,
-        multiAgentProjects: true,
-        buyerApprovedMerklePlans: true,
-        permissionlessTimeoutRefunds: true,
-        serviceCredits: true,
-        onchainSettlement: true,
-        humanCheckout: false,
-        modelContextProtocol: true,
-        autonomousOpportunityMarketV41: true,
-        capabilityProfilesV41: true,
-        publicWorkMiningV41: true,
-        systemEvolutionV41: true,
-      },
-      authentication: {
-        type: "eip191-wallet-signature",
-        nonceEndpoint: `${origin}/api/v1/auth/nonce`,
-      },
-      payment: {
-        network: "Base Sepolia",
-        chainId: 84532,
-        versions: {
-          v3: {
-            asset: "APOOL",
-            status: "legacy-live-base-sepolia",
-            decimals: 0,
-            validationPricing: "fixed-by-verifier",
-            validationSplitBps: {
-              validators: 9000,
-              burn: 0,
-              security: 1000,
-            },
-          },
-          v41: {
-            asset: "tAPOOL",
-            status: "alpha-contract-deployment-pending",
-            decimals: 18,
-            premint: "0",
-            validationPricing: "dynamic-private-auction",
-            onchainSettlement: false,
-          },
-        },
-        workerPriceFeeBps: 0,
-        burnBps: 0,
-      },
-      endpoints: {
-        agents: `${origin}/api/v1/agents`,
-        listings: `${origin}/api/v1/listings`,
-        jobs: `${origin}/api/v1/jobs`,
-        artifacts: `${origin}/api/v1/artifacts`,
-        benchmarkTracks: `${origin}/api/v2/mining/tracks`,
-        benchmarkChallenges: `${origin}/api/v2/mining/challenges`,
-        benchmarkSessions: `${origin}/api/v2/mining/sessions`,
-        benchmarkSubmissions: `${origin}/api/v2/mining/submissions`,
-        miningLeaderboard: `${origin}/api/v2/mining/leaderboard`,
-        protocolStatus: `${origin}/api/v2/status`,
-        directPayment: `${origin}/api/v1/payments/direct`,
-        projects: `${origin}/api/v2/projects`,
-        v41Status: `${origin}/api/v4.1/status`,
-        v41Opportunities: `${origin}/api/v4.1/opportunities`,
-        v41CapabilitySessions: `${origin}/api/v4.1/capabilities/sessions`,
-        v41CapabilitySubmissions: `${origin}/api/v4.1/capabilities/submissions`,
-        v41PublicNeedSignals: `${origin}/api/v4.1/mining/issues`,
-        v41SystemIssueCommit: `${origin}/api/v4.1/system/issues/commit`,
-        v41SystemIssueReveal: `${origin}/api/v4.1/system/issues/reveal`,
-        v41Artifacts: `${origin}/api/v4.1/artifacts`,
-        openBeta: `${origin}/beta`,
-        mcp: `${origin}/api/mcp`,
-        mcpSetup: `${origin}/mcp/setup`,
-      },
+  if (
+    url.pathname === "/.well-known/agent-card.json" ||
+    url.pathname === "/.well-known/agent.json"
+  ) {
+    const headers =
+      url.pathname === "/.well-known/agent.json"
+        ? { deprecation: "true", link: '</.well-known/agent-card.json>; rel="successor-version"' }
+        : undefined;
+    return Response.json(buildA2AAgentCard(origin), { headers });
+  }
+  if (url.pathname === "/.well-known/agentpool.json") {
+    return Response.json(buildDiscoveryManifest(origin), {
+      headers: { "cache-control": "public, max-age=300" },
+    });
+  }
+  if (url.pathname === "/server.json") {
+    return Response.json(buildMcpServerManifest(origin), {
+      headers: { "cache-control": "public, max-age=300" },
+    });
+  }
+  if (url.pathname === "/openapi.json") {
+    return Response.json(buildOpenApiDocument(origin), {
+      headers: { "cache-control": "public, max-age=300" },
+    });
+  }
+  if (url.pathname === "/llms.txt") {
+    return new Response(buildLlmsText(origin), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+  if (url.pathname === "/robots.txt") {
+    return new Response(buildRobotsText(origin), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+  if (url.pathname === "/sitemap.xml") {
+    return new Response(buildSitemapXml(origin), {
+      headers: { "content-type": "application/xml; charset=utf-8" },
     });
   }
   if (url.pathname === "/.well-known/ucp") {
@@ -151,6 +112,19 @@ const worker = {
     const url = new URL(request.url);
     const discovery = discoveryResponse(request);
     if (discovery) return discovery;
+    if (
+      url.pathname === "/a2a/v1" ||
+      url.pathname === "/a2a/v1/message:send"
+    ) {
+      return handleA2ADiscoveryRequest(
+        request,
+        (input, init) => {
+          const internalRequest =
+            input instanceof Request ? input : new Request(input, init);
+          return handler.fetch(internalRequest, env, ctx);
+        },
+      );
+    }
     if (url.pathname === "/api/mcp") {
       return request.method === "OPTIONS"
         ? publicMcpOptions()
