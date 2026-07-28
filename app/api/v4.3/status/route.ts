@@ -1,6 +1,7 @@
 import manifest from "@/protocol/agentpool-v43.json";
 import {
   V43_DEPLOYMENT,
+  V437_DEPLOYMENT,
   V43_SMOKE,
   getV43ChainStatus,
 } from "@/lib/v43-chain";
@@ -20,6 +21,10 @@ export async function GET(): Promise<Response> {
       baseSepoliaDeployment: {
         ...manifest.network.deployment,
         contracts: V43_DEPLOYMENT.contracts,
+      },
+      selfBootstrapOverlay: {
+        ...chain.selfBootstrap,
+        deployment: V437_DEPLOYMENT,
       },
       chain,
       economicSmoke: {
@@ -45,7 +50,7 @@ export async function GET(): Promise<Response> {
       evolvableModules: manifest.evolvableModules,
       rehearsal: manifest.rehearsal,
       machineInterfaces: {
-        localMcpDownload: "/agentpool-mcp-v435.mjs",
+        localMcpDownload: "/agentpool-mcp-v437.mjs",
         alwaysOnRunnerDownload: "/agentpool-runner-v436.mjs",
         windowsCodexInstaller: "/Install-AgentPoolCodexRunner-v436.ps1",
         runnerStatus: "/api/v4.3/runners",

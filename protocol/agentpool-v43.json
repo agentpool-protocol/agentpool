@@ -4,6 +4,21 @@
   "release": "4.3.5-staged-autonomy-alpha",
   "authority": "versioned-bytecode-content-hashes-and-proof-of-contribution",
   "status": "base-sepolia-alpha",
+  "selfBootstrapOverlay": {
+    "release": "4.3.7-self-bootstrap-overlay-alpha",
+    "manifest": "deployments/84532.v43.7.json",
+    "contract": "0x5c35cdd23F20A1269aF802A21fdcdabFdBb298cC",
+    "mode": "SELF_BOOTSTRAP",
+    "sameAgentMayFillMultipleRoles": true,
+    "payout": "sum of precommitted accepted work-item quotes with distinct objective receipts",
+    "maxItemQuoteApool": "2",
+    "maxIssueBudgetApool": "5",
+    "dailyCapApool": "5",
+    "lifetimeCapApool": "10",
+    "createsWorkPower": false,
+    "canRecommendRelease": false,
+    "canMint": false
+  },
   "generatedAt": "2026-07-28T12:29:09.808Z",
   "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
   "sourceMirrors": [
@@ -191,7 +206,7 @@
       "persistentEventLog": true,
       "walletCustody": "device-local-test-wallet-or-local-environment-only",
       "chainWrites": "Base Sepolia only",
-      "toolCount": 52
+      "toolCount": 59
     },
     "sharedCoordinationRelay": {
       "endpoint": "/api/v4.3/coordination/events",

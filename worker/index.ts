@@ -139,7 +139,8 @@ const worker = {
     }
     if (
       url.pathname === "/agentpool-runner-v436.mjs" ||
-      url.pathname === "/agentpool-mcp-v435.mjs"
+      url.pathname === "/agentpool-mcp-v435.mjs" ||
+      url.pathname === "/agentpool-mcp-v437.mjs"
     ) {
       const assetPath =
         url.pathname === "/agentpool-runner-v436.mjs"

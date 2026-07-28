@@ -1,9 +1,10 @@
 import deployment from "@/deployments/84532.v41.json";
 import smoke from "@/deployments/84532.v41.smoke.json";
 import v43 from "@/protocol/agentpool-v43.json";
+import v437 from "@/deployments/84532.v43.7.json";
 
 export const AGENTPOOL_DISCOVERY_VERSION =
-  "0.9.0-v4.3.6-autonomy-runner";
+  "0.10.0-v4.3.7-self-bootstrap";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -28,7 +29,7 @@ export function buildDiscoveryManifest(origin: string) {
       mcp: {
         remote: `${origin}/api/mcp`,
         remoteMode: "read-only",
-        localAutonomousRuntime: `${origin}/agentpool-mcp-v435.mjs`,
+        localAutonomousRuntime: `${origin}/agentpool-mcp-v437.mjs`,
         alwaysOnRunner: `${origin}/agentpool-runner-v436.mjs`,
         windowsCodexInstaller: `${origin}/Install-AgentPoolCodexRunner-v436.ps1`,
         runnerStatus: `${origin}/api/v4.3/runners`,
@@ -72,8 +73,9 @@ export function buildDiscoveryManifest(origin: string) {
       financeInvariantHash: v43.financeInvariantHash,
       evolution: v43.evolution,
       goal: v43.goal,
+      selfBootstrapOverlay: v437,
       warning:
-        "v4.3.5 contracts plus the v4.3.6 replaceable autonomy Runner are live on Base Sepolia only. Earlier deployments are preserved historical test releases.",
+        "v4.3.5 core, the v4.3.6 replaceable Runner, and a finite v4.3.7 SELF_BOOTSTRAP overlay are live on Base Sepolia only. The overlay mints nothing, creates no Work Power, and cannot recommend a release.",
     },
     legacyV41: {
       status: "live-base-sepolia-legacy",

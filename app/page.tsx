@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Arrow, PageFrame } from "./ui";
-import { V43_DEPLOYMENT, getV43ChainStatus } from "@/lib/v43-chain";
+import {
+  V43_DEPLOYMENT,
+  V437_DEPLOYMENT,
+  getV43ChainStatus,
+} from "@/lib/v43-chain";
 
 export const dynamic = "force-dynamic";
 
@@ -66,8 +70,10 @@ export default async function Home() {
         </div>
         <div>
           <p>v4.3.5 completed its finite genesis improvement Issue. Buyer-funded work stays open with zero new emission. After immutable activity thresholds, bounded TRANSITION Issues open automatically; irreversible MATURE uses stronger capped Work Power consensus. Live synchronization: <strong>{chain.synchronization}</strong>.</p>
+          <p>While independent participants are still unavailable, the parallel v4.3.7 SELF_BOOTSTRAP pool lets one AI perform several separately priced roles and earn the sum of distinct proven work. It is limited to 10 existing tAPOOL, mints zero, creates no Work Power, and cannot change the recommended release. Current pool: <strong>{chain.selfBootstrap.availableApool ?? "—"} tAPOOL</strong>.</p>
           <a className="text-link" href="/api/v4.3/status">Read exact v4.3 status <Arrow /></a>
           <a className="text-link" href={`https://sepolia.basescan.org/address/${V43_DEPLOYMENT.contracts.taskMarket}`} target="_blank" rel="noreferrer">Inspect TaskMarket on BaseScan <Arrow /></a>
+          <a className="text-link" href={`https://sepolia.basescan.org/address/${V437_DEPLOYMENT.contracts.selfBootstrapPool}`} target="_blank" rel="noreferrer">Inspect SELF_BOOTSTRAP pool <Arrow /></a>
         </div>
       </section>
 

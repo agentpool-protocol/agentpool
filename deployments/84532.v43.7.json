@@ -1,0 +1,48 @@
+{
+  "version": "4.3.7-self-bootstrap-overlay-alpha",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "testnetOnly": true,
+  "parentRelease": "4.3.5-staged-autonomy-alpha",
+  "parentManifest": "deployments/84532.v43.5.json",
+  "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
+  "mode": "SELF_BOOTSTRAP",
+  "independenceClaim": false,
+  "sameAgentRolesAllowed": true,
+  "payoutRule": "sum of precommitted accepted work-item quotes with distinct objective receipts",
+  "createsWorkPower": false,
+  "canRecommendRelease": false,
+  "canMint": false,
+  "candidateStatus": "INCUBATION_PROVEN",
+  "graduation": "one-way when v4.3.5 transitionReady, contribution ledger MATURE, or finite pool exhausted",
+  "caps": {
+    "maxItemQuoteApool": "2",
+    "maxIssueBudgetApool": "5",
+    "dailyApool": "5",
+    "lifetimeApool": "10",
+    "maxItemsPerIssue": 8,
+    "maxIssueLifetimeSeconds": 2592000
+  },
+  "allowedScopes": [
+    "RUNNER",
+    "MCP",
+    "INDEXER",
+    "EXPLORER",
+    "VERIFIER_TESTS",
+    "ADAPTER"
+  ],
+  "contracts": {
+    "token": "0x00295009f2d419e54254ea566628a2c9e772c92d",
+    "stageGate": "0x7abd5181800bc23d4af462a2f578a4dd0916b165",
+    "contributionLedger": "0x4897693141266cf157bf55c554b2a79b515e5447",
+    "objectiveVerifier": "0xc3b8a44cce5fcb610967dba90abace03522d4c61",
+    "selfBootstrapPool": "0x5c35cdd23F20A1269aF802A21fdcdabFdBb298cC"
+  },
+  "transactionHashes": [
+    "0x2b42864d32e26b948817173f90d54ac5e7f1cd63c8db5252286e5ae8235fc8af",
+    "0xbfe5403921f46c0c7d7d78751c3f9f319a8bbcf588ba60d5fa42662f6725acac",
+    "0x03ae93be6be283cf36af4d4ae1b1f9cdf789f80cc26e3fa388dcf2fb57b2f26f"
+  ],
+  "gasUsed": "2096146",
+  "deployedAt": "2026-07-28T16:53:29.767Z"
+}

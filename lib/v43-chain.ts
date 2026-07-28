@@ -6,6 +6,7 @@ import {
 } from "viem";
 import { baseSepolia } from "viem/chains";
 import deployment from "@/deployments/84532.v43.5.json";
+import selfBootstrapDeployment from "@/deployments/84532.v43.7.json";
 import smoke from "@/deployments/84532.v43.5.smoke.json";
 import tokenArtifact from "@/artifacts/AgentPoolV43Token.json";
 import ledgerArtifact from "@/artifacts/AgentPoolV43ContributionLedger.json";
@@ -13,6 +14,7 @@ import vaultArtifact from "@/artifacts/AgentPoolV43EpochVault.json";
 import registryArtifact from "@/artifacts/AgentPoolV43ReleaseRegistry.json";
 import issueGateArtifact from "@/artifacts/AgentPoolV435SystemIssueGate.json";
 import marketArtifact from "@/artifacts/AgentPoolV432TaskMarket.json";
+import selfBootstrapArtifact from "@/artifacts/AgentPoolV437SelfBootstrapPool.json";
 
 const PUBLIC_RPCS = [
   "https://base-sepolia-rpc.publicnode.com",
@@ -53,6 +55,7 @@ async function read(
 }
 
 export const V43_DEPLOYMENT = deployment;
+export const V437_DEPLOYMENT = selfBootstrapDeployment;
 export const V43_SMOKE = smoke;
 
 async function contractEvents(
@@ -120,6 +123,12 @@ export async function getV43ChainStatus() {
       evolutionEmitted,
       evolutionReserved,
       issueUsage,
+      selfBootstrapOpen,
+      selfBootstrapGraduated,
+      selfBootstrapFunded,
+      selfBootstrapReserved,
+      selfBootstrapPaid,
+      selfBootstrapBalance,
     ] = await Promise.all([
       client.getChainId(),
       client.getBlockNumber(),
@@ -169,6 +178,34 @@ export async function getV43ChainStatus() {
       read(contracts.systemIssueGate, issueGateArtifact.abi, "usage", [
         bootstrapIssue.issueId,
       ]),
+      read(
+        selfBootstrapDeployment.contracts.selfBootstrapPool,
+        selfBootstrapArtifact.abi,
+        "selfBootstrapOpen",
+      ),
+      read(
+        selfBootstrapDeployment.contracts.selfBootstrapPool,
+        selfBootstrapArtifact.abi,
+        "graduated",
+      ),
+      read(
+        selfBootstrapDeployment.contracts.selfBootstrapPool,
+        selfBootstrapArtifact.abi,
+        "totalFunded",
+      ),
+      read(
+        selfBootstrapDeployment.contracts.selfBootstrapPool,
+        selfBootstrapArtifact.abi,
+        "totalReserved",
+      ),
+      read(
+        selfBootstrapDeployment.contracts.selfBootstrapPool,
+        selfBootstrapArtifact.abi,
+        "totalPaid",
+      ),
+      read(contracts.token, tokenArtifact.abi, "balanceOf", [
+        selfBootstrapDeployment.contracts.selfBootstrapPool,
+      ]),
     ]);
     if (chainId !== 84532) throw new Error(`wrong chain ${chainId}`);
     return {
@@ -210,6 +247,25 @@ export async function getV43ChainStatus() {
         committedBudgetApool: formatUnits(issueUsage[1] as bigint, 18),
         candidatesUsed: Number(issueUsage[2]),
       },
+      selfBootstrap: {
+        release: selfBootstrapDeployment.version,
+        mode: "SELF_BOOTSTRAP",
+        open: selfBootstrapOpen,
+        graduated: selfBootstrapGraduated,
+        contract:
+          selfBootstrapDeployment.contracts.selfBootstrapPool,
+        fundedApool: formatUnits(selfBootstrapFunded as bigint, 18),
+        reservedApool: formatUnits(selfBootstrapReserved as bigint, 18),
+        paidApool: formatUnits(selfBootstrapPaid as bigint, 18),
+        availableApool: formatUnits(selfBootstrapBalance as bigint, 18),
+        caps: selfBootstrapDeployment.caps,
+        sameAgentRolesAllowed: true,
+        payoutRule: selfBootstrapDeployment.payoutRule,
+        independenceClaim: false,
+        createsWorkPower: false,
+        canRecommendRelease: false,
+        canMint: false,
+      },
     };
   } catch (error) {
     const bootstrapIssue = deployment.bootstrapIssues[0];
@@ -249,6 +305,23 @@ export async function getV43ChainStatus() {
         committedBudgetBaseUnits: "0",
         committedBudgetApool: null,
         candidatesUsed: 0,
+      },
+      selfBootstrap: {
+        release: selfBootstrapDeployment.version,
+        mode: "SELF_BOOTSTRAP",
+        open: false,
+        graduated: null,
+        contract:
+          selfBootstrapDeployment.contracts.selfBootstrapPool,
+        fundedApool: null,
+        reservedApool: null,
+        paidApool: null,
+        availableApool: null,
+        caps: selfBootstrapDeployment.caps,
+        independenceClaim: false,
+        createsWorkPower: false,
+        canRecommendRelease: false,
+        canMint: false,
       },
       error: error instanceof Error ? error.message : "RPC unavailable",
     };

@@ -23,6 +23,7 @@ import {
 } from "viem/accounts";
 import { z } from "zod";
 import deployment from "../deployments/84532.v43.5.json" with { type: "json" };
+import selfBootstrapDeployment from "../deployments/84532.v43.7.json" with { type: "json" };
 import tokenArtifact from "../artifacts/AgentPoolV43Token.json" with { type: "json" };
 import marketArtifact from "../artifacts/AgentPoolV432TaskMarket.json" with { type: "json" };
 import ledgerArtifact from "../artifacts/AgentPoolV43ContributionLedger.json" with { type: "json" };
@@ -35,6 +36,7 @@ import issueGateV435Artifact from "../artifacts/AgentPoolV435SystemIssueGate.jso
 import transitionIssueConsensusArtifact from "../artifacts/AgentPoolV435TransitionIssueConsensus.json" with { type: "json" };
 import issueConsensusArtifact from "../artifacts/AgentPoolV432IssueConsensus.json" with { type: "json" };
 import evolutionConsensusArtifact from "../artifacts/AgentPoolV43EvolutionConsensus.json" with { type: "json" };
+import selfBootstrapArtifact from "../artifacts/AgentPoolV437SelfBootstrapPool.json" with { type: "json" };
 import {
   AgentPoolV43Engine,
   digest,
@@ -73,7 +75,10 @@ const abis = {
   transitionIssueConsensus: transitionIssueConsensusArtifact.abi,
   issueConsensus: issueConsensusArtifact.abi,
   evolutionConsensus: evolutionConsensusArtifact.abi,
+  selfBootstrap: selfBootstrapArtifact.abi,
 };
+const selfBootstrapPool =
+  selfBootstrapDeployment.contracts.selfBootstrapPool;
 
 function requireStagedAutonomy() {
   if (!stagedAutonomyAvailable) {
@@ -257,6 +262,10 @@ function bytes32(value) {
     : keccak256(toBytes(value));
 }
 
+function proofBytes(value) {
+  return /^0x(?:[a-fA-F0-9]{2})*$/.test(value) ? value : toHex(value);
+}
+
 function apool(value) {
   return parseUnits(value, 18);
 }
@@ -407,7 +416,7 @@ const server = new McpServer(
   { name: "agentpool-v43", version: "0.1.0-autonomous-alpha" },
   { capabilities: { logging: {} } },
 );
-const MCP_TOOL_COUNT = 52;
+const MCP_TOOL_COUNT = 59;
 
 const capabilitySchema = z.object({
   track: z.string().min(1),
@@ -637,6 +646,377 @@ server.registerTool(
       testnetOnly: true,
     });
   },
+);
+
+const selfBootstrapScopes = {
+  RUNNER: 1,
+  MCP: 2,
+  INDEXER: 3,
+  EXPLORER: 4,
+  VERIFIER_TESTS: 5,
+  ADAPTER: 6,
+};
+const selfBootstrapRoles = {
+  PLANNER: 1,
+  REPRODUCER: 2,
+  IMPLEMENTER: 3,
+  VALIDATOR: 4,
+  KEEPER: 5,
+};
+const apoolStringSchema = z
+  .string()
+  .regex(/^(?:0|[1-9]\d*)(?:\.\d+)?$/u);
+
+server.registerTool(
+  "agentpool_v437_self_bootstrap_status",
+  {
+    title: "Read finite SELF_BOOTSTRAP improvement capacity",
+    description:
+      "Reads the isolated v4.3.7 Base Sepolia incubation pool. It mints nothing, creates no Work Power, and cannot recommend a release.",
+    inputSchema: {},
+  },
+  async () => {
+    const [
+      open,
+      graduated,
+      funded,
+      reserved,
+      paid,
+      balance,
+      maxItemQuote,
+      maxIssueBudget,
+      dailyCap,
+      lifetimeCap,
+      maxItemsPerIssue,
+    ] = await Promise.all([
+      chainRead(
+        selfBootstrapPool,
+        abis.selfBootstrap,
+        "selfBootstrapOpen",
+      ),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "graduated"),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "totalFunded"),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "totalReserved"),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "totalPaid"),
+      chainRead(contracts.token, abis.token, "balanceOf", [
+        selfBootstrapPool,
+      ]),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "maxItemQuote"),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "maxIssueBudget"),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "dailyCap"),
+      chainRead(selfBootstrapPool, abis.selfBootstrap, "lifetimeCap"),
+      chainRead(
+        selfBootstrapPool,
+        abis.selfBootstrap,
+        "maxItemsPerIssue",
+      ),
+    ]);
+    return textResult({
+      release: selfBootstrapDeployment.version,
+      mode: "SELF_BOOTSTRAP",
+      open,
+      graduated,
+      pool: selfBootstrapPool,
+      fundedApool: formatUnits(funded, 18),
+      reservedApool: formatUnits(reserved, 18),
+      paidApool: formatUnits(paid, 18),
+      availableApool: formatUnits(balance, 18),
+      caps: {
+        maxItemQuoteApool: formatUnits(maxItemQuote, 18),
+        maxIssueBudgetApool: formatUnits(maxIssueBudget, 18),
+        dailyApool: formatUnits(dailyCap, 18),
+        lifetimeApool: formatUnits(lifetimeCap, 18),
+        maxItemsPerIssue,
+      },
+      sameAgentMayFillMultipleRoles: true,
+      payout:
+        "sum of accepted pre-work quotes whose distinct objective receipts pass",
+      independenceClaim: false,
+      createsWorkPower: false,
+      canRecommendRelease: false,
+      canMint: false,
+      candidateStatus: "INCUBATION_PROVEN",
+      nextTool: "agentpool_v437_prepare_evidence",
+      testnetOnly: true,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v437_prepare_evidence",
+  {
+    title: "Prepare a deterministic work receipt commitment",
+    description:
+      "Hashes a work specification, delivery label/hash, and proof exactly as the deployed objective verifier expects. This is read-only.",
+    inputSchema: {
+      specification: z.string().min(1),
+      delivery: z.string().min(1),
+      proof: z.string().min(1),
+    },
+  },
+  async ({ specification, delivery, proof }) => {
+    const specificationHash = bytes32(specification);
+    const deliveryHash = bytes32(delivery);
+    const encodedProof = proofBytes(proof);
+    const expectedEvidenceHash = keccak256(
+      encodeAbiParameters(
+        [
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+        ],
+        [specificationHash, deliveryHash, keccak256(encodedProof)],
+      ),
+    );
+    return textResult({
+      specificationHash,
+      deliveryHash,
+      proof: encodedProof,
+      expectedEvidenceHash,
+      verifier: selfBootstrapDeployment.contracts.objectiveVerifier,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v437_self_bootstrap_issue",
+  {
+    title: "Inspect one SELF_BOOTSTRAP issue and its work items",
+    description:
+      "Reads the exact onchain Issue, accepted quotes, completion states, and receipts for recovery or independent review.",
+    inputSchema: { issueId: z.string().min(1) },
+  },
+  async ({ issueId }) => {
+    const encodedIssueId = bytes32(issueId);
+    const issue = await chainRead(
+      selfBootstrapPool,
+      abis.selfBootstrap,
+      "issues",
+      [encodedIssueId],
+    );
+    const itemIds = await chainRead(
+      selfBootstrapPool,
+      abis.selfBootstrap,
+      "issueWorkItems",
+      [encodedIssueId],
+    );
+    const items = await Promise.all(
+      itemIds.map(async (itemId) => {
+        const item = await chainRead(
+          selfBootstrapPool,
+          abis.selfBootstrap,
+          "workItems",
+          [itemId],
+        );
+        return {
+          itemId,
+          issueId: item[0],
+          worker: item[1],
+          role: ["NONE", "PLANNER", "REPRODUCER", "IMPLEMENTER", "VALIDATOR", "KEEPER"][
+            Number(item[2])
+          ],
+          state: ["NONE", "PLANNED", "COMPLETED", "PAID"][
+            Number(item[3])
+          ],
+          quoteApool: formatUnits(item[4], 18),
+          specificationHash: item[5],
+          expectedEvidenceHash: item[6],
+          deliveryHash: item[7],
+          receiptHash: item[8],
+        };
+      }),
+    );
+    return textResult({
+      issueId: encodedIssueId,
+      proposer: issue[0],
+      scope: [
+        "NONE",
+        "RUNNER",
+        "MCP",
+        "INDEXER",
+        "EXPLORER",
+        "VERIFIER_TESTS",
+        "ADAPTER",
+      ][Number(issue[1])],
+      state: ["NONE", "OPEN", "SETTLED", "EXPIRED"][Number(issue[2])],
+      budgetCapApool: formatUnits(issue[10], 18),
+      plannedApool: formatUnits(issue[11], 18),
+      paidApool: formatUnits(issue[12], 18),
+      reproductionComplete: issue[13],
+      implementationComplete: issue[14],
+      validationComplete: issue[15],
+      specificationHash: issue[16],
+      parentRelease: issue[17],
+      candidateRelease: issue[18],
+      items,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v437_open_self_improvement",
+  {
+    title: "Open a finite self-bootstrap improvement budget",
+    description:
+      "Reserves only existing test tAPOOL. The amount is a maximum budget, not a fixed payout; distinct accepted work bids determine final payment.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      issueHash: z.string().min(1),
+      scope: z.enum(Object.keys(selfBootstrapScopes)),
+      budgetCapApool: apoolStringSchema,
+      specification: z.string().min(1),
+      candidateRelease: z.string().min(1),
+      parentRelease: z.string().min(1).optional(),
+      planningMinutes: z.number().int().min(2).max(1_440).default(30),
+      executionMinutes: z.number().int().min(3).max(10_080).default(120),
+      settlementMinutes: z
+        .number()
+        .int()
+        .min(4)
+        .max(43_200)
+        .default(240),
+    },
+  },
+  async ({
+    issueId,
+    issueHash,
+    scope,
+    budgetCapApool,
+    specification,
+    candidateRelease,
+    parentRelease,
+    planningMinutes,
+    executionMinutes,
+    settlementMinutes,
+  }) => {
+    if (
+      planningMinutes >= executionMinutes ||
+      executionMinutes >= settlementMinutes
+    ) {
+      throw new Error("V437_DEADLINE_ORDER_INVALID");
+    }
+    const now = Math.floor(Date.now() / 1_000);
+    const receipt = await chainWrite(
+      selfBootstrapPool,
+      abis.selfBootstrap,
+      "openIssue",
+      [
+        bytes32(issueId),
+        bytes32(issueHash),
+        selfBootstrapScopes[scope],
+        apool(budgetCapApool),
+        bytes32(specification),
+        bytes32(parentRelease ?? deployment.genesisRelease),
+        bytes32(candidateRelease),
+        now + planningMinutes * 60,
+        now + executionMinutes * 60,
+        now + settlementMinutes * 60,
+      ],
+    );
+    return textResult({
+      ...receipt,
+      issueId: bytes32(issueId),
+      budgetCapApool,
+      payoutRule: "accepted-distinct-work-quotes-only",
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v437_accept_work_bid",
+  {
+    title: "Accept one dynamically priced improvement work item",
+    description:
+      "Locks a pre-work quote for a distinct planner, reproducer, implementer, validator, or keeper item. One AI may fill several roles.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      itemId: z.string().min(1),
+      worker: z.string().regex(/^0x[a-fA-F0-9]{40}$/u).optional(),
+      role: z.enum(Object.keys(selfBootstrapRoles)),
+      quoteApool: apoolStringSchema,
+      specificationHash: z.string().min(1),
+      expectedEvidenceHash: z.string().min(1),
+    },
+  },
+  async ({
+    issueId,
+    itemId,
+    worker,
+    role,
+    quoteApool,
+    specificationHash,
+    expectedEvidenceHash,
+  }) => {
+    const account = localAccount();
+    const receipt = await chainWrite(
+      selfBootstrapPool,
+      abis.selfBootstrap,
+      "acceptWorkBid",
+      [
+        bytes32(issueId),
+        bytes32(itemId),
+        worker ?? account.address,
+        selfBootstrapRoles[role],
+        apool(quoteApool),
+        bytes32(specificationHash),
+        bytes32(expectedEvidenceHash),
+      ],
+    );
+    return textResult({
+      ...receipt,
+      issueId: bytes32(issueId),
+      itemId: bytes32(itemId),
+      worker: worker ?? account.address,
+      role,
+      quoteApool,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v437_complete_work",
+  {
+    title: "Submit one objective improvement work receipt",
+    description:
+      "Completes one pre-priced work item. Delivery hashes cannot be reused across roles or Issues.",
+    inputSchema: {
+      itemId: z.string().min(1),
+      deliveryHash: z.string().min(1),
+      proof: z.string().min(1),
+    },
+  },
+  async ({ itemId, deliveryHash, proof }) => {
+    const receipt = await chainWrite(
+      selfBootstrapPool,
+      abis.selfBootstrap,
+      "completeWork",
+      [bytes32(itemId), bytes32(deliveryHash), proofBytes(proof)],
+    );
+    return textResult({
+      ...receipt,
+      itemId: bytes32(itemId),
+      deliveryHash: bytes32(deliveryHash),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v437_settle_self_improvement",
+  {
+    title: "Settle all completed dynamic improvement bids",
+    description:
+      "Pays each distinct completed item at its precommitted quote, returns unused budget to the finite pool, and marks only an INCUBATION_PROVEN candidate.",
+    inputSchema: { issueId: z.string().min(1) },
+  },
+  async ({ issueId }) =>
+    textResult(
+      await chainWrite(
+        selfBootstrapPool,
+        abis.selfBootstrap,
+        "settleIssue",
+        [bytes32(issueId)],
+      ),
+    ),
 );
 
 server.registerTool(
@@ -1751,8 +2131,22 @@ server.registerTool(
     inputSchema: { agentId: z.string().min(1).optional() },
   },
   async ({ agentId }) => {
-    if (agentId) return textResult(engine.opportunitiesFor(agentId));
     const snapshot = engine.snapshot();
+    if (agentId && !snapshot.agents[agentId]) {
+      return textResult({
+        ok: false,
+        error: {
+          code: "UNKNOWN_AGENT",
+          message:
+            "This agentId is not registered in the current local AgentPool session.",
+          recoverable: true,
+          nextTool: "agentpool_v43_register_agent",
+          anonymousDiscoveryAvailable: true,
+        },
+        opportunities: [],
+      });
+    }
+    if (agentId) return textResult(engine.opportunitiesFor(agentId));
     return textResult({
       ranking: "UNRANKED_ANONYMOUS",
       registrationRequiredForProfitRanking: true,
@@ -2554,7 +2948,7 @@ async function selfTest() {
     `${JSON.stringify({
       ok: true,
       release: deployment.version,
-      tools: 52,
+      tools: 59,
       persistentEventLog: true,
       evaluatorCanSetPayout: false,
       baseSepoliaDeployment: true,

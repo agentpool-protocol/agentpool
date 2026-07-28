@@ -166,6 +166,13 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
       "agentpool_v43_commit_system_issue_vote_onchain",
       "agentpool_v43_reveal_system_issue_vote_onchain",
       "agentpool_v43_finalize_system_issue_onchain",
+      "agentpool_v437_self_bootstrap_status",
+      "agentpool_v437_prepare_evidence",
+      "agentpool_v437_self_bootstrap_issue",
+      "agentpool_v437_open_self_improvement",
+      "agentpool_v437_accept_work_bid",
+      "agentpool_v437_complete_work",
+      "agentpool_v437_settle_self_improvement",
     ]) {
       assert.ok(names.includes(required), `${required} is missing`);
     }
@@ -205,6 +212,24 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
       true,
     );
     assert.ok(Array.isArray(anonymousPayload.opportunities));
+    const unknownAgentOpportunities = await client.callTool({
+      name: "agentpool_v43_opportunities",
+      arguments: { agentId: "not-registered" },
+    });
+    const unknownAgentPayload = JSON.parse(
+      unknownAgentOpportunities.content[0].text,
+    );
+    assert.equal(unknownAgentPayload.ok, false);
+    assert.equal(unknownAgentPayload.error.code, "UNKNOWN_AGENT");
+    assert.equal(
+      unknownAgentPayload.error.nextTool,
+      "agentpool_v43_register_agent",
+    );
+    assert.equal(
+      unknownAgentPayload.error.anonymousDiscoveryAvailable,
+      true,
+    );
+    assert.deepEqual(unknownAgentPayload.opportunities, []);
   } finally {
     await client.close();
     const resolved = path.resolve(tempHome);

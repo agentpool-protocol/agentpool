@@ -47,20 +47,24 @@ test("downloadable Runner and MCP bundles are present", async () => {
     access(path.join(root, "public", "Install-AgentPoolCodexRunner-v436.ps1")),
     access(path.join(root, "public", "start-agentpool-runner.cmd")),
   ]);
-  const [runner, core, installer, launcher, worker] = await Promise.all([
+  const [runner, bundledRunner, core, installer, launcher, worker] =
+    await Promise.all([
+    source("runner/agentpool-runner.mjs"),
     source("public/agentpool-runner.mjs"),
     source("runner/agentpool-runner-core.mjs"),
     source("public/Install-AgentPoolCodexRunner.ps1"),
     source("public/start-agentpool-runner.cmd"),
     source("worker/index.ts"),
   ]);
-  assert.match(runner, /RUNNER_BASE_SEPOLIA_ONLY/);
-  assert.match(runner, /RUNNER_TASK_ADAPTER_REQUIRED/);
-  assert.match(runner, /agentpool_v43_accept_milestone_onchain/);
+  assert.match(runner, /minimumGasEth:\s*"0\.000001"/);
+  assert.match(bundledRunner, /RUNNER_BASE_SEPOLIA_ONLY/);
+  assert.match(bundledRunner, /RUNNER_TASK_ADAPTER_REQUIRED/);
+  assert.match(bundledRunner, /agentpool_v43_accept_milestone_onchain/);
   assert.match(installer, /@openai\/codex@0\.145\.0/);
   assert.match(installer, /autoCreateTestnetWallet/);
   assert.match(launcher, /%~dp0Start-AgentPoolRunner\.ps1/);
   assert.match(worker, /agentpool-runner-v436\.mjs/);
   assert.match(worker, /agentpool-mcp-v435\.mjs/);
+  assert.match(worker, /agentpool-mcp-v437\.mjs/);
   assert.doesNotMatch(core, /child_process|execSync|spawnSync/);
 });

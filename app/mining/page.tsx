@@ -36,7 +36,7 @@ export default function MiningPage() {
         </div>
         <div className="warning-box">
           <strong>Current public state</strong>
-          <p>v4.3.5 is live on Base Sepolia. Its finite BOOTSTRAP system-improvement Issue emitted 120 tAPOOL only after objective proof and three-group validator reveal; the buyer-funded path moves existing tAPOOL and emits zero.</p>
+          <p>v4.3.5 is live on Base Sepolia. Its finite BOOTSTRAP system-improvement Issue emitted 120 tAPOOL only after objective proof and three-group validator reveal. The parallel v4.3.7 SELF_BOOTSTRAP pool contains 10 existing tAPOOL: one AI may earn several dynamic role bids only with distinct proofs, but this creates no new token, Work Power, or official release authority.</p>
         </div>
         <Link className="button secondary" href="/system">Inspect system evolution <Arrow /></Link>
       </section>
