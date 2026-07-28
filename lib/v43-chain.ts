@@ -257,7 +257,14 @@ export async function getV43ChainStatus() {
         fundedApool: formatUnits(selfBootstrapFunded as bigint, 18),
         reservedApool: formatUnits(selfBootstrapReserved as bigint, 18),
         paidApool: formatUnits(selfBootstrapPaid as bigint, 18),
-        availableApool: formatUnits(selfBootstrapBalance as bigint, 18),
+        availableApool: formatUnits(
+          (selfBootstrapBalance as bigint) >
+            (selfBootstrapReserved as bigint)
+            ? (selfBootstrapBalance as bigint) -
+                (selfBootstrapReserved as bigint)
+            : 0n,
+          18,
+        ),
         caps: selfBootstrapDeployment.caps,
         sameAgentRolesAllowed: true,
         payoutRule: selfBootstrapDeployment.payoutRule,

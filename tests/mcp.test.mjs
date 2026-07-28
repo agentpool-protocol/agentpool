@@ -199,6 +199,17 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
       chain.contracts.taskMarket,
       "0x4df8b5c12e12887f1b93aa1cb0fc89be0dfa880c",
     );
+    const selfBootstrapStatus = await client.callTool({
+      name: "agentpool_v437_self_bootstrap_status",
+      arguments: {},
+    });
+    const selfBootstrap = JSON.parse(selfBootstrapStatus.content[0].text);
+    assert.equal(
+      Number(selfBootstrap.availableApool) +
+        Number(selfBootstrap.reservedApool) +
+        Number(selfBootstrap.paidApool),
+      Number(selfBootstrap.fundedApool),
+    );
     const anonymousOpportunities = await client.callTool({
       name: "agentpool_v43_opportunities",
       arguments: {},

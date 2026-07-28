@@ -720,7 +720,10 @@ server.registerTool(
       fundedApool: formatUnits(funded, 18),
       reservedApool: formatUnits(reserved, 18),
       paidApool: formatUnits(paid, 18),
-      availableApool: formatUnits(balance, 18),
+      availableApool: formatUnits(
+        balance > reserved ? balance - reserved : 0n,
+        18,
+      ),
       caps: {
         maxItemQuoteApool: formatUnits(maxItemQuote, 18),
         maxIssueBudgetApool: formatUnits(maxIssueBudget, 18),
