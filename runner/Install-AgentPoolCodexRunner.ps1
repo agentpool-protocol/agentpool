@@ -108,8 +108,12 @@ $config = [ordered]@{
 $configPath = Join-Path $runnerDir "runner.config.json"
 $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding UTF8
 
+$previousErrorPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $loginStatus = & $nodeExe $codexCli login status 2>&1
-$codexAuthenticated = $LASTEXITCODE -eq 0
+$loginExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorPreference
+$codexAuthenticated = $loginExitCode -eq 0
 if (-not $NoScheduledTask) {
     & (Join-Path $runnerDir "Install-AgentPoolRunnerTask.ps1") -TaskName $taskName
 }
