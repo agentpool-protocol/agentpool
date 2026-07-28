@@ -198,6 +198,11 @@ test("v4.3 release manifest matches the live MCP tool surface", async () => {
   const manifest = JSON.parse(await source("protocol/agentpool-v43.json"));
   assert.equal(manifest.release, "4.3.5-staged-autonomy-alpha");
   assert.equal(manifest.machineInterfaces.localMcp.toolCount, 52);
+  const chainReader = await source("lib/v43-chain.ts");
+  assert.match(chainReader, /fallback\(/);
+  assert.match(chainReader, /base-sepolia-rpc\.publicnode\.com/);
+  assert.match(chainReader, /base-sepolia\.drpc\.org/);
+  assert.match(chainReader, /batch:\s*true/);
 });
 
 test("every state-creating API requires replay protection", async () => {

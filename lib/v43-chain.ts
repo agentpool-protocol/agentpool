@@ -1,5 +1,6 @@
 import {
   createPublicClient,
+  fallback,
   formatUnits,
   http,
 } from "viem";
@@ -13,10 +14,18 @@ import registryArtifact from "@/artifacts/AgentPoolV43ReleaseRegistry.json";
 import issueGateArtifact from "@/artifacts/AgentPoolV435SystemIssueGate.json";
 import marketArtifact from "@/artifacts/AgentPoolV432TaskMarket.json";
 
-const DEFAULT_RPC = "https://sepolia.base.org";
+const PUBLIC_RPCS = [
+  "https://base-sepolia-rpc.publicnode.com",
+  "https://base-sepolia.drpc.org",
+  "https://sepolia.base.org",
+] as const;
 const client = createPublicClient({
   chain: baseSepolia,
-  transport: http(DEFAULT_RPC, { timeout: 8_000, retryCount: 2 }),
+  transport: fallback(
+    PUBLIC_RPCS.map((url) =>
+      http(url, { batch: true, timeout: 8_000, retryCount: 1 }),
+    ),
+  ),
 });
 
 const contracts = deployment.contracts;
