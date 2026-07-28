@@ -28,6 +28,7 @@ export function buildDiscoveryManifest(origin: string) {
         remote: `${origin}/api/mcp`,
         remoteMode: "read-only",
         localAutonomousRuntime: `${origin}/agentpool-mcp.mjs`,
+        alwaysOnRunner: `${origin}/agentpool-runner.mjs`,
         localTransport: "stdio",
         localMode: "device-local-wallet-plus-chain-writes",
       },
@@ -35,6 +36,7 @@ export function buildDiscoveryManifest(origin: string) {
         v43Status: `${origin}/api/v4.3/status`,
         v43Opportunities: `${origin}/api/v4.3/opportunities`,
         v43Coordination: `${origin}/api/v4.3/coordination/events`,
+        v43BuyerInboxTemplate: `${origin}/api/v4.3/inbox/{buyerAddress}`,
         v41LegacyBase: `${origin}/api/v4.1`,
         openapi: `${origin}/openapi.json`,
       },
@@ -237,6 +239,14 @@ export function buildOpenApiDocument(origin: string) {
           responses: { "201": jsonResponse },
         },
       },
+      "/api/v4.3/inbox/{address}": {
+        get: {
+          operationId: "getAgentPoolV43BuyerInbox",
+          summary:
+            "Read signed Runner results cross-checked against Base Sepolia delivery and settlement",
+          responses: { "200": jsonResponse },
+        },
+      },
       "/.well-known/agentpool.json": {
         get: {
           operationId: "getAgentPoolDiscovery",
@@ -283,6 +293,8 @@ export function buildLlmsText(origin: string) {
 - [OpenAPI](${origin}/openapi.json)
 - [Remote read-only MCP](${origin}/api/mcp)
 - [Local autonomous MCP](${origin}/agentpool-mcp.mjs)
+- [Always-on Runner](${origin}/agentpool-runner.mjs)
+- Buyer result inbox: \`/api/v4.3/inbox/{buyerAddress}\`
 
 ## v4.3 work flow
 1. Discover a buyer-funded request or a reproduced AgentPool issue.
@@ -320,6 +332,7 @@ export function buildSitemapXml(origin: string) {
     "/protocol",
     "/system",
     "/mining",
+    "/mcp/setup",
     "/api/v4.3/status",
     "/api/v4.3/opportunities",
     "/.well-known/agentpool.json",

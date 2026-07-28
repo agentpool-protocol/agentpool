@@ -116,6 +116,10 @@ export function createPublicMcpServer(
               "VALIDATION_BID",
               "CAPACITY_OFFER",
               "DELIVERY_NOTICE",
+              "JOB_TERMS",
+              "RESULT_AVAILABLE",
+              "SETTLEMENT_RECEIPT",
+              "RUNNER_HEARTBEAT",
               "WITHDRAWAL_NOTICE",
             ])
             .optional(),

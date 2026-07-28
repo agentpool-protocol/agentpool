@@ -1040,9 +1040,36 @@ server.registerTool(
     inputSchema: {
       ...chainJobSchema,
       specification: z.string().min(1),
+      runnerTaskJson: z
+        .string()
+        .min(2)
+        .max(8_000)
+        .optional()
+        .describe(
+          "Optional public agentpool.runner.task/v1 JSON. When present, the buyer publishes signed JOB_TERMS so an always-on Runner can execute this objective testnet task without another prompt.",
+        ),
     },
   },
   async (args) => {
+    let runnerTask = null;
+    if (args.runnerTaskJson) {
+      try {
+        runnerTask = JSON.parse(args.runnerTaskJson);
+      } catch {
+        throw new Error("V43_RUNNER_TASK_MUST_BE_JSON");
+      }
+      if (
+        !runnerTask ||
+        Array.isArray(runnerTask) ||
+        typeof runnerTask !== "object" ||
+        runnerTask.schema !== "agentpool.runner.task/v1"
+      ) {
+        throw new Error("V43_RUNNER_TASK_SCHEMA_INVALID");
+      }
+      if (args.minimumReveals !== 0) {
+        throw new Error("V43_RUNNER_OBJECTIVE_TASK_REQUIRES_ZERO_REVEALS");
+      }
+    }
     const job = await buildChainJob(args, bytes32(args.specification));
     const approval = await chainWrite(
       contracts.token,
@@ -1063,6 +1090,52 @@ server.registerTool(
         job.dependencies,
       ],
     );
+    let coordination = null;
+    if (runnerTask) {
+      const now = Date.now();
+      try {
+        coordination = await publishRelayEvent({
+          eventType: "JOB_TERMS",
+          opportunityId: `job:${job.jobId.slice(2)}`,
+          parentEventId: null,
+          payload: {
+            schema: "agentpool.runner.terms/v1",
+            chainId: 84532,
+            jobId: job.jobId,
+            milestone: 0,
+            buyerAddress: job.account.address,
+            workerAddress: args.worker,
+            validatorAddress: args.validatorRecipient,
+            capability: args.capability,
+            task: runnerTask,
+            specification: args.specification,
+            expectedDelivery: args.expectedDelivery,
+            proofMode: "OBJECTIVE_HASH_V1",
+            proofText: args.proofText,
+            recipients: job.recipients,
+            amountsApool: job.amounts.map((amount) =>
+              formatUnits(amount, 18),
+            ),
+            workerAmountApool: args.workerAmountApool,
+            validatorAmountApool: args.validatorAmountApool,
+            keeperAmountApool: args.keeperAmountApool,
+            deadline: args.deadline,
+            creationTransactionHash: creation.transactionHash,
+            visibility: "PUBLIC_TESTNET",
+          },
+          expiresAt: Math.min(
+            args.deadline * 1_000,
+            now + 30 * 24 * 60 * 60 * 1_000,
+          ),
+        });
+      } catch (error) {
+        coordination = {
+          published: false,
+          recoverable: true,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
     return textResult({
       jobId: job.jobId,
       releaseId: job.releaseId,
@@ -1072,6 +1145,7 @@ server.registerTool(
       expectedDeliveryHash: job.deliveryHash,
       approval,
       creation,
+      runnerTerms: coordination,
       emission: "0",
     });
   },
@@ -1707,6 +1781,10 @@ server.registerTool(
           "VALIDATION_BID",
           "CAPACITY_OFFER",
           "DELIVERY_NOTICE",
+          "JOB_TERMS",
+          "RESULT_AVAILABLE",
+          "SETTLEMENT_RECEIPT",
+          "RUNNER_HEARTBEAT",
           "WITHDRAWAL_NOTICE",
         ])
         .optional(),
@@ -1733,6 +1811,10 @@ server.registerTool(
         "VALIDATION_BID",
         "CAPACITY_OFFER",
         "DELIVERY_NOTICE",
+        "JOB_TERMS",
+        "RESULT_AVAILABLE",
+        "SETTLEMENT_RECEIPT",
+        "RUNNER_HEARTBEAT",
         "WITHDRAWAL_NOTICE",
       ]),
       opportunityId: z

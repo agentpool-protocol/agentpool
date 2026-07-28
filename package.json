@@ -20,6 +20,9 @@
     "start": "vinext start",
     "test": "node --test tests/*.test.mjs",
     "test:site": "npm run build && node --test tests/rendered-html.test.mjs",
+    "runner:v4.3": "node runner/agentpool-runner.mjs",
+    "runner:once:v4.3": "node runner/agentpool-runner.mjs --once",
+    "runner:bundle": "node scripts/bundle-runner.mjs",
     "contracts:compile": "node scripts/compile-contracts.mjs",
     "testnet:wallets": "node scripts/setup-base-sepolia-wallets.mjs",
     "contracts:preflight": "node --env-file-if-exists=.env.local scripts/preflight-deploy.mjs",
@@ -65,7 +68,7 @@
     "testnet:user-escrow:recover:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/recover-v41-user-escrow-smoke.mjs",
     "testnet:user-escrow:refund:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/refund-v41-legacy-user-escrow.mjs",
     "testnet:smoke:v4.1": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v41.local scripts/smoke-v41-base-sepolia.mjs",
-    "mcp:bundle": "node scripts/bundle-mcp.mjs",
+    "mcp:bundle": "node scripts/bundle-mcp.mjs && node scripts/bundle-runner.mjs",
     "mcp:self-test": "node mcp/agentpool-local.mjs --self-test",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"

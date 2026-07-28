@@ -1,0 +1,16 @@
+{
+  "chainId": 84532,
+  "testnetOnly": true,
+  "relayUrl": "https://agentpool-protocol.asfu.chatgpt.site",
+  "mcpPath": "./public/agentpool-mcp.mjs",
+  "walletHome": "C:/replace/with/device-local-agentpool-wallet-home",
+  "runnerHome": "C:/replace/with/device-local-runner-state",
+  "pollIntervalMs": 15000,
+  "capabilities": [
+    "mcp-json-data-code-low-risk"
+  ],
+  "minNetProfitApool": "0.01",
+  "estimatedCostApool": "0",
+  "estimatedGasApool": "0.001",
+  "autoResolveObjective": true
+}
