@@ -12,6 +12,14 @@ import {
   parseMcpToolResult,
   runRunnerCycle,
 } from "./agentpool-runner-core.mjs";
+import { createExecutorRegistry } from "./execution-adapters.mjs";
+import {
+  executeRunnerTaskWithAdapters,
+  runAutonomyRoleCycle,
+  runValidatorCycle,
+  sealRunnerResultForBuyer,
+} from "./agentpool-role-runner-core.mjs";
+import { generatePrivateChannelKeyPair } from "./private-channel.mjs";
 
 const runtimeDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,8 +48,20 @@ async function loadConfig() {
     estimatedGasApool: "0",
     autoResolveObjective: false,
     capabilities: [],
+    roles: ["WORKER"],
+    executors: {},
+    maximumConsecutiveFailures: 20,
+    retryBackoffMs: 5_000,
+    heartbeatIntervalMs: 60_000,
+    autoCreatePrivateChannelKey: true,
   };
   const merged = { ...defaults, ...configured };
+  merged.privateChannelPrivateKey =
+    process.env.AGENTPOOL_PRIVATE_CHANNEL_KEY ??
+    merged.privateChannelPrivateKey;
+  merged.privateChannelPublicKey =
+    process.env.AGENTPOOL_PRIVATE_CHANNEL_PUBLIC_KEY ??
+    merged.privateChannelPublicKey;
   merged.mcpPath = path.isAbsolute(merged.mcpPath)
     ? merged.mcpPath
     : path.resolve(path.dirname(configPath), merged.mcpPath);
@@ -67,6 +87,38 @@ async function saveState(statePath, state) {
   await rename(temporary, statePath);
 }
 
+async function ensurePrivateChannel(config, runnerHome) {
+  if (
+    Boolean(config.privateChannelPrivateKey) !==
+    Boolean(config.privateChannelPublicKey)
+  ) {
+    throw new Error("RUNNER_PRIVATE_CHANNEL_KEY_PAIR_INCOMPLETE");
+  }
+  if (
+    config.privateChannelPrivateKey &&
+    config.privateChannelPublicKey
+  ) {
+    return;
+  }
+  const keyPath = path.join(runnerHome, "private-channel.json");
+  if (fs.existsSync(keyPath)) {
+    const stored = JSON.parse(await readFile(keyPath, "utf8"));
+    config.privateChannelPrivateKey ??= stored.privateKey;
+    config.privateChannelPublicKey ??= stored.publicKey;
+    return;
+  }
+  if (config.autoCreatePrivateChannelKey !== true) return;
+  const generated = await generatePrivateChannelKeyPair();
+  await mkdir(runnerHome, { recursive: true });
+  await writeFile(
+    keyPath,
+    `${JSON.stringify(generated, null, 2)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+  config.privateChannelPrivateKey = generated.privateKey;
+  config.privateChannelPublicKey = generated.publicKey;
+}
+
 async function main() {
   const config = await loadConfig();
   const runnerHome = path.resolve(
@@ -75,6 +127,7 @@ async function main() {
       path.join(os.homedir(), ".agentpool-runner"),
   );
   const statePath = path.join(runnerHome, "state.json");
+  await ensurePrivateChannel(config, runnerHome);
   const childEnv = {
     ...process.env,
     AGENTPOOL_V43_RELAY_URL: config.relayUrl,
@@ -103,13 +156,23 @@ async function main() {
       );
     },
   };
+  const executorRegistry = createExecutorRegistry(config.executors);
   let state = await readState(statePath);
+  let consecutiveFailures = 0;
   const runCycle = async () => {
-    const result = await runRunnerCycle({
+    const workerResult = await runRunnerCycle({
       config,
       mcp,
       state,
-      executeTask: executeBuiltinTask,
+      executeTask: async (task, context) => {
+        const adapted = await executeRunnerTaskWithAdapters(task, {
+          ...context,
+          config,
+          executorRegistry,
+        });
+        return adapted ?? executeBuiltinTask(task);
+      },
+      sealResult: sealRunnerResultForBuyer,
       fetchChainSnapshot: async () => {
         const response = await fetch(
           new URL("/api/v4.3/opportunities", config.relayUrl),
@@ -121,20 +184,70 @@ async function main() {
         return response.json();
       },
     });
-    state = result.state;
+    state = workerResult.state;
+    const autonomyResult = await runAutonomyRoleCycle({
+      config,
+      mcp,
+      state,
+      wallet: workerResult.wallet,
+      executorRegistry,
+    });
+    state = autonomyResult.state;
+    const validationResult = await runValidatorCycle({
+      config,
+      mcp,
+      state,
+      wallet: workerResult.wallet,
+    });
+    state = validationResult.state;
     await saveState(statePath, state);
     process.stdout.write(
       `${JSON.stringify({
         at: new Date().toISOString(),
-        address: result.wallet.address,
-        onboarding: result.onboarding,
-        outcomes: result.outcomes,
+        address: workerResult.wallet.address,
+        onboarding: workerResult.onboarding,
+        providers: executorRegistry.providers(),
+        outcomes: [
+          ...workerResult.outcomes,
+          ...autonomyResult.outcomes,
+          ...validationResult.outcomes,
+        ],
       })}\n`,
     );
   };
   try {
     do {
-      await runCycle();
+      try {
+        await runCycle();
+        consecutiveFailures = 0;
+      } catch (error) {
+        consecutiveFailures += 1;
+        process.stderr.write(
+          `${JSON.stringify({
+            at: new Date().toISOString(),
+            consecutiveFailures,
+            recoverable: !once,
+            error: error instanceof Error ? error.message : String(error),
+          })}\n`,
+        );
+        if (
+          once ||
+          consecutiveFailures >=
+            Number(config.maximumConsecutiveFailures)
+        ) {
+          throw error;
+        }
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            Math.min(
+              60_000,
+              Number(config.retryBackoffMs) *
+                2 ** Math.min(consecutiveFailures - 1, 4),
+            ),
+          ),
+        );
+      }
       if (!once) {
         await new Promise((resolve) =>
           setTimeout(resolve, config.pollIntervalMs),

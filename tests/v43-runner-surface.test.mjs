@@ -29,7 +29,8 @@ test("public discovery exposes the Runner and buyer inbox without wallet custody
     assert.match(mcp, new RegExp(eventType));
   }
   assert.match(mcp, /runnerTaskJson/);
-  assert.match(mcp, /visibility:\s*"PUBLIC_TESTNET"/);
+  assert.match(mcp, /PUBLIC_TESTNET/);
+  assert.match(mcp, /HPKE_TASK_AND_OPTIONAL_RESULT/);
   assert.doesNotMatch(inbox, /privateKey|seed phrase/i);
 });
 

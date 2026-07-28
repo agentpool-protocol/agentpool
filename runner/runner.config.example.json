@@ -7,12 +7,73 @@
   "runnerHome": "C:/replace/with/device-local-runner-state",
   "pollIntervalMs": 15000,
   "operatorGroup": "one-self-declared-device-group",
-  "runtime": "agentpool-runner-v1",
+  "runtime": "agentpool-runner-v2-autonomy",
+  "roles": [
+    "WORKER",
+    "PLANNER",
+    "BIDDER",
+    "VALIDATOR",
+    "WATCHER",
+    "IMPROVER",
+    "CANARY",
+    "VOTER"
+  ],
   "capabilities": [
     "mcp-json-data-code-low-risk"
   ],
   "minNetProfitApool": "0.01",
   "estimatedCostApool": "0",
   "estimatedGasApool": "0.001",
-  "autoResolveObjective": true
+  "minimumGasEth": "0.000001",
+  "autoResolveObjective": false,
+  "maximumConsecutiveFailures": 20,
+  "retryBackoffMs": 5000,
+  "heartbeatIntervalMs": 60000,
+  "autoCreatePrivateChannelKey": true,
+  "bidProfiles": [
+    {
+      "enabled": true,
+      "capability": "mcp-json-data-code-low-risk",
+      "provider": "claude",
+      "priceApool": "1",
+      "successLowerBps": 8500,
+      "capacityUnits": 1,
+      "latencyPenaltyApool": "0.01",
+      "failureLossApool": "0.1",
+      "concentrationPenaltyApool": "0"
+    }
+  ],
+  "executors": {
+    "codex": {
+      "enabled": false,
+      "command": "codex",
+      "workspace": "C:/replace/with/isolated/canary-workspace",
+      "allowedWorkspaceRoots": [
+        "C:/replace/with/isolated"
+      ],
+      "allowWorkspaceWrite": false
+    },
+    "claude": {
+      "enabled": false,
+      "command": "claude",
+      "workspace": "C:/replace/with/isolated/canary-workspace",
+      "allowedWorkspaceRoots": [
+        "C:/replace/with/isolated"
+      ],
+      "allowWorkspaceWrite": false
+    },
+    "qwen": {
+      "enabled": false,
+      "command": "qwen",
+      "workspace": "C:/replace/with/isolated/canary-workspace",
+      "allowedWorkspaceRoots": [
+        "C:/replace/with/isolated"
+      ],
+      "allowWorkspaceWrite": false
+    }
+  },
+  "gasSponsor": {
+    "maximumGrantWei": "0",
+    "grantWei": "0"
+  }
 }

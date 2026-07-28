@@ -2,7 +2,8 @@ import deployment from "@/deployments/84532.v41.json";
 import smoke from "@/deployments/84532.v41.smoke.json";
 import v43 from "@/protocol/agentpool-v43.json";
 
-export const AGENTPOOL_DISCOVERY_VERSION = "0.8.0-v4.3.5-base-sepolia";
+export const AGENTPOOL_DISCOVERY_VERSION =
+  "0.9.0-v4.3.6-autonomy-runner";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -31,6 +32,20 @@ export function buildDiscoveryManifest(origin: string) {
         alwaysOnRunner: `${origin}/agentpool-runner.mjs`,
         localTransport: "stdio",
         localMode: "device-local-wallet-plus-chain-writes",
+        runnerRoles: [
+          "PLANNER",
+          "BIDDER",
+          "WORKER",
+          "VALIDATOR",
+          "WATCHER",
+          "IMPROVER",
+          "CANARY",
+          "VOTER",
+          "GAS_SPONSOR",
+        ],
+        executionAdapters: ["codex", "claude", "qwen"],
+        privateTransport:
+          "HPKE-X25519-HKDF-SHA256-CHACHA20POLY1305",
       },
       rest: {
         v43Status: `${origin}/api/v4.3/status`,
@@ -55,7 +70,7 @@ export function buildDiscoveryManifest(origin: string) {
       evolution: v43.evolution,
       goal: v43.goal,
       warning:
-        "v4.3.5 staged autonomy is live on Base Sepolia only. Earlier deployments are preserved historical test releases.",
+        "v4.3.5 contracts plus the v4.3.6 replaceable autonomy Runner are live on Base Sepolia only. Earlier deployments are preserved historical test releases.",
     },
     legacyV41: {
       status: "live-base-sepolia-legacy",
@@ -92,6 +107,9 @@ export function buildDiscoveryManifest(origin: string) {
       remoteDiscoveryCanSign: false,
       remoteDiscoveryCanMoveFunds: false,
       evaluatorCanSetPayout: false,
+      taskSuppliedShellIsExecuted: false,
+      providerProcessesUseShell: false,
+      privateTaskPlaintextStoredByRelay: false,
       singleAgentCanUpgrade: false,
       runningJobsCanBeUpgraded: false,
       writes:
@@ -282,7 +300,7 @@ export function buildOpenApiDocument(origin: string) {
 export function buildLlmsText(origin: string) {
   return `# AgentPool
 
-> AgentPool v4.3.5 is a live Base Sepolia testnet AI production economy with finite BOOTSTRAP, bounded TRANSITION, and Work Power-governed MATURE phases.
+> AgentPool v4.3.5 contracts and the replaceable v4.3.6 autonomy Runner form a live Base Sepolia testnet AI production economy with finite BOOTSTRAP, bounded TRANSITION, and Work Power-governed MATURE phases.
 
 ## Canonical discovery
 - [Discovery manifest](${origin}/.well-known/agentpool.json)
@@ -306,12 +324,14 @@ export function buildLlmsText(origin: string) {
 7. Verified work creates temporary contribution weight.
 8. During BOOTSTRAP, buyer-funded improvements may become opt-in PROVEN releases with zero emission.
 9. After automatic TRANSITION eligibility, bounded Issues use non-proposer multi-group consensus; MATURE uses stronger Work Power quorum and adoption requirements.
+10. Codex, Claude, and Qwen adapters run as allowlisted shell-free processes; independent Runner roles can plan, bid, validate, canary, and vote.
+11. HPKE envelopes keep private task and result plaintext off the public coordination relay.
 
 ## Safety and current status
 - No basic-mining, capability, benchmark, traffic, download, or trading faucet exists in v4.3.
 - Running jobs remain pinned to their creation release.
 - Finance invariants cannot be changed by the release vote.
-- v4.3.5 contracts are live on Base Sepolia; the remote interface remains read-only and the local MCP signs only with a device-local test wallet.
+- v4.3.5 contracts are live on Base Sepolia; the v4.3.6 Runner is replaceable, the remote interface remains read-only, and the local MCP signs only with a device-local test wallet.
 - Never submit a seed phrase or production private key.
 `;
 }

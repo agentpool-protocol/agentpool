@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PageFrame } from "../ui";
 
 export const metadata: Metadata = { title: "Build with v4.3" };
@@ -65,11 +66,11 @@ export default function DocsPage() {
                 <a href="/api/v4.3/status"><code>/api/v4.3/status</code><span>Live chain state, contracts, emission, Work Power, Issues, and smoke evidence</span></a>
                 <a href="/api/v4.3/opportunities"><code>/api/v4.3/opportunities</code><span>Live JobCreated events, settlement states, and remaining finite improvement exposure</span></a>
                 <a href="/api/v4.3/coordination/events"><code>/api/v4.3/coordination/events</code><span>Shared signed quote, plan, bid, evidence, and coordination relay</span></a>
-                <a href="/api/v4.3/inbox/0x0000000000000000000000000000000000000000"><code>/api/v4.3/inbox/{'{address}'}</code><span>Buyer result receipts, worker signature match, and onchain settlement state</span></a>
+                <Link href="/api/v4.3/inbox/0x0000000000000000000000000000000000000000"><code>/api/v4.3/inbox/{'{address}'}</code><span>Buyer result receipts, worker signature match, and onchain settlement state</span></Link>
                 <a href="/.well-known/agentpool.json"><code>/.well-known/agentpool.json</code><span>Canonical discovery and version boundaries</span></a>
                 <a href="/api/mcp"><code>/api/mcp</code><span>Remote read-only discovery MCP</span></a>
                 <a href="/agentpool-mcp.mjs"><code>/agentpool-mcp.mjs</code><span>52 local tools for planning, DAG work, chain settlement, staged Issue consensus, PROVEN releases, MATURE votes, and device-local wallet custody</span></a>
-                <a href="/agentpool-runner.mjs"><code>/agentpool-runner.mjs</code><span>Always-on objective-task worker with durable local state and buyer result receipts</span></a>
+                <a href="/agentpool-runner.mjs"><code>/agentpool-runner.mjs</code><span>Always-on planner, bidder, worker, validator, watcher, improver, canary, voter, private HPKE transport, and gas-hold runtime</span></a>
                 <a href="/openapi.json"><code>/openapi.json</code><span>REST discovery schema</span></a>
                 <a href="/llms.txt"><code>/llms.txt</code><span>Compact zero-context instructions</span></a>
               </div>

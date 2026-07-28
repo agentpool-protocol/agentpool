@@ -1052,7 +1052,14 @@ server.registerTool(
         .max(8_000)
         .optional()
         .describe(
-          "Optional public agentpool.runner.task/v1 JSON. When present, the buyer publishes signed JOB_TERMS so an always-on Runner can execute this objective testnet task without another prompt.",
+          "Optional agentpool.runner.task/v1 JSON. Use PRIVATE_ENVELOPE with an HPKE envelope when plaintext must stay off the relay.",
+        ),
+      resultRecipientPublicKey: z
+        .string()
+        .regex(/^x25519:[A-Za-z0-9_-]{40,100}$/)
+        .optional()
+        .describe(
+          "Optional buyer X25519 public key. When present, RESULT_AVAILABLE contains an HPKE envelope instead of plaintext.",
         ),
     },
   },
@@ -1115,7 +1122,9 @@ server.registerTool(
             capability: args.capability,
             task: runnerTask,
             specification: args.specification,
-            expectedDelivery: args.expectedDelivery,
+            ...(runnerTask.kind === "PRIVATE_ENVELOPE"
+              ? { expectedDeliveryHash: job.deliveryHash }
+              : { expectedDelivery: args.expectedDelivery }),
             proofMode: "OBJECTIVE_HASH_V1",
             proofText: args.proofText,
             recipients: job.recipients,
@@ -1127,7 +1136,12 @@ server.registerTool(
             keeperAmountApool: args.keeperAmountApool,
             deadline: args.deadline,
             creationTransactionHash: creation.transactionHash,
-            visibility: "PUBLIC_TESTNET",
+            resultRecipientPublicKey:
+              args.resultRecipientPublicKey ?? null,
+            visibility:
+              runnerTask.kind === "PRIVATE_ENVELOPE"
+                ? "HPKE_TASK_AND_OPTIONAL_RESULT"
+                : "PUBLIC_TESTNET",
           },
           expiresAt: Math.min(
             args.deadline * 1_000,

@@ -43,7 +43,7 @@ async function read(
   abi: readonly unknown[],
   functionName: string,
   args: readonly unknown[] = [],
-): Promise<any> {
+): Promise<unknown> {
   return client.readContract({
     address: address as `0x${string}`,
     abi,
@@ -316,12 +316,12 @@ export async function getV43Opportunities() {
           .reverse()
           .map(async (entry) => {
             const jobId = entry.args.jobId as `0x${string}`;
-            const job = await read(
+            const job = (await read(
               contracts.taskMarket,
               marketArtifact.abi,
               "jobs",
               [jobId],
-            );
+            )) as readonly unknown[];
             return {
               jobId,
               creator: job[0],
@@ -370,12 +370,12 @@ export async function getV43Opportunities() {
           .reverse()
           .map(async (entry) => {
             const releaseId = entry.args.releaseId as `0x${string}`;
-            const release = await read(
+            const release = (await read(
               contracts.releaseRegistry,
               registryArtifact.abi,
               "releases",
               [releaseId],
-            );
+            )) as readonly unknown[];
             return {
               releaseId,
               parent: release[0],
@@ -398,11 +398,11 @@ export async function getV43Opportunities() {
             .map((entry) => String(entry.args.agent).toLowerCase()),
         ),
       ];
-      const contributionEpoch = await read(
+      const contributionEpoch = (await read(
         contracts.contributionLedger,
         ledgerArtifact.abi,
         "currentEpoch",
-      );
+      )) as bigint;
       agents = await Promise.all(
         registeredAgents.map(async (agent) => {
           const [profile, votingPower] = await Promise.all([
@@ -411,7 +411,7 @@ export async function getV43Opportunities() {
               ledgerArtifact.abi,
               "profiles",
               [agent],
-            ),
+            ) as Promise<readonly unknown[]>,
             read(
               contracts.contributionLedger,
               ledgerArtifact.abi,

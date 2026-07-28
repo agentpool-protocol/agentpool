@@ -140,7 +140,11 @@ export async function getV43BuyerInbox(address: string) {
       },
       result: result
         ? {
-            value: result.payload.result,
+            value: result.payload.result ?? null,
+            privateResultEnvelope:
+              result.payload.privateResultEnvelope ?? null,
+            visibility:
+              result.payload.resultVisibility ?? "PUBLIC_TESTNET",
             eventId: result.id,
             actorAddress: result.actorAddress,
             signedByAssignedWorker:
@@ -177,6 +181,6 @@ export async function getV43BuyerInbox(address: string) {
     jobs,
     indexer: chain.indexer,
     privacy:
-      "This alpha inbox contains public testnet task and result metadata only. Do not publish secrets.",
+      "Public results are readable. Private results expose only an HPKE ciphertext envelope and require the buyer's device-local X25519 key.",
   };
 }

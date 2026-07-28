@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { keccak256, toBytes } from "viem";
 import {
   RUNNER_TASK_SCHEMA,
   canonicalJson,
   executeBuiltinTask,
   newRunnerState,
+  processJobTerms,
   runRunnerCycle,
   shouldAcceptTerms,
 } from "../runner/agentpool-runner-core.mjs";
+import {
+  generatePrivateChannelKeyPair,
+  openPrivateJson,
+} from "../runner/private-channel.mjs";
+import { sealRunnerResultForBuyer } from "../runner/agentpool-role-runner-core.mjs";
 
 const worker = "0x1111111111111111111111111111111111111111";
 const buyer = "0x2222222222222222222222222222222222222222";
@@ -291,5 +298,43 @@ test("a result differing from the buyer commitment is never delivered", async ()
         call.name === "agentpool_v43_deliver_milestone_onchain",
     ),
     false,
+  );
+});
+
+test("private results publish only an HPKE envelope while the chain receives the committed hash", async () => {
+  const buyerKeys = await generatePrivateChannelKeyPair();
+  const privateTerms = terms({
+    expectedDelivery: undefined,
+    expectedDeliveryHash: keccak256(toBytes('{"a":1,"b":2}')),
+    resultRecipientPublicKey: buyerKeys.publicKey,
+  });
+  const mcp = fakeMcp([event(privateTerms)]);
+  const result = await processJobTerms({
+    event: event(privateTerms),
+    walletAddress: worker,
+    config: { autoResolveObjective: false },
+    mcp,
+    chainSnapshot: { activity: [] },
+    state: newRunnerState(),
+    sealResult: sealRunnerResultForBuyer,
+  });
+  assert.equal(result.status, "delivered");
+  const published = mcp.calls.find(
+    (call) =>
+      call.name === "agentpool_v43_publish_coordination",
+  );
+  const payload = JSON.parse(published.args.payloadJson);
+  assert.equal(Object.hasOwn(payload, "result"), false);
+  assert.equal(payload.resultVisibility, "HPKE_RECIPIENT_ONLY");
+  assert.deepEqual(
+    await openPrivateJson(
+      buyerKeys.privateKey,
+      payload.privateResultEnvelope,
+    ),
+    {
+      schema: "agentpool.private-result/v1",
+      jobId: privateTerms.jobId,
+      result: '{"a":1,"b":2}',
+    },
   );
 });

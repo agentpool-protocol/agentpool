@@ -1,4 +1,9 @@
-import { parseUnits } from "viem";
+import {
+  keccak256,
+  parseEther,
+  parseUnits,
+  toBytes,
+} from "viem";
 
 export const RUNNER_TASK_SCHEMA = "agentpool.runner.task/v1";
 export const RUNNER_EVENT_TYPES = Object.freeze({
@@ -6,6 +11,7 @@ export const RUNNER_EVENT_TYPES = Object.freeze({
   result: "RESULT_AVAILABLE",
   settlement: "SETTLEMENT_RECEIPT",
   heartbeat: "RUNNER_HEARTBEAT",
+  improvementCandidate: "IMPROVEMENT_CANDIDATE",
 });
 
 function isPlainObject(value) {
@@ -180,6 +186,7 @@ export async function processJobTerms({
   chainSnapshot,
   state,
   executeTask = executeBuiltinTask,
+  sealResult,
   now = Date.now(),
 }) {
   const terms = unwrapCoordinationEvent(event);
@@ -205,7 +212,13 @@ export async function processJobTerms({
   if (typeof result !== "string") {
     throw new Error("RUNNER_ADAPTER_MUST_RETURN_STRING");
   }
-  if (result !== terms.expectedDelivery) {
+  if (
+    terms.proofMode === "OBJECTIVE_HASH_V1" &&
+    (terms.expectedDeliveryHash
+      ? keccak256(toBytes(result)).toLowerCase() !==
+        String(terms.expectedDeliveryHash).toLowerCase()
+      : result !== terms.expectedDelivery)
+  ) {
     throw new Error("RUNNER_RESULT_DOES_NOT_MATCH_PRECOMMITTED_DELIVERY");
   }
 
@@ -240,6 +253,14 @@ export async function processJobTerms({
     now + 30 * 24 * 60 * 60 * 1_000,
   );
   if (!prior.resultEventId) {
+    const privateResultEnvelope =
+      terms.resultRecipientPublicKey && sealResult
+        ? await sealResult(
+            result,
+            terms.resultRecipientPublicKey,
+            jobId,
+          )
+        : null;
     const published = await mcp.call("agentpool_v43_publish_coordination", {
       eventType: RUNNER_EVENT_TYPES.result,
       opportunityId: event.opportunityId,
@@ -251,7 +272,12 @@ export async function processJobTerms({
         milestone,
         buyerAddress: terms.buyerAddress,
         workerAddress: walletAddress,
-        result,
+        ...(privateResultEnvelope
+          ? {
+              privateResultEnvelope,
+              resultVisibility: "HPKE_RECIPIENT_ONLY",
+            }
+          : { result }),
         expectedDelivery: terms.expectedDelivery,
         deliverTransactionHash: prior.deliverTransactionHash ?? null,
       }),
@@ -316,6 +342,7 @@ export async function runRunnerCycle({
   state,
   fetchChainSnapshot,
   executeTask,
+  sealResult,
   now = Date.now(),
 }) {
   const wallet = await mcp.call("agentpool_v43_wallet_status", {});
@@ -334,6 +361,51 @@ export async function runRunnerCycle({
     wallet.operatorGroup =
       config.operatorGroup ?? `runner-device-${addressSuffix}`;
     wallet.runtime = config.runtime ?? "agentpool-runner-v1";
+  }
+  if (
+    config.minimumGasEth &&
+    wallet.baseSepoliaEth !== undefined &&
+    parseEther(String(wallet.baseSepoliaEth)) <
+      parseEther(String(config.minimumGasEth))
+  ) {
+    const expiresAt = now + 60 * 60 * 1_000;
+    if (
+      !state.gasRequest ||
+      Number(state.gasRequest.expiresAt) <= now
+    ) {
+      const requested = await mcp.call(
+        "agentpool_v43_publish_coordination",
+        {
+          eventType: "GAS_REQUEST",
+          opportunityId: `gas:${String(wallet.address).toLowerCase()}`,
+          payloadJson: JSON.stringify({
+            schema: "agentpool.gas-request/v1",
+            chainId: 84532,
+            recipientAddress: wallet.address,
+            currentBalanceEth: String(wallet.baseSepoliaEth),
+            minimumBalanceEth: String(config.minimumGasEth),
+            testnetOnly: true,
+            expiresAt,
+          }),
+          expiresAt,
+        },
+      );
+      state.gasRequest = {
+        eventId: requested.id,
+        expiresAt,
+      };
+    }
+    return {
+      wallet,
+      onboarding,
+      outcomes: [
+        {
+          status: "gas-hold",
+          reason: "BASE_SEPOLIA_GAS_BELOW_MINIMUM",
+        },
+      ],
+      state,
+    };
   }
   const relay = await mcp.call("agentpool_v43_shared_coordination", {
     eventType: RUNNER_EVENT_TYPES.terms,
@@ -360,6 +432,7 @@ export async function runRunnerCycle({
             chainSnapshot,
             state,
             executeTask,
+            sealResult,
             now,
           }),
         );
@@ -386,6 +459,45 @@ export async function runRunnerCycle({
   }
   if (retryFrom !== null) {
     state.cursor = Math.min(state.cursor, retryFrom);
+  }
+  const heartbeatInterval = Number(
+    config.heartbeatIntervalMs ?? 0,
+  );
+  if (
+    heartbeatInterval > 0 &&
+    now - Number(state.lastHeartbeatAt ?? 0) >= heartbeatInterval
+  ) {
+    const jobs = Object.values(state.jobs);
+    const errors = jobs.filter((job) => job.stage === "ERROR").length;
+    const active = jobs.filter((job) =>
+      ["ACCEPTED", "DELIVERED"].includes(job.stage),
+    ).length;
+    await mcp.call("agentpool_v43_publish_coordination", {
+      eventType: RUNNER_EVENT_TYPES.heartbeat,
+      opportunityId: `runner:${String(wallet.address).toLowerCase()}`,
+      payloadJson: JSON.stringify({
+        schema: "agentpool.runner.heartbeat/v1",
+        chainId: 84532,
+        address: wallet.address,
+        roles: config.roles ?? ["WORKER"],
+        privateChannelPublicKey:
+          config.privateChannelPublicKey ?? null,
+        metrics: {
+          jobsObserved: jobs.length,
+          activeJobs: active,
+          stuckJobs: 0,
+          errorRateBps:
+            jobs.length === 0
+              ? 0
+              : Math.floor((errors * 10_000) / jobs.length),
+          p95LatencyMs: 0,
+          securityRegressions: 0,
+        },
+        expiresAt: now + 2 * heartbeatInterval,
+      }),
+      expiresAt: now + 2 * heartbeatInterval,
+    });
+    state.lastHeartbeatAt = now;
   }
   return { wallet, onboarding, outcomes, state };
 }

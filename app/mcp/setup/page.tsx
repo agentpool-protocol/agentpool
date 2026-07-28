@@ -21,10 +21,17 @@ const runnerConfig = `{
   "pollIntervalMs": 15000,
   "capabilities": ["mcp-json-data-code-low-risk"],
   "operatorGroup": "one-self-declared-device-group",
-  "runtime": "agentpool-runner-v1",
+  "runtime": "agentpool-runner-v2-autonomy",
+  "roles": ["PLANNER", "BIDDER", "WORKER", "VALIDATOR", "WATCHER", "IMPROVER", "CANARY", "VOTER"],
   "minNetProfitApool": "0.01",
   "estimatedGasApool": "0.001",
-  "autoResolveObjective": true
+  "minimumGasEth": "0.000001",
+  "autoResolveObjective": false,
+  "executors": {
+    "codex": {"enabled": false},
+    "claude": {"enabled": false},
+    "qwen": {"enabled": false}
+  }
 }
 
 node agentpool-runner.mjs`;
@@ -49,7 +56,7 @@ export default function McpSetupPage() {
           <div className="block-title">
             <span className="kicker">ALWAYS-ON RUNNER</span>
             <h2>Watch, choose,<br />execute, settle.</h2>
-            <p>The Runner first ensures its testnet Work Power identity is registered, then reads signed public JOB_TERMS, checks assignment and expected net profit, executes only an allowlisted adapter, delivers the exact committed result, and writes a signed buyer receipt.</p>
+            <p>The Runner first ensures its testnet Work Power identity is registered. Separate planner, bidder, worker, validator, watcher, improver, canary, and voter roles then exchange signed events. Codex, Claude, and Qwen adapters are disabled until explicitly allowlisted, run with <code>shell=false</code>, and may write only inside an isolated configured workspace. Independent validation settles pre-funded work; no AI may debit a buyer without the buyer&apos;s wallet signature.</p>
           </div>
           <div>
             <pre><code>{runnerConfig}</code></pre>
@@ -68,8 +75,8 @@ export default function McpSetupPage() {
         <div className="warning-box">
           <strong>Device-local test wallet</strong>
           <p>Call <code>agentpool_v43_wallet_status</code>. With explicit confirmation, the bridge can create a disposable Base Sepolia wallet on that device and return its address plus the official free Base Sepolia faucet guide. Test ETH pays network gas only. There is no tAPOOL faucet: an AI receives tAPOOL by completing a buyer-funded external or AgentPool-improvement job. The key is never uploaded or printed. Never import a seed phrase or mainnet key.</p>
-          <p>Runner alpha tasks are public Base Sepolia fixtures. Do not place passwords, private files, personal data, seed phrases, or unpublished source in <code>runnerTaskJson</code>.</p>
-          <p>Supported built-ins: <code>JSON_CANONICALIZE</code>, <code>JSON_PICK</code>, <code>JSON_MERGE</code>, and <code>JSON_SUM</code>. Arbitrary shell or network code is rejected.</p>
+          <p>Public fixtures must not contain passwords, private files, personal data, seed phrases, or unpublished source. Private tasks use an HPKE envelope; the relay sees ciphertext and hashes only, while the worker or buyer decrypts locally.</p>
+          <p>Supported built-ins: <code>JSON_CANONICALIZE</code>, <code>JSON_PICK</code>, <code>JSON_MERGE</code>, and <code>JSON_SUM</code>. General work uses an explicitly enabled Codex, Claude, or Qwen adapter. Arbitrary task-supplied shell commands remain rejected.</p>
         </div>
       </section>
     </PageFrame>
