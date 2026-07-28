@@ -56,20 +56,42 @@ check("pool.maxIssueBudget", await read("maxIssueBudget"), parseEther("5"));
 check("pool.dailyCap", await read("dailyCap"), parseEther("5"));
 check("pool.lifetimeCap", await read("lifetimeCap"), parseEther("10"));
 check("pool.maxItemsPerIssue", await read("maxItemsPerIssue"), 8);
-check("pool.totalFunded", await read("totalFunded"), parseEther("10"));
-check("pool.totalReserved", await read("totalReserved"), 0n);
-check("pool.totalPaid", await read("totalPaid"), 0n);
-check("pool.graduated", await read("graduated"), false);
-check("pool.selfBootstrapOpen", await read("selfBootstrapOpen"), true);
-check(
-  "pool.tokenBalance",
-  await client.readContract({
+const [
+  totalFunded,
+  totalReserved,
+  totalPaid,
+  graduated,
+  selfBootstrapOpen,
+  tokenBalance,
+] = await Promise.all([
+  read("totalFunded"),
+  read("totalReserved"),
+  read("totalPaid"),
+  read("graduated"),
+  read("selfBootstrapOpen"),
+  client.readContract({
     address: manifest.contracts.token,
     abi: tokenAbi,
     functionName: "balanceOf",
     args: [pool],
   }),
-  parseEther("10"),
+]);
+check("pool.totalFunded", totalFunded, parseEther("10"));
+check(
+  "pool.reservationWithinBalance",
+  totalReserved <= tokenBalance,
+  true,
+);
+check("pool.payoutWithinFunding", totalPaid <= totalFunded, true);
+check(
+  "pool.accounting",
+  tokenBalance + totalPaid,
+  totalFunded,
+);
+check(
+  "pool.openGraduationConsistency",
+  !(graduated && selfBootstrapOpen),
+  true,
 );
 for (const [index, hash] of manifest.transactionHashes.entries()) {
   const receipt = await client.getTransactionReceipt({ hash });

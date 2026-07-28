@@ -274,10 +274,12 @@ npm run simulate:v4.1
 npm run contracts:rehearse:v4.1
 npm run contracts:rehearse:v4.2
 npm run contracts:rehearse:v4.3:public
+npm run contracts:rehearse:v4.3.7
 npm run contracts:verify:v4.3
 npm run contracts:smoke:v4.3
 npm run mcp:bundle
 npm run mcp:self-test
+npm run validate:v4.3.7
 npm run testnet:pilot:local-mcp:v4.1
 npm run db:generate
 npm run test
@@ -297,6 +299,14 @@ objective verifier, improvement kernel, and buyer-funded escrow. It proves
 that there is no generic mining lane, invalid evidence cannot earn, dynamic
 role bids settle exactly, unused reservation is not emitted, and external work
 creates zero new tAPOOL.
+
+`validate:v4.3.7` runs the complete non-destructive validation matrix: Node
+regression tests, lint, Solidity compilation, the 354-transaction v4.3 economy
+rehearsal, the finite SELF_BOOTSTRAP rehearsal, MCP discovery, production build,
+Base Sepolia read-only verification, runtime dependency audit, and public Sites
+checks. Results are separated into `PASS`, `FAIL`, and external-only `BLOCKED`
+states in [V437_VALIDATION_REPORT.md](V437_VALIDATION_REPORT.md); the acceptance
+criteria are listed in [V437_TEST_MATRIX.md](V437_TEST_MATRIX.md).
 
 ## v4.1 Base Sepolia deployment
 

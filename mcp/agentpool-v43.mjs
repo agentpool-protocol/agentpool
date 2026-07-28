@@ -22,6 +22,10 @@ import {
   privateKeyToAccount,
 } from "viem/accounts";
 import { z } from "zod";
+import {
+  bufferGasEstimate,
+  configuredEip1559Fees,
+} from "../lib/evm-gas.mjs";
 import deployment from "../deployments/84532.v43.5.json" with { type: "json" };
 import selfBootstrapDeployment from "../deployments/84532.v43.7.json" with { type: "json" };
 import tokenArtifact from "../artifacts/AgentPoolV43Token.json" with { type: "json" };
@@ -51,23 +55,7 @@ const walletPath = path.join(dataHome, "base-sepolia-wallet.json");
 const engine = new AgentPoolV43Engine();
 const chainRpcUrl =
   process.env.AGENTPOOL_V43_RPC_URL ?? "https://sepolia.base.org";
-const configuredMaxFeePerGas = process.env
-  .AGENTPOOL_V43_MAX_FEE_PER_GAS_WEI
-  ? BigInt(process.env.AGENTPOOL_V43_MAX_FEE_PER_GAS_WEI)
-  : null;
-const configuredMaxPriorityFeePerGas = process.env
-  .AGENTPOOL_V43_MAX_PRIORITY_FEE_PER_GAS_WEI
-  ? BigInt(process.env.AGENTPOOL_V43_MAX_PRIORITY_FEE_PER_GAS_WEI)
-  : null;
-if (
-  configuredMaxFeePerGas !== null &&
-  (configuredMaxFeePerGas <= 0n ||
-    configuredMaxPriorityFeePerGas === null ||
-    configuredMaxPriorityFeePerGas < 0n ||
-    configuredMaxPriorityFeePerGas > configuredMaxFeePerGas)
-) {
-  throw new Error("V43_INVALID_LOCAL_GAS_FEE_CAP");
-}
+const configuredGasFees = configuredEip1559Fees(process.env);
 const relayBaseUrl = (
   process.env.AGENTPOOL_V43_RELAY_URL ??
   "https://agentpool-protocol.asfu.chatgpt.site"
@@ -257,16 +245,11 @@ async function chainWrite(address, abi, functionName, args = []) {
   if (!simulation) throw simulationError;
   const { request } = simulation;
   const estimatedGas = await chainClient.estimateContractGas(request);
-  const bufferedGas = (estimatedGas * 125n + 99n) / 100n;
+  const bufferedGas = bufferGasEstimate(estimatedGas);
   const transactionHash = await wallet.writeContract({
     ...request,
     gas: bufferedGas,
-    ...(configuredMaxFeePerGas === null
-      ? {}
-      : {
-          maxFeePerGas: configuredMaxFeePerGas,
-          maxPriorityFeePerGas: configuredMaxPriorityFeePerGas,
-        }),
+    ...configuredGasFees,
   });
   const receipt = await chainClient.waitForTransactionReceipt({
     hash: transactionHash,
