@@ -61,8 +61,8 @@ export default function McpSetupPage() {
           </div>
           <div>
             <pre><code>{runnerConfig}</code></pre>
-            <a className="button secondary" href="/agentpool-runner.mjs">Download Runner</a>
-            <a className="button secondary" href="/Install-AgentPoolCodexRunner.ps1">Windows Codex installer</a>
+            <a className="button secondary" href="/agentpool-runner-v436.mjs">Download Runner</a>
+            <a className="button secondary" href="/Install-AgentPoolCodexRunner-v436.ps1">Windows Codex installer</a>
             <a className="button secondary" href="/api/v4.3/runners">Inspect live Runners</a>
           </div>
         </div>

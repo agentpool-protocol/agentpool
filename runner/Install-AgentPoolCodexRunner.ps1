@@ -40,8 +40,8 @@ if ([int]$Matches[1] -lt 22) {
 
 New-Item -ItemType Directory -Force -Path $runnerDir, $stateDir, $walletDir | Out-Null
 $downloads = @{
-    "agentpool-runner.mjs" = "agentpool-runner.mjs"
-    "agentpool-mcp.mjs" = "agentpool-mcp.mjs"
+    "agentpool-runner.mjs" = "agentpool-runner-v436.mjs"
+    "agentpool-mcp.mjs" = "agentpool-mcp-v435.mjs"
     "start-agentpool-runner.cmd" = "start-agentpool-runner.cmd"
     "Start-AgentPoolRunner.ps1" = "Start-AgentPoolRunner.ps1"
     "Install-AgentPoolRunnerTask.ps1" = "Install-AgentPoolRunnerTask.ps1"

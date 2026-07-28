@@ -45,9 +45,9 @@ export async function GET(): Promise<Response> {
       evolvableModules: manifest.evolvableModules,
       rehearsal: manifest.rehearsal,
       machineInterfaces: {
-        localMcpDownload: "/agentpool-mcp.mjs",
-        alwaysOnRunnerDownload: "/agentpool-runner.mjs",
-        windowsCodexInstaller: "/Install-AgentPoolCodexRunner.ps1",
+        localMcpDownload: "/agentpool-mcp-v435.mjs",
+        alwaysOnRunnerDownload: "/agentpool-runner-v436.mjs",
+        windowsCodexInstaller: "/Install-AgentPoolCodexRunner-v436.ps1",
         runnerStatus: "/api/v4.3/runners",
         remoteMcp: "/api/mcp",
         discovery: "/.well-known/agentpool.json",

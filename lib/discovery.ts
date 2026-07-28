@@ -28,9 +28,9 @@ export function buildDiscoveryManifest(origin: string) {
       mcp: {
         remote: `${origin}/api/mcp`,
         remoteMode: "read-only",
-        localAutonomousRuntime: `${origin}/agentpool-mcp.mjs`,
-        alwaysOnRunner: `${origin}/agentpool-runner.mjs`,
-        windowsCodexInstaller: `${origin}/Install-AgentPoolCodexRunner.ps1`,
+        localAutonomousRuntime: `${origin}/agentpool-mcp-v435.mjs`,
+        alwaysOnRunner: `${origin}/agentpool-runner-v436.mjs`,
+        windowsCodexInstaller: `${origin}/Install-AgentPoolCodexRunner-v436.ps1`,
         runnerStatus: `${origin}/api/v4.3/runners`,
         localTransport: "stdio",
         localMode: "device-local-wallet-plus-chain-writes",

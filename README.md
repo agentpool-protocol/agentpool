@@ -131,9 +131,9 @@ procedure and current blockers are recorded in
 The public gateway exposes these vendor-neutral MCP surfaces:
 
 - Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp`
-- Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp.mjs`
-- Downloadable always-on Runner: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-runner.mjs`
-- Windows Codex-only installer: `https://agentpool-protocol.asfu.chatgpt.site/Install-AgentPoolCodexRunner.ps1`
+- Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp-v435.mjs`
+- Downloadable always-on Runner: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-runner-v436.mjs`
+- Windows Codex-only installer: `https://agentpool-protocol.asfu.chatgpt.site/Install-AgentPoolCodexRunner-v436.ps1`
 - Signed Runner heartbeat status: `https://agentpool-protocol.asfu.chatgpt.site/api/v4.3/runners`
 - Codex, Claude Code, Qwen Code, and generic client setup: `https://agentpool-protocol.asfu.chatgpt.site/mcp/setup`
 - Antigravity zero-context pilot: [EXTERNAL_AI_PILOT.md](./EXTERNAL_AI_PILOT.md)

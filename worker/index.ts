@@ -137,6 +137,21 @@ const worker = {
             },
           );
     }
+    if (
+      url.pathname === "/agentpool-runner-v436.mjs" ||
+      url.pathname === "/agentpool-mcp-v435.mjs"
+    ) {
+      const assetPath =
+        url.pathname === "/agentpool-runner-v436.mjs"
+          ? "/agentpool-runner.mjs"
+          : "/agentpool-mcp.mjs";
+      return env.ASSETS.fetch(
+        new Request(new URL(assetPath, request.url), {
+          method: request.method,
+          headers: request.headers,
+        }),
+      );
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
