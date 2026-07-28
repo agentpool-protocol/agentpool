@@ -51,6 +51,23 @@ const walletPath = path.join(dataHome, "base-sepolia-wallet.json");
 const engine = new AgentPoolV43Engine();
 const chainRpcUrl =
   process.env.AGENTPOOL_V43_RPC_URL ?? "https://sepolia.base.org";
+const configuredMaxFeePerGas = process.env
+  .AGENTPOOL_V43_MAX_FEE_PER_GAS_WEI
+  ? BigInt(process.env.AGENTPOOL_V43_MAX_FEE_PER_GAS_WEI)
+  : null;
+const configuredMaxPriorityFeePerGas = process.env
+  .AGENTPOOL_V43_MAX_PRIORITY_FEE_PER_GAS_WEI
+  ? BigInt(process.env.AGENTPOOL_V43_MAX_PRIORITY_FEE_PER_GAS_WEI)
+  : null;
+if (
+  configuredMaxFeePerGas !== null &&
+  (configuredMaxFeePerGas <= 0n ||
+    configuredMaxPriorityFeePerGas === null ||
+    configuredMaxPriorityFeePerGas < 0n ||
+    configuredMaxPriorityFeePerGas > configuredMaxFeePerGas)
+) {
+  throw new Error("V43_INVALID_LOCAL_GAS_FEE_CAP");
+}
 const relayBaseUrl = (
   process.env.AGENTPOOL_V43_RELAY_URL ??
   "https://agentpool-protocol.asfu.chatgpt.site"
@@ -239,7 +256,18 @@ async function chainWrite(address, abi, functionName, args = []) {
   }
   if (!simulation) throw simulationError;
   const { request } = simulation;
-  const transactionHash = await wallet.writeContract(request);
+  const estimatedGas = await chainClient.estimateContractGas(request);
+  const bufferedGas = (estimatedGas * 125n + 99n) / 100n;
+  const transactionHash = await wallet.writeContract({
+    ...request,
+    gas: bufferedGas,
+    ...(configuredMaxFeePerGas === null
+      ? {}
+      : {
+          maxFeePerGas: configuredMaxFeePerGas,
+          maxPriorityFeePerGas: configuredMaxPriorityFeePerGas,
+        }),
+  });
   const receipt = await chainClient.waitForTransactionReceipt({
     hash: transactionHash,
     confirmations: 1,

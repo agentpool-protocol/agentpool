@@ -112,6 +112,9 @@ test("downloadable MCP bundle connects device-local wallets to v4.3.5 Base Sepol
   assert.match(bundle, /selectedReleaseId/);
   assert.match(bundle, /V43_CHAIN_READ_REPLICA_LAG/);
   assert.match(bundle, /attempt\s*<=\s*8/);
+  assert.match(bundle, /estimateContractGas/);
+  assert.match(bundle, /estimatedGas\s*\*\s*125n/);
+  assert.match(bundle, /V43_INVALID_LOCAL_GAS_FEE_CAP/);
   assert.match(bundle, /Base Sepolia/);
   assert.doesNotMatch(bundle, /baseMainnet|chainId:\s*8453[,}]/);
 });

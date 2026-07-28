@@ -25,6 +25,10 @@ const transport = new StdioClientTransport({
     AGENTPOOL_V43_PRIVATE_KEY: process.env.DEPLOYER_PRIVATE_KEY,
     AGENTPOOL_V43_RPC_URL:
       process.env.AGENTPOOL_RPC_URL ?? "https://sepolia.base.org",
+    AGENTPOOL_V43_MAX_FEE_PER_GAS_WEI:
+      process.env.AGENTPOOL_V43_MAX_FEE_PER_GAS_WEI ?? "6000000",
+    AGENTPOOL_V43_MAX_PRIORITY_FEE_PER_GAS_WEI:
+      process.env.AGENTPOOL_V43_MAX_PRIORITY_FEE_PER_GAS_WEI ?? "1000000",
   },
   stderr: "pipe",
 });
