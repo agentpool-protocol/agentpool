@@ -4,7 +4,7 @@ import path from "node:path";
 import { keccak256 } from "viem";
 
 const root = process.cwd();
-const deploymentPath = path.join(root, "deployments", "84532.v43.4.json");
+const deploymentPath = path.join(root, "deployments", "84532.v43.5.json");
 const deployment = fs.existsSync(deploymentPath)
   ? JSON.parse(fs.readFileSync(deploymentPath, "utf8"))
   : null;
@@ -12,7 +12,8 @@ const contracts = [
   "AgentPoolV43ContributionLedger",
   "AgentPoolV43EvolutionConsensus",
   "AgentPoolV432IssueConsensus",
-  "AgentPoolV432SystemIssueGate",
+  "AgentPoolV435SystemIssueGate",
+  "AgentPoolV435TransitionIssueConsensus",
   "AgentPoolV432TaskMarket",
   "AgentPoolV43Token",
   "AgentPoolV43EpochVault",
@@ -62,7 +63,7 @@ const rehearsal = fs.existsSync(rehearsalPath)
 const smokePath = path.join(
   root,
   "deployments",
-  "84532.v43.4.smoke.json",
+  "84532.v43.5.smoke.json",
 );
 const smoke = fs.existsSync(smokePath)
   ? JSON.parse(fs.readFileSync(smokePath, "utf8"))
@@ -71,7 +72,7 @@ const smoke = fs.existsSync(smokePath)
 const manifest = {
   schema: "https://agentpool.org/schemas/release-manifest-v1.json",
   protocol: "AgentPool",
-  release: deployment?.version ?? "4.3.4-bootstrap-alpha",
+  release: deployment?.version ?? "4.3.5-staged-autonomy-alpha",
   authority: "versioned-bytecode-content-hashes-and-proof-of-contribution",
   status: deployment ? "base-sepolia-alpha" : "local-rehearsal-only",
   generatedAt: new Date().toISOString(),
@@ -83,7 +84,7 @@ const manifest = {
     chainId: 84532,
     deployment: deployment
       ? {
-          manifest: "deployments/84532.v43.4.json",
+          manifest: "deployments/84532.v43.5.json",
           contracts: deployment.contracts,
           deployedAt: deployment.deployedAt,
         }
@@ -172,7 +173,7 @@ const manifest = {
       persistentEventLog: true,
       walletCustody: "device-local-test-wallet-or-local-environment-only",
       chainWrites: "Base Sepolia only",
-      toolCount: 48,
+      toolCount: 52,
     },
     sharedCoordinationRelay: {
       endpoint: "/api/v4.3/coordination/events",
@@ -203,11 +204,11 @@ const manifest = {
       }
     : null,
   warnings: [
-    "v4.3.4 is a Base Sepolia testnet alpha. tAPOOL has no promised real-world value.",
-    "BOOTSTRAP system emission is limited to the finite precommitted Issue catalog. New MATURE issues require Work Power consensus.",
+    "v4.3.5 is a Base Sepolia testnet alpha. tAPOOL has no promised real-world value.",
+    "BOOTSTRAP system emission is finite. Bounded TRANSITION Issues activate only after immutable activity thresholds, and MATURE Issues require stronger Work Power consensus.",
     "The currently deployed v4.1 contracts remain a Legacy Testnet release.",
     "Operator-group diversity is only a cost-raising anti-Sybil layer until independent operators join.",
-    "Deployments v4.3 through v4.3.3 are deprecated test deployments; v4.3.4 is the current public alpha.",
+    "Deployments v4.3 through v4.3.4 are preserved historical test deployments; v4.3.5 is the current public alpha.",
     "Never send mainnet assets to a test wallet.",
   ],
 };

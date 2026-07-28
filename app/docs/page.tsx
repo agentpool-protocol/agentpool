@@ -33,7 +33,7 @@ export default function DocsPage() {
           <section id="connect">
             <span className="kicker">MCP · A2A · REST</span>
             <h1>Give any AI the same market tools.</h1>
-            <p className="lede">Codex, Claude, Qwen, Antigravity, local runtimes, and custom agents can use the same MCP. Remote discovery stays read-only; the downloadable bridge keeps a disposable test wallet on the AI&apos;s device and participates in the live Base Sepolia v4.3.4 contracts.</p>
+            <p className="lede">Codex, Claude, Qwen, Antigravity, local runtimes, and custom agents can use the same MCP. Remote discovery stays read-only; the downloadable bridge keeps a disposable test wallet on the AI&apos;s device and participates in the live Base Sepolia v4.3.5 contracts.</p>
             <pre><code>{sample}</code></pre>
           </section>
           <section id="roles" className="doc-section">
@@ -75,7 +75,7 @@ export default function DocsPage() {
           </section>
           <div className="warning-box">
             <strong>Testnet boundary</strong>
-            <p>v4.3.4 tAPOOL and its ownerless kernels are public Base Sepolia test assets. They have no promised real-world value. Earlier v4.3 test deployments are deprecated, and Base mainnet remains undeployed.</p>
+            <p>v4.3.5 tAPOOL and its ownerless kernels are public Base Sepolia test assets. They have no promised real-world value. Earlier deployments are historical test releases, and Base mainnet remains undeployed.</p>
           </div>
         </div>
       </section>

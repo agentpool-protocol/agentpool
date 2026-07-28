@@ -1,4 +1,4 @@
-# AgentPool v4.3.4 external-AI pilot
+# AgentPool v4.3.5 external-AI pilot
 
 This pilot checks whether an AI with no prior AgentPool context can discover the
 protocol through MCP, understand the live Base Sepolia phase, find work, and
@@ -16,7 +16,7 @@ Passing a local simulation does not count as public-chain evidence.
 
 ## What the AI must discover
 
-- Release: `4.3.4-bootstrap-alpha`
+- Release: `4.3.5-staged-autonomy-alpha`
 - Chain: Base Sepolia, chain ID `84532`
 - Phase: `BOOTSTRAP`
 - MCP tools: `52`
@@ -137,22 +137,33 @@ not have enough Base Sepolia test ETH.
 As of 2026-07-28:
 
 - Direct zero-context MCP handshake: passed, 52 tools discovered.
-- Local v4.3.4 self-test: passed.
-- Local Qwen external-model discovery: passed with
-  `qwen2.5-coder:14b`. The model received only MCP `tools/list` metadata and
-  three read-only MCP tools, called all three, created no wallet, sent no
-  transaction, and returned a schema-validated report matching the live
-  `4.3.4-bootstrap-alpha` Base Sepolia state. Each run writes local evidence to
-  `outputs/v43.4-qwen-zero-context-mcp.json`; the reviewed public evidence is
+- Local v4.3.5 self-test: passed with device-local wallet custody and the
+  staged-autonomy Issue gate enabled.
+- Antigravity external-model discovery: passed with no prior AgentPool context.
+  It called only MCP discovery and read tools, reported release
+  `4.3.5-staged-autonomy-alpha`, Base Sepolia `84532`, phase `BOOTSTRAP`, 52
+  tools, zero open opportunities, two settled jobs, no generic basic mining,
+  and zero tAPOOL minting from external jobs. It created no wallet and sent no
+  transaction. Reviewed evidence:
+  [`deployments/84532.v43.5.antigravity-discovery.json`](./deployments/84532.v43.5.antigravity-discovery.json).
+- Base Sepolia v4.3.5 contract verification and the economic smoke passed. The
+  smoke used nine transactions, settled one 120 tAPOOL system-improvement job,
+  settled one buyer-funded 30 tAPOOL external job, and proved the external job
+  did not increase supply. Evidence:
+  [`deployments/84532.v43.5.smoke.json`](./deployments/84532.v43.5.smoke.json).
+- Local Qwen discovery remains valid historical v4.3.4 evidence. The model
+  received only MCP metadata and three read-only tools, created no wallet, sent
+  no transaction, and returned a schema-validated report. Reviewed evidence:
   [`deployments/84532.v43.4.qwen-discovery.json`](./deployments/84532.v43.4.qwen-discovery.json).
-- Claude Code external-model run: not executed because the installed Claude
-  CLI returned `401` for an expired OAuth access token before any model or MCP
-  call. No paid call was made.
-- Antigravity zero-context run: pending workspace trust and tool-call evidence.
-- Public Base Sepolia participation runner: pending additional free test ETH in
-  the buyer wallet; it has not created the test job.
-- The public Sites deployment still serves the older v4.1 gateway. Use the
-  repository bundle for v4.3.4 until a Sites version built from the same
-  verified commit is deployed.
+- Claude Code external-model discovery remains unexecuted because the installed
+  Claude CLI returned `401` for an expired OAuth access token before any model
+  or MCP call. No paid call was made.
+- The separate disposable-wallet public MCP participation runner still requires
+  enough free Base Sepolia test ETH in its buyer, worker, and resolver wallets.
+  It must not be reported as passing until its own evidence file exists.
+- A public Sites deployment is current only when `/api/v4.3/status` reports the
+  same release and contract addresses as
+  [`deployments/84532.v43.5.json`](./deployments/84532.v43.5.json).
 
-These blockers must not be reported as passing evidence.
+The unexecuted Claude and disposable-wallet participation runs remain open
+coverage, not passing evidence.

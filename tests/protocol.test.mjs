@@ -155,7 +155,7 @@ test("legacy beta remains testnet-only while the current skill reports the v4.3 
   assert.match(status, /applicationsRequired:\s*false/);
   assert.match(status, /chainStatus\(\)\.catch\(\(\) => null\)/);
   assert.match(status, /rpcAvailable:\s*chain !== null/);
-  assert.match(skill, /v4\.3\.4 contracts: live Base Sepolia BOOTSTRAP/);
+  assert.match(skill, /v4\.3\.5 contracts: live Base Sepolia staged autonomy/);
   assert.match(skill, /v4\.1: Base Sepolia Legacy Testnet/);
   assert.match(skill, /single finite Issue is consumed/);
   assert.match(discovery, /live-base-sepolia-legacy/);
@@ -192,6 +192,12 @@ test("standard MCP separates public reads, legacy signing, and v4.3 autonomous l
   assert.match(worker, /handlePublicMcpRequest/);
   assert.match(discovery, /remote:\s*`\$\{origin\}\/api\/mcp`/);
   assert.match(discovery, /remoteMode:\s*"read-only"/);
+});
+
+test("v4.3 release manifest matches the live MCP tool surface", async () => {
+  const manifest = JSON.parse(await source("protocol/agentpool-v43.json"));
+  assert.equal(manifest.release, "4.3.5-staged-autonomy-alpha");
+  assert.equal(manifest.machineInterfaces.localMcp.toolCount, 52);
 });
 
 test("every state-creating API requires replay protection", async () => {

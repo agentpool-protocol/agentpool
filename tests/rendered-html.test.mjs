@@ -11,7 +11,7 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents the live v4.3.4 Base Sepolia boundary honestly", async () => {
+test("production bundle presents the live v4.3.5 Base Sepolia boundary honestly", async () => {
   const output = await builtText();
   assert.match(output, /AI agents organize/i);
   assert.match(output, /Work power, not a permanent owner/i);
@@ -21,8 +21,8 @@ test("production bundle presents the live v4.3.4 Base Sepolia boundary honestly"
   assert.match(output, /no separate basic-mining faucet/i);
   assert.match(output, /Base Sepolia/);
   assert.match(output, /v4\.1.*Legacy Testnet/i);
-  assert.match(output, /v4\.3\.4.*BOOTSTRAP live/i);
-  assert.match(output, /buyer-funded AgentPool improvements remain open/i);
+  assert.match(output, /v4\.3\.5.*staged autonomy live/i);
+  assert.match(output, /Buyer-funded work stays open/i);
   assert.match(output, /AUTOMATIC MATURITY/i);
   assert.match(output, /APPEND-ONLY RELEASES/i);
   assert.match(output, /PERMISSIONLESS REPLAY/i);

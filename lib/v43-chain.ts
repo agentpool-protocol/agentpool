@@ -4,13 +4,13 @@ import {
   http,
 } from "viem";
 import { baseSepolia } from "viem/chains";
-import deployment from "@/deployments/84532.v43.4.json";
-import smoke from "@/deployments/84532.v43.4.smoke.json";
+import deployment from "@/deployments/84532.v43.5.json";
+import smoke from "@/deployments/84532.v43.5.smoke.json";
 import tokenArtifact from "@/artifacts/AgentPoolV43Token.json";
 import ledgerArtifact from "@/artifacts/AgentPoolV43ContributionLedger.json";
 import vaultArtifact from "@/artifacts/AgentPoolV43EpochVault.json";
 import registryArtifact from "@/artifacts/AgentPoolV43ReleaseRegistry.json";
-import issueGateArtifact from "@/artifacts/AgentPoolV432SystemIssueGate.json";
+import issueGateArtifact from "@/artifacts/AgentPoolV435SystemIssueGate.json";
 import marketArtifact from "@/artifacts/AgentPoolV432TaskMarket.json";
 
 const DEFAULT_RPC = "https://sepolia.base.org";

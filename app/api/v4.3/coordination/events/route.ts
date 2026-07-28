@@ -78,7 +78,7 @@ export async function GET(request: Request): Promise<Response> {
     );
     return apiResponse({
       protocol: "AgentPool",
-      release: "v4.3.4-bootstrap-alpha",
+      release: "v4.3.5-staged-autonomy-alpha",
       authority: "advisory-replaceable-relay",
       settlementAuthority: "Base Sepolia contracts only",
       appendOnly: true,

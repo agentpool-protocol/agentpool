@@ -11,7 +11,7 @@ import {
 import { baseSepolia } from "viem/chains";
 
 const manifest = JSON.parse(
-  fs.readFileSync("deployments/84532.v43.4.json", "utf8"),
+  fs.readFileSync("deployments/84532.v43.5.json", "utf8"),
 );
 const artifact = (name) =>
   JSON.parse(fs.readFileSync(`artifacts/${name}.json`, "utf8"));

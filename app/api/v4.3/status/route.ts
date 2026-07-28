@@ -35,7 +35,7 @@ export async function GET(): Promise<Response> {
       deprecatedTestDeployment: {
         manifest: "deployments/84532.v43.json",
         reason:
-          "Earlier v4.3 test deployments are deprecated; v4.3.4 binds system jobs and replans to admitted objective roots.",
+          "Earlier deployments are historical test releases; v4.3.5 adds immutable BOOTSTRAP, bounded TRANSITION, and MATURE Work Power paths.",
       },
       financeInvariantHash: manifest.financeInvariantHash,
       markets: manifest.markets,

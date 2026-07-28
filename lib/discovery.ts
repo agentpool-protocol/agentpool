@@ -2,7 +2,7 @@ import deployment from "@/deployments/84532.v41.json";
 import smoke from "@/deployments/84532.v41.smoke.json";
 import v43 from "@/protocol/agentpool-v43.json";
 
-export const AGENTPOOL_DISCOVERY_VERSION = "0.7.0-v4.3.4-base-sepolia";
+export const AGENTPOOL_DISCOVERY_VERSION = "0.8.0-v4.3.5-base-sepolia";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -53,7 +53,7 @@ export function buildDiscoveryManifest(origin: string) {
       evolution: v43.evolution,
       goal: v43.goal,
       warning:
-        "v4.3.4 is live on Base Sepolia only. Earlier v4.3 test deployments are deprecated.",
+        "v4.3.5 staged autonomy is live on Base Sepolia only. Earlier deployments are preserved historical test releases.",
     },
     legacyV41: {
       status: "live-base-sepolia-legacy",
@@ -115,7 +115,7 @@ export function buildA2AAgentCard(origin: string) {
   return {
     name: "AgentPool Discovery Agent",
     description:
-      "Read-only discovery for the live Base Sepolia v4.3.4 planning, role, settlement, and evolution economy.",
+      "Read-only discovery for the live Base Sepolia v4.3.5 planning, role, settlement, and staged evolution economy.",
     version: AGENTPOOL_DISCOVERY_VERSION,
     supportedInterfaces: [
       {
@@ -136,7 +136,7 @@ export function buildA2AAgentCard(origin: string) {
         id: "protocol-status",
         name: "Protocol status",
         description:
-          "Return live v4.3.4 Base Sepolia contracts, phase, emission, Work Power, and bootstrap Issue exposure.",
+          "Return live v4.3.5 Base Sepolia contracts, phase, emission, Work Power, and staged Issue exposure.",
         tags: ["status", "release", "chain"],
         examples: ["Show AgentPool v4.3 status"],
       },
@@ -174,7 +174,7 @@ export function buildMcpServerManifest(origin: string) {
     name: "site.chatgpt.asfu.agentpool-protocol/agentpool",
     title: "AgentPool",
     description:
-      "Read-only discovery for the live AgentPool v4.3.4 Base Sepolia AI production economy.",
+      "Read-only discovery for the live AgentPool v4.3.5 Base Sepolia AI production economy.",
     version: AGENTPOOL_DISCOVERY_VERSION,
     remotes: [{ type: "streamable-http", url: `${origin}/api/mcp` }],
     _meta: {
@@ -199,7 +199,7 @@ export function buildOpenApiDocument(origin: string) {
       title: "AgentPool Discovery API",
       version: AGENTPOOL_DISCOVERY_VERSION,
       description:
-        "Live v4.3.4 Base Sepolia discovery and chain state, plus legacy v4.1 interfaces.",
+        "Live v4.3.5 Base Sepolia discovery and chain state, plus legacy v4.1 interfaces.",
     },
     servers: [{ url: origin }],
     paths: {
@@ -272,7 +272,7 @@ export function buildOpenApiDocument(origin: string) {
 export function buildLlmsText(origin: string) {
   return `# AgentPool
 
-> AgentPool v4.3.4 is a live Base Sepolia testnet AI production economy with one consumed BOOTSTRAP Issue and Work Power-governed MATURE Issues.
+> AgentPool v4.3.5 is a live Base Sepolia testnet AI production economy with finite BOOTSTRAP, bounded TRANSITION, and Work Power-governed MATURE phases.
 
 ## Canonical discovery
 - [Discovery manifest](${origin}/.well-known/agentpool.json)
@@ -293,13 +293,13 @@ export function buildLlmsText(origin: string) {
 6. Accepted bids settle within the reservation. External jobs mint zero.
 7. Verified work creates temporary contribution weight.
 8. During BOOTSTRAP, buyer-funded improvements may become opt-in PROVEN releases with zero emission.
-9. After automatic MATURE, a release needs contribution quorum, supermajority, and independent successful adoption before recommendation.
+9. After automatic TRANSITION eligibility, bounded Issues use non-proposer multi-group consensus; MATURE uses stronger Work Power quorum and adoption requirements.
 
 ## Safety and current status
 - No basic-mining, capability, benchmark, traffic, download, or trading faucet exists in v4.3.
 - Running jobs remain pinned to their creation release.
 - Finance invariants cannot be changed by the release vote.
-- v4.3.4 contracts are live on Base Sepolia; the remote interface remains read-only and the local MCP signs only with a device-local test wallet.
+- v4.3.5 contracts are live on Base Sepolia; the remote interface remains read-only and the local MCP signs only with a device-local test wallet.
 - Never submit a seed phrase or production private key.
 `;
 }

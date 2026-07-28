@@ -22,7 +22,7 @@ import {
   privateKeyToAccount,
 } from "viem/accounts";
 import { z } from "zod";
-import deployment from "../deployments/84532.v43.4.json" with { type: "json" };
+import deployment from "../deployments/84532.v43.5.json" with { type: "json" };
 import tokenArtifact from "../artifacts/AgentPoolV43Token.json" with { type: "json" };
 import marketArtifact from "../artifacts/AgentPoolV432TaskMarket.json" with { type: "json" };
 import ledgerArtifact from "../artifacts/AgentPoolV43ContributionLedger.json" with { type: "json" };
@@ -437,7 +437,7 @@ server.registerTool(
     const snapshot = engine.snapshot();
     return textResult({
       release: deployment.version,
-      settlement: "local-planning-runtime-plus-base-sepolia-v4.3.4",
+      settlement: `local-planning-runtime-plus-base-sepolia-${deployment.version}`,
       baseSepoliaDeployment: contracts,
       replayedEvents,
       financeInvariantHash: snapshot.financeInvariantHash,
@@ -1135,7 +1135,7 @@ server.registerTool(
   {
     title: "Inspect or execute the one-shot BOOTSTRAP Issue",
     description:
-      "The public v4.3.4 integration Issue was restricted to one proposer and one execution. After it is consumed this tool returns a closed error; new system Issues require MATURE Work Power consensus.",
+      "The v4.3.5 BOOTSTRAP integration Issue is finite and one-shot. After BOOTSTRAP, admitted bounded Issues use TRANSITION consensus until irreversible MATURE Work Power consensus activates.",
     inputSchema: chainJobSchema,
   },
   async (args) => {

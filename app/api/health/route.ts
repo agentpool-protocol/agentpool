@@ -12,7 +12,7 @@ export async function GET(): Promise<Response> {
       status: "ok",
       network: "base-sepolia",
       chainId: 84532,
-      version: "0.7.0-v4.3.4-base-sepolia",
+      version: "0.8.0-v4.3.5-base-sepolia",
       versions: {
         v3: {
           status: "legacy-live-base-sepolia",

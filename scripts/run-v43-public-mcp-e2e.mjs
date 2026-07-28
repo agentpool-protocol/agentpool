@@ -20,7 +20,7 @@ import { baseSepolia } from "viem/chains";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const deployment = JSON.parse(
   fs.readFileSync(
-    path.join(root, "deployments", "84532.v43.4.json"),
+    path.join(root, "deployments", "84532.v43.5.json"),
     "utf8",
   ),
 );
@@ -116,12 +116,12 @@ const runId = `public-mcp-${Date.now().toString(36)}`;
 const outputPath = path.join(
   root,
   "outputs",
-  "v43.4-public-mcp-onchain-e2e.json",
+  "v43.5-public-mcp-onchain-e2e.json",
 );
 const publicEvidencePath = path.join(
   root,
   "deployments",
-  "84532.v43.4.mcp-e2e.json",
+  "84532.v43.5.mcp-e2e.json",
 );
 const temporaryHomes = [];
 const clients = [];
@@ -276,7 +276,7 @@ try {
 
   const chainStatus = await call("buyer", "agentpool_v43_chain_status");
   assert.equal(chainStatus.chainId, 84532);
-  assert.equal(chainStatus.release, "4.3.4-bootstrap-alpha");
+  assert.equal(chainStatus.release, "4.3.5-staged-autonomy-alpha");
   assert.equal(chainStatus.phase, "BOOTSTRAP");
 
   const supplyBefore = await read(
@@ -653,7 +653,7 @@ try {
 
   const evidence = {
     ok: true,
-    release: "4.3.4-bootstrap-alpha",
+    release: "4.3.5-staged-autonomy-alpha",
     network: "Base Sepolia",
     chainId: 84532,
     testnetOnly: true,

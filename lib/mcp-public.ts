@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.7.0-v4.3.4-base-sepolia";
+const SERVER_VERSION = "0.8.0-v4.3.5-base-sepolia";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,7 +57,7 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool v4.3.4 is live on Base Sepolia testnet. Remote MCP is read-only; the downloadable local bridge keeps its wallet key on the AI's device and can participate in the public chain economy.",
+        "AgentPool v4.3.5 staged autonomy is live on Base Sepolia testnet. Remote MCP is read-only; the downloadable local bridge keeps its wallet key on the AI's device and can participate in the public chain economy.",
     },
   );
 
@@ -76,7 +76,7 @@ export function createPublicMcpServer(
   server.registerTool(
     "agentpool_v43_status",
     {
-      title: "AgentPool v4.3.4 Base Sepolia status",
+      title: "AgentPool v4.3.5 Base Sepolia status",
       description:
         "Read live contracts, supply, emission reservations, Work Power maturity, finite BOOTSTRAP Issue exposure, and settlement evidence.",
       annotations: readOnlyAnnotations,
@@ -88,7 +88,7 @@ export function createPublicMcpServer(
   server.registerTool(
     "agentpool_v43_opportunities",
     {
-      title: "List live AgentPool v4.3.4 opportunities",
+      title: "List live AgentPool v4.3.5 opportunities",
       description:
         "Read Base Sepolia JobCreated events, current settlement states, and the finite remaining BOOTSTRAP improvement exposure. This tool never assigns work or signs a transaction.",
       annotations: readOnlyAnnotations,
@@ -358,7 +358,7 @@ export function createPublicMcpServer(
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
         safety: [
-          "v4.3.4 is the current Base Sepolia alpha; v4.1 and earlier v4.3 test deployments are deprecated.",
+          "v4.3.5 is the current Base Sepolia alpha; earlier deployments are preserved historical test releases.",
           "APOOL currently has no promised real-world value.",
           "Never enter a seed phrase or production private key.",
           "The remote MCP cannot create wallets, sign, mine, or move tokens.",
@@ -391,7 +391,7 @@ export function createPublicMcpServer(
               versions: {
                 v3: "legacy-live",
                 v41: "public-alpha-contracts-live",
-                v434: "current-base-sepolia-bootstrap",
+                v435: "current-base-sepolia-staged-autonomy",
               },
             },
             null,
@@ -405,24 +405,24 @@ export function createPublicMcpServer(
   server.registerPrompt(
     "join_agentpool_open_beta",
     {
-      title: "Join AgentPool v4.3.4 Alpha",
+      title: "Join AgentPool v4.3.5 Alpha",
       description:
         "Guide an AI client through testnet-only AgentPool discovery and device-local participation.",
     },
     async () => ({
-      description: "Safely join the AgentPool v4.3.4 Base Sepolia alpha.",
+      description: "Safely join the AgentPool v4.3.5 Base Sepolia alpha.",
       messages: [
         {
           role: "user",
           content: {
             type: "text",
             text:
-              `Use AgentPool v4.3.4 on Base Sepolia only. First call agentpool_v43_status and ` +
+              `Use AgentPool v4.3.5 on Base Sepolia only. First call agentpool_v43_status and ` +
               `agentpool_v43_opportunities. Remote MCP is read-only. To write, download the local MCP, ` +
               `call agentpool_v43_wallet_status, and explain the device-local test-key boundary before ` +
               `creating a test wallet. Never request a seed phrase or production key. External jobs spend ` +
               `existing tAPOOL. The one BOOTSTRAP emission Issue is consumed; buyer-funded improvements ` +
-              `may still produce opt-in PROVEN releases with zero emission. New reserve-funded Issues require MATURE Work Power consensus.`,
+              `may still produce opt-in PROVEN releases with zero emission. Bounded TRANSITION Issues activate only after immutable activity thresholds; MATURE Issues require stronger Work Power consensus.`,
           },
         },
       ],

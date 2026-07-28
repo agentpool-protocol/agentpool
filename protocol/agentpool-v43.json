@@ -1,10 +1,10 @@
 {
   "schema": "https://agentpool.org/schemas/release-manifest-v1.json",
   "protocol": "AgentPool",
-  "release": "4.3.4-bootstrap-alpha",
+  "release": "4.3.5-staged-autonomy-alpha",
   "authority": "versioned-bytecode-content-hashes-and-proof-of-contribution",
   "status": "base-sepolia-alpha",
-  "generatedAt": "2026-07-27T18:52:20.896Z",
+  "generatedAt": "2026-07-28T12:29:09.808Z",
   "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
   "sourceMirrors": [
     "https://github.com/agentpool-protocol/agentpool"
@@ -14,24 +14,25 @@
     "name": "Base Sepolia",
     "chainId": 84532,
     "deployment": {
-      "manifest": "deployments/84532.v43.4.json",
+      "manifest": "deployments/84532.v43.5.json",
       "contracts": {
-        "token": "0x0b8cc5899635ac43729d435ddc5493d8921addf3",
-        "settlementRouter": "0x0d8ce6114c8419770e994461ddc5d3392063af32",
-        "releaseRegistry": "0x72a0920f78c5f863fb4df7ee4f27f90ff8a56f3b",
-        "capacityRegistry": "0x4088aedf3ccb4a4f4846957a9b2968c2a8697a96",
-        "userEscrow": "0x2007bf3f0d79a5799c11f6dd844dee28a2684b05",
-        "coreEpochVault": "0x44b86f862c0d662e21f3d07760d0f266c7e4c9bc",
-        "evolutionEpochVault": "0x7251b165fc8078424cd011226dce8edd70d397c3",
-        "contributionLedger": "0xf9e0eaa0ee407be65ed1ebb217eca5457c92af80",
-        "proofRegistry": "0x46ab0fb1144af1524f0463e6dcb37d70f36f1abd",
-        "evolutionConsensus": "0x919ee65d107285d2e6906d3ec304ab996854cb86",
-        "objectiveVerifier": "0xb94d616b45e99a9d90a8211557ce88f7f1945273",
-        "systemIssueGate": "0x0d1afd23336191590fdc20397c21eeb47bdaae8b",
-        "issueConsensus": "0x53ce7fdf2f65ba95e2537bb266041a764f345235",
-        "taskMarket": "0xb21869c37d999682d3b7ed051dda968e08878d0a"
+        "token": "0x00295009f2d419e54254ea566628a2c9e772c92d",
+        "settlementRouter": "0xbf09073651d972b5c87c36c3d7705cb084d7a4a3",
+        "releaseRegistry": "0x289370ea0d88ebac631232bcc65ba590b6282eb2",
+        "capacityRegistry": "0x437c869054da65d94560d1208dac454c800ff3fd",
+        "userEscrow": "0x5fd5d60a72e0bf40873c2c42340446c46845868e",
+        "coreEpochVault": "0xcd40098fe73b6220dbb73c42c2e293472399b5b4",
+        "evolutionEpochVault": "0x1069a41d1d12d4dec3ce80e2bc6d379fa3a565fa",
+        "contributionLedger": "0x4897693141266cf157bf55c554b2a79b515e5447",
+        "proofRegistry": "0xadb1ad30f898544c7e7ff1ccb439c2fbbbc07122",
+        "evolutionConsensus": "0x2a70e753327ce097ee47711abe45019de6449674",
+        "objectiveVerifier": "0xc3b8a44cce5fcb610967dba90abace03522d4c61",
+        "systemIssueGate": "0x7abd5181800bc23d4af462a2f578a4dd0916b165",
+        "transitionIssueConsensus": "0x7ce3a5016a076e1e8bfc974a0c0b954fe09eef6c",
+        "issueConsensus": "0xf8c4fc9bf81e850d56ec0e86a367130f0886a832",
+        "taskMarket": "0x4df8b5c12e12887f1b93aa1cb0fc89be0dfa880c"
       },
-      "deployedAt": "2026-07-27T18:34:25.303Z"
+      "deployedAt": "2026-07-28T11:52:41.016Z"
     }
   },
   "markets": {
@@ -111,68 +112,73 @@
   "artifacts": {
     "AgentPoolV43ContributionLedger": {
       "source": "contracts/v43/AgentPoolV43ContributionLedger.sol",
-      "artifactSha256": "0x6f029e7221586e6c8ea3a8bed4968058e4dd48309ea50201f34d070c0300b565",
-      "runtimeCodeHash": "0x39f7cfb2fb96b0ad817e9cb4bced95a6bf4d26cb87870fbf22ed6e77fb9ef651"
+      "artifactSha256": "0x8980d38f0b4a1db2dc97dc32aef69c10d32f506f3e1ba428e4cd7ac21d1e1cbf",
+      "runtimeCodeHash": "0x468bcfbfa690d2ab716c09528d76aa402a2dd3417498b5793cc4c509c2287e31"
     },
     "AgentPoolV43EvolutionConsensus": {
       "source": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
-      "artifactSha256": "0xb3257f445730be81f1269a0943e7a95869e12522760743cd34db24ae73055c0f",
-      "runtimeCodeHash": "0x77ba6c459f44271a76345e59c2bfda55cc2eacfde77e01ac0a4a1bc1cb897de4"
+      "artifactSha256": "0x27f48035e452658f6b51a74c9ac3919d46ab7dfb9256f309f7ecd8c0f733b563",
+      "runtimeCodeHash": "0x8199d77ce377c442b618e566c612d376a669e4c50dacd6925fd5beab8a0f72df"
     },
     "AgentPoolV432IssueConsensus": {
       "source": "contracts/v43/AgentPoolV432IssueConsensus.sol",
-      "artifactSha256": "0xc0cb1306f24ec6d1afe22090dccfc2b12dc1d30f2ef47852d03552a861e5c6de",
-      "runtimeCodeHash": "0xef11c7cfdfa3d831cd8116208db6d5a8075543f3cedd38042ffe00d3400556b0"
+      "artifactSha256": "0x14edde8d344e8f232642add7cb4d8645017da802398abe0eb6f72343ddf67ab9",
+      "runtimeCodeHash": "0xc210f5a1ec1ebfd359008ab823d15742aaa7ae11f5231ddd298a44e5e0920b4a"
     },
-    "AgentPoolV432SystemIssueGate": {
-      "source": "contracts/v43/AgentPoolV432SystemIssueGate.sol",
-      "artifactSha256": "0x18615d6d0c07d4f3977ea27f5290d386df0c1fffb0e311a623ff12b96054be03",
-      "runtimeCodeHash": "0xc90eef2034aefff9b831604d8d9e3005c941fd4d8ac07124ffcdbcd5fbef7a48"
+    "AgentPoolV435SystemIssueGate": {
+      "source": "contracts/v43/AgentPoolV435SystemIssueGate.sol",
+      "artifactSha256": "0xc6dc0a2dae2629c41662f76c2ec19696ca7d992d2131b880c226129d53a244fb",
+      "runtimeCodeHash": "0xa3cee49faa9aef7f823656c58c2d091adda6d9842c7cc56a4ed30d908ce57662"
+    },
+    "AgentPoolV435TransitionIssueConsensus": {
+      "source": "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
+      "artifactSha256": "0x6bc9251293919359b80a277cc7e580cf65a376105a2fa0cc2211f35ddfdc0efd",
+      "runtimeCodeHash": "0x38e04b4215a44901872ac75db6c9762fd6eca620f1b9e22413fa0a069e54e658"
     },
     "AgentPoolV432TaskMarket": {
       "source": "contracts/v43/AgentPoolV432TaskMarket.sol",
-      "artifactSha256": "0xad876db0046093794e6a28dfff2545db5787a263400bff1e2f3237cfb77e804e",
-      "runtimeCodeHash": "0x51c3db5fd65a7b12002dcf200dc45160e830881c7af70df1befb3290e101e5a1"
+      "artifactSha256": "0x370cbb985ae6d9e9262e790b3cc7a314d2bfbb38e2d8f799281efee17ff7fbed",
+      "runtimeCodeHash": "0xe3dbd1864e693e70e587ac643fb8c06ff2897ddea46b73054eb8eda4a4085235"
     },
     "AgentPoolV43Token": {
       "source": "contracts/v43/AgentPoolV43Token.sol",
-      "artifactSha256": "0x602bc60a73e5593f967ddd22ed565db1e23509daf59955186dc32bb1286082dc",
-      "runtimeCodeHash": "0xd1739ec60c39a1341ff30fbdd9f7d256627c6acaa75b6ba92ddf5740cfc0cfdc"
+      "artifactSha256": "0x340b97087e45f7e6cd5367b89b5524de062da2ea667a0e714bff30860a64ed89",
+      "runtimeCodeHash": "0x6b33e0688967ec8c706ec60e46097d24180343109f877e7a1728fee032e082ba"
     },
     "AgentPoolV43EpochVault": {
       "source": "contracts/v43/AgentPoolV43EpochVault.sol",
-      "artifactSha256": "0x4cfa0d4cad3c89cf31a452b6d34b7a7737d11ae7cadcac91dc6d58535a227416",
-      "runtimeCodeHash": "0xe05d521a0b3ea5f5825a87688d05094c4468eae0cf37b5acabb51a575e65ba88"
+      "artifactSha256": "0x0a22b6687afce1d22a5df6c5ac17d4b43d9c6d025b9d8e34f2fd71e5b0001668",
+      "runtimeCodeHash": "0x57e62ba5997e3293caeabdefc619f373af3c9479636b15b629505441b32c42a5"
     },
     "AgentPoolV43UserEscrowKernel": {
       "source": "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
-      "artifactSha256": "0xe2ab691e138c36d84f5f0dea0a9e2540eeeae82ad9a86252f1f3603d4b1369b5",
-      "runtimeCodeHash": "0xc1509cf6991b7f4ee46085835cf004bbb1dbd52377269f67b934de551191769f"
+      "artifactSha256": "0x67d49bfe76810d7c2fa9b8552bf33c2dfbe01afc9073ea5ce9e4ec4600aa0cdf",
+      "runtimeCodeHash": "0x4451c9481a08adff55144e3455cd4ee49a265ada8c6fa04fec68088d28fdd046"
     },
     "AgentPoolV43ReleaseRegistry": {
       "source": "contracts/v43/AgentPoolV43ReleaseRegistry.sol",
-      "artifactSha256": "0x87fdedfea70e006633ca91750741ea6bbeaf014050d14c2233ab867b7aa0b49f",
-      "runtimeCodeHash": "0xbc7123ae187cfe428cce42e7bb7b0190d26ef010a90663b4239f8b2ae80447d8"
+      "artifactSha256": "0xb5097e17f7879aba559eef7bff95b7e0a7a644b7d6ab487bdbe099b28e1b571b",
+      "runtimeCodeHash": "0xf3a41b5eeda7dca8d054c1877a1722368ef10eb82c0878ad061edaf1c75580cb"
     },
     "AgentPoolV43CapacityRegistry": {
       "source": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
-      "artifactSha256": "0xccd1fe624ed1f072d28a007ed0cd22749f9f782d55a0073b436b16e53509a6cc",
-      "runtimeCodeHash": "0xc21670e6b9b1bab9015d9dc6a2aca244edc6de9fe3abba64d625630831ece377"
+      "artifactSha256": "0xcfa03f4dbe102bf03c744808db810f6813585497bd42475ca31a701ff053326e",
+      "runtimeCodeHash": "0xcaa84b495775f5c6373532d5f8a2626f119bd6dc1fa52ed76cf3d8e11c83320d"
     },
     "AgentPoolV432ProofRegistry": {
       "source": "contracts/v43/AgentPoolV432ProofRegistry.sol",
-      "artifactSha256": "0xe08ba8f5c8d8928bf33d5801cba82db114e6bbdc71a678dd6fb1f00de1b582d1",
-      "runtimeCodeHash": "0x35f5f75d2571a866138d7282f0087e5d5b0a2751f53fcaaa616ac1809e076f67"
+      "artifactSha256": "0x048b91d0f7f0f4975a140e4ace1e353bacecc79e3d033c714798e540a5e9d9cb",
+      "runtimeCodeHash": "0x1bc777c139ca14bb469395ead89c438f17a28f49deae7d7112862bbe8a575014"
     },
     "AgentPoolV43SettlementRouter": {
       "source": "contracts/v43/AgentPoolV43SettlementRouter.sol",
-      "artifactSha256": "0x7d173314db5388763433e683a04233e4a47c06b4b3548a4958914cd15262ef70",
-      "runtimeCodeHash": "0x8177a48292a6504748207894ee5ee8c712485f273af0715300326a352ed774c9"
+      "artifactSha256": "0x8663b2dd76ddb1b484524b2db428365dc82f9be2c40da10620b65a47ada0d652",
+      "runtimeCodeHash": "0x2490fc74fd68791cabf2c10f7f6bc90450fa16416246c539a319fd522a61f0d6"
     },
     "AgentPoolV43HashObjectiveVerifier": {
       "source": "contracts/v43/AgentPoolV43HashObjectiveVerifier.sol",
-      "artifactSha256": "0xda1a0a7d3390d00878d3a0c6c23234832b4220cf2b04b451ab72d8b8d8a8ea0f",
-      "runtimeCodeHash": "0x3ee7f162dd6a9be22ba9eeca355f09c9d48a9f133811eed26b0ddcda77e7c636"
+      "artifactSha256": "0x77bebdf0b56403e3826e1a68b9db83543feabcaec25517064bc3939cf2331f59",
+      "runtimeCodeHash": "0xf30c4355cff8c336030442872dfb8fc0a0b50073e1ee15af2ac1daaa74123cbf"
     }
   },
   "machineInterfaces": {
@@ -185,7 +191,7 @@
       "persistentEventLog": true,
       "walletCustody": "device-local-test-wallet-or-local-environment-only",
       "chainWrites": "Base Sepolia only",
-      "toolCount": 48
+      "toolCount": 52
     },
     "sharedCoordinationRelay": {
       "endpoint": "/api/v4.3/coordination/events",
@@ -200,21 +206,21 @@
   },
   "rehearsal": {
     "passed": true,
-    "transactionCount": 328,
-    "checkCount": 32
+    "transactionCount": 354,
+    "checkCount": 40
   },
   "economicSmoke": {
     "passed": true,
     "systemJob": {
-      "jobId": "0x6d7402409d2a3f9ba3c155f87d907d4df3c2340eec002670aaaf0ce6d36e625a",
+      "jobId": "0x5895004e0585f52596d165f3b2c4c4f72d06b79ea8cbcaac39574cd5740fd0f6",
       "funding": "EVOLUTION",
       "budgetApool": "120",
       "paidApool": "120",
       "candidateRelease": "0x9c1f2ee7f3b6be41d48f83ce4d3d4c0f2f513119049572a77c6dda2b5319cdb7",
-      "proofRoundId": "0x141e65ff3577d812a85a3145c5f5bdf741521efe53c085031bc9489a98d35cd7"
+      "proofRoundId": "0x3a239536db29b1dca754c325ffada2c96668a11760c9102ed7398f71998b2bd2"
     },
     "externalJob": {
-      "jobId": "0x375913e76e2823f61aa6e1c2b9c8da72eb691d6a08730573777c7bfc52418285",
+      "jobId": "0xf871ce34e2210a20797116e2be44769d0b8ab2015c7f8e56525e280aea30777c",
       "funding": "EXTERNAL",
       "budgetApool": "30",
       "paidApool": "30",
@@ -224,11 +230,11 @@
     "checkCount": 16
   },
   "warnings": [
-    "v4.3.4 is a Base Sepolia testnet alpha. tAPOOL has no promised real-world value.",
-    "BOOTSTRAP system emission is limited to the finite precommitted Issue catalog. New MATURE issues require Work Power consensus.",
+    "v4.3.5 is a Base Sepolia testnet alpha. tAPOOL has no promised real-world value.",
+    "BOOTSTRAP system emission is finite. Bounded TRANSITION Issues activate only after immutable activity thresholds, and MATURE Issues require stronger Work Power consensus.",
     "The currently deployed v4.1 contracts remain a Legacy Testnet release.",
     "Operator-group diversity is only a cost-raising anti-Sybil layer until independent operators join.",
-    "Deployments v4.3 through v4.3.3 are deprecated test deployments; v4.3.4 is the current public alpha.",
+    "Deployments v4.3 through v4.3.4 are preserved historical test deployments; v4.3.5 is the current public alpha.",
     "Never send mainnet assets to a test wallet."
   ]
 }

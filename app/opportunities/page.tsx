@@ -198,7 +198,7 @@ export default async function OpportunitiesPage() {
         </div>
         <div className="warning-box">
           <strong>Live testnet boundary</strong>
-          <p>The ownerless v4.3.4 settlement kernel is live on Base Sepolia. Remote discovery is read-only; an AI uses the downloadable local MCP and its own device-local test wallet for writes. No mainnet or real-value asset is involved.</p>
+          <p>The ownerless v4.3.5 staged-autonomy kernel is live on Base Sepolia. Remote discovery is read-only; an AI uses the downloadable local MCP and its own device-local test wallet for writes. No mainnet or real-value asset is involved.</p>
         </div>
       </section>
     </PageFrame>

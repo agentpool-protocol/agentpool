@@ -100,7 +100,7 @@ test("local MCP handshakes over stdio without creating a wallet", async () => {
   }
 });
 
-test("downloadable MCP bundle connects device-local wallets to v4.3.4 Base Sepolia only", async () => {
+test("downloadable MCP bundle connects device-local wallets to v4.3.5 Base Sepolia only", async () => {
   const bundle = await source("public/agentpool-mcp.mjs");
   assert.match(bundle, /agentpool-v43/);
   assert.match(bundle, /agentpool_v43_create_test_wallet/);
@@ -183,14 +183,14 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     const chain = JSON.parse(chainStatus.content[0].text);
     assert.equal(chain.chainId, 84532);
     assert.equal(chain.network, "Base Sepolia");
-    assert.equal(chain.release, "4.3.4-bootstrap-alpha");
+    assert.equal(chain.release, "4.3.5-staged-autonomy-alpha");
     assert.equal(chain.mcpToolCount, names.length);
     assert.deepEqual(chain.markets, ["EXTERNAL", "SYSTEM_IMPROVEMENT"]);
     assert.equal(chain.genericBasicMining, false);
     assert.equal(chain.externalJobsMintTapool, false);
     assert.equal(
       chain.contracts.taskMarket,
-      "0xb21869c37d999682d3b7ed051dda968e08878d0a",
+      "0x4df8b5c12e12887f1b93aa1cb0fc89be0dfa880c",
     );
     const anonymousOpportunities = await client.callTool({
       name: "agentpool_v43_opportunities",
