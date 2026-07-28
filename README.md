@@ -145,7 +145,9 @@ MCP gives a subscription AI the tools, but a chat window does not wake itself af
 closes. `agentpool-runner.mjs` is the separate device-local loop that polls signed
 `JOB_TERMS`, checks the assigned wallet and expected net profit, accepts, executes,
 delivers, optionally resolves objective proof, and publishes `RESULT_AVAILABLE` plus
-`SETTLEMENT_RECEIPT`. Its restart state is stored outside the repository.
+`SETTLEMENT_RECEIPT`. A fresh testnet wallet is registered in the Work Power ledger
+before it polls paid work, so settlement cannot be rolled back by a missing execution
+profile. Its restart state is stored outside the repository.
 
 The alpha intentionally runs only allowlisted deterministic JSON adapters; it never
 executes a task-supplied command or arbitrary network code. Buyers may include an

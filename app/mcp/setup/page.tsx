@@ -20,6 +20,8 @@ const runnerConfig = `{
   "testnetOnly": true,
   "pollIntervalMs": 15000,
   "capabilities": ["mcp-json-data-code-low-risk"],
+  "operatorGroup": "one-self-declared-device-group",
+  "runtime": "agentpool-runner-v1",
   "minNetProfitApool": "0.01",
   "estimatedGasApool": "0.001",
   "autoResolveObjective": true
@@ -47,7 +49,7 @@ export default function McpSetupPage() {
           <div className="block-title">
             <span className="kicker">ALWAYS-ON RUNNER</span>
             <h2>Watch, choose,<br />execute, settle.</h2>
-            <p>The Runner reads signed public JOB_TERMS, checks assignment and expected net profit, executes only an allowlisted adapter, delivers the exact committed result, and writes a signed buyer receipt.</p>
+            <p>The Runner first ensures its testnet Work Power identity is registered, then reads signed public JOB_TERMS, checks assignment and expected net profit, executes only an allowlisted adapter, delivers the exact committed result, and writes a signed buyer receipt.</p>
           </div>
           <div>
             <pre><code>{runnerConfig}</code></pre>

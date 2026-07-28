@@ -52,7 +52,7 @@ function event(payload = terms()) {
   };
 }
 
-function fakeMcp(events = [event()]) {
+function fakeMcp(events = [event()], walletOverrides = {}) {
   const calls = [];
   return {
     calls,
@@ -63,6 +63,8 @@ function fakeMcp(events = [event()]) {
           configured: true,
           address: worker,
           testnetOnly: true,
+          registered: true,
+          ...walletOverrides,
         };
       }
       if (name === "agentpool_v43_shared_coordination") {
@@ -122,6 +124,33 @@ test("profit and assignment gates reject the wrong worker and loss-making work",
   );
 });
 
+test("a fresh device identity is registered before polling paid work", async () => {
+  const mcp = fakeMcp([], { registered: false });
+  const result = await runRunnerCycle({
+    config: {
+      operatorGroup: "external-device-group",
+      runtime: "external-runner-v1",
+    },
+    mcp,
+    state: newRunnerState(),
+    fetchChainSnapshot: async () => ({ activity: [] }),
+  });
+  assert.deepEqual(
+    mcp.calls.map((call) => call.name),
+    [
+      "agentpool_v43_wallet_status",
+      "agentpool_v43_register_onchain",
+      "agentpool_v43_shared_coordination",
+    ],
+  );
+  assert.equal(
+    mcp.calls[1].args.operatorGroup,
+    "external-device-group",
+  );
+  assert.equal(result.wallet.registered, true);
+  assert.ok(result.onboarding.transactionHash);
+});
+
 test("one Runner cycle autonomously accepts, executes, delivers and settles", async () => {
   const mcp = fakeMcp();
   const state = newRunnerState();
@@ -174,6 +203,66 @@ test("one Runner cycle autonomously accepts, executes, delivers and settles", as
         call.name === "agentpool_v43_deliver_milestone_onchain",
     ).length,
     1,
+  );
+});
+
+test("a transient settlement error is retried without duplicate delivery", async () => {
+  const mcp = fakeMcp();
+  const originalCall = mcp.call.bind(mcp);
+  let rejectResolveOnce = true;
+  mcp.call = async (name, args) => {
+    if (
+      name === "agentpool_v43_resolve_milestone_onchain" &&
+      rejectResolveOnce
+    ) {
+      rejectResolveOnce = false;
+      mcp.calls.push({ name, args });
+      throw new Error("TRANSIENT_CHAIN_ERROR");
+    }
+    return originalCall(name, args);
+  };
+  const first = await runRunnerCycle({
+    config: {
+      capabilities: ["mcp-json-data-code-low-risk"],
+      autoResolveObjective: true,
+    },
+    mcp,
+    state: newRunnerState(),
+    fetchChainSnapshot: async () => ({ activity: [] }),
+  });
+  assert.equal(first.outcomes[0].status, "error");
+  assert.equal(first.state.cursor, event().createdAt);
+
+  const second = await runRunnerCycle({
+    config: {
+      capabilities: ["mcp-json-data-code-low-risk"],
+      autoResolveObjective: true,
+    },
+    mcp,
+    state: first.state,
+    fetchChainSnapshot: async () => ({
+      activity: [
+        {
+          event: "MilestoneDelivered",
+          args: { jobId: terms().jobId, milestone: 0 },
+        },
+      ],
+    }),
+  });
+  assert.equal(second.outcomes[0].status, "settled");
+  assert.equal(
+    mcp.calls.filter(
+      (call) =>
+        call.name === "agentpool_v43_deliver_milestone_onchain",
+    ).length,
+    1,
+  );
+  assert.equal(
+    mcp.calls.filter(
+      (call) =>
+        call.name === "agentpool_v43_resolve_milestone_onchain",
+    ).length,
+    2,
   );
 });
 

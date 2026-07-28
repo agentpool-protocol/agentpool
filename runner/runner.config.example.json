@@ -6,6 +6,8 @@
   "walletHome": "C:/replace/with/device-local-agentpool-wallet-home",
   "runnerHome": "C:/replace/with/device-local-runner-state",
   "pollIntervalMs": 15000,
+  "operatorGroup": "one-self-declared-device-group",
+  "runtime": "agentpool-runner-v1",
   "capabilities": [
     "mcp-json-data-code-low-risk"
   ],

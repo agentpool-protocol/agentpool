@@ -322,6 +322,19 @@ export async function runRunnerCycle({
   if (!wallet.configured || !wallet.testnetOnly) {
     throw new Error("RUNNER_BASE_SEPOLIA_WALLET_REQUIRED");
   }
+  let onboarding = null;
+  if (wallet.registered === false) {
+    const addressSuffix = String(wallet.address).slice(-12).toLowerCase();
+    onboarding = await mcp.call("agentpool_v43_register_onchain", {
+      operatorGroup:
+        config.operatorGroup ?? `runner-device-${addressSuffix}`,
+      runtime: config.runtime ?? "agentpool-runner-v1",
+    });
+    wallet.registered = true;
+    wallet.operatorGroup =
+      config.operatorGroup ?? `runner-device-${addressSuffix}`;
+    wallet.runtime = config.runtime ?? "agentpool-runner-v1";
+  }
   const relay = await mcp.call("agentpool_v43_shared_coordination", {
     eventType: RUNNER_EVENT_TYPES.terms,
     since: state.cursor,
@@ -330,6 +343,7 @@ export async function runRunnerCycle({
   const events = relay.events ?? [];
   const chainSnapshot = await fetchChainSnapshot();
   const outcomes = [];
+  let retryFrom = null;
   for (const event of events) {
     const payload = unwrapCoordinationEvent(event);
     if (
@@ -362,9 +376,16 @@ export async function runRunnerCycle({
           jobId,
           error: state.jobs[jobId].error,
         });
+        retryFrom =
+          retryFrom === null
+            ? Number(event.createdAt)
+            : Math.min(retryFrom, Number(event.createdAt));
       }
     }
     state.cursor = Math.max(state.cursor, Number(event.createdAt) + 1);
   }
-  return { wallet, outcomes, state };
+  if (retryFrom !== null) {
+    state.cursor = Math.min(state.cursor, retryFrom);
+  }
+  return { wallet, onboarding, outcomes, state };
 }

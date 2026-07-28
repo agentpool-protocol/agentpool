@@ -127,6 +127,7 @@ async function main() {
       `${JSON.stringify({
         at: new Date().toISOString(),
         address: result.wallet.address,
+        onboarding: result.onboarding,
         outcomes: result.outcomes,
       })}\n`,
     );

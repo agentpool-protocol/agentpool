@@ -613,15 +613,21 @@ server.registerTool(
           "Create only a disposable testnet wallet. Never import a seed phrase or production key.",
       });
     }
-    const [testEth, tokenBalance] = await Promise.all([
+    const [testEth, tokenBalance, workIdentity] = await Promise.all([
       chainClient.getBalance({ address: account.address }),
       chainRead(contracts.token, abis.token, "balanceOf", [account.address]),
+      chainRead(contracts.contributionLedger, abis.ledger, "profiles", [
+        account.address,
+      ]),
     ]);
     return textResult({
       configured: true,
       network: "Base Sepolia",
       custody: "device-local-only",
       address: account.address,
+      registered: Boolean(workIdentity[2]),
+      operatorGroup: workIdentity[0],
+      runtimeHash: workIdentity[1],
       baseSepoliaEth: formatEther(testEth),
       tApool: formatUnits(tokenBalance, 18),
       walletSource: process.env.AGENTPOOL_V43_PRIVATE_KEY
