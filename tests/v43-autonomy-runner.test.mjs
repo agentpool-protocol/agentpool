@@ -15,6 +15,8 @@ import {
 } from "../runner/agentpool-autonomy-core.mjs";
 import {
   createExecutionAdapter,
+  createExecutorRegistry,
+  resolveProviderLaunch,
 } from "../runner/execution-adapters.mjs";
 import {
   generatePrivateChannelKeyPair,
@@ -125,6 +127,59 @@ test("process adapters use shell=false and normalize all provider outputs", asyn
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
+});
+
+test("Codex covers unavailable optional providers without changing the requested task", async () => {
+  const workspace = await mkdtemp(
+    path.join(os.tmpdir(), "agentpool-codex-first-test-"),
+  );
+  try {
+    const output = JSON.stringify({
+      content: "codex-result",
+      evidence: { deterministic: true },
+      usage: { units: 1 },
+    });
+    const registry = createExecutorRegistry({
+      allowProviderFallback: true,
+      preferredProviders: ["codex", "claude", "qwen"],
+      codex: {
+        enabled: true,
+        command: process.execPath,
+        args: ["-e", `process.stdout.write(${JSON.stringify(output)})`],
+        workspace,
+        allowedWorkspaceRoots: [workspace],
+      },
+      claude: { enabled: false },
+      qwen: { enabled: false },
+    });
+    const result = await registry.execute({
+      provider: "claude",
+      instruction: "safe",
+    });
+    assert.equal(result.provider, "codex");
+    assert.deepEqual(result.evidence.routing, {
+      requestedProvider: "claude",
+      actualProvider: "codex",
+      fallback: true,
+    });
+    assert.equal(
+      registry.providers().find((entry) => entry.provider === "codex")
+        .available,
+      true,
+    );
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("project-local Codex avoids the inaccessible Windows Store alias", () => {
+  const launch = resolveProviderLaunch("codex", {});
+  assert.equal(launch.command, process.execPath);
+  assert.match(
+    launch.prefixArgs[0],
+    /@openai[\\/]codex[\\/]bin[\\/]codex\.js$/,
+  );
+  assert.equal(launch.source, "project-local-codex");
 });
 
 test("private task and result envelopes round-trip and detect tampering", async () => {
@@ -417,5 +472,78 @@ test("independent validator settles an exact worker result", async () => {
       (call) =>
         call.name === "agentpool_v43_resolve_milestone_onchain",
     ),
+  );
+});
+
+test("a restarted validator skips results that already have a settlement notice", async () => {
+  const worker = address(1);
+  const validator = address(2);
+  const jobId = `0x${"cd".repeat(32)}`;
+  const opportunityId = "job:already-settled";
+  const events = [
+    {
+      id: "evt:old-terms",
+      eventType: "JOB_TERMS",
+      opportunityId,
+      body: {
+        payload: {
+          jobId,
+          milestone: 0,
+          workerAddress: worker,
+          validatorAddress: validator,
+          expectedDelivery: "done",
+          proofText: "proof",
+          recipients: [worker, validator],
+          amountsApool: ["1", "0.1"],
+          deadline: Math.floor(Date.now() / 1000) + 3600,
+        },
+      },
+      createdAt: 1,
+      expiresAt: Date.now() + 60_000,
+    },
+    {
+      id: "evt:old-result",
+      eventType: "RESULT_AVAILABLE",
+      opportunityId,
+      actorAddress: worker,
+      body: { payload: { result: "done" } },
+      createdAt: 2,
+      expiresAt: Date.now() + 60_000,
+    },
+    {
+      id: "evt:old-settlement",
+      eventType: "SETTLEMENT_RECEIPT",
+      opportunityId,
+      actorAddress: validator,
+      body: {
+        payload: {
+          jobId,
+          milestone: 0,
+          settlementTransactionHash: `0x${"12".repeat(32)}`,
+        },
+      },
+      createdAt: 3,
+      expiresAt: Date.now() + 60_000,
+    },
+  ];
+  const mcp = relayMcp(events);
+  const state = newRunnerState();
+  const outcome = await runValidatorCycle({
+    config: { roles: ["VALIDATOR"] },
+    mcp,
+    state,
+    wallet: { address: validator },
+  });
+  assert.deepEqual(outcome.outcomes, []);
+  assert.equal(
+    mcp.calls.some(
+      (call) =>
+        call.name === "agentpool_v43_resolve_milestone_onchain",
+    ),
+    false,
+  );
+  assert.equal(
+    state.autonomy.validations["evt:old-result"].stage,
+    "SETTLED",
   );
 });

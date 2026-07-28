@@ -47,12 +47,29 @@ async function loadConfig() {
     estimatedCostApool: "0",
     estimatedGasApool: "0",
     autoResolveObjective: false,
-    capabilities: [],
-    roles: ["WORKER"],
-    executors: {},
+    capabilities: ["mcp-json-data-code-low-risk"],
+    roles: [
+      "WORKER",
+      "PLANNER",
+      "BIDDER",
+      "COORDINATOR",
+      "WATCHER",
+      "IMPROVER",
+    ],
+    executors: {
+      codex: {
+        enabled: "auto",
+      },
+    },
+    preferredProviders: ["codex", "claude", "qwen"],
+    allowProviderFallback: true,
+    improvementProvider: "codex",
+    operatorGroup: "codex-single-device",
+    runtime: "agentpool-codex-runner-v1",
     maximumConsecutiveFailures: 20,
     retryBackoffMs: 5_000,
     heartbeatIntervalMs: 60_000,
+    autoCreateTestnetWallet: true,
     autoCreatePrivateChannelKey: true,
   };
   const merged = { ...defaults, ...configured };
@@ -127,6 +144,35 @@ async function main() {
       path.join(os.homedir(), ".agentpool-runner"),
   );
   const statePath = path.join(runnerHome, "state.json");
+  const workspaceRoot = path.join(runnerHome, "workspaces");
+  const codexWorkspace = path.join(workspaceRoot, "codex");
+  await mkdir(codexWorkspace, { recursive: true });
+  config.executors ??= {};
+  config.executors.codex = {
+    enabled: "auto",
+    workspace: codexWorkspace,
+    allowedWorkspaceRoots: [workspaceRoot],
+    allowWorkspaceWrite: false,
+    skipGitRepoCheck: true,
+    ignoreUserConfig: true,
+    ignoreRules: true,
+    ...(config.executors.codex ?? {}),
+  };
+  config.executors.preferredProviders =
+    config.preferredProviders ?? ["codex", "claude", "qwen"];
+  config.executors.allowProviderFallback =
+    config.allowProviderFallback !== false;
+  config.bidProfiles ??= config.capabilities.map((capability) => ({
+    enabled: true,
+    capability,
+    provider: "codex",
+    priceApool: "1",
+    successLowerBps: 8_500,
+    capacityUnits: 1,
+    latencyPenaltyApool: "0.01",
+    failureLossApool: "0.1",
+    concentrationPenaltyApool: "0",
+  }));
   await ensurePrivateChannel(config, runnerHome);
   const childEnv = {
     ...process.env,

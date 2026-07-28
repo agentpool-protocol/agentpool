@@ -155,7 +155,131 @@ test("a fresh device identity is registered before polling paid work", async () 
     "external-device-group",
   );
   assert.equal(result.wallet.registered, true);
-  assert.ok(result.onboarding.transactionHash);
+  assert.ok(result.onboarding.registration.transactionHash);
+});
+
+test("a zero-context runner creates a disposable testnet wallet before onboarding", async () => {
+  const calls = [];
+  let configured = false;
+  const mcp = {
+    calls,
+    async call(name, args) {
+      calls.push({ name, args });
+      if (name === "agentpool_v43_wallet_status") {
+        return configured
+          ? {
+              configured: true,
+              address: worker,
+              testnetOnly: true,
+              registered: true,
+              baseSepoliaEth: "0",
+            }
+          : {
+              configured: false,
+              testnetOnly: true,
+            };
+      }
+      if (name === "agentpool_v43_create_test_wallet") {
+        configured = true;
+        return {
+          created: true,
+          address: worker,
+          walletPath: "C:/device-local/wallet.json",
+          faucetGuide: "https://docs.base.org/faucets",
+        };
+      }
+      if (name === "agentpool_v43_shared_coordination") {
+        return { events: [] };
+      }
+      throw new Error(`UNEXPECTED_TOOL:${name}`);
+    },
+  };
+  const result = await runRunnerCycle({
+    config: {
+      autoCreateTestnetWallet: true,
+    },
+    mcp,
+    state: newRunnerState(),
+    fetchChainSnapshot: async () => ({ activity: [] }),
+  });
+  assert.deepEqual(
+    calls.map((call) => call.name),
+    [
+      "agentpool_v43_wallet_status",
+      "agentpool_v43_create_test_wallet",
+      "agentpool_v43_wallet_status",
+      "agentpool_v43_shared_coordination",
+    ],
+  );
+  assert.deepEqual(calls[1].args, { confirmTestnetOnly: true });
+  assert.equal(
+    result.onboarding.walletCreated.walletPath,
+    "C:/device-local/wallet.json",
+  );
+  assert.equal(result.wallet.address, worker);
+});
+
+test("a new zero-gas wallet requests test gas before onchain registration", async () => {
+  const calls = [];
+  let configured = false;
+  const mcp = {
+    calls,
+    async call(name, args) {
+      calls.push({ name, args });
+      if (name === "agentpool_v43_wallet_status") {
+        return configured
+          ? {
+              configured: true,
+              address: worker,
+              testnetOnly: true,
+              registered: false,
+              baseSepoliaEth: "0",
+            }
+          : { configured: false, testnetOnly: true };
+      }
+      if (name === "agentpool_v43_create_test_wallet") {
+        configured = true;
+        return {
+          created: true,
+          address: worker,
+          walletPath: "C:/device-local/wallet.json",
+        };
+      }
+      if (name === "agentpool_v43_publish_coordination") {
+        return { id: "evt:gas-request" };
+      }
+      throw new Error(`UNEXPECTED_TOOL:${name}`);
+    },
+  };
+  const result = await runRunnerCycle({
+    config: {
+      autoCreateTestnetWallet: true,
+      minimumGasEth: "0.000001",
+    },
+    mcp,
+    state: newRunnerState(),
+    fetchChainSnapshot: async () => ({ activity: [] }),
+  });
+  assert.deepEqual(
+    calls.map((call) => call.name),
+    [
+      "agentpool_v43_wallet_status",
+      "agentpool_v43_create_test_wallet",
+      "agentpool_v43_wallet_status",
+      "agentpool_v43_publish_coordination",
+    ],
+  );
+  assert.equal(result.outcomes[0].status, "gas-hold");
+  assert.equal(
+    result.onboarding.walletCreated.address,
+    worker,
+  );
+  assert.equal(
+    calls.some(
+      (call) => call.name === "agentpool_v43_register_onchain",
+    ),
+    false,
+  );
 });
 
 test("one Runner cycle autonomously accepts, executes, delivers and settles", async () => {

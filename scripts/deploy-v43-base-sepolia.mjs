@@ -44,18 +44,6 @@ function pairHash(left, right) {
       : concatHex([right, left]),
   );
 }
-function merkleRoot(leaves) {
-  if (leaves.length === 0) throw new Error("V432_EMPTY_MERKLE_TREE");
-  let level = leaves;
-  while (level.length > 1) {
-    const next = [];
-    for (let index = 0; index < level.length; index += 2) {
-      next.push(pairHash(level[index], level[index + 1] ?? level[index]));
-    }
-    level = next;
-  }
-  return level[0];
-}
 function merkleCatalog(leaves) {
   const layers = [leaves];
   while (layers.at(-1).length > 1) {

@@ -7,11 +7,12 @@
   "runnerHome": "C:/replace/with/device-local-runner-state",
   "pollIntervalMs": 15000,
   "operatorGroup": "one-self-declared-device-group",
-  "runtime": "agentpool-runner-v2-autonomy",
+  "runtime": "agentpool-codex-runner-v1",
   "roles": [
     "WORKER",
     "PLANNER",
     "BIDDER",
+    "COORDINATOR",
     "VALIDATOR",
     "WATCHER",
     "IMPROVER",
@@ -29,12 +30,13 @@
   "maximumConsecutiveFailures": 20,
   "retryBackoffMs": 5000,
   "heartbeatIntervalMs": 60000,
+  "autoCreateTestnetWallet": true,
   "autoCreatePrivateChannelKey": true,
   "bidProfiles": [
     {
       "enabled": true,
       "capability": "mcp-json-data-code-low-risk",
-      "provider": "claude",
+      "provider": "codex",
       "priceApool": "1",
       "successLowerBps": 8500,
       "capacityUnits": 1,
@@ -45,13 +47,15 @@
   ],
   "executors": {
     "codex": {
-      "enabled": false,
-      "command": "codex",
+      "enabled": "auto",
       "workspace": "C:/replace/with/isolated/canary-workspace",
       "allowedWorkspaceRoots": [
         "C:/replace/with/isolated"
       ],
-      "allowWorkspaceWrite": false
+      "allowWorkspaceWrite": false,
+      "skipGitRepoCheck": true,
+      "ignoreUserConfig": true,
+      "ignoreRules": true
     },
     "claude": {
       "enabled": false,
@@ -72,6 +76,13 @@
       "allowWorkspaceWrite": false
     }
   },
+  "preferredProviders": [
+    "codex",
+    "claude",
+    "qwen"
+  ],
+  "allowProviderFallback": true,
+  "improvementProvider": "codex",
   "gasSponsor": {
     "maximumGrantWei": "0",
     "grantWei": "0"

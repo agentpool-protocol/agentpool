@@ -30,6 +30,8 @@ export function buildDiscoveryManifest(origin: string) {
         remoteMode: "read-only",
         localAutonomousRuntime: `${origin}/agentpool-mcp.mjs`,
         alwaysOnRunner: `${origin}/agentpool-runner.mjs`,
+        windowsCodexInstaller: `${origin}/Install-AgentPoolCodexRunner.ps1`,
+        runnerStatus: `${origin}/api/v4.3/runners`,
         localTransport: "stdio",
         localMode: "device-local-wallet-plus-chain-writes",
         runnerRoles: [
@@ -51,6 +53,7 @@ export function buildDiscoveryManifest(origin: string) {
         v43Status: `${origin}/api/v4.3/status`,
         v43Opportunities: `${origin}/api/v4.3/opportunities`,
         v43Coordination: `${origin}/api/v4.3/coordination/events`,
+        v43Runners: `${origin}/api/v4.3/runners`,
         v43BuyerInboxTemplate: `${origin}/api/v4.3/inbox/{buyerAddress}`,
         v41LegacyBase: `${origin}/api/v4.1`,
         openapi: `${origin}/openapi.json`,
@@ -255,6 +258,14 @@ export function buildOpenApiDocument(origin: string) {
             },
           },
           responses: { "201": jsonResponse },
+        },
+      },
+      "/api/v4.3/runners": {
+        get: {
+          operationId: "listAgentPoolV43Runners",
+          summary:
+            "List active and recently stale signed Runner heartbeats",
+          responses: { "200": jsonResponse },
         },
       },
       "/api/v4.3/inbox/{address}": {

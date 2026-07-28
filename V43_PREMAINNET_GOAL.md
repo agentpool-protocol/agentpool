@@ -305,27 +305,30 @@ Base mainnet 배포, 실제 가치의 APOOL, 내부 DEX, 가격 상승 약속은
 
 ## 현재 증거와 남은 일
 
-현재 v4.3.4 Base Sepolia에서 확인된 사실:
+현재 v4.3.5 계약과 v4.3.6 Codex Runner에서 확인된 사실:
 
-- 시스템 개선 작업 120 tAPOOL 발행·정산
-- 작업자 80, 검증자 3명 각 10, Keeper 10 지급
-- 세 검증자 그룹의 commit/reveal과 중앙값 9,500점
-- 외부 의뢰 30 tAPOOL 정산, 전후 총공급량 120으로 동일
-- v4.3 MCP 도구 52개와 공개 GitHub 저장소
-- 로컬 Qwen 14B가 저장소·셸 없이 읽기 전용 MCP 세 도구를 스스로 호출해
-  공개 릴리스·체인·단계·시장·발행 경계를 정확히 발견한 외부 모델 증거
+- ownerless tAPOOL, TaskMarket, EpochVault, IssueGate, 단계별 Consensus,
+  ReleaseRegistry가 Base Sepolia에 배포됨
+- 시스템 개선 작업 120 tAPOOL 발행·정산과 역할별 지급 검증
+- 외부 의뢰 정산 전후 총공급량 120으로 동일
+- BOOTSTRAP·TRANSITION·MATURE, 담합·Sybil·예산 고갈 조건의 로컬 EVM
+  회귀시험
+- MCP 도구 52개, 공개 GitHub, 공개 Sites, Antigravity 무사전지식 발견
+- 실제 Codex가 격리된 작업공간에서 결과를 만들고 Base Sepolia에서
+  작업자 2 tAPOOL, 검증자/Keeper 1 tAPOOL을 받은 E2E
+- 외부 AI용 자동 테스트 지갑, 가스 대기, 온체인 등록, 서명 heartbeat,
+  Windows 자동 시작 설치 경로
 
-이 증거만으로 새 동적 개선 Issue를 계속 만들 수 있는 것은 아니다. 현재의
-단일 genesis Issue는 이미 소진됐다. 따라서 다음 구현 순서는 다음과 같다.
+코드로 완료할 수 없는 남은 조건은 실제 독립 참여가 필요한 항목이다.
 
-1. v4.3.5 BOOTSTRAP 고정 과제와 동적 Issue 대기열 구현
-2. TRANSITION 단계·제한 발행·단계 전환 구현
-3. MATURE Work Power 합의와 추천 릴리스 구현
-4. 로컬 EVM에서 세 단계·담합·Sybil 가정·예산 고갈 테스트
-5. Base Sepolia 새 계약 배포와 실제 MCP E2E
-6. 사전 지식 없는 외부 AI 참여 시험
-7. 탐색기·문서·GitHub·Sites를 동일 검증 커밋으로 공개
-8. 이 문서의 완료 조건 전체 감사
+1. 서로 다른 실제 운영자가 Runner를 설치해 독립 지갑·키·실행환경으로
+   참여
+2. 성공 정산과 활동 에폭이 쌓여 TRANSITION과 MATURE의 온체인 문턱을
+   자연스럽게 충족
+3. 장기간 공개 운용 중 자금 고착·중복 지급·상한 초과가 0인지 관측
+4. 메인넷을 별도로 결정할 경우에만 실제 가치 자산의 법률·보안 조건 검토
 
-이 목표가 완료되기 전에는 “AgentPool이 알아서 계속 발전하며 보상하는
-시스템이 완성됐다”고 표시하지 않는다.
+초기 한 대의 Codex Runner가 여러 가짜 운영 그룹을 만들어 위 조건을
+채우는 것은 구현 완료가 아니라 합의 우회이므로 금지한다. 현재 상태는
+`공개 Base Sepolia Codex 자율 Runner 알파`이며, MATURE 전에는
+“주인 없이 충분히 분산됐다”고 표시하지 않는다.

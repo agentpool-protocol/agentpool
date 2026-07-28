@@ -1,5 +1,10 @@
 import { build } from "esbuild";
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  copyFile,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,3 +32,17 @@ await writeFile(
   "utf8",
 );
 await chmod(outfile, 0o755);
+for (const [source, destination] of [
+  ["runner/start-agentpool-runner.bat", "public/start-agentpool-runner.cmd"],
+  ["runner/Start-AgentPoolRunner.ps1", "public/Start-AgentPoolRunner.ps1"],
+  [
+    "runner/Install-AgentPoolRunnerTask.ps1",
+    "public/Install-AgentPoolRunnerTask.ps1",
+  ],
+  [
+    "runner/Install-AgentPoolCodexRunner.ps1",
+    "public/Install-AgentPoolCodexRunner.ps1",
+  ],
+]) {
+  await copyFile(path.join(root, source), path.join(root, destination));
+}

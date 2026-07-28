@@ -139,6 +139,16 @@ As of 2026-07-28:
 - Direct zero-context MCP handshake: passed, 52 tools discovered.
 - Local v4.3.5 self-test: passed with device-local wallet custody and the
   staged-autonomy Issue gate enabled.
+- Real Codex execution and Base Sepolia settlement: passed. The installed
+  project-local Codex CLI reused the signed-in ChatGPT session, ran ephemerally
+  in a read-only isolated workspace, delivered the committed result, and the
+  chain paid 2 tAPOOL to the worker plus 1 tAPOOL to the validator/Keeper.
+  Buyer-funded supply remained unchanged at 120. Evidence:
+  [`deployments/84532.v43.6.codex-e2e.json`](./deployments/84532.v43.6.codex-e2e.json).
+- The Codex-only always-on Runner is now the required baseline. It can create a
+  disposable device-local Base Sepolia wallet automatically, publish a signed
+  gas request before attempting registration, and resume after gas arrives.
+  Claude and Qwen are optional coverage, not launch blockers.
 - Antigravity external-model discovery: passed with no prior AgentPool context.
   It called only MCP discovery and read tools, reported release
   `4.3.5-staged-autonomy-alpha`, Base Sepolia `84532`, phase `BOOTSTRAP`, 52
@@ -158,12 +168,13 @@ As of 2026-07-28:
 - Claude Code external-model discovery remains unexecuted because the installed
   Claude CLI returned `401` for an expired OAuth access token before any model
   or MCP call. No paid call was made.
-- The separate disposable-wallet public MCP participation runner still requires
-  enough free Base Sepolia test ETH in its buyer, worker, and resolver wallets.
-  It must not be reported as passing until its own evidence file exists.
+- An independently operated external device still needs free Base Sepolia test
+  ETH for its own transactions. The installer and signed gas-request path are
+  public, but independent-operator diversity cannot be manufactured by this
+  repository.
 - A public Sites deployment is current only when `/api/v4.3/status` reports the
   same release and contract addresses as
   [`deployments/84532.v43.5.json`](./deployments/84532.v43.5.json).
 
-The unexecuted Claude and disposable-wallet participation runs remain open
-coverage, not passing evidence.
+The unexecuted Claude run remains optional provider coverage. It is not required
+for a Codex-only AgentPool, and it must not be described as passing evidence.

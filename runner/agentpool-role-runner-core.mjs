@@ -500,6 +500,23 @@ export async function runValidatorCycle({
     );
     if (!termsEvent) continue;
     const terms = unwrapCoordinationEvent(termsEvent);
+    const settledNotice = (related.events ?? []).find((event) => {
+      if (event.eventType !== RUNNER_EVENT_TYPES.settlement) return false;
+      const payload = unwrapCoordinationEvent(event);
+      return (
+        String(payload.jobId).toLowerCase() ===
+          String(terms.jobId).toLowerCase() &&
+        Number(payload.milestone ?? 0) === Number(terms.milestone ?? 0)
+      );
+    });
+    if (settledNotice) {
+      local.validations[resultEvent.id] = {
+        stage: "SETTLED",
+        settlementEventId: settledNotice.id,
+        updatedAt: now,
+      };
+      continue;
+    }
     if (
       String(terms.validatorAddress).toLowerCase() !==
       String(wallet.address).toLowerCase()

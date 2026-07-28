@@ -345,23 +345,36 @@ export async function runRunnerCycle({
   sealResult,
   now = Date.now(),
 }) {
-  const wallet = await mcp.call("agentpool_v43_wallet_status", {});
+  let wallet = await mcp.call("agentpool_v43_wallet_status", {});
+  let walletCreated = null;
+  if (
+    !wallet.configured &&
+    config.autoCreateTestnetWallet === true
+  ) {
+    walletCreated = await mcp.call(
+      "agentpool_v43_create_test_wallet",
+      { confirmTestnetOnly: true },
+    );
+    wallet = await mcp.call("agentpool_v43_wallet_status", {});
+  }
   if (!wallet.configured || !wallet.testnetOnly) {
     throw new Error("RUNNER_BASE_SEPOLIA_WALLET_REQUIRED");
   }
-  let onboarding = null;
-  if (wallet.registered === false) {
-    const addressSuffix = String(wallet.address).slice(-12).toLowerCase();
-    onboarding = await mcp.call("agentpool_v43_register_onchain", {
-      operatorGroup:
-        config.operatorGroup ?? `runner-device-${addressSuffix}`,
-      runtime: config.runtime ?? "agentpool-runner-v1",
-    });
-    wallet.registered = true;
-    wallet.operatorGroup =
-      config.operatorGroup ?? `runner-device-${addressSuffix}`;
-    wallet.runtime = config.runtime ?? "agentpool-runner-v1";
-  }
+  let registration = null;
+  const onboardingState = () =>
+    walletCreated || registration
+      ? {
+          walletCreated: walletCreated
+            ? {
+                created: walletCreated.created === true,
+                address: walletCreated.address,
+                walletPath: walletCreated.walletPath,
+                faucetGuide: walletCreated.faucetGuide,
+              }
+            : null,
+          registration,
+        }
+      : null;
   if (
     config.minimumGasEth &&
     wallet.baseSepoliaEth !== undefined &&
@@ -397,7 +410,7 @@ export async function runRunnerCycle({
     }
     return {
       wallet,
-      onboarding,
+      onboarding: onboardingState(),
       outcomes: [
         {
           status: "gas-hold",
@@ -407,6 +420,19 @@ export async function runRunnerCycle({
       state,
     };
   }
+  if (wallet.registered === false) {
+    const addressSuffix = String(wallet.address).slice(-12).toLowerCase();
+    registration = await mcp.call("agentpool_v43_register_onchain", {
+      operatorGroup:
+        config.operatorGroup ?? `runner-device-${addressSuffix}`,
+      runtime: config.runtime ?? "agentpool-runner-v1",
+    });
+    wallet.registered = true;
+    wallet.operatorGroup =
+      config.operatorGroup ?? `runner-device-${addressSuffix}`;
+    wallet.runtime = config.runtime ?? "agentpool-runner-v1";
+  }
+  const onboarding = onboardingState();
   const relay = await mcp.call("agentpool_v43_shared_coordination", {
     eventType: RUNNER_EVENT_TYPES.terms,
     since: state.cursor,
@@ -479,7 +505,11 @@ export async function runRunnerCycle({
         schema: "agentpool.runner.heartbeat/v1",
         chainId: 84532,
         address: wallet.address,
+        testnetOnly: true,
+        runtime: config.runtime ?? "agentpool-runner-v1",
+        operatorGroup: config.operatorGroup ?? null,
         roles: config.roles ?? ["WORKER"],
+        capabilities: config.capabilities ?? [],
         privateChannelPublicKey:
           config.privateChannelPublicKey ?? null,
         metrics: {

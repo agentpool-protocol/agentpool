@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   mkdir,
   rm,
@@ -11,6 +12,10 @@ import {
 const PROVIDERS = new Set(["codex", "claude", "qwen"]);
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
+const projectRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 
 function isPathInside(parent, candidate) {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
@@ -32,17 +37,29 @@ function assertWorkspaceAllowed(workspace, allowedRoots) {
 
 function providerArgs(provider, prompt, schemaPath, outputPath, config) {
   if (provider === "codex") {
-    return [
+    const args = [
       "exec",
       "--ephemeral",
       "--sandbox",
       config.allowWorkspaceWrite === true ? "workspace-write" : "read-only",
+    ];
+    if (config.ignoreUserConfig !== false) {
+      args.push("--ignore-user-config");
+    }
+    if (config.ignoreRules !== false) {
+      args.push("--ignore-rules");
+    }
+    if (config.skipGitRepoCheck !== false) {
+      args.push("--skip-git-repo-check");
+    }
+    args.push(
       "--output-schema",
       schemaPath,
       "-o",
       outputPath,
       prompt,
-    ];
+    );
+    return args;
   }
   if (provider === "claude") {
     return [
@@ -70,6 +87,43 @@ function providerArgs(provider, prompt, schemaPath, outputPath, config) {
     ];
   }
   throw new Error("EXECUTOR_PROVIDER_UNSUPPORTED");
+}
+
+export function resolveProviderLaunch(provider, config = {}) {
+  if (!PROVIDERS.has(provider)) {
+    throw new Error("EXECUTOR_PROVIDER_UNSUPPORTED");
+  }
+  if (config.command) {
+    return {
+      command: String(config.command),
+      prefixArgs: Array.isArray(config.commandPrefixArgs)
+        ? config.commandPrefixArgs.map(String)
+        : [],
+      source: "configured",
+    };
+  }
+  if (provider === "codex") {
+    const localCodex = path.join(
+      projectRoot,
+      "node_modules",
+      "@openai",
+      "codex",
+      "bin",
+      "codex.js",
+    );
+    if (fs.existsSync(localCodex)) {
+      return {
+        command: process.execPath,
+        prefixArgs: [localCodex],
+        source: "project-local-codex",
+      };
+    }
+  }
+  return {
+    command: provider,
+    prefixArgs: [],
+    source: "path",
+  };
 }
 
 function parseProviderOutput(provider, stdout, outputFile) {
@@ -181,16 +235,32 @@ export function createExecutionAdapter(config = {}) {
   if (!PROVIDERS.has(provider)) {
     throw new Error("EXECUTOR_PROVIDER_UNSUPPORTED");
   }
-  if (config.enabled !== true) {
+  if (config.enabled !== true && config.enabled !== "auto") {
     return {
       provider,
       available: false,
+      source: "disabled",
       async execute() {
         throw new Error(`EXECUTOR_DISABLED:${provider}`);
       },
     };
   }
-  const command = String(config.command ?? provider);
+  const launch = resolveProviderLaunch(provider, config);
+  if (
+    config.enabled === "auto" &&
+    launch.source === "path" &&
+    provider !== "codex"
+  ) {
+    return {
+      provider,
+      available: false,
+      source: "not-configured",
+      async execute() {
+        throw new Error(`EXECUTOR_UNAVAILABLE:${provider}`);
+      },
+    };
+  }
+  const command = launch.command;
   const workspace = config.workspace
     ? path.resolve(config.workspace)
     : process.cwd();
@@ -198,6 +268,7 @@ export function createExecutionAdapter(config = {}) {
   return {
     provider,
     available: true,
+    source: launch.source,
     async execute(task) {
       const temporary = await fs.promises.mkdtemp(
         path.join(os.tmpdir(), `agentpool-${provider}-`),
@@ -208,8 +279,24 @@ export function createExecutionAdapter(config = {}) {
         type: "object",
         properties: {
           content: { type: "string" },
-          evidence: { type: "object" },
-          usage: { type: "object" },
+          evidence: {
+            type: "object",
+            properties: {
+              summary: { type: "string" },
+              digest: { type: "string" },
+            },
+            required: ["summary", "digest"],
+            additionalProperties: false,
+          },
+          usage: {
+            type: "object",
+            properties: {
+              mode: { type: "string" },
+              units: { type: "number" },
+            },
+            required: ["mode", "units"],
+            additionalProperties: false,
+          },
         },
         required: ["content", "evidence", "usage"],
         additionalProperties: false,
@@ -217,7 +304,7 @@ export function createExecutionAdapter(config = {}) {
       await mkdir(temporary, { recursive: true });
       await writeFile(schemaPath, JSON.stringify(schema), "utf8");
       const prompt = buildExecutorPrompt(task);
-      const args = Array.isArray(config.args)
+      const generatedArgs = Array.isArray(config.args)
         ? config.args.map((item) =>
             String(item)
               .replaceAll("{prompt}", prompt)
@@ -225,6 +312,7 @@ export function createExecutionAdapter(config = {}) {
               .replaceAll("{output}", outputPath),
           )
         : providerArgs(provider, prompt, schemaPath, outputPath, config);
+      const args = [...launch.prefixArgs, ...generatedArgs];
       try {
         const result = await runProcess(command, args, {
           cwd: workspace,
@@ -266,18 +354,50 @@ export function createExecutorRegistry(config = {}) {
     });
     adapters.set(provider, adapter);
   }
+  const preferredProviders = Array.isArray(config.preferredProviders)
+    ? config.preferredProviders.map((provider) =>
+        String(provider).toLowerCase(),
+      )
+    : ["codex", "claude", "qwen"];
   return {
     providers() {
-      return [...adapters.values()].map(({ provider, available }) => ({
+      return [...adapters.values()].map(({ provider, available, source }) => ({
         provider,
         available,
+        source,
       }));
     },
     async execute(task) {
-      const provider = String(task.provider ?? "").toLowerCase();
-      const adapter = adapters.get(provider);
+      const requestedProvider = String(task.provider ?? "").toLowerCase();
+      let provider = requestedProvider;
+      let adapter = adapters.get(provider);
+      if (
+        (!adapter?.available || !provider) &&
+        task.providerRequired !== true &&
+        config.allowProviderFallback !== false
+      ) {
+        provider =
+          preferredProviders.find(
+            (candidate) => adapters.get(candidate)?.available,
+          ) ?? "";
+        adapter = adapters.get(provider);
+      }
       if (!adapter) throw new Error("EXECUTOR_PROVIDER_UNSUPPORTED");
-      return adapter.execute(task);
+      if (!adapter.available) {
+        throw new Error(`EXECUTOR_UNAVAILABLE:${requestedProvider}`);
+      }
+      const result = await adapter.execute({ ...task, provider });
+      if (provider && provider !== requestedProvider) {
+        result.evidence = {
+          ...result.evidence,
+          routing: {
+            requestedProvider: requestedProvider || null,
+            actualProvider: provider,
+            fallback: true,
+          },
+        };
+      }
+      return result;
     },
   };
 }
