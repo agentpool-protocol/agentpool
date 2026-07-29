@@ -15,8 +15,8 @@ import {
   ZERO_ADDRESS,
   artifact,
   loadAndValidateConfig,
+  loadAndValidateGates,
   requireEnv,
-  sha256File,
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
 
@@ -34,7 +34,7 @@ if (
   throw new Error("V44_MANIFEST_INVALID");
 }
 const configEvidence = loadAndValidateConfig();
-const gatesPath = path.join(ROOT, "mainnet-v44-gates.json");
+const gateEvidence = loadAndValidateGates();
 const rpcUrl = requireEnv("AGENTPOOL_MAINNET_RPC_URL");
 const client = createPublicClient({
   chain: base,
@@ -82,7 +82,7 @@ check(
 );
 check(
   "manifest.gatesSha256",
-  sha256File(gatesPath),
+  gateEvidence.gatesSha256,
   manifest.gatesSha256,
 );
 check(

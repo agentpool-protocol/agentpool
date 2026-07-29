@@ -49,8 +49,11 @@ v4.4 APOOL token.
 
 ## Evidence gates
 
-`mainnet-v44-gates.json` is intentionally committed with every gate blocked.
-Changing a gate to `approved` requires a 64-character SHA-256 digest of the
+`mainnet-v44-gates.json` is an intentionally blocked, tracked template. Never
+put approvals into that file: doing so would change the source commit after its
+reproducibility hash was calculated. Copy it to the ignored
+`.mainnet-v44-gates.local.json`, set `V44_GATES_FILE` to that path, and change a
+gate to `approved` only after recording the 64-character SHA-256 digest of the
 actual evidence. The same digest must be supplied independently in
 `.env.v44.mainnet.local`.
 
@@ -69,8 +72,10 @@ Required evidence:
    conduct it introduces. This creates no AgentPool operator or runtime owner.
 7. AgentPool/APOOL name and symbol clearance.
 
-The script refuses deployment if one gate is blocked, a digest differs, the
-tracked worktree is dirty, or `V44_SOURCE_COMMIT` is not the current `HEAD`.
+The script refuses deployment if the local gate file is missing, one gate is
+blocked, a digest differs, the tracked worktree is dirty, or
+`V44_SOURCE_COMMIT` is not the current `HEAD`. Because the approval file is
+ignored, approving evidence cannot mutate the source commit it attests.
 
 ## Mainnet inputs
 

@@ -33,6 +33,7 @@ yarn-error.log*
 !.env.example
 !.env.wallets.example
 !.env.v44.mainnet.example
+/.mainnet-v44-gates.local.json
 
 # vercel
 .vercel

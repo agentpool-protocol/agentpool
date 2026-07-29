@@ -263,9 +263,16 @@ function envNameForGate(gateName) {
 
 export function loadAndValidateGates(
   env = process.env,
-  filePath = path.join(ROOT, "mainnet-v44-gates.json"),
+  filePath = null,
 ) {
-  const gates = readJson(filePath);
+  const configuredPath =
+    filePath ??
+    env.V44_GATES_FILE?.trim() ??
+    path.join(ROOT, "mainnet-v44-gates.json");
+  const resolvedPath = path.isAbsolute(configuredPath)
+    ? configuredPath
+    : path.resolve(ROOT, configuredPath);
+  const gates = readJson(resolvedPath);
   if (
     gates.schema !== "agentpool.mainnet.v44.gates/v1" ||
     gates.chainId !== CHAIN_ID ||
@@ -297,8 +304,8 @@ export function loadAndValidateGates(
   }
   return {
     gates,
-    gatesPath: filePath,
-    gatesSha256: sha256File(filePath),
+    gatesPath: resolvedPath,
+    gatesSha256: sha256File(resolvedPath),
     approved,
   };
 }

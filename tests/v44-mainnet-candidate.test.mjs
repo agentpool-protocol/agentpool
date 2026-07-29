@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { keccak256, toBytes } from "viem";
@@ -157,6 +158,41 @@ test("v4.4 mainnet gates fail closed while evidence is blocked", () => {
       (gate) => gate.status === "blocked" && gate.evidenceSha256 === null,
     ),
   );
+});
+
+test("approved mainnet gates stay outside the source commit", () => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "agentpool-v44-gates-"),
+  );
+  const gatesPath = path.join(temporaryDirectory, "approved-gates.json");
+  const gates = JSON.parse(source("mainnet-v44-gates.json"));
+  const env = { V44_GATES_FILE: gatesPath };
+  try {
+    for (const [name, gate] of Object.entries(gates.gates)) {
+      const evidenceSha256 = keccak256(toBytes(`evidence:${name}`)).slice(2);
+      gate.status = "approved";
+      gate.evidenceSha256 = evidenceSha256;
+      const envName = `V44_GATE_${name
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .toUpperCase()}_SHA256`;
+      env[envName] = evidenceSha256;
+    }
+    fs.writeFileSync(gatesPath, JSON.stringify(gates), "utf8");
+    const approved = loadAndValidateGates(env);
+    assert.equal(approved.gatesPath, gatesPath);
+    assert.equal(
+      Object.keys(approved.approved).length,
+      Object.keys(gates.gates).length,
+    );
+
+    env.V44_GATE_FINAL_SOURCE_REPRODUCIBILITY_SHA256 = "00".repeat(32);
+    assert.throws(
+      () => loadAndValidateGates(env),
+      /V44_GATE_EVIDENCE_MISMATCH:finalSourceReproducibility/,
+    );
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test("v4.4 release inputs reject shared validator groups", () => {
