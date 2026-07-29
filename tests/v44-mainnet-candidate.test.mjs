@@ -31,6 +31,7 @@ import {
   verifyV44ReleaseEvidence,
   verifyV44ReleaseEvidenceFile,
 } from "../scripts/generate-v44-release-evidence.mjs";
+import { resolveV44ChainProfile } from "../scripts/lib/v44-chain-profile.mjs";
 
 function source(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), "utf8");
@@ -59,6 +60,52 @@ function bootstrapObjectiveCatalog(count = 24) {
     filePath,
     sha256: sha256File(filePath),
   };
+}
+
+function gateEvidence(name) {
+  const sourceCommit = currentGitCommit();
+  if (name === "finalSourceReproducibility") {
+    return buildV44ReleaseEvidence({ requireClean: false });
+  }
+  const common = {
+    release: VERSION,
+    sourceCommit,
+    targetChainId: 8453,
+    decision: "approved",
+  };
+  const schemas = {
+    independentSecurityReview:
+      "agentpool.mainnet.v44.independent-security-review/v1",
+    publicTestnetReliability:
+      "agentpool.mainnet.v44.public-testnet-reliability/v1",
+    validatorIndependence:
+      "agentpool.mainnet.v44.validator-independence/v1",
+    economicInvariantReview:
+      "agentpool.mainnet.v44.economic-invariant-review/v1",
+    deployerLegalAssessment:
+      "agentpool.mainnet.v44.deployer-legal-assessment/v1",
+    nameAndSymbolClearance:
+      "agentpool.mainnet.v44.name-symbol-clearance/v1",
+  };
+  const evidence = { schema: schemas[name], ...common, gate: name };
+  if (
+    name === "independentSecurityReview" ||
+    name === "economicInvariantReview"
+  ) {
+    evidence.reviewers = ["reviewer-a", "reviewer-b"];
+  } else if (name === "publicTestnetReliability") {
+    evidence.observedChainId = 84532;
+    evidence.eligible = true;
+  } else if (name === "validatorIndependence") {
+    evidence.validators = ["validator-a", "validator-b", "validator-c"];
+  } else if (name === "deployerLegalAssessment") {
+    evidence.actualDeployerAddress =
+      "0x1000000000000000000000000000000000000001";
+    evidence.jurisdictions = ["test-jurisdiction"];
+  } else if (name === "nameAndSymbolClearance") {
+    evidence.conflictsCleared = true;
+  }
+  return evidence;
 }
 
 test("v4.4 mainnet token has zero premint and only two bounded minters", () => {
@@ -260,8 +307,12 @@ test("approved mainnet gates stay outside the source commit", () => {
   const env = { V44_GATES_FILE: gatesPath };
   try {
     for (const [name, gate] of Object.entries(gates.gates)) {
-      const evidencePath = path.join(temporaryDirectory, `${name}.txt`);
-      fs.writeFileSync(evidencePath, `evidence:${name}\n`, "utf8");
+      const evidencePath = path.join(temporaryDirectory, `${name}.json`);
+      fs.writeFileSync(
+        evidencePath,
+        `${JSON.stringify(gateEvidence(name), null, 2)}\n`,
+        "utf8",
+      );
       const evidenceSha256 = sha256File(evidencePath);
       gate.status = "approved";
       gate.evidenceSha256 = evidenceSha256;
@@ -280,7 +331,7 @@ test("approved mainnet gates stay outside the source commit", () => {
     );
     assert.equal(
       approved.evidencePaths.finalSourceReproducibility,
-      path.join(temporaryDirectory, "finalSourceReproducibility.txt"),
+      path.join(temporaryDirectory, "finalSourceReproducibility.json"),
     );
 
     env.V44_GATE_FINAL_SOURCE_REPRODUCIBILITY_SHA256 = "ff".repeat(32);
@@ -302,8 +353,12 @@ test("v4.4 mainnet gate set and file evidence cannot be self-declared away", () 
   const env = { V44_GATES_FILE: gatesPath };
   try {
     for (const [name, gate] of Object.entries(gates.gates)) {
-      const evidencePath = path.join(temporaryDirectory, `${name}.txt`);
-      fs.writeFileSync(evidencePath, `review:${name}\n`, "utf8");
+      const evidencePath = path.join(temporaryDirectory, `${name}.json`);
+      fs.writeFileSync(
+        evidencePath,
+        `${JSON.stringify(gateEvidence(name), null, 2)}\n`,
+        "utf8",
+      );
       gate.status = "approved";
       gate.evidenceFile = path.basename(evidencePath);
       gate.evidenceSha256 = sha256File(evidencePath);
@@ -314,6 +369,21 @@ test("v4.4 mainnet gate set and file evidence cannot be self-declared away", () 
     }
     fs.writeFileSync(gatesPath, JSON.stringify(gates), "utf8");
     assert.doesNotThrow(() => loadAndValidateGates(env));
+
+    const reused = structuredClone(gates);
+    reused.gates.independentSecurityReview.evidenceFile =
+      reused.gates.finalSourceReproducibility.evidenceFile;
+    reused.gates.independentSecurityReview.evidenceSha256 =
+      reused.gates.finalSourceReproducibility.evidenceSha256;
+    env.V44_GATE_INDEPENDENT_SECURITY_REVIEW_SHA256 =
+      reused.gates.finalSourceReproducibility.evidenceSha256;
+    fs.writeFileSync(gatesPath, JSON.stringify(reused), "utf8");
+    assert.throws(
+      () => loadAndValidateGates(env),
+      /V44_GATE_EVIDENCE_PATH_REUSED:independentSecurityReview/,
+    );
+    env.V44_GATE_INDEPENDENT_SECURITY_REVIEW_SHA256 =
+      gates.gates.independentSecurityReview.evidenceSha256;
 
     const missing = structuredClone(gates);
     delete missing.gates.independentSecurityReview;
@@ -344,7 +414,7 @@ test("v4.4 mainnet gate set and file evidence cannot be self-declared away", () 
 
     fs.writeFileSync(gatesPath, JSON.stringify(gates), "utf8");
     fs.appendFileSync(
-      path.join(temporaryDirectory, "finalSourceReproducibility.txt"),
+      path.join(temporaryDirectory, "finalSourceReproducibility.json"),
       "tampered\n",
       "utf8",
     );
@@ -354,6 +424,29 @@ test("v4.4 mainnet gate set and file evidence cannot be self-declared away", () 
     );
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("every production deployment entrypoint live-recomputes testnet reliability", () => {
+  const helper = source("scripts/lib/v44-testnet-reliability.mjs");
+  assert.match(
+    helper,
+    /export async function verifyPublicTestnetReliabilityGate/,
+  );
+  assert.match(helper, /buildReliabilityReport\(/);
+  assert.match(helper, /sha256Json\(recomputed\) !== sha256File\(reportPath\)/);
+  assert.match(helper, /verifyV44ReleaseEvidenceFile\(sourceEvidencePath\)/);
+  assert.match(helper, /assertTrackedTreeClean\(\)/);
+  for (const script of [
+    "scripts/preflight-v44-base-mainnet.mjs",
+    "scripts/deploy-v44-base-mainnet.mjs",
+    "scripts/verify-v44-base-mainnet.mjs",
+  ]) {
+    assert.match(
+      source(script),
+      /await verifyPublicTestnetReliabilityGate\(\{ gateEvidence \}\)/,
+      script,
+    );
   }
 });
 
@@ -591,17 +684,37 @@ test("v4.4 public deployment evidence never publishes bootstrap answers", () => 
     /bootstrap: redactBootstrapSecrets\(state\.bootstrap\)/,
   );
   assert.match(source(".gitignore"), /deployments\/8453\.v44\.partial\.json/);
+  assert.match(source(".gitignore"), /deployments\/84532\.v44\.partial\.json/);
 });
 
-test("v4.4 deployment path is Base-mainnet-only and excludes test mocks", () => {
+test("v4.4 deployment engine defaults to Base mainnet and testnet requires an explicit acknowledgement", () => {
   const deploy = source("scripts/deploy-v44-base-mainnet.mjs");
   const preflight = source("scripts/preflight-v44-base-mainnet.mjs");
   const verify = source("scripts/verify-v44-base-mainnet.mjs");
   const helper = source("scripts/lib/v44-mainnet.mjs");
-  for (const script of [deploy, preflight, verify]) {
-    assert.match(script, /from "viem\/chains"/);
-    assert.doesNotMatch(script, /baseSepolia|84532|MockRandomness|mock verifier/i);
-  }
+  const profileHelper = source("scripts/lib/v44-chain-profile.mjs");
+  const defaultProfile = resolveV44ChainProfile({});
+  assert.equal(defaultProfile.id, "mainnet");
+  assert.equal(defaultProfile.chainId, 8453);
+  assert.equal(defaultProfile.requireReleaseGates, true);
+  assert.throws(
+    () => resolveV44ChainProfile({ V44_DEPLOYMENT_PROFILE: "testnet" }),
+    /V44_TESTNET_ONLY_ACK_REQUIRED/u,
+  );
+  const testnetProfile = resolveV44ChainProfile({
+    V44_DEPLOYMENT_PROFILE: "testnet",
+    V44_TESTNET_ONLY_ACK:
+      "I_UNDERSTAND_THIS_IS_VALUELESS_BASE_SEPOLIA",
+  });
+  assert.equal(testnetProfile.chainId, 84532);
+  assert.equal(testnetProfile.requireReleaseGates, false);
+  assert.equal(testnetProfile.testnetOnly, true);
+  assert.match(profileHelper, /AGENTPOOL_MAINNET_RPC_URL/);
+  assert.match(profileHelper, /AGENTPOOL_V44_TESTNET_RPC_URL/);
+  assert.doesNotMatch(
+    [deploy, preflight, verify].join("\n"),
+    /MockRandomness|mock verifier/i,
+  );
   assert.match(deploy, /AgentPoolV44Token/);
   assert.match(deploy, /confirmations: 2/);
   assert.match(deploy, /V44_RESIDUAL_AUTHORITY/);
@@ -611,14 +724,26 @@ test("v4.4 deployment path is Base-mainnet-only and excludes test mocks", () => 
   assert.match(deploy, /transactionIntents/);
   assert.match(deploy, /encodeDeployData/);
   assert.match(deploy, /V44_PARTIAL_DEPLOYMENT_TX_MISSING/);
+  assert.match(profileHelper, /V44_MINIMUM_DEPLOYER_BALANCE_INVALID/);
   assert.match(helper, /V44_UNCERTAIN_BROADCAST/);
+  assert.match(helper, /V44_GIT_INDEX_FLAGGED/);
+  assert.match(helper, /V44_WORKTREE_BLOB_MISMATCH/);
   assert.match(deploy, /blockTag: "pending"/);
   assert.match(verify, /V44_SOURCE_COMMIT_NOT_HEAD/);
   assert.match(verify, /assertTrackedTreeClean\(\)/);
   assert.match(verify, /assertManifestEvidenceClaims/);
   assert.match(verify, /creationTransaction\.currentArtifact/);
   assert.match(verify, /manifest\.transactionSetComplete/);
+  assert.match(verify, /manifest\.contractKeysExact/);
+  assert.match(
+    verify,
+    /bootstrapVerifierCodehashMatchesObjectiveVerifier/,
+  );
   assert.match(verify, /supplyEqualsEpochEmissions/);
+  assert.match(
+    source("scripts/reconcile-v44-mainnet-intent.mjs"),
+    /state\.schemaVersion !== 3/,
+  );
 });
 
 test("v4.4 deployment resume rejects tampered transaction provenance", () => {
@@ -847,7 +972,7 @@ test("v4.4 adoption proves use of the proposed release", () => {
   );
 });
 
-test("v4.4 dynamic candidates lock a refundable admission bond and release their slot", () => {
+test("v4.4 candidates return their bond without reopening lifetime Issue caps", () => {
   const gate = source("contracts/v43/AgentPoolV435SystemIssueGate.sol");
   const market = source("contracts/v43/AgentPoolV432TaskMarket.sol");
   assert.match(
@@ -856,11 +981,19 @@ test("v4.4 dynamic candidates lock a refundable admission bond and release their
   );
   assert.match(
     gate,
-    /ledger\.votingPowerAt\(proposer, snapshotEpoch, 8\) == 0/,
+    /ledger\.votingPowerAt\([\s\S]*proposer,[\s\S]*snapshotEpoch,[\s\S]*8[\s\S]*\) == 0/,
   );
   assert.match(gate, /function releaseFor\(/);
-  assert.match(gate, /current\.committedBudget -= budget/);
-  assert.match(gate, /current\.candidates--/);
+  assert.match(
+    gate,
+    /candidateFinalized\[issueId\]\[operatorGroup\] = true/,
+  );
+  assert.doesNotMatch(gate, /current\.committedBudget -= budget/);
+  assert.doesNotMatch(gate, /current\.candidates--/);
+  assert.doesNotMatch(
+    gate,
+    /groupUsed\[issueId\]\[operatorGroup\] = false/,
+  );
   assert.match(gate, /token\.safeTransfer\(proposer, returnedBond\)/);
   assert.equal(
     market.match(/_releaseIssueAdmission\(job\);/g)?.length,
@@ -870,6 +1003,79 @@ test("v4.4 dynamic candidates lock a refundable admission bond and release their
     source("scripts/rehearse-v43-public-testnet.mjs"),
     /returns the dynamic candidate admission bond/,
   );
+  assert.match(
+    source("scripts/rehearse-v44-full-mainnet-candidate.mjs"),
+    /sameFiniteIssueCannotBeReplayed/,
+  );
+});
+
+test("v4.4 expiry preserves a completed validator rejection", () => {
+  const market = source("contracts/v43/AgentPoolV432TaskMarket.sol");
+  assert.match(
+    market,
+    /uint8 proofStatus = proofRegistryV2\.resolutionStatus\(/,
+  );
+  assert.match(
+    market,
+    /if \(proofStatus == 2\) \{[\s\S]*MilestoneState\.REJECTED,[\s\S]*JobState\.REJECTED/,
+  );
+  assert.match(
+    source("scripts/rehearse-v44-full-mainnet-candidate.mjs"),
+    /expiredValidatorRejectionSlashesBond/,
+  );
+});
+
+test("v4.4 bootstrap readiness cannot manufacture binding Work Power", () => {
+  const ledger = source("contracts/v43/AgentPoolV43ContributionLedger.sol");
+  const router = source("contracts/v43/AgentPoolV43SettlementRouter.sol");
+  const market = source("contracts/v43/AgentPoolV432TaskMarket.sol");
+  const transition = source(
+    "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
+  );
+  assert.match(
+    ledger,
+    /function recordBootstrapPerformance\([\s\S]*?_record\([\s\S]*?false[\s\S]*?\);/,
+  );
+  assert.match(
+    router,
+    /function recordBootstrapOutcome\([\s\S]*recordBootstrapPerformance/,
+  );
+  assert.match(
+    market,
+    /jobGovernanceEligible\[jobId\] = !bootstrapAdmitted/,
+  );
+  assert.match(transition, /MerkleProof\.verifyCalldata\(/);
+  assert.match(transition, /MIN_VALIDATOR_VOTERS = 2/);
+  assert.match(transition, /MIN_VALIDATOR_GROUPS = 2/);
+  assert.match(transition, /group == proposal\.proposerGroup/);
+  assert.doesNotMatch(transition, /votingPowerAt\(/);
+  const rehearsal = source(
+    "scripts/rehearse-v44-full-mainnet-candidate.mjs",
+  );
+  assert.match(rehearsal, /bootstrapWorkCreatesNoVotingSettlement/);
+  assert.match(rehearsal, /bootstrapWorkerHasNoWorkPower/);
+  assert.match(
+    source("scripts/rehearse-v43-public-testnet.mjs"),
+    /rejects a deployment validator controlled by the proposer group/,
+  );
+});
+
+test("v4.4 mature governance requires 5 voters, 3 groups, quorum, and exact two-thirds cast support", () => {
+  const issueConsensus = source(
+    "contracts/v43/AgentPoolV432IssueConsensus.sol",
+  );
+  const evolutionConsensus = source(
+    "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
+  );
+  for (const consensus of [issueConsensus, evolutionConsensus]) {
+    assert.match(consensus, /MIN_VOTERS = 5/);
+    assert.match(consensus, /MIN_GROUPS = 3/);
+    assert.match(
+      consensus,
+      /proposal\.voterCount >= MIN_VOTERS[\s\S]*proposal\.groupCount >= MIN_GROUPS[\s\S]*cast \* BPS >= total \* QUORUM_BPS[\s\S]*proposal\.yesWeight\) \* 3 >= cast \* 2/,
+    );
+    assert.doesNotMatch(consensus, /SUPERMAJORITY_BPS = 6_667/);
+  }
 });
 
 test("v4.4 full rehearsal deploys and settles the exact mainnet graph", () => {
@@ -885,7 +1091,8 @@ test("v4.4 full rehearsal deploys and settles the exact mainnet graph", () => {
     /agentpool\.mainnet\.v44\.exact-graph-rehearsal\/v2/,
   );
   assert.match(rehearsal, /exactBootstrap\.jobSettled/);
-  assert.match(rehearsal, /exactBootstrap\.candidateSlotReleased/);
+  assert.match(rehearsal, /exactBootstrap\.lifetimeCandidateConsumed/);
+  assert.match(rehearsal, /exactBootstrap\.sameFiniteIssueCannotBeReplayed/);
 });
 
 test("CI reproduces v4.4 evidence and both mainnet rehearsals", () => {

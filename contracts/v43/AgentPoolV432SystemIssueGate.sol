@@ -96,7 +96,7 @@ contract AgentPoolV432SystemIssueGate is IAgentPoolV432SystemIssueGate {
         uint128 budget,
         address proposer,
         bytes32[] calldata bootstrapProof
-    ) external override {
+    ) external override returns (bool bootstrapAdmitted) {
         if (msg.sender != market) revert Unauthorized();
         bytes32 termsHash = hashIssue(issue);
         if (
@@ -129,7 +129,7 @@ contract AgentPoolV432SystemIssueGate is IAgentPoolV432SystemIssueGate {
                 )
             )
         ) revert InvalidTerms();
-        bool bootstrapAdmitted = MerkleProof.verifyCalldata(
+        bootstrapAdmitted = MerkleProof.verifyCalldata(
             bootstrapProof,
             bootstrapRoot,
             termsHash
@@ -172,6 +172,7 @@ contract AgentPoolV432SystemIssueGate is IAgentPoolV432SystemIssueGate {
             budget,
             current.candidates
         );
+        return bootstrapAdmitted;
     }
 
     function approveIssueHash(bytes32 issueHash) external override {

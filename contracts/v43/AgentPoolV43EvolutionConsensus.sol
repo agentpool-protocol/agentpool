@@ -86,7 +86,8 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
 
     uint16 public constant BPS = 10_000;
     uint16 public constant QUORUM_BPS = 3_000;
-    uint16 public constant SUPERMAJORITY_BPS = 6_667;
+    uint16 public constant MIN_VOTERS = 5;
+    uint16 public constant MIN_GROUPS = 3;
     uint16 public constant MIN_ADOPTIONS = 5;
     uint16 public constant MIN_ADOPTION_GROUPS = 3;
     uint8 public constant CONTRIBUTION_LOOKBACK = 8;
@@ -494,9 +495,10 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             CONTRIBUTION_LOOKBACK
         );
         bool passes =
+            proposal.voterCount >= MIN_VOTERS &&
+            proposal.groupCount >= MIN_GROUPS &&
             cast * BPS >= total * QUORUM_BPS &&
-            uint256(proposal.yesWeight) * BPS >=
-            total * SUPERMAJORITY_BPS;
+            uint256(proposal.yesWeight) * 3 >= cast * 2;
         if (!passes) {
             proposal.state = ProposalState.REJECTED;
             if (!proposal.alreadyProven) {

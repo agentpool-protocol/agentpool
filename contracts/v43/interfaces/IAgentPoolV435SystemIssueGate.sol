@@ -18,6 +18,8 @@ interface IAgentPoolV435SystemIssueGate is
         IssueTerms calldata issue
     ) external;
 
+    function dynamicValidatorRoot() external view returns (bytes32);
+
     function releaseFor(
         bytes32 issueId,
         uint128 budget,

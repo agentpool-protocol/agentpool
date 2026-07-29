@@ -13,10 +13,8 @@ import {
   toBytes,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
 import {
-  CHAIN_ID,
-  NETWORK,
+  CONTRACT_TYPES,
   ROOT,
   VERSION,
   ZERO_ADDRESS,
@@ -37,35 +35,59 @@ import {
   serializeIssue,
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
+import {
+  requireProfileEnvironment,
+  resolveV44ChainProfile,
+} from "./lib/v44-chain-profile.mjs";
 import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
+import {
+  verifyPublicTestnetReliabilityGate,
+} from "./lib/v44-testnet-reliability.mjs";
 
-const manifestPath = path.join(ROOT, "deployments", "8453.v44.json");
-const partialPath = path.join(ROOT, "deployments", "8453.v44.partial.json");
+const profile = resolveV44ChainProfile({
+  ...process.env,
+  V44_DEPLOYMENT_PROFILE: process.argv.includes("--testnet")
+    ? "testnet"
+    : "mainnet",
+});
+const { manifestPath, partialPath } = profile;
 if (fs.existsSync(manifestPath)) throw new Error("V44_ALREADY_DEPLOYED");
 
 assertTrackedTreeClean();
 const configEvidence = loadAndValidateConfig();
-const gateEvidence = loadAndValidateGates();
+const gateEvidence = profile.requireReleaseGates
+  ? loadAndValidateGates()
+  : null;
+if (gateEvidence) {
+  await verifyPublicTestnetReliabilityGate({ gateEvidence });
+}
+const sourceEvidencePath = profile.requireReleaseGates
+  ? gateEvidence.evidencePaths.finalSourceReproducibility
+  : path.resolve(
+      ROOT,
+      requireEnv("V44_SOURCE_EVIDENCE_FILE"),
+    );
 const sourceEvidence = verifyV44ReleaseEvidenceFile(
-  gateEvidence.evidencePaths.finalSourceReproducibility,
+  sourceEvidencePath,
 );
 const config = configEvidence.config;
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
 const releaseInputs = collectReleaseInputs({
   deployerAddress: account.address,
 });
-const rpcUrl = requireEnv("AGENTPOOL_MAINNET_RPC_URL");
+const { rpcUrl, minimumBalance } = requireProfileEnvironment(profile);
 const transport = http(rpcUrl, { timeout: 60_000, retryCount: 4 });
-const client = createPublicClient({ chain: base, transport });
-const wallet = createWalletClient({ account, chain: base, transport });
+const client = createPublicClient({ chain: profile.chain, transport });
+const wallet = createWalletClient({
+  account,
+  chain: profile.chain,
+  transport,
+});
 const actualChainId = await client.getChainId();
-if (actualChainId !== CHAIN_ID) {
+if (actualChainId !== profile.chainId) {
   throw new Error(`V44_CHAIN_MISMATCH:${actualChainId}`);
 }
 const balance = await client.getBalance({ address: account.address });
-const minimumBalance = BigInt(
-  process.env.MIN_V44_DEPLOYER_BALANCE_WEI ?? "10000000000000000",
-);
 if (balance < minimumBalance) {
   throw new Error(
     `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(minimumBalance)}`,
@@ -77,10 +99,11 @@ const existingPartial = fs.existsSync(partialPath)
   : null;
 const deploymentIdentity = {
   version: VERSION,
-  chainId: CHAIN_ID,
+  deploymentProfile: profile.id,
+  chainId: profile.chainId,
   sourceCommit: releaseInputs.sourceCommit,
   configSha256: configEvidence.configSha256,
-  gatesSha256: gateEvidence.gatesSha256,
+  gatesSha256: gateEvidence?.gatesSha256 ?? null,
   deployer: account.address,
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
@@ -92,7 +115,10 @@ if (existingPartial) {
     throw new Error("V44_PARTIAL_SCHEMA_UNSUPPORTED");
   }
   for (const [key, expected] of Object.entries(deploymentIdentity)) {
-    const actual = existingPartial[key];
+    const actual =
+      key === "deploymentProfile" && existingPartial[key] === undefined
+        ? "mainnet"
+        : existingPartial[key];
     const same =
       typeof expected === "string" && typeof actual === "string"
         ? expected.toLowerCase() === actual.toLowerCase()
@@ -104,7 +130,7 @@ if (existingPartial) {
 const state = existingPartial ?? {
   schemaVersion: 3,
   ...deploymentIdentity,
-  network: NETWORK,
+  network: profile.network,
   contracts: {},
   transactionHashes: [],
   deploymentTransactions: {},
@@ -706,16 +732,28 @@ for (const [key, address] of Object.entries(state.contracts)) {
   deployedCodeHashes[key] = keccak256(await assertCode(address, key));
 }
 const artifacts = artifactBytecodeEvidence();
-const manifest = {
-  schema: "agentpool.mainnet.v44.deployment/v3",
+const deploymentReceipts = await Promise.all(
+  Object.values(state.deploymentTransactions).map((hash) =>
+    client.getTransactionReceipt({ hash }),
+  ),
+);
+const deploymentBlock = Number(
+  deploymentReceipts.reduce(
+    (minimum, receipt) =>
+      receipt.blockNumber < minimum ? receipt.blockNumber : minimum,
+    deploymentReceipts[0].blockNumber,
+  ),
+);
+const commonManifest = {
+  schema: profile.manifestSchema,
   version: VERSION,
-  chainId: CHAIN_ID,
-  network: NETWORK,
+  chainId: profile.chainId,
+  network: profile.network,
   phase: "BOOTSTRAP",
   sourceCommit: releaseInputs.sourceCommit,
   configSha256: configEvidence.configSha256,
-  gatesSha256: gateEvidence.gatesSha256,
-  approvedGateEvidence: gateEvidence.approved,
+  gatesSha256: gateEvidence?.gatesSha256 ?? null,
+  approvedGateEvidence: gateEvidence?.approved ?? null,
   sourceEvidenceFileSha256: sourceEvidence.fileSha256,
   sourceEvidenceBodySha256: sourceEvidence.evidence.evidenceSha256,
   bootstrapIdentitySha256: deploymentIdentity.bootstrapIdentitySha256,
@@ -748,6 +786,25 @@ const manifest = {
   gasUsed: gasUsed.toString(),
   deployedAt: new Date().toISOString(),
 };
+const manifest = profile.testnetOnly
+  ? {
+      ...commonManifest,
+      schema: profile.manifestSchema,
+      release: VERSION,
+      sourceEvidenceSha256:
+        sourceEvidence.evidence.evidenceSha256,
+      deploymentBlock,
+      bootstrapRoot: state.bootstrap.issueRoot,
+      dynamicValidatorRoot: state.bootstrap.validatorRoot,
+      artifactTypes: { ...CONTRACT_TYPES },
+      artifactCreationBytecodeHashes: Object.fromEntries(
+        Object.entries(artifacts).map(([type, evidence]) => [
+          type,
+          evidence.creationBytecodeHash,
+        ]),
+      ),
+    }
+  : commonManifest;
 manifest.manifestSha256 = sha256Json(manifest);
 fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
@@ -758,8 +815,10 @@ process.stdout.write(
     {
       ok: true,
       version: VERSION,
-      network: NETWORK,
-      chainId: CHAIN_ID,
+      deploymentProfile: profile.id,
+      testnetOnly: profile.testnetOnly,
+      network: profile.network,
+      chainId: profile.chainId,
       phase: "BOOTSTRAP",
       sourceCommit: releaseInputs.sourceCommit,
       contracts: manifest.contracts,

@@ -702,8 +702,8 @@ const usage = await read(
   "usage",
   [bootstrap.issue.issueId],
 );
-check("exactBootstrap.candidateSlotReleased", usage[2], 0);
-check("exactBootstrap.reservedBudgetReleased", usage[1], 0n);
+check("exactBootstrap.lifetimeCandidateConsumed", usage[2], 1);
+check("exactBootstrap.lifetimeBudgetConsumed", usage[1], budget);
 check(
   "exactBootstrap.vaultReservationReleased",
   await read("AgentPoolV43EpochVault", evolutionVault, "totalReserved"),
@@ -713,6 +713,64 @@ check(
   "exactBootstrap.noCandidateBondWasNeededBeforeEmission",
   await read("AgentPoolV44Token", token, "balanceOf", [systemIssueGate]),
   0n,
+);
+check(
+  "exactBootstrap.bootstrapWorkCreatesNoVotingSettlement",
+  await read(
+    "AgentPoolV43ContributionLedger",
+    ledger,
+    "successfulSettlementCount",
+  ),
+  0n,
+);
+check(
+  "exactBootstrap.bootstrapWorkIsCountedOnlyForReadiness",
+  await read(
+    "AgentPoolV43ContributionLedger",
+    ledger,
+    "bootstrapSuccessfulSettlementCount",
+  ),
+  BigInt(terms.length),
+);
+check(
+  "exactBootstrap.bootstrapWorkerHasNoWorkPower",
+  await read(
+    "AgentPoolV43ContributionLedger",
+    ledger,
+    "votingPowerAt",
+    [
+      worker,
+      await read(
+        "AgentPoolV43ContributionLedger",
+        ledger,
+        "currentEpoch",
+      ),
+      8,
+    ],
+  ),
+  0n,
+);
+await expectRevert(
+  "exactBootstrap.sameFiniteIssueCannotBeReplayed",
+  () =>
+    write(
+      "AgentPoolV432TaskMarket",
+      taskMarket,
+      "createSystemJobV2",
+      [
+        3,
+        budget,
+        planHash,
+        genesisRelease,
+        bootstrap.issue,
+        [],
+        terms,
+        policies,
+        dependencies,
+        objectiveProofs,
+      ],
+    ),
+  "revert",
 );
 
 const unregisteredEvidence = deterministicEvidence("v44-unregistered-worker");
@@ -941,6 +999,170 @@ check(
 );
 check(
   "external.noQuorumNeverMints",
+  await read("AgentPoolV44Token", token, "totalSupply"),
+  budget,
+);
+
+const rejectedEvidence = deterministicEvidence(
+  "v44-expired-validator-rejection",
+);
+const rejectedPlan = keccak256(
+  toBytes("v44-expired-validator-rejection-plan"),
+);
+const rejectedNonce = await read(
+  "AgentPoolV432TaskMarket",
+  taskMarket,
+  "nextJobNonce",
+);
+const rejectedJobId = jobIdFor(
+  taskMarket,
+  deployer,
+  rejectedNonce,
+  rejectedPlan,
+);
+const rejectedTerms = [
+  {
+    worker: initiallyUnregisteredWorker,
+    verifier,
+    capability,
+    specificationHash: rejectedEvidence.specificationHash,
+    expectedEvidenceHash: rejectedEvidence.expectedEvidenceHash,
+    payoutRoot: payoutRoot(
+      [initiallyUnregisteredWorker],
+      [parseEther("1")],
+    ),
+    allocation: parseEther("1"),
+    workerBond,
+    keeperFee: parseEther("1"),
+    deadline: Number(blockTimestamp + 86_400n),
+    capacityUnits: 1,
+    minimumReveals: 3,
+    passScoreBps: 8_000,
+    commitWindow: 60,
+    revealWindow: 60,
+  },
+];
+await write("AgentPoolV44Token", token, "approve", [
+  userEscrow,
+  externalBudget,
+]);
+await write(
+  "AgentPoolV432TaskMarket",
+  taskMarket,
+  "createExternalJobV2",
+  [
+    externalBudget,
+    rejectedPlan,
+    genesisRelease,
+    rejectedTerms,
+    noQuorumPolicy,
+    [0],
+  ],
+);
+await write(
+  "AgentPoolV44Token",
+  token,
+  "approve",
+  [taskMarket, workerBond],
+  initiallyUnregisteredKey,
+);
+const rejectedWorkerBalanceBefore = await read(
+  "AgentPoolV44Token",
+  token,
+  "balanceOf",
+  [initiallyUnregisteredWorker],
+);
+await write(
+  "AgentPoolV432TaskMarket",
+  taskMarket,
+  "acceptMilestone",
+  [rejectedJobId, 0],
+  initiallyUnregisteredKey,
+);
+await write(
+  "AgentPoolV432TaskMarket",
+  taskMarket,
+  "deliver",
+  [rejectedJobId, 0, rejectedEvidence.deliveryHash],
+  initiallyUnregisteredKey,
+);
+const rejectedRoundId = proofRoundId(rejectedJobId, 0);
+for (let validatorIndex = 0; validatorIndex < validators.length; validatorIndex++) {
+  const score = 1_000;
+  const salt = keccak256(
+    toBytes(`v44-rejected-salt-${validatorIndex}`),
+  );
+  const evidenceHash = keccak256(
+    toBytes(`v44-rejected-evidence-${validatorIndex}`),
+  );
+  const commitment = await read(
+    "AgentPoolV432ProofRegistry",
+    proofRegistry,
+    "commitmentFor",
+    [
+      rejectedRoundId,
+      validators[validatorIndex].address,
+      score,
+      evidenceHash,
+      salt,
+    ],
+  );
+  await write(
+    "AgentPoolV432ProofRegistry",
+    proofRegistry,
+    "commitWithProof",
+    [
+      rejectedRoundId,
+      commitment,
+      bootstrap.validators[validatorIndex].proof,
+    ],
+    validators[validatorIndex].key,
+  );
+}
+blockTimestamp += 61n;
+for (let validatorIndex = 0; validatorIndex < validators.length; validatorIndex++) {
+  await write(
+    "AgentPoolV432ProofRegistry",
+    proofRegistry,
+    "reveal",
+    [
+      rejectedRoundId,
+      1_000,
+      keccak256(toBytes(`v44-rejected-evidence-${validatorIndex}`)),
+      keccak256(toBytes(`v44-rejected-salt-${validatorIndex}`)),
+    ],
+    validators[validatorIndex].key,
+  );
+}
+const rejectedMilestone = await read(
+  "AgentPoolV432TaskMarket",
+  taskMarket,
+  "milestones",
+  [rejectedJobId, 0],
+);
+blockTimestamp = BigInt(rejectedMilestone[10]) + 86_401n;
+await write(
+  "AgentPoolV432TaskMarket",
+  taskMarket,
+  "refundExpired",
+  [rejectedJobId, 0],
+);
+const rejectedJob = await read(
+  "AgentPoolV432TaskMarket",
+  taskMarket,
+  "jobs",
+  [rejectedJobId],
+);
+check("external.expiredValidatorRejectionRejectsJob", rejectedJob[2], 5);
+check(
+  "external.expiredValidatorRejectionSlashesBond",
+  await read("AgentPoolV44Token", token, "balanceOf", [
+    initiallyUnregisteredWorker,
+  ]),
+  rejectedWorkerBalanceBefore - workerBond,
+);
+check(
+  "external.expiredValidatorRejectionNeverMints",
   await read("AgentPoolV44Token", token, "totalSupply"),
   budget,
 );

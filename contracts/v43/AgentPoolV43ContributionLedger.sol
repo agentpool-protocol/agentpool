@@ -36,6 +36,8 @@ contract AgentPoolV43ContributionLedger is
     uint32 public eligibleGroupCount;
     uint16 public activeEpochCount;
     uint64 public successfulSettlementCount;
+    uint16 public bootstrapActiveEpochCount;
+    uint64 public bootstrapSuccessfulSettlementCount;
     uint64 public latestGovernanceEpoch;
     uint64 public previousGovernanceEpoch;
     bool public hasGovernanceWork;
@@ -62,6 +64,7 @@ contract AgentPoolV43ContributionLedger is
     mapping(bytes32 => bool) public groupBecameEligible;
     mapping(bytes32 => uint256) public groupSuccessfulUnits;
     mapping(uint64 => bool) public epochBecameActive;
+    mapping(uint64 => bool) public bootstrapEpochBecameActive;
 
     event AgentRegistered(
         address indexed agent,
@@ -216,6 +219,33 @@ contract AgentPoolV43ContributionLedger is
             successful,
             false
         );
+    }
+
+    /// @notice Records objective BOOTSTRAP work for transition-readiness and
+    ///         runtime performance only. It deliberately creates no voting
+    ///         power, eligible-agent/group status, or MATURE-governance units.
+    function recordBootstrapPerformance(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external override {
+        _record(
+            receiptId,
+            agent,
+            capability,
+            units,
+            successful,
+            false
+        );
+        if (!successful) return;
+        bootstrapSuccessfulSettlementCount++;
+        uint64 epoch = currentEpoch();
+        if (!bootstrapEpochBecameActive[epoch]) {
+            bootstrapEpochBecameActive[epoch] = true;
+            bootstrapActiveEpochCount++;
+        }
     }
 
     function _record(

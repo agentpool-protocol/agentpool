@@ -117,6 +117,27 @@ contract AgentPoolV43SettlementRouter is IAgentPoolV43SettlementRouter {
         if (!ok) _bubble(result);
     }
 
+    function recordBootstrapOutcome(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external override {
+        if (msg.sender != market) revert Unauthorized();
+        (bool ok, bytes memory result) = address(ledger).call(
+            abi.encodeWithSignature(
+                "recordBootstrapPerformance(bytes32,address,bytes32,uint128,bool)",
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            )
+        );
+        if (!ok) _bubble(result);
+    }
+
     function attestCandidate(
         bytes32 receiptId,
         address proposer,

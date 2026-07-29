@@ -108,7 +108,7 @@ test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
   );
   assert.match(
     collaborative,
-    /263 transactions, 26 checks, 24 bootstrap\s+objectives/,
+    /276 transactions, 33 checks, 24 bootstrap\s+objectives/,
   );
 
   assert.match(packet, /git rev-parse HEAD/);

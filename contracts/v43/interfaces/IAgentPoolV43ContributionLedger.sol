@@ -20,6 +20,14 @@ interface IAgentPoolV43ContributionLedger {
         bool successful
     ) external;
 
+    function recordBootstrapPerformance(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external;
+
     function totalSuccessfulAt(
         uint64 endEpoch,
         uint8 lookback

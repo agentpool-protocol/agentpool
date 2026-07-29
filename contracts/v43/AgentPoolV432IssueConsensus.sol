@@ -45,7 +45,8 @@ contract AgentPoolV432IssueConsensus is ReentrancyGuard {
 
     uint16 public constant BPS = 10_000;
     uint16 public constant QUORUM_BPS = 3_000;
-    uint16 public constant SUPERMAJORITY_BPS = 6_667;
+    uint16 public constant MIN_VOTERS = 5;
+    uint16 public constant MIN_GROUPS = 3;
     uint8 public constant LOOKBACK = 8;
     uint64 public constant MIN_PHASE_DURATION = 1 days;
 
@@ -231,9 +232,10 @@ contract AgentPoolV432IssueConsensus is ReentrancyGuard {
             LOOKBACK
         );
         bool passed =
+            proposal.voterCount >= MIN_VOTERS &&
+            proposal.groupCount >= MIN_GROUPS &&
             cast * BPS >= total * QUORUM_BPS &&
-            uint256(proposal.yesWeight) * BPS >=
-                total * SUPERMAJORITY_BPS;
+            uint256(proposal.yesWeight) * 3 >= cast * 2;
         if (passed) {
             proposal.state = State.APPROVED;
             issueGate.approveIssueHash(proposal.issueHash);

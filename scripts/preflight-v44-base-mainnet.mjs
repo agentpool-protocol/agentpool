@@ -7,9 +7,7 @@ import {
   keccak256,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
 import {
-  CHAIN_ID,
   CONTRACT_TYPES,
   ROOT,
   VERSION,
@@ -22,10 +20,22 @@ import {
   loadAndValidateGates,
   requireEnv,
 } from "./lib/v44-mainnet.mjs";
+import {
+  requireProfileEnvironment,
+  resolveV44ChainProfile,
+} from "./lib/v44-chain-profile.mjs";
 import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
+import {
+  verifyPublicTestnetReliabilityGate,
+} from "./lib/v44-testnet-reliability.mjs";
 
-const manifestPath = path.join(ROOT, "deployments", "8453.v44.json");
-const partialPath = path.join(ROOT, "deployments", "8453.v44.partial.json");
+const profile = resolveV44ChainProfile({
+  ...process.env,
+  V44_DEPLOYMENT_PROFILE: process.argv.includes("--testnet")
+    ? "testnet"
+    : "mainnet",
+});
+const { manifestPath, partialPath } = profile;
 if (fs.existsSync(manifestPath)) throw new Error("V44_ALREADY_DEPLOYED");
 if (fs.existsSync(partialPath)) {
   throw new Error("V44_PARTIAL_DEPLOYMENT_EXISTS_REVIEW_BEFORE_PREFLIGHT");
@@ -33,9 +43,20 @@ if (fs.existsSync(partialPath)) {
 
 assertTrackedTreeClean();
 const configEvidence = loadAndValidateConfig();
-const gateEvidence = loadAndValidateGates();
+const gateEvidence = profile.requireReleaseGates
+  ? loadAndValidateGates()
+  : null;
+if (gateEvidence) {
+  await verifyPublicTestnetReliabilityGate({ gateEvidence });
+}
+const sourceEvidencePath = profile.requireReleaseGates
+  ? gateEvidence.evidencePaths.finalSourceReproducibility
+  : path.resolve(
+      ROOT,
+      requireEnv("V44_SOURCE_EVIDENCE_FILE"),
+    );
 const sourceEvidence = verifyV44ReleaseEvidenceFile(
-  gateEvidence.evidencePaths.finalSourceReproducibility,
+  sourceEvidencePath,
 );
 const sourceCommit = requireEnv("V44_SOURCE_COMMIT").toLowerCase();
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
@@ -43,19 +64,16 @@ const releaseInputs = collectReleaseInputs({
   deployerAddress: account.address,
 });
 
-const rpcUrl = requireEnv("AGENTPOOL_MAINNET_RPC_URL");
+const { rpcUrl, minimumBalance } = requireProfileEnvironment(profile);
 const client = createPublicClient({
-  chain: base,
+  chain: profile.chain,
   transport: http(rpcUrl, { timeout: 60_000, retryCount: 2 }),
 });
 const actualChainId = await client.getChainId();
-if (actualChainId !== CHAIN_ID) {
+if (actualChainId !== profile.chainId) {
   throw new Error(`V44_CHAIN_MISMATCH:${actualChainId}`);
 }
 const balance = await client.getBalance({ address: account.address });
-const minimumBalance = BigInt(
-  process.env.MIN_V44_DEPLOYER_BALANCE_WEI ?? "10000000000000000",
-);
 if (balance < minimumBalance) {
   throw new Error(
     `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(minimumBalance)}`,
@@ -74,8 +92,10 @@ for (const [key, name] of Object.entries(CONTRACT_TYPES)) {
 const report = {
   ok: true,
   release: VERSION,
-  network: "Base",
-  chainId: CHAIN_ID,
+  deploymentProfile: profile.id,
+  testnetOnly: profile.testnetOnly,
+  network: profile.network,
+  chainId: profile.chainId,
   sourceCommit,
   deployer: account.address,
   deployerBalanceEth: formatEther(balance),
@@ -91,8 +111,8 @@ const report = {
     groupId: entry.group,
   })),
   configSha256: configEvidence.configSha256,
-  gatesSha256: gateEvidence.gatesSha256,
-  approvedGateEvidence: gateEvidence.approved,
+  gatesSha256: gateEvidence?.gatesSha256 ?? null,
+  approvedGateEvidence: gateEvidence?.approved ?? null,
   sourceEvidenceFileSha256: sourceEvidence.fileSha256,
   sourceEvidenceBodySha256: sourceEvidence.evidence.evidenceSha256,
   financeInvariantHash: configEvidence.financeInvariantHash,

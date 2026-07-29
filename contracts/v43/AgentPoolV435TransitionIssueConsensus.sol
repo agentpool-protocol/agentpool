@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {
     IAgentPoolV435ContributionLedger
 } from "./interfaces/IAgentPoolV435ContributionLedger.sol";
@@ -12,9 +13,10 @@ import {
 } from "./interfaces/IAgentPoolV435SystemIssueGate.sol";
 
 /// @notice Limited Issue consensus used after BOOTSTRAP has accumulated
-///         enough real work but before MATURE governance is available.
-///         A proposer cannot vote. At least two other agents must reveal
-///         evidence and at least one must belong to another operator group.
+///         enough objective bootstrap work but before MATURE governance is
+///         available. Bootstrap work creates no Work Power, so the first
+///         transition decision is made by two of the three deployment-
+///         committed validator groups. A proposer cannot vote.
 contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -52,11 +54,14 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
     uint16 public constant QUORUM_BPS = 3_000;
     uint16 public constant SUPERMAJORITY_BPS = 6_667;
     uint8 public constant LOOKBACK = 8;
+    uint16 public constant MIN_VALIDATOR_VOTERS = 2;
+    uint16 public constant MIN_VALIDATOR_GROUPS = 2;
     uint64 public constant MIN_PHASE_DURATION = 1 days;
 
     IERC20 public immutable token;
     IAgentPoolV435ContributionLedger public immutable ledger;
     IAgentPoolV435SystemIssueGate public immutable issueGate;
+    bytes32 public immutable validatorRoot;
     uint128 public immutable minimumBond;
     uint256 public nextProposalId = 1;
     uint256 public slashPool;
@@ -109,6 +114,8 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
         token = token_;
         ledger = ledger_;
         issueGate = issueGate_;
+        validatorRoot = issueGate_.dynamicValidatorRoot();
+        if (validatorRoot == bytes32(0)) revert InvalidTerms();
         minimumBond = minimumBond_;
     }
 
@@ -129,6 +136,16 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
                     salt
                 )
             );
+    }
+
+    function validatorLeaf(
+        address validator,
+        bytes32 operatorGroup
+    ) public pure returns (bytes32) {
+        return keccak256(bytes.concat(keccak256(abi.encode(
+            validator,
+            operatorGroup
+        ))));
     }
 
     function propose(
@@ -153,33 +170,23 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
             revealDeadline < commitDeadline + MIN_PHASE_DURATION ||
             issue.expiresAt <= revealDeadline
         ) revert InvalidTerms();
-        uint64 snapshotEpoch = ledger.governanceSnapshotEpoch();
-        if (
-            ledger.votingPowerAt(
-                msg.sender,
-                snapshotEpoch,
-                LOOKBACK
-            ) == 0
-        ) revert Unauthorized();
-
         proposalId = nextProposalId++;
         proposals[proposalId] = Proposal({
             proposer: msg.sender,
             proposerGroup: proposerGroup,
             issueHash: issueHash,
             needEvidenceHash: needEvidenceHash,
-            snapshotEpoch: snapshotEpoch,
+            snapshotEpoch: 0,
             commitDeadline: commitDeadline,
             revealDeadline: revealDeadline,
             bond: bond,
             yesWeight: 0,
             noWeight: 0,
             voterCount: 0,
-            groupCount: 1,
+            groupCount: 0,
             state: State.COMMIT
         });
         proposalIssues[proposalId] = issue;
-        representedGroup[proposalId][proposerGroup] = true;
         proposedIssueHash[issueHash] = true;
         proposedIssueId[issue.issueId] = true;
         token.safeTransferFrom(msg.sender, address(this), bond);
@@ -193,7 +200,8 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
 
     function commitVote(
         uint256 proposalId,
-        bytes32 commitment
+        bytes32 commitment,
+        bytes32[] calldata validatorProof
     ) external {
         Proposal storage proposal = proposals[proposalId];
         Vote storage vote = votes[proposalId][msg.sender];
@@ -206,17 +214,21 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
             msg.sender == proposal.proposer ||
             vote.commitment != bytes32(0)
         ) revert DuplicateParticipation();
-        uint256 weight = ledger.votingPowerAt(
-            msg.sender,
-            proposal.snapshotEpoch,
-            LOOKBACK
-        );
-        if (weight == 0 || weight > type(uint128).max) {
+        bytes32 group = ledger.operatorGroup(msg.sender);
+        if (
+            group == bytes32(0) ||
+            group == proposal.proposerGroup ||
+            !MerkleProof.verifyCalldata(
+                validatorProof,
+                validatorRoot,
+                validatorLeaf(msg.sender, group)
+            )
+        ) {
             revert Unauthorized();
         }
         vote.commitment = commitment;
-        vote.weight = uint128(weight);
-        emit VoteCommitted(proposalId, msg.sender, weight);
+        vote.weight = 1;
+        emit VoteCommitted(proposalId, msg.sender, 1);
     }
 
     function revealVote(
@@ -277,15 +289,12 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
             )
         ) revert InvalidState();
         uint256 cast = uint256(proposal.yesWeight) + proposal.noWeight;
-        uint256 total = ledger.totalSuccessfulAt(
-            proposal.snapshotEpoch,
-            LOOKBACK
-        );
         bool passed =
             block.timestamp < proposalIssues[proposalId].expiresAt &&
-            cast * BPS >= total * QUORUM_BPS &&
-            uint256(proposal.yesWeight) * BPS >=
-                total * SUPERMAJORITY_BPS;
+            proposal.voterCount >= MIN_VALIDATOR_VOTERS &&
+            proposal.groupCount >= MIN_VALIDATOR_GROUPS &&
+            proposal.yesWeight >= MIN_VALIDATOR_VOTERS &&
+            uint256(proposal.yesWeight) * 3 >= cast * 2;
         if (passed) {
             proposal.state = State.APPROVED;
             issueGate.approveTransitionIssue(

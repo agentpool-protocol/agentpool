@@ -9,9 +9,7 @@ import {
   parseEther,
   toBytes,
 } from "viem";
-import { base } from "viem/chains";
 import {
-  CHAIN_ID,
   CONTRACT_TYPES,
   ROOT,
   VERSION,
@@ -31,26 +29,48 @@ import {
   requireEnv,
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
+import { resolveV44ChainProfile } from "./lib/v44-chain-profile.mjs";
+import {
+  validateTestnetDeployment,
+  verifyPublicTestnetReliabilityGate,
+} from "./lib/v44-testnet-reliability.mjs";
 import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
 
+const profile = resolveV44ChainProfile({
+  ...process.env,
+  V44_DEPLOYMENT_PROFILE: process.argv.includes("--testnet")
+    ? "testnet"
+    : "mainnet",
+});
 const manifestPath =
   process.env.V44_DEPLOYMENT_MANIFEST ??
-  path.join(ROOT, "deployments", "8453.v44.json");
+  profile.manifestPath;
 if (!fs.existsSync(manifestPath)) throw new Error("V44_MANIFEST_MISSING");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 if (
-  manifest.schema !== "agentpool.mainnet.v44.deployment/v3" ||
-  manifest.chainId !== CHAIN_ID ||
-  manifest.network !== "Base" ||
-  manifest.version !== VERSION
+  manifest.schema !== profile.manifestSchema ||
+  manifest.chainId !== profile.chainId ||
+  manifest.network !== profile.network ||
+  (profile.testnetOnly ? manifest.release : manifest.version) !== VERSION
 ) {
   throw new Error("V44_MANIFEST_INVALID");
 }
 assertTrackedTreeClean();
 const configEvidence = loadAndValidateConfig();
-const gateEvidence = loadAndValidateGates();
+const gateEvidence = profile.requireReleaseGates
+  ? loadAndValidateGates()
+  : null;
+if (gateEvidence) {
+  await verifyPublicTestnetReliabilityGate({ gateEvidence });
+}
+const sourceEvidencePath = profile.requireReleaseGates
+  ? gateEvidence.evidencePaths.finalSourceReproducibility
+  : path.resolve(
+      ROOT,
+      requireEnv("V44_SOURCE_EVIDENCE_FILE"),
+    );
 const sourceEvidence = verifyV44ReleaseEvidenceFile(
-  gateEvidence.evidencePaths.finalSourceReproducibility,
+  sourceEvidencePath,
 );
 const sourceCommit = requireEnv("V44_SOURCE_COMMIT").toLowerCase();
 if (!/^[0-9a-f]{40}$/.test(sourceCommit)) {
@@ -63,20 +83,24 @@ const releaseInputs = collectReleaseInputs({
   deployerAddress: manifest.deployer,
   allowPastGenesis: true,
 });
-assertManifestEvidenceClaims({
-  manifest,
-  gateEvidence,
-  sourceEvidence: sourceEvidence.evidence,
-  releaseInputs,
-  artifacts: artifactBytecodeEvidence(),
-});
-const rpcUrl = requireEnv("AGENTPOOL_MAINNET_RPC_URL");
+if (profile.requireReleaseGates) {
+  assertManifestEvidenceClaims({
+    manifest,
+    gateEvidence,
+    sourceEvidence: sourceEvidence.evidence,
+    releaseInputs,
+    artifacts: artifactBytecodeEvidence(),
+  });
+} else {
+  validateTestnetDeployment(manifest, sourceEvidence.evidence);
+}
+const rpcUrl = requireEnv(profile.rpcEnvironmentVariable);
 const client = createPublicClient({
-  chain: base,
+  chain: profile.chain,
   transport: http(rpcUrl, { timeout: 60_000, retryCount: 4 }),
 });
 const actualChainId = await client.getChainId();
-if (actualChainId !== CHAIN_ID) {
+if (actualChainId !== profile.chainId) {
   throw new Error(`V44_CHAIN_MISMATCH:${actualChainId}`);
 }
 
@@ -103,6 +127,45 @@ function check(name, actual, expected) {
   });
 }
 
+function exactKeys(value) {
+  return Object.keys(value ?? {}).sort();
+}
+
+function checkExactKeys(name, value, expected) {
+  check(
+    name,
+    JSON.stringify(exactKeys(value)),
+    JSON.stringify([...expected].sort()),
+  );
+}
+
+const canonicalContractKeys = Object.keys(CONTRACT_TYPES);
+checkExactKeys(
+  "manifest.contractKeysExact",
+  manifest.contracts,
+  canonicalContractKeys,
+);
+checkExactKeys(
+  "manifest.deploymentTransactionKeysExact",
+  manifest.deploymentTransactions,
+  canonicalContractKeys,
+);
+checkExactKeys(
+  "manifest.creationInputHashKeysExact",
+  manifest.creationInputHashes,
+  canonicalContractKeys,
+);
+checkExactKeys(
+  "manifest.deployedCodeHashKeysExact",
+  manifest.deployedCodeHashes,
+  canonicalContractKeys,
+);
+checkExactKeys(
+  "manifest.artifactTypeKeysExact",
+  manifest.artifactBytecode,
+  new Set(Object.values(CONTRACT_TYPES)),
+);
+
 const unsignedManifest = { ...manifest };
 delete unsignedManifest.manifestSha256;
 check(
@@ -115,16 +178,30 @@ check(
   configEvidence.configSha256,
   manifest.configSha256,
 );
-check(
-  "manifest.gatesSha256",
-  gateEvidence.gatesSha256,
-  manifest.gatesSha256,
-);
-check(
-  "manifest.approvedGateEvidence",
-  sha256Json(manifest.approvedGateEvidence),
-  sha256Json(gateEvidence.approved),
-);
+if (profile.requireReleaseGates) {
+  check(
+    "manifest.gatesSha256",
+    gateEvidence.gatesSha256,
+    manifest.gatesSha256,
+  );
+  check(
+    "manifest.approvedGateEvidence",
+    sha256Json(manifest.approvedGateEvidence),
+    sha256Json(gateEvidence.approved),
+  );
+} else {
+  check("manifest.gatesSha256", manifest.gatesSha256, null);
+  check(
+    "manifest.approvedGateEvidence",
+    manifest.approvedGateEvidence,
+    null,
+  );
+  check(
+    "manifest.sourceEvidenceSha256",
+    manifest.sourceEvidenceSha256,
+    sourceEvidence.evidence.evidenceSha256,
+  );
+}
 check(
   "manifest.sourceEvidenceFileSha256",
   manifest.sourceEvidenceFileSha256,
@@ -329,6 +406,11 @@ for (const [key, type] of Object.entries(CONTRACT_TYPES)) {
     );
   }
 }
+check(
+  "bootstrapVerifierCodehashMatchesObjectiveVerifier",
+  manifest.bootstrapVerifierCodehash,
+  codeHashes.objectiveVerifier,
+);
 
 const configurationHashes = Object.values(
   manifest.configurationTransactions ?? {},
@@ -409,6 +491,26 @@ const expectedConfigurationInputs = Object.fromEntries([
     ]),
   ],
 ]);
+checkExactKeys(
+  "manifest.configurationTransactionKeysExact",
+  manifest.configurationTransactions,
+  Object.keys(expectedConfigurationInputs),
+);
+checkExactKeys(
+  "manifest.configurationInputHashKeysExact",
+  manifest.configurationInputHashes,
+  Object.keys(expectedConfigurationInputs),
+);
+checkExactKeys(
+  "manifest.transactionIntentKeysExact",
+  manifest.transactionIntents,
+  [
+    ...canonicalContractKeys.map((key) => `deploy:${key}`),
+    ...Object.keys(expectedConfigurationInputs).map(
+      (key) => `configure:${key}`,
+    ),
+  ],
+);
 check(
   "manifest.configurationCount",
   Object.keys(manifest.configurationTransactions ?? {}).length,
@@ -976,16 +1078,19 @@ for (const [index, hash] of manifest.transactionHashes.entries()) {
   check(`deployment.transaction:${index + 1}`, receipt.status, "success");
   check(
     `deployment.transactionChain:${index + 1}`,
-    receipt.chainId ?? CHAIN_ID,
-    CHAIN_ID,
+    receipt.chainId ?? profile.chainId,
+    profile.chainId,
   );
 }
 
 const report = {
-  schema: "agentpool.mainnet.v44.verification/v1",
+  schema: profile.verificationSchema,
   ok: checks.every((entry) => entry.passed),
   release: VERSION,
-  chainId: CHAIN_ID,
+  deploymentProfile: profile.id,
+  testnetOnly: profile.testnetOnly,
+  network: profile.network,
+  chainId: profile.chainId,
   phase: "BOOTSTRAP",
   manifestPath,
   totalSupply: totalSupply.toString(),
@@ -993,7 +1098,7 @@ const report = {
   checks,
   verifiedAt: new Date().toISOString(),
 };
-const reportPath = path.join(ROOT, "outputs", "v44-base-mainnet-verification.json");
+const reportPath = profile.verificationPath;
 fs.mkdirSync(path.dirname(reportPath), { recursive: true });
 fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 if (!report.ok) throw new Error(`V44_VERIFICATION_FAILED:${reportPath}`);

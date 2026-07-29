@@ -29,6 +29,36 @@ export const V44_REQUIRED_GATES = Object.freeze([
   "deployerLegalAssessment",
   "nameAndSymbolClearance",
 ]);
+export const V44_GATE_EVIDENCE = Object.freeze({
+  finalSourceReproducibility: Object.freeze({
+    owner: "release-reproducibility",
+    schema: "agentpool.mainnet.v44.source-reproducibility/v1",
+  }),
+  independentSecurityReview: Object.freeze({
+    owner: "independent-security-reviewers",
+    schema: "agentpool.mainnet.v44.independent-security-review/v1",
+  }),
+  publicTestnetReliability: Object.freeze({
+    owner: "public-testnet-observers",
+    schema: "agentpool.mainnet.v44.public-testnet-reliability/v1",
+  }),
+  validatorIndependence: Object.freeze({
+    owner: "validator-groups",
+    schema: "agentpool.mainnet.v44.validator-independence/v1",
+  }),
+  economicInvariantReview: Object.freeze({
+    owner: "protocol-economics-reviewers",
+    schema: "agentpool.mainnet.v44.economic-invariant-review/v1",
+  }),
+  deployerLegalAssessment: Object.freeze({
+    owner: "actual-mainnet-deployer",
+    schema: "agentpool.mainnet.v44.deployer-legal-assessment/v1",
+  }),
+  nameAndSymbolClearance: Object.freeze({
+    owner: "release-community",
+    schema: "agentpool.mainnet.v44.name-symbol-clearance/v1",
+  }),
+});
 
 export const CONTRACT_TYPES = Object.freeze({
   token: "AgentPoolV44Token",
@@ -329,14 +359,20 @@ export function loadAndValidateGates(
   }
   const approved = {};
   const evidencePaths = {};
+  const seenEvidencePaths = new Set();
+  const seenEvidenceDigests = new Set();
   for (const name of V44_REQUIRED_GATES) {
     const gate = gates.gates[name];
+    const policy = V44_GATE_EVIDENCE[name];
     if (
       gate?.status !== "approved" ||
       !SHA256_PATTERN.test(gate.evidenceSha256 ?? "") ||
       gate.evidenceSha256 === ZERO_SHA256
     ) {
       throw new Error(`V44_GATE_BLOCKED:${name}`);
+    }
+    if (gate.evidenceOwner !== policy.owner) {
+      throw new Error(`V44_GATE_EVIDENCE_OWNER_INVALID:${name}`);
     }
     if (
       typeof gate.evidenceFile !== "string" ||
@@ -355,9 +391,85 @@ export function loadAndValidateGates(
     ) {
       throw new Error(`V44_GATE_EVIDENCE_FILE_INVALID:${name}`);
     }
+    const normalizedEvidencePath = evidencePath.toLowerCase();
+    if (seenEvidencePaths.has(normalizedEvidencePath)) {
+      throw new Error(`V44_GATE_EVIDENCE_PATH_REUSED:${name}`);
+    }
+    seenEvidencePaths.add(normalizedEvidencePath);
     const actualEvidenceSha256 = sha256File(evidencePath);
     if (actualEvidenceSha256 !== gate.evidenceSha256.toLowerCase()) {
       throw new Error(`V44_GATE_EVIDENCE_CONTENT_MISMATCH:${name}`);
+    }
+    if (seenEvidenceDigests.has(actualEvidenceSha256)) {
+      throw new Error(`V44_GATE_EVIDENCE_DIGEST_REUSED:${name}`);
+    }
+    seenEvidenceDigests.add(actualEvidenceSha256);
+    let evidence;
+    try {
+      evidence = readJson(evidencePath);
+    } catch {
+      throw new Error(`V44_GATE_EVIDENCE_JSON_INVALID:${name}`);
+    }
+    if (evidence?.schema !== policy.schema) {
+      throw new Error(`V44_GATE_EVIDENCE_SCHEMA_INVALID:${name}`);
+    }
+    const expectedCommit = currentGitCommit().toLowerCase();
+    if (
+      evidence.release !== VERSION ||
+      evidence.sourceCommit?.toLowerCase() !== expectedCommit
+    ) {
+      throw new Error(`V44_GATE_EVIDENCE_RELEASE_INVALID:${name}`);
+    }
+    if (name === "finalSourceReproducibility") {
+      if (evidence.chainId !== CHAIN_ID) {
+        throw new Error(`V44_GATE_EVIDENCE_CHAIN_INVALID:${name}`);
+      }
+    } else {
+      if (
+        evidence.targetChainId !== CHAIN_ID ||
+        evidence.decision !== "approved"
+      ) {
+        throw new Error(`V44_GATE_EVIDENCE_DECISION_INVALID:${name}`);
+      }
+      if (
+        name === "publicTestnetReliability" &&
+        (evidence.observedChainId !== 84532 || evidence.eligible !== true)
+      ) {
+        throw new Error(`V44_GATE_EVIDENCE_RELIABILITY_INVALID:${name}`);
+      }
+      if (
+        (
+          name === "independentSecurityReview" ||
+          name === "economicInvariantReview"
+        ) &&
+        (!Array.isArray(evidence.reviewers) ||
+          evidence.reviewers.length < 2)
+      ) {
+        throw new Error(`V44_GATE_EVIDENCE_REVIEWERS_INVALID:${name}`);
+      }
+      if (
+        name === "validatorIndependence" &&
+        (!Array.isArray(evidence.validators) ||
+          evidence.validators.length < 3)
+      ) {
+        throw new Error(`V44_GATE_EVIDENCE_VALIDATORS_INVALID:${name}`);
+      }
+      if (
+        name === "deployerLegalAssessment" &&
+        (
+          !isAddress(evidence.actualDeployerAddress ?? "") ||
+          !Array.isArray(evidence.jurisdictions) ||
+          evidence.jurisdictions.length === 0
+        )
+      ) {
+        throw new Error(`V44_GATE_EVIDENCE_LEGAL_INVALID:${name}`);
+      }
+      if (
+        name === "nameAndSymbolClearance" &&
+        evidence.conflictsCleared !== true
+      ) {
+        throw new Error(`V44_GATE_EVIDENCE_NAME_INVALID:${name}`);
+      }
     }
     const envName = envNameForGate(name);
     const supplied = requireEnv(envName, env).toLowerCase();
@@ -429,6 +541,81 @@ export function currentGitCommit() {
   }).trim();
 }
 
+const V44_RELEASE_ENTRYPOINTS = Object.freeze([
+  "scripts/deploy-v44-base-mainnet.mjs",
+  "scripts/preflight-v44-base-mainnet.mjs",
+  "scripts/reconcile-v44-mainnet-intent.mjs",
+  "scripts/verify-v44-base-mainnet.mjs",
+  "scripts/generate-v44-public-testnet-reliability.mjs",
+  "scripts/generate-v44-release-evidence.mjs",
+]);
+
+const V44_RELEASE_DATA_FILES = Object.freeze([
+  "mainnet-v44-config.json",
+  "mainnet-v44-gates.json",
+  "mainnet-v44-testnet-reliability-policy.json",
+]);
+
+function relativeModuleSpecifiers(source) {
+  const specifiers = new Set();
+  for (const pattern of [
+    /(?:import|export)\s+(?:[^"'`]*?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/gsu,
+    /import\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/gsu,
+  ]) {
+    for (const match of source.matchAll(pattern)) specifiers.add(match[1]);
+  }
+  return [...specifiers];
+}
+
+function resolveLocalModule(importer, specifier) {
+  const unresolved = path.resolve(path.dirname(importer), specifier);
+  for (const candidate of [
+    unresolved,
+    `${unresolved}.mjs`,
+    `${unresolved}.js`,
+    path.join(unresolved, "index.mjs"),
+    path.join(unresolved, "index.js"),
+  ]) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    `V44_RELEASE_DEPENDENCY_MISSING:${path.relative(ROOT, unresolved)}`,
+  );
+}
+
+export function assertReleaseDependenciesTracked(trackedPaths) {
+  const queue = V44_RELEASE_ENTRYPOINTS.map((relativePath) =>
+    path.join(ROOT, relativePath),
+  );
+  for (const relativePath of V44_RELEASE_DATA_FILES) {
+    if (!trackedPaths.has(relativePath)) {
+      throw new Error(`V44_RELEASE_DEPENDENCY_UNTRACKED:${relativePath}`);
+    }
+  }
+  const visited = new Set();
+  while (queue.length > 0) {
+    const absolutePath = queue.pop();
+    const relativePath = path
+      .relative(ROOT, absolutePath)
+      .replaceAll("\\", "/");
+    if (
+      relativePath.startsWith("../") ||
+      path.isAbsolute(relativePath) ||
+      !trackedPaths.has(relativePath)
+    ) {
+      throw new Error(`V44_RELEASE_DEPENDENCY_UNTRACKED:${relativePath}`);
+    }
+    if (visited.has(relativePath)) continue;
+    visited.add(relativePath);
+    const source = fs.readFileSync(absolutePath, "utf8");
+    for (const specifier of relativeModuleSpecifiers(source)) {
+      queue.push(resolveLocalModule(absolutePath, specifier));
+    }
+  }
+}
+
 export function assertTrackedTreeClean() {
   for (const args of [
     ["diff", "--quiet"],
@@ -438,6 +625,40 @@ export function assertTrackedTreeClean() {
       execFileSync("git", args, { cwd: ROOT, stdio: "ignore" });
     } catch {
       throw new Error("V44_TRACKED_WORKTREE_NOT_CLEAN");
+    }
+  }
+  const flagged = execFileSync("git", ["ls-files", "-v"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  })
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .filter((line) => !line.startsWith("H "));
+  if (flagged.length !== 0) {
+    throw new Error(`V44_GIT_INDEX_FLAGGED:${flagged[0]}`);
+  }
+  const tracked = execFileSync(
+    "git",
+    ["ls-tree", "-r", "--format=%(objectname)\t%(path)", "HEAD"],
+    { cwd: ROOT, encoding: "utf8" },
+  )
+    .split(/\r?\n/u)
+    .filter(Boolean);
+  const trackedPaths = new Set(
+    tracked.map((line) => line.slice(line.indexOf("\t") + 1)),
+  );
+  assertReleaseDependenciesTracked(trackedPaths);
+  for (const line of tracked) {
+    const separator = line.indexOf("\t");
+    const expectedBlob = line.slice(0, separator);
+    const relativePath = line.slice(separator + 1);
+    const actualBlob = execFileSync(
+      "git",
+      ["hash-object", "--", relativePath],
+      { cwd: ROOT, encoding: "utf8" },
+    ).trim();
+    if (actualBlob !== expectedBlob) {
+      throw new Error(`V44_WORKTREE_BLOB_MISMATCH:${relativePath}`);
     }
   }
 }

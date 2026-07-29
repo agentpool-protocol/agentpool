@@ -599,6 +599,65 @@ function dynamicIssueFor(
   };
 }
 
+function transitionBatchIssueFor(label, objectiveCount = 25) {
+  const policy = {
+    validatorRoot: dynamicValidatorCatalog.root,
+    minimumOperatorGroups: 3,
+  };
+  const objectives = Array.from(
+    { length: objectiveCount },
+    (_, index) => {
+      const objectiveLabel = `${label}-objective-${index}`;
+      const specificationHash = keccak256(
+        toBytes(`${objectiveLabel}-specification`),
+      );
+      const evidence = evidenceFor(objectiveLabel, specificationHash);
+      const objective = {
+        verifier,
+        capability,
+        specificationHash,
+        expectedEvidenceHash: evidence.expectedEvidenceHash,
+        capacityUnits: 1,
+        minimumReveals: 3,
+        passScoreBps: 9_000,
+        commitWindow: 60,
+        revealWindow: 60,
+      };
+      return {
+        ...objective,
+        ...evidence,
+        leaf: objectiveLeaf(objective, policy),
+      };
+    },
+  );
+  const catalog = merkleFromLeaves(
+    objectives.map((entry) => entry.leaf),
+  );
+  return {
+    issue: {
+      issueId: keccak256(toBytes(`dynamic-issue:${label}`)),
+      bootstrapProposer:
+        "0x0000000000000000000000000000000000000000",
+      specificationHash: keccak256(toBytes(`${label}-specification`)),
+      verifier,
+      expectedEvidenceHash: objectives[0].expectedEvidenceHash,
+      objectiveRoot: catalog.root,
+      validatorRoot: dynamicValidatorCatalog.root,
+      candidateBudgetCap: parseEther("10"),
+      totalBudgetCap: parseEther("30"),
+      maxCandidates: 3,
+      minimumReveals: 3,
+      passScoreBps: 9_000,
+      minimumValidatorGroups: 3,
+      funding: 3,
+      expiresAt: Number(blockTimestamp + 60n * 86_400n),
+    },
+    objectives,
+    catalog,
+    policy,
+  };
+}
+
 await write("AgentPoolV43Token", token, "configureMinters", [
   coreVault,
   evolutionVault,
@@ -841,14 +900,16 @@ async function settleDynamicIssue({
   label,
   issue,
   funding,
+  creatorIndex = 0,
+  workerIndex = 4,
   allocation = parseEther("3"),
   keeperFee = parseEther("1"),
   validatorEntries = dynamicValidatorEntries,
   validatorCatalog = dynamicValidatorCatalog,
   validatorStart = 1,
 }) {
-  const creator = agents[0];
-  const worker = agents[4];
+  const creator = agents[creatorIndex];
+  const worker = agents[workerIndex];
   const planHash = keccak256(toBytes(`${label}-plan`));
   const evidence = evidenceFor(label, issue.specificationHash);
   const recipients = [worker.address];
@@ -1005,6 +1066,188 @@ async function settleDynamicIssue({
     creatorBalanceBefore,
   );
   return { jobId, worker, budget, allocation };
+}
+
+async function settleTransitionBatchCandidate({
+  label,
+  batch,
+  creatorIndex,
+  workerIndexes,
+}) {
+  const creator = agents[creatorIndex];
+  const allocation = parseEther("0.2");
+  const keeperFee = parseEther("0.2");
+  const milestoneWorkers = batch.objectives.map(
+    (_, index) => agents[workerIndexes[index % workerIndexes.length]],
+  );
+  const terms = batch.objectives.map((objective, index) => {
+    const worker = milestoneWorkers[index];
+    return {
+      worker: worker.address,
+      verifier,
+      capability,
+      specificationHash: objective.specificationHash,
+      expectedEvidenceHash: objective.expectedEvidenceHash,
+      payoutRoot: payoutRoot([worker.address], [allocation]),
+      allocation,
+      workerBond: 0n,
+      keeperFee,
+      deadline: Number(blockTimestamp + 86_400n + BigInt(index * 300)),
+      capacityUnits: objective.capacityUnits,
+      minimumReveals: objective.minimumReveals,
+      passScoreBps: objective.passScoreBps,
+      commitWindow: objective.commitWindow,
+      revealWindow: objective.revealWindow,
+    };
+  });
+  const policies = terms.map(() => batch.policy);
+  const objectiveProofs = batch.objectives.map((objective) =>
+    batch.catalog.proofs.get(objective.leaf),
+  );
+  const dependencies = terms.map(() => 0);
+  const budget = terms.reduce(
+    (total, term) => total + term.allocation + term.keeperFee,
+    0n,
+  );
+  const planHash = keccak256(toBytes(`${label}-plan`));
+  const nonce = await read(
+    "AgentPoolV432TaskMarket",
+    market,
+    "nextJobNonce",
+  );
+  const jobId = jobIdFor(creator.address, nonce, planHash);
+  await write(
+    "AgentPoolV43Token",
+    token,
+    "approve",
+    [systemIssueGate, proposalBond],
+    creator.key,
+  );
+  await write(
+    "AgentPoolV432TaskMarket",
+    market,
+    "createSystemJobV2",
+    [
+      3,
+      budget,
+      planHash,
+      genesisRelease,
+      batch.issue,
+      [],
+      terms,
+      policies,
+      dependencies,
+      objectiveProofs,
+    ],
+    creator.key,
+  );
+
+  for (let milestoneIndex = 0; milestoneIndex < terms.length; milestoneIndex++) {
+    const objective = batch.objectives[milestoneIndex];
+    const worker = milestoneWorkers[milestoneIndex];
+    const workerIndex = workerIndexes[milestoneIndex % workerIndexes.length];
+    const workerGroup = keccak256(
+      toBytes(`operator-group-${workerIndex % 4}`),
+    );
+    const validators = dynamicValidatorEntries
+      .filter((entry) => entry.group !== workerGroup)
+      .slice(0, 3);
+    await write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "acceptMilestone",
+      [jobId, milestoneIndex],
+      worker.key,
+    );
+    await write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "deliver",
+      [jobId, milestoneIndex, objective.deliveryHash],
+      worker.key,
+    );
+    const roundId = keccak256(
+      encodeAbiParameters(
+        [
+          { type: "string" },
+          { type: "bytes32" },
+          { type: "uint32" },
+        ],
+        ["PROOF", jobId, milestoneIndex],
+      ),
+    );
+    const salts = validators.map((_, validatorIndex) =>
+      keccak256(
+        toBytes(
+          `${label}-validator-salt-${milestoneIndex}-${validatorIndex}`,
+        ),
+      ),
+    );
+    const evidenceHashes = validators.map((_, validatorIndex) =>
+      keccak256(
+        toBytes(
+          `${label}-validator-evidence-${milestoneIndex}-${validatorIndex}`,
+        ),
+      ),
+    );
+    for (let validatorIndex = 0; validatorIndex < validators.length; validatorIndex++) {
+      const validator = validators[validatorIndex];
+      const commitment = await read(
+        "AgentPoolV432ProofRegistry",
+        proofRegistry,
+        "commitmentFor",
+        [
+          roundId,
+          validator.address,
+          9_500,
+          evidenceHashes[validatorIndex],
+          salts[validatorIndex],
+        ],
+      );
+      await write(
+        "AgentPoolV432ProofRegistry",
+        proofRegistry,
+        "commitWithProof",
+        [
+          roundId,
+          commitment,
+          dynamicValidatorCatalog.proofs.get(
+            validatorLeaf(validator.address, validator.group),
+          ),
+        ],
+        validator.key,
+      );
+    }
+    blockTimestamp += 61n;
+    for (let validatorIndex = 0; validatorIndex < validators.length; validatorIndex++) {
+      await write(
+        "AgentPoolV432ProofRegistry",
+        proofRegistry,
+        "reveal",
+        [
+          roundId,
+          9_500,
+          evidenceHashes[validatorIndex],
+          salts[validatorIndex],
+        ],
+        validators[validatorIndex].key,
+      );
+    }
+    blockTimestamp += 61n;
+    await write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "resolve",
+      [
+        jobId,
+        milestoneIndex,
+        objective.proof,
+        [worker.address],
+        [allocation],
+      ],
+    );
+  }
+  return { jobId, budget };
 }
 
 await expectRevert(
@@ -2213,10 +2456,10 @@ check(
   false,
 );
 
-const transitionIssue = dynamicIssueFor(
+const transitionBatch = transitionBatchIssueFor(
   "transition-dynamic-improvement",
-  3,
 );
+const transitionIssue = transitionBatch.issue;
 const transitionProposer = agents[4];
 const transitionNeedEvidence = keccak256(
   toBytes("transition-dynamic-improvement-need-evidence"),
@@ -2325,11 +2568,43 @@ await expectRevert(
       "AgentPoolV435TransitionIssueConsensus",
       transitionIssueConsensus,
       "commitVote",
-      [1n, proposerCommitment],
+      [1n, proposerCommitment, []],
       transitionProposer.key,
     ),
 );
-for (let index = 0; index < transitionVoters.length; index++) {
+const sameGroupCommitment = await read(
+  "AgentPoolV435TransitionIssueConsensus",
+  transitionIssueConsensus,
+  "voteCommitment",
+  [
+    1n,
+    transitionVoters[0].address,
+    true,
+    transitionEvidenceHashes[0],
+    transitionSalts[0],
+  ],
+);
+await expectRevert(
+  "TRANSITION rejects a deployment validator controlled by the proposer group",
+  () =>
+    write(
+      "AgentPoolV435TransitionIssueConsensus",
+      transitionIssueConsensus,
+      "commitVote",
+      [
+        1n,
+        sameGroupCommitment,
+        dynamicValidatorCatalog.proofs.get(
+          validatorLeaf(
+            transitionVoters[0].address,
+            dynamicValidatorEntries[0].group,
+          ),
+        ),
+      ],
+      transitionVoters[0].key,
+    ),
+);
+for (let index = 1; index < transitionVoters.length; index++) {
   const voter = transitionVoters[index];
   const commitment = await read(
     "AgentPoolV435TransitionIssueConsensus",
@@ -2347,12 +2622,18 @@ for (let index = 0; index < transitionVoters.length; index++) {
     "AgentPoolV435TransitionIssueConsensus",
     transitionIssueConsensus,
     "commitVote",
-    [1n, commitment],
+    [
+      1n,
+      commitment,
+      dynamicValidatorCatalog.proofs.get(
+        validatorLeaf(voter.address, dynamicValidatorEntries[index].group),
+      ),
+    ],
     voter.key,
   );
 }
 blockTimestamp = BigInt(transitionCommitDeadline + 1);
-for (let index = 0; index < transitionVoters.length; index++) {
+for (let index = 1; index < transitionVoters.length; index++) {
   await write(
     "AgentPoolV435TransitionIssueConsensus",
     transitionIssueConsensus,
@@ -2374,7 +2655,7 @@ await write(
   [1n],
 );
 check(
-  "verified Work Power reaches the 30% quorum and two-thirds total approval threshold",
+  "deployment-committed transition committee reaches its two-group two-thirds threshold",
   await read(
     "AgentPoolV435SystemIssueGate",
     systemIssueGate,
@@ -2388,36 +2669,32 @@ const supplyBeforeTransitionIssue = await read(
   token,
   "totalSupply",
 );
-await settleDynamicIssue({
-  label: "transition-dynamic-improvement",
-  issue: transitionIssue,
-  funding: 3,
+await settleTransitionBatchCandidate({
+  label: "transition-dynamic-improvement-candidate-a",
+  batch: transitionBatch,
+  creatorIndex: 0,
+  workerIndexes: [1, 2, 3, 4, 5],
+});
+blockTimestamp += 7n * 86_400n + 1n;
+await settleTransitionBatchCandidate({
+  label: "transition-dynamic-improvement-candidate-b",
+  batch: transitionBatch,
+  creatorIndex: 1,
+  workerIndexes: [0, 2, 3, 4, 5],
 });
 check(
-  "TRANSITION dynamic Issue emits only objective settled payouts",
+  "TRANSITION dynamic Issue emits only its two bounded candidate budgets",
   await read("AgentPoolV43Token", token, "totalSupply"),
-  supplyBeforeTransitionIssue + parseEther("4"),
+  supplyBeforeTransitionIssue + parseEther("20"),
 );
 
-for (let index = 1; index < 25; index++) {
-  await settleJob({
-    funding: 3,
-    workerIndex: index % 5,
-    releaseId: genesisRelease,
-    allocation: parseEther("1"),
-    keeperFee: parseEther("1"),
-    capacityUnits: 1,
-    label: `epoch-one-${index}`,
-  });
-}
-
 check(
-  "two-epoch verified activity irreversibly reaches MATURE",
+  "two epochs of post-bootstrap dynamic work reach MATURE",
   await read("AgentPoolV43ContributionLedger", ledger, "mature"),
   true,
 );
 check(
-  "maturity used at least fifty successful settlements",
+  "maturity used at least fifty successful post-bootstrap settlements",
   (
     await read(
       "AgentPoolV43ContributionLedger",
@@ -2438,12 +2715,31 @@ check(
   matureIssue.validatorRoot !== dynamicValidatorCatalog.root,
   true,
 );
+const matureSnapshotEpoch = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "governanceSnapshotEpoch",
+);
+for (let index = 1; index < 6; index++) {
+  check(
+    `post-bootstrap work gives voting agent ${index} independent Work Power`,
+    (
+      await read(
+        "AgentPoolV43ContributionLedger",
+        ledger,
+        "votingPowerAt",
+        [agents[index].address, matureSnapshotEpoch, 8],
+      )
+    ) > 0n,
+    true,
+  );
+}
 await write(
   "AgentPoolV43Token",
   token,
   "approve",
   [issueConsensus, proposalBond],
-  agents[0].key,
+  agents[4].key,
 );
 const issueCommitDeadline = Number(blockTimestamp + 86_500n);
 const issueRevealDeadline = issueCommitDeadline + 86_500;
@@ -2457,9 +2753,10 @@ await write(
     issueCommitDeadline,
     issueRevealDeadline,
   ],
-  agents[0].key,
+  agents[4].key,
 );
-const issueSalts = agents.slice(0, 5).map((_, index) =>
+const matureVoters = agents.slice(1, 6);
+const issueSalts = matureVoters.map((_, index) =>
   keccak256(toBytes(`mature-issue-vote-${index}`)),
 );
 for (let index = 0; index < 5; index++) {
@@ -2467,14 +2764,14 @@ for (let index = 0; index < 5; index++) {
     "AgentPoolV432IssueConsensus",
     issueConsensus,
     "voteCommitment",
-    [1n, agents[index].address, true, issueSalts[index]],
+    [1n, matureVoters[index].address, true, issueSalts[index]],
   );
   await write(
     "AgentPoolV432IssueConsensus",
     issueConsensus,
     "commitVote",
     [1n, commitment],
-    agents[index].key,
+    matureVoters[index].key,
   );
 }
 blockTimestamp = BigInt(issueCommitDeadline + 1);
@@ -2484,7 +2781,7 @@ for (let index = 0; index < 5; index++) {
     issueConsensus,
     "revealVote",
     [1n, true, issueSalts[index]],
-    agents[index].key,
+    matureVoters[index].key,
   );
 }
 blockTimestamp = BigInt(issueRevealDeadline + 1);
@@ -2508,6 +2805,8 @@ const matureSettlement = await settleDynamicIssue({
   label: "mature-core-approved-issue",
   issue: matureIssue,
   funding: 2,
+  creatorIndex: 4,
+  workerIndex: 0,
   validatorEntries: evolvedValidatorEntries,
   validatorCatalog: evolvedValidatorCatalog,
   validatorStart: 0,
@@ -2535,7 +2834,7 @@ await write(
   token,
   "approve",
   [consensus, proposalBond],
-  agents[0].key,
+  agents[4].key,
 );
 const commitDeadline = Number(blockTimestamp + 86_500n);
 const revealDeadline = commitDeadline + 86_500;
@@ -2553,10 +2852,10 @@ await write(
     revealDeadline,
     adoptionDeadline,
   ],
-  agents[0].key,
+  agents[4].key,
 );
 
-const salts = agents.slice(0, 5).map((_, index) =>
+const salts = matureVoters.map((_, index) =>
   keccak256(toBytes(`mature-vote-${index}`)),
 );
 for (let index = 0; index < 5; index++) {
@@ -2564,14 +2863,14 @@ for (let index = 0; index < 5; index++) {
     "AgentPoolV43EvolutionConsensus",
     consensus,
     "voteCommitment",
-    [1n, agents[index].address, true, salts[index]],
+    [1n, matureVoters[index].address, true, salts[index]],
   );
   await write(
     "AgentPoolV43EvolutionConsensus",
     consensus,
     "commitVote",
     [1n, commitment],
-    agents[index].key,
+    matureVoters[index].key,
   );
 }
 check(
@@ -2586,7 +2885,7 @@ for (let index = 0; index < 5; index++) {
     consensus,
     "revealVote",
     [1n, true, salts[index]],
-    agents[index].key,
+    matureVoters[index].key,
   );
 }
 blockTimestamp = BigInt(revealDeadline + 1);

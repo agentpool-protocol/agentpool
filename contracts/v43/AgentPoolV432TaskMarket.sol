@@ -61,6 +61,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
     mapping(bytes32 => uint32) private settledMasks;
     mapping(bytes32 => uint32) private activeMilestones;
     mapping(bytes32 => uint32) private settledMilestoneCount;
+    mapping(bytes32 => bool) public jobGovernanceEligible;
 
     event SlashReused(bytes32 indexed jobId, uint256 amount);
     event DependencyGraphPinned(bytes32 indexed jobId, uint32 milestoneCount);
@@ -189,7 +190,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         if (reservedBudget > budget) {
             revert BudgetExceeded();
         }
-        systemIssueGateV2.consumeFor(
+        bool bootstrapAdmitted = systemIssueGateV2.consumeFor(
             issue,
             reservedBudget,
             msg.sender,
@@ -203,6 +204,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             issue.issueId,
             terms
         );
+        jobGovernanceEligible[jobId] = !bootstrapAdmitted;
         _storePolicies(jobId, policies);
         _storeDependencies(jobId, dependencies);
         _vault(funding).reserve(jobId, reservedBudget);
@@ -491,6 +493,25 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         bool validatorFailure =
             milestone.state == MilestoneState.DELIVERED &&
             milestone.minimumReveals != 0;
+        if (validatorFailure) {
+            ValidationPolicy storage policy =
+                validationPolicies[jobId][milestoneIndex];
+            uint8 proofStatus = proofRegistryV2.resolutionStatus(
+                _proofRoundId(jobId, milestoneIndex),
+                milestone.minimumReveals,
+                policy.minimumOperatorGroups,
+                milestone.passScoreBps
+            );
+            if (proofStatus == 2) {
+                _abortJob(
+                    jobId,
+                    milestoneIndex,
+                    MilestoneState.REJECTED,
+                    JobState.REJECTED
+                );
+                return;
+            }
+        }
         _abortJob(
             jobId,
             milestoneIndex,
@@ -641,6 +662,14 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
     ) private {
         if (jobs[jobId].funding == Funding.EXTERNAL) {
             settlementRouter.recordPerformanceOutcome(
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            );
+        } else if (!jobGovernanceEligible[jobId]) {
+            settlementRouter.recordBootstrapOutcome(
                 receiptId,
                 agent,
                 capability,

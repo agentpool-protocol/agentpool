@@ -8,6 +8,11 @@ emission economy, and deployment/evidence pipeline. They reviewed the
 pre-change pull-request state and returned concrete blocking paths. The
 maintainer then implemented and regression-tested the fixes listed here.
 
+The final read-only re-review of the resulting tree returned
+`NO_CONFIRMED_BLOCKER` from all three tracks. This means no additional blocker
+was confirmed in those review scopes; it does not replace the independent
+security and economic reviews required by the release gates.
+
 ## Closed findings
 
 ### Finance and liveness
@@ -29,12 +34,15 @@ maintainer then implemented and regression-tested the fixes listed here.
 - Epoch reservations could be stacked before settlement and then consumed in
   a later epoch. Reservation and settlement now account against the actual
   epoch and include already-reserved emission in the cap check.
-- Dynamic improvement candidates could permanently consume candidate slots and
-  issue budget. Admission now locks a 10 APOOL refundable bond, and every
-  terminal task path releases the slot, committed budget, group lock, and bond.
+- Dynamic improvement candidates previously either permanently trapped their
+  refundable bond or, after the first repair, reopened the same finite Issue
+  budget and candidate count on every terminal path. Admission now treats
+  Issue budget, candidate count, and operator-group use as lifetime caps while
+  returning only the candidate bond. The exact-graph rehearsal rejects replay
+  of the completed bootstrap Issue.
 - Dynamic proposers now need non-zero verified Work Power at the committed
   governance snapshot. Bootstrap objectives remain separately bounded and do
-  not use this path.
+  not create binding Work Power.
 
 ### Governance and evaluation
 
@@ -43,9 +51,11 @@ maintainer then implemented and regression-tested the fixes listed here.
 - Work Power used a reliability multiplier and per-address cap that could
   amplify identity splitting. Verified contribution units are now additive at
   a stable completed-epoch snapshot.
-- Issue and transition decisions now require both 30% Work Power quorum and
-  two-thirds support. Rejected issue hashes are cleared instead of remaining
-  reusable.
+- The initial TRANSITION decision uses the deployment-committed validator
+  committee, excludes the proposer from voting, and requires at least two
+  voters from two groups plus two-thirds support. Bootstrap work cannot vote.
+  Mature Issue decisions use a stable 30% Work Power quorum and two-thirds
+  support. Rejected issue hashes are cleared instead of remaining reusable.
 - Proof panels reject multiple reveals from the same operator group and use the
   lower median for even-sized panels.
 - Evolution source activation can no longer grant an arbitrary module access to
@@ -67,13 +77,56 @@ maintainer then implemented and regression-tested the fixes listed here.
 - Interrupted deployment journals bind the chain, deployer, nonce, source,
   configuration, bootstrap catalog, gate evidence, and release identity before
   broadcast. Unknown broadcasts require explicit read-only reconciliation.
+- Reconciliation now accepts the same partial-manifest schema written by the
+  deployer. Mandatory gate files require distinct paths, digests, owners, and
+  gate-specific schemas and semantics.
+- Verification now requires the exact contract, transaction, code-hash, and
+  artifact key sets and binds the Issue gate's verifier codehash to the
+  deployed objective verifier. Source evidence rejects Git index flags and
+  recomputes every tracked blob; non-positive minimum balances are rejected.
+- The exact candidate graph can now be deployed and verified on Base Sepolia
+  through the same chain-profile engine without weakening the Base-mainnet
+  gate path. Testnet execution requires an explicit valueless-testnet
+  acknowledgement and cannot load the mainnet release gates as approvals.
+- Reliability observations now bind each category to an exact contract
+  function, decoded job/funding state, required event state, and—where
+  applicable—the replayed custom revert reason. A plain transaction label is
+  not evidence.
+- Observer group membership comes only from the validator registry committed
+  in the testnet deployment manifest. Arbitrary signer-supplied group IDs are
+  rejected.
+- The reliability generator reconstructs exact constructor calldata, verifies
+  the clean tracked source evidence, and production preflight, deployment, and
+  verification all regenerate and byte-compare the full live-RPC report.
+- TRANSITION excludes validators from the proposer's operator group. MATURE
+  Issue and release approval require at least five voters from three groups,
+  apply the exact two-thirds threshold to cast Work Power, and separately
+  require a 30% total Work Power quorum.
+- Reliability regeneration is pinned to the report's exact Base Sepolia block
+  so later block production cannot change canonical bytes. Production
+  entrypoints separately reject an observation end older than 24 hours or a
+  last observed block outside the configured live-head lag.
+- Reverted cap evidence must fund its full plan, pass the Issue admission
+  budget preconditions, and reproduce from the prior block. Finalized Issue
+  replay evidence must use the exact stored Issue terms and propagated
+  `DuplicateGroup` error.
+- Every local module imported by a v4.4 release entrypoint and the canonical
+  reliability policy must exist in the committed Git tree.
 
 ## Current executable evidence
 
-- Exact mainnet graph rehearsal: 263 transactions, 26 checks, 24 bootstrap
+- Exact mainnet graph rehearsal: 276 transactions, 33 checks, 24 bootstrap
   objectives.
 - Mainnet finance/state rehearsal: 508 transactions, 415 checks.
-- Public-testnet compatibility rehearsal: 385 transactions.
+- Public-testnet compatibility rehearsal: 731 transactions.
+- Focused v4.4 gate and candidate regression suite: 49 tests.
+- Full repository regression suite: 165 tests, 0 failures.
+- Pinned Slither 0.11.6 baseline check: 14 contracts, with no new High or
+  Medium findings beyond the reviewed baseline.
+- The v4.4 public reliability evaluator and append-only intake path are
+  executable, but the live v4.4 Base Sepolia campaign is currently blocked
+  until its exact deployment manifest, RPC-verified observations, and two
+  independent observer signatures exist.
 - The exact graph additionally proves that an unregistered worker cannot accept
   a task, an external buyer job mints no APOOL, and validator no-quorum refunds
   the buyer without slashing the honest worker.

@@ -65,6 +65,7 @@ contract AgentPoolV435SystemIssueGate is
     mapping(bytes32 => bool) public transitionApprovedIssueHash;
     mapping(bytes32 => bool) public approvedIssueHash;
     mapping(bytes32 => mapping(bytes32 => bool)) public groupUsed;
+    mapping(bytes32 => mapping(bytes32 => bool)) public candidateFinalized;
     mapping(bytes32 => mapping(bytes32 => uint128)) public candidateBond;
 
     event Configured(
@@ -164,9 +165,9 @@ contract AgentPoolV435SystemIssueGate is
     function transitionReady() public view override returns (bool) {
         return
             !ledger.mature() &&
-            ledger.successfulSettlementCount() >=
+            ledger.bootstrapSuccessfulSettlementCount() >=
                 MIN_TRANSITION_SETTLEMENTS &&
-            ledger.activeEpochCount() >= MIN_TRANSITION_EPOCHS;
+            ledger.bootstrapActiveEpochCount() >= MIN_TRANSITION_EPOCHS;
     }
 
     function hashIssue(
@@ -214,11 +215,11 @@ contract AgentPoolV435SystemIssueGate is
         uint128 budget,
         address proposer,
         bytes32[] calldata bootstrapProof
-    ) external override {
+    ) external override returns (bool bootstrapAdmitted) {
         if (msg.sender != market) revert Unauthorized();
         _validateBaseIssue(issue);
         bytes32 termsHash = hashIssue(issue);
-        bool bootstrapAdmitted = MerkleProof.verifyCalldata(
+        bootstrapAdmitted = MerkleProof.verifyCalldata(
             bootstrapProof,
             bootstrapRoot,
             termsHash
@@ -237,9 +238,19 @@ contract AgentPoolV435SystemIssueGate is
                 issue,
                 transitionApprovedIssueHash[termsHash]
             );
-            uint64 snapshotEpoch = ledger.governanceSnapshotEpoch();
-            if (ledger.votingPowerAt(proposer, snapshotEpoch, 8) == 0) {
-                revert Unauthorized();
+            // TRANSITION candidates are admitted by the immutable validator
+            // committee because BOOTSTRAP work deliberately creates no Work
+            // Power. Once MATURE governance exists, candidate proposers must
+            // have verified Work Power at the committed snapshot.
+            if (approvedIssueHash[termsHash]) {
+                uint64 snapshotEpoch = ledger.governanceSnapshotEpoch();
+                if (
+                    ledger.votingPowerAt(
+                        proposer,
+                        snapshotEpoch,
+                        8
+                    ) == 0
+                ) revert Unauthorized();
             }
         }
 
@@ -281,6 +292,7 @@ contract AgentPoolV435SystemIssueGate is
             budget,
             current.candidates
         );
+        return bootstrapAdmitted;
     }
 
     function releaseFor(
@@ -296,14 +308,18 @@ contract AgentPoolV435SystemIssueGate is
             proposer == address(0) ||
             operatorGroup == bytes32(0) ||
             !groupUsed[issueId][operatorGroup] ||
+            candidateFinalized[issueId][operatorGroup] ||
             budget == 0 ||
             current.candidates == 0 ||
             current.committedBudget < budget
         ) revert InvalidTerms();
 
-        current.committedBudget -= budget;
-        current.candidates--;
-        groupUsed[issueId][operatorGroup] = false;
+        // The Issue budget and candidate count are lifetime admission caps,
+        // not concurrent-work counters. A terminal candidate returns only its
+        // refundable bond. Keeping the spent admission and operator-group
+        // lock prevents the same finite Issue from being replayed until the
+        // epoch vault is drained.
+        candidateFinalized[issueId][operatorGroup] = true;
         uint128 returnedBond = candidateBond[issueId][operatorGroup];
         if (returnedBond != 0) {
             candidateBond[issueId][operatorGroup] = 0;

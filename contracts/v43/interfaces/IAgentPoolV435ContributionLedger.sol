@@ -18,4 +18,14 @@ interface IAgentPoolV435ContributionLedger is
     function activeEpochCount() external view returns (uint16);
 
     function successfulSettlementCount() external view returns (uint64);
+
+    function bootstrapSuccessfulSettlementCount()
+        external
+        view
+        returns (uint64);
+
+    function bootstrapActiveEpochCount()
+        external
+        view
+        returns (uint16);
 }

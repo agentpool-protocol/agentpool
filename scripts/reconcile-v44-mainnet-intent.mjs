@@ -1,21 +1,28 @@
 import fs from "node:fs";
-import path from "node:path";
 import { createPublicClient, http } from "viem";
-import { base } from "viem/chains";
 import {
-  CHAIN_ID,
-  ROOT,
   assertTransactionMatchesIntent,
   attachTransactionHash,
   requireEnv,
 } from "./lib/v44-mainnet.mjs";
+import { resolveV44ChainProfile } from "./lib/v44-chain-profile.mjs";
 
-const partialPath = path.join(ROOT, "deployments", "8453.v44.partial.json");
+const profile = resolveV44ChainProfile({
+  ...process.env,
+  V44_DEPLOYMENT_PROFILE: process.argv.includes("--testnet")
+    ? "testnet"
+    : "mainnet",
+});
+const { partialPath } = profile;
 if (!fs.existsSync(partialPath)) {
   throw new Error("V44_PARTIAL_MANIFEST_MISSING");
 }
 const state = JSON.parse(fs.readFileSync(partialPath, "utf8"));
-if (state.schemaVersion !== 2 || state.chainId !== CHAIN_ID) {
+if (
+  state.schemaVersion !== 3 ||
+  state.chainId !== profile.chainId ||
+  (state.deploymentProfile ?? "mainnet") !== profile.id
+) {
   throw new Error("V44_PARTIAL_MANIFEST_INVALID");
 }
 
@@ -30,13 +37,13 @@ if (!intent || intent.hash) {
 }
 
 const client = createPublicClient({
-  chain: base,
-  transport: http(requireEnv("AGENTPOOL_MAINNET_RPC_URL"), {
+  chain: profile.chain,
+  transport: http(requireEnv(profile.rpcEnvironmentVariable), {
     timeout: 60_000,
     retryCount: 4,
   }),
 });
-if ((await client.getChainId()) !== CHAIN_ID) {
+if ((await client.getChainId()) !== profile.chainId) {
   throw new Error("V44_RECONCILE_CHAIN_MISMATCH");
 }
 const transaction = await client.getTransaction({ hash });
@@ -68,10 +75,12 @@ fs.writeFileSync(partialPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 process.stdout.write(
   `${JSON.stringify({
     ok: true,
-    chainId: CHAIN_ID,
+    deploymentProfile: profile.id,
+    testnetOnly: profile.testnetOnly,
+    chainId: profile.chainId,
     key,
     hash,
     nonce: intent.nonce,
-    resumeCommand: "npm run contracts:deploy:v4.4:mainnet",
+    resumeCommand: profile.deployCommand,
   })}\n`,
 );

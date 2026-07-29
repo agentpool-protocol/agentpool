@@ -73,6 +73,13 @@ Pay special attention to:
 14. a failure, timeout, validator outage, or indexer outage permanently
     trapping user funds;
 15. root reserve exposure exceeding a single bounded epoch.
+16. bootstrap work creating binding Work Power or capturing mature governance;
+17. the fixed transition committee being replaceable, proposer-controlled, or
+    reusable as mature Work Power;
+18. Base Sepolia deployment evidence accepting a different graph, source,
+    constructor input, verifier codehash, or configuration than mainnet;
+19. observation-ledger entries being reusable, hand-written into eligibility,
+    or signed before their final body is frozen.
 
 Read audits/V44_SLITHER_TRIAGE.md, but treat it only as the maintainer's
 hypothesis. Independently confirm or refute each triage decision.

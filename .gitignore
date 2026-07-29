@@ -33,9 +33,12 @@ yarn-error.log*
 !.env.example
 !.env.wallets.example
 !.env.v44.mainnet.example
+!.env.v44.testnet.example
 /.mainnet-v44-gates.local.json
 /.mainnet-v44-bootstrap-objectives.local.json
+/.testnet-v44-bootstrap-objectives.local.json
 /deployments/8453.v44.partial.json
+/deployments/84532.v44.partial.json
 
 # vercel
 .vercel

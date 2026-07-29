@@ -1,0 +1,183 @@
+{
+  "schema": "agentpool.testnet.v44.reliability-policy/v1",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "observedChainId": 84532,
+  "targetChainId": 8453,
+  "minimumObservationDays": 90,
+  "maximumEvidenceAgeHours": 24,
+  "maximumIndexerLagBlocks": 1200,
+  "minimumVerifiedTransactions": 180,
+  "minimumContributingAgents": 5,
+  "minimumContributingOperatorGroups": 3,
+  "minimumIndependentObservers": 2,
+  "minimumIndependentObserverGroups": 2,
+  "maximumOpenCriticalIncidents": 0,
+  "categories": {
+    "BOOTSTRAP_SETTLED": {
+      "minimum": 20,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "BOOTSTRAP_SETTLEMENT",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "MilestoneSettled(bytes32,uint32,uint256,address)"
+        },
+        {
+          "contractKey": "contributionLedger",
+          "signature": "PerformanceRecorded(address,address,bytes32,uint256,bool)"
+        }
+      ]
+    },
+    "SYSTEM_SETTLED": {
+      "minimum": 50,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "SYSTEM_SETTLEMENT",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "MilestoneSettled(bytes32,uint32,uint256,address)"
+        },
+        {
+          "contractKey": "contributionLedger",
+          "signature": "OutcomeRecorded(address,address,bytes32,uint256,bool)"
+        }
+      ]
+    },
+    "EXTERNAL_SETTLED": {
+      "minimum": 25,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "EXTERNAL_SETTLEMENT",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "MilestoneSettled(bytes32,uint32,uint256,address)"
+        },
+        {
+          "contractKey": "contributionLedger",
+          "signature": "PerformanceRecorded(address,address,bytes32,uint256,bool)"
+        }
+      ]
+    },
+    "REFUND_COMPLETED": {
+      "minimum": 20,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "refundExpired",
+      "semantic": "JOB_CLOSED_EXPIRED",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "JobClosed(bytes32,uint8,uint256,uint256)"
+        }
+      ]
+    },
+    "NO_QUORUM_REFUND": {
+      "minimum": 10,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "JOB_CLOSED_NO_QUORUM_REFUND",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "JobClosed(bytes32,uint8,uint256,uint256)"
+        }
+      ]
+    },
+    "REJECTION_PRESERVED": {
+      "minimum": 10,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "refundExpired",
+      "semantic": "JOB_CLOSED_REJECTED",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "JobClosed(bytes32,uint8,uint256,uint256)"
+        }
+      ]
+    },
+    "ISSUE_REPLAY_REJECTED": {
+      "minimum": 10,
+      "transactionStatus": "reverted",
+      "contractKey": "taskMarket",
+      "functionName": "createSystemJobV2",
+      "semantic": "FINALIZED_ISSUE_REPLAY",
+      "expectedRevertError": "DuplicateGroup",
+      "errorContractKey": "systemIssueGate",
+      "requiredEvents": []
+    },
+    "DUPLICATE_PAYOUT_REJECTED": {
+      "minimum": 10,
+      "transactionStatus": "reverted",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "DUPLICATE_SETTLEMENT",
+      "expectedRevertError": "InvalidState",
+      "requiredEvents": []
+    },
+    "CAP_BYPASS_REJECTED": {
+      "minimum": 10,
+      "transactionStatus": "reverted",
+      "contractKey": "taskMarket",
+      "functionName": "createSystemJobV2",
+      "semantic": "EMISSION_CAP_EXCEEDED",
+      "expectedRevertError": "BudgetExceeded",
+      "requiredEvents": []
+    },
+    "TRANSITION_ISSUE_APPROVED": {
+      "minimum": 1,
+      "transactionStatus": "success",
+      "contractKey": "transitionIssueConsensus",
+      "functionName": "finalize",
+      "semantic": "TRANSITION_APPROVAL",
+      "requiredEvents": [
+        {
+          "contractKey": "systemIssueGate",
+          "signature": "TransitionIssueApproved(bytes32)"
+        }
+      ]
+    },
+    "MATURE_ISSUE_APPROVED": {
+      "minimum": 1,
+      "transactionStatus": "success",
+      "contractKey": "issueConsensus",
+      "functionName": "finalize",
+      "semantic": "MATURE_APPROVAL",
+      "requiredEvents": [
+        {
+          "contractKey": "systemIssueGate",
+          "signature": "MatureIssueApproved(bytes32)"
+        }
+      ]
+    },
+    "RELEASE_RECOMMENDED": {
+      "minimum": 1,
+      "transactionStatus": "success",
+      "contractKey": "evolutionConsensus",
+      "functionName": "finalizeVote",
+      "semantic": "RELEASE_RECOMMENDATION",
+      "requiredEvents": [
+        {
+          "contractKey": "releaseRegistry",
+          "signature": "ReleaseRecommended(bytes32)"
+        }
+      ]
+    }
+  },
+  "criticalInvariants": [
+    "fund-conservation",
+    "no-duplicate-payout",
+    "weekly-and-lifetime-emission-caps",
+    "refund-liveness",
+    "rejection-cannot-become-refund",
+    "finite-system-issue-admission",
+    "bootstrap-work-creates-no-work-power"
+  ]
+}
