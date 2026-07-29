@@ -24,6 +24,16 @@ import {
 } from "./agentpool-runner-core.mjs";
 import { verifyPublishedCandidateArtifact } from "./execution-adapters.mjs";
 
+export function deduplicateCycleOutcomes(outcomes) {
+  const seen = new Set();
+  return outcomes.filter((outcome) => {
+    const fingerprint = JSON.stringify(outcome);
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  });
+}
+
 function roleEnabled(config, role) {
   return (config.roles ?? ["WORKER"]).includes(role);
 }

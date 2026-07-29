@@ -23,6 +23,7 @@ import {
   createExecutorRegistry,
 } from "./execution-adapters.mjs";
 import {
+  deduplicateCycleOutcomes,
   executeRunnerTaskWithAdapters,
   runAutonomyRoleCycle,
   runCandidateRewardSettlementCycle,
@@ -398,14 +399,14 @@ async function main() {
         address: workerResult.wallet.address,
         onboarding: workerResult.onboarding,
         providers: executorRegistry.providers(),
-        outcomes: [
+        outcomes: deduplicateCycleOutcomes([
           ...workerResult.outcomes,
           ...rewardBefore.outcomes,
           ...autonomyResult.outcomes,
           ...idleImprovementResult.outcomes,
           ...rewardAfter.outcomes,
           ...validationResult.outcomes,
-        ],
+        ]),
       })}\n`,
     );
   };

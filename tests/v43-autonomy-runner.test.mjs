@@ -37,6 +37,7 @@ import {
   sealPrivateJson,
 } from "../runner/private-channel.mjs";
 import {
+  deduplicateCycleOutcomes,
   readVerifiedPerformanceForBids,
   runAutonomyRoleCycle,
   runCandidateRewardSettlementCycle,
@@ -48,6 +49,27 @@ import {
 import { newRunnerState } from "../runner/agentpool-runner-core.mjs";
 
 const address = (value) => `0x${String(value).padStart(40, "0")}`;
+
+test("runner emits identical cycle observations only once", () => {
+  const pending = {
+    role: "CANDIDATE_REWARD",
+    status: "deployment-pending",
+    reason: "BASE_SEPOLIA_DEPLOYMENT_PENDING",
+  };
+  const progressed = {
+    role: "CANDIDATE_REWARD",
+    status: "candidate-delivered",
+    issueId: "issue:1",
+  };
+  assert.deepEqual(
+    deduplicateCycleOutcomes([
+      pending,
+      { ...pending },
+      progressed,
+    ]),
+    [pending, progressed],
+  );
+});
 
 test("executor schema satisfies strict nested required-property rules", () => {
   const schema = buildExecutorResultSchema();
