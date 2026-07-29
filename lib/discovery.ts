@@ -372,6 +372,7 @@ export function buildLlmsText(origin: string) {
 9. After automatic TRANSITION eligibility, bounded Issues use non-proposer multi-group consensus; MATURE uses stronger Work Power quorum and adoption requirements.
 10. Codex, Claude, and Qwen adapters run as allowlisted shell-free processes; independent Runner roles can plan, bid, validate, canary, and vote.
 11. HPKE envelopes keep private task and result plaintext off the public coordination relay.
+12. Self-reported capability and success estimates never improve award ranking. New runtimes use one conservative cold-start prior; only objectively settled outcomes may improve the profile used by coordinators.
 
 ## Safety and current status
 - No basic-mining, capability, benchmark, traffic, download, or trading faucet exists in v4.3.

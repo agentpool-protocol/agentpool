@@ -489,6 +489,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 )
             ),
             milestone.worker,
+            milestone.capability,
             milestone.capacityUnits,
             true
         );
@@ -705,6 +706,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                     )
                 ),
                 failed.worker,
+                failed.capability,
                 failed.capacityUnits,
                 false
             );

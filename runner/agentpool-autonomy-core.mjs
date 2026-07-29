@@ -1,6 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { formatUnits, parseUnits } from "viem";
 
+const BPS = 10_000;
+export const COLD_START_SUCCESS_BPS = 5_000;
+
 export const AUTONOMY_EVENT_TYPES = Object.freeze({
   opportunity: "AUTONOMY_OPPORTUNITY",
   plan: "AUTONOMY_PLAN",
@@ -16,6 +19,44 @@ export const AUTONOMY_EVENT_TYPES = Object.freeze({
 
 function plain(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export function verifiedSuccessBps(record = {}) {
+  const attempts = Number(record.attempts ?? 0);
+  const successes = Number(record.successes ?? 0);
+  if (
+    !Number.isSafeInteger(attempts) ||
+    !Number.isSafeInteger(successes) ||
+    attempts < 0 ||
+    successes < 0 ||
+    successes > attempts
+  ) {
+    throw new Error("AUTONOMY_PERFORMANCE_RECORD_INVALID");
+  }
+  // A symmetric two-success/two-failure prior lets a new AI enter low-risk
+  // work without allowing a self-declared benchmark score to dominate.
+  return Math.max(
+    1,
+    Math.min(
+      BPS,
+      Math.floor(((successes + 2) * BPS) / (attempts + 4)),
+    ),
+  );
+}
+
+export function performanceProfileKey({
+  bidderAddress,
+  capability,
+  runtimeHash = "UNATTESTED_RUNTIME",
+}) {
+  if (!bidderAddress || !capability) {
+    throw new Error("AUTONOMY_PERFORMANCE_KEY_INVALID");
+  }
+  return [
+    String(bidderAddress).toLowerCase(),
+    String(runtimeHash).toLowerCase(),
+    String(capability),
+  ].join("|");
 }
 
 export function autonomyDigest(value) {
@@ -116,9 +157,23 @@ export function createRiskAdjustedBid(task, profile) {
   const price = [maximum, configuredMaximum]
     .reduce((lowest, value) => (value < lowest ? value : lowest), maximum);
   const quotedPrice = shared > price ? price : shared < minimum ? minimum : shared;
-  const success = BigInt(
-    Math.max(1, Math.min(10_000, Number(profile.successLowerBps))),
+  const selfEstimatedSuccess = BigInt(
+    Math.max(
+      1,
+      Math.min(
+        BPS,
+        Number(
+          profile.selfEstimatedSuccessBps ??
+            profile.successLowerBps ??
+            COLD_START_SUCCESS_BPS,
+        ),
+      ),
+    ),
   );
+  const trustedSuccessNumber = verifiedSuccessBps(
+    profile.verifiedPerformance,
+  );
+  const trustedSuccess = BigInt(trustedSuccessNumber);
   const latencyPenalty = parseUnits(
     String(profile.latencyPenaltyApool ?? "0"),
     18,
@@ -140,19 +195,27 @@ export function createRiskAdjustedBid(task, profile) {
     18,
   );
   const riskAdjusted =
-    (quotedPrice * 10_000n) / success +
+    (quotedPrice * BigInt(BPS)) / trustedSuccess +
     latencyPenalty +
-    (failureLoss * (10_000n - success)) / 10_000n +
+    (failureLoss * (BigInt(BPS) - trustedSuccess)) / BigInt(BPS) +
     concentration;
   if (quotedPrice > maximum) {
     throw new Error("AUTONOMY_BID_EXCEEDS_TASK_BUDGET");
   }
   const expectedNetProfit =
-    (quotedPrice * success) / 10_000n -
+    (quotedPrice * selfEstimatedSuccess) / BigInt(BPS) -
     estimatedCost -
     estimatedGas -
-    (failureLoss * (10_000n - success)) / 10_000n -
+    (failureLoss * (BigInt(BPS) - selfEstimatedSuccess)) / BigInt(BPS) -
     concentration;
+  const runtimeHash = String(
+    profile.runtimeHash ?? "UNATTESTED_RUNTIME",
+  );
+  const performanceKey = performanceProfileKey({
+    bidderAddress: profile.bidderAddress,
+    capability: task.capability,
+    runtimeHash,
+  });
   return {
     schema: "agentpool.autonomy.bid/v1",
     taskId: task.id,
@@ -161,11 +224,20 @@ export function createRiskAdjustedBid(task, profile) {
     provider: profile.provider,
     bidderAddress: profile.bidderAddress,
     operatorGroup: profile.operatorGroup,
+    runtimeHash,
+    performanceKey,
     priceBaseUnits: quotedPrice.toString(),
     riskAdjustedBaseUnits: riskAdjusted.toString(),
     expectedNetProfitBaseUnits: expectedNetProfit.toString(),
     expectedNetProfitApool: formatUnits(expectedNetProfit, 18),
-    successLowerBps: Number(success),
+    successLowerBps: trustedSuccessNumber,
+    selfEstimatedSuccessBps: Number(selfEstimatedSuccess),
+    verifiedAttempts: Number(profile.verifiedPerformance?.attempts ?? 0),
+    verifiedSuccesses: Number(profile.verifiedPerformance?.successes ?? 0),
+    performanceSource:
+      Number(profile.verifiedPerformance?.attempts ?? 0) > 0
+        ? "VERIFIED_OUTCOMES"
+        : "COLD_START",
     capacityUnits: Number(profile.capacityUnits ?? 1),
     expiresAt: Number(profile.expiresAt),
   };
@@ -229,7 +301,11 @@ export function rankWorkChoicesByExpectedNetProfit(
     .slice(0, capacity);
 }
 
-export function selectWinningBids(plan, bids) {
+export function selectWinningBids(
+  plan,
+  bids,
+  { verifiedPerformance = {} } = {},
+) {
   const selected = [];
   const reservedByBidder = new Map();
   for (const task of plan.tasks) {
@@ -243,6 +319,33 @@ export function selectWinningBids(plan, bids) {
       .filter((bid) => {
         const used = reservedByBidder.get(bid.bidderAddress) ?? 0;
         return used < Number(bid.capacityUnits);
+      })
+      .map((bid) => {
+        const key = performanceProfileKey({
+          bidderAddress: bid.bidderAddress,
+          capability: task.capability,
+          runtimeHash: bid.runtimeHash,
+        });
+        const record = verifiedPerformance[key] ?? {};
+        const success = verifiedSuccessBps(record);
+        const price = BigInt(bid.priceBaseUnits);
+        const maximumLoss = BigInt(task.maxBudgetBaseUnits);
+        const riskAdjusted =
+          (price * BigInt(BPS) + BigInt(success) - 1n) /
+            BigInt(success) +
+          (maximumLoss * BigInt(BPS - success)) / BigInt(BPS);
+        return {
+          ...bid,
+          performanceKey: key,
+          riskAdjustedBaseUnits: riskAdjusted.toString(),
+          successLowerBps: success,
+          verifiedAttempts: Number(record.attempts ?? 0),
+          verifiedSuccesses: Number(record.successes ?? 0),
+          performanceSource:
+            Number(record.attempts ?? 0) > 0
+              ? "VERIFIED_OUTCOMES"
+              : "COLD_START",
+        };
       })
       .sort((left, right) => {
         const risk =

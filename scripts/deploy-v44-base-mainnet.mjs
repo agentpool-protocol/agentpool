@@ -568,6 +568,10 @@ const manifest = {
   approvedGateEvidence: gateEvidence.approved,
   deployer: account.address,
   deployerHasRuntimeAuthority: false,
+  features: {
+    runtimeCapabilityPerformance: true,
+    selfReportedPerformanceRanking: false,
+  },
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
   genesisModuleHash: releaseInputs.genesisModuleHash,

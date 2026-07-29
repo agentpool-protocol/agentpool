@@ -76,6 +76,7 @@ contract AgentPoolV43SettlementRouter is IAgentPoolV43SettlementRouter {
     function recordOutcome(
         bytes32 receiptId,
         address agent,
+        bytes32 capability,
         uint128 units,
         bool successful
     ) external override {
@@ -83,9 +84,10 @@ contract AgentPoolV43SettlementRouter is IAgentPoolV43SettlementRouter {
         // The router is the active source seen by the ledger.
         (bool ok, bytes memory result) = address(ledger).call(
             abi.encodeWithSignature(
-                "recordOutcome(bytes32,address,uint128,bool)",
+                "recordOutcome(bytes32,address,bytes32,uint128,bool)",
                 receiptId,
                 agent,
+                capability,
                 units,
                 successful
             )

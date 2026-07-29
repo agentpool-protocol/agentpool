@@ -442,7 +442,10 @@ const server = new McpServer(
   { name: "agentpool-v43", version: "0.1.0-autonomous-alpha" },
   { capabilities: { logging: {} } },
 );
-const MCP_TOOL_COUNT = 61;
+const MCP_TOOL_COUNT = 62;
+const runtimeCapabilityPerformanceAvailable = Boolean(
+  deployment.features?.runtimeCapabilityPerformance,
+);
 
 const capabilitySchema = z.object({
   track: z.string().min(1),
@@ -670,6 +673,98 @@ server.registerTool(
         : walletPath,
       explorer: `https://sepolia.basescan.org/address/${account.address}`,
       testnetOnly: true,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_verified_performance",
+  {
+    title: "Read one AI runtime's verified capability outcomes",
+    description:
+      "Returns only settlement outcomes recorded by the active onchain ledger for the bidder's current runtime and requested capability. Self-declared benchmark scores are never rank-eligible. Legacy ledgers return rankEligible=false so every bidder uses the same cold-start prior.",
+    inputSchema: {
+      agent: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+      runtimeHash: z.string().min(1),
+      capability: z.string().min(1),
+      lookback: z.number().int().min(1).max(8).default(8),
+    },
+  },
+  async ({ agent, runtimeHash, capability, lookback }) => {
+    const normalizedRuntimeHash = bytes32(runtimeHash);
+    const normalizedCapability = bytes32(capability);
+    if (!runtimeCapabilityPerformanceAvailable) {
+      return textResult({
+        rankEligible: false,
+        source: "COLD_START",
+        reason: "LEGACY_LEDGER_NO_RUNTIME_CAPABILITY_HISTORY",
+        agent,
+        runtimeHash: normalizedRuntimeHash,
+        capability: normalizedCapability,
+        attempts: 0,
+        successes: 0,
+      });
+    }
+    const [profile, endEpoch] = await Promise.all([
+      chainRead(contracts.contributionLedger, abis.ledger, "profiles", [
+        agent,
+      ]),
+      chainRead(
+        contracts.contributionLedger,
+        abis.ledger,
+        "currentEpoch",
+      ),
+    ]);
+    if (!profile[2]) {
+      return textResult({
+        rankEligible: false,
+        source: "COLD_START",
+        reason: "AGENT_NOT_REGISTERED_ONCHAIN",
+        agent,
+        runtimeHash: normalizedRuntimeHash,
+        capability: normalizedCapability,
+        attempts: 0,
+        successes: 0,
+      });
+    }
+    if (
+      String(profile[1]).toLowerCase() !==
+      normalizedRuntimeHash.toLowerCase()
+    ) {
+      return textResult({
+        rankEligible: false,
+        source: "COLD_START",
+        reason: "BID_RUNTIME_IS_NOT_CURRENT_ONCHAIN_RUNTIME",
+        agent,
+        runtimeHash: normalizedRuntimeHash,
+        currentRuntimeHash: profile[1],
+        capability: normalizedCapability,
+        attempts: 0,
+        successes: 0,
+      });
+    }
+    const [attempts, successes] = await chainRead(
+      contracts.contributionLedger,
+      abis.ledger,
+      "runtimeCapabilityPerformanceAt",
+      [
+        agent,
+        normalizedRuntimeHash,
+        normalizedCapability,
+        endEpoch,
+        lookback,
+      ],
+    );
+    return textResult({
+      rankEligible: true,
+      source: attempts > 0n ? "VERIFIED_OUTCOMES" : "COLD_START",
+      agent,
+      runtimeHash: normalizedRuntimeHash,
+      capability: normalizedCapability,
+      endEpoch: endEpoch.toString(),
+      lookback,
+      attempts: attempts.toString(),
+      successes: successes.toString(),
     });
   },
 );

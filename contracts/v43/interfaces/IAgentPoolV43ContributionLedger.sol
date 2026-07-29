@@ -21,5 +21,20 @@ interface IAgentPoolV43ContributionLedger {
         uint8 lookback
     ) external view returns (uint256);
 
+    function runtimePerformanceAt(
+        address agent,
+        bytes32 runtimeHash,
+        uint64 endEpoch,
+        uint8 lookback
+    ) external view returns (uint256 attempted, uint256 successful);
+
+    function runtimeCapabilityPerformanceAt(
+        address agent,
+        bytes32 runtimeHash,
+        bytes32 capability,
+        uint64 endEpoch,
+        uint8 lookback
+    ) external view returns (uint256 attempted, uint256 successful);
+
     function setSource(address source, bool active) external;
 }

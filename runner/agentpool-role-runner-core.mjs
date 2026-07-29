@@ -9,6 +9,7 @@ import {
   createRiskAdjustedBid,
   detectImprovementIssues,
   evaluateCanary,
+  performanceProfileKey,
   rankWorkChoicesByExpectedNetProfit,
   selectWinningBids,
   validateExecutionResult,
@@ -74,6 +75,50 @@ function choosePlan(plans) {
       if (budget !== 0n) return budget < 0n ? -1 : 1;
       return String(left.planHash).localeCompare(String(right.planHash));
     })[0];
+}
+
+export async function readVerifiedPerformanceForBids(
+  mcp,
+  bids,
+  { lookback = 8 } = {},
+) {
+  const profiles = new Map();
+  for (const bid of bids) {
+    const key = performanceProfileKey({
+      bidderAddress: bid.bidderAddress,
+      capability: bid.capability,
+      runtimeHash: bid.runtimeHash,
+    });
+    if (profiles.has(key)) continue;
+    const result = await mcp.call(
+      "agentpool_v43_verified_performance",
+      {
+        agent: bid.bidderAddress,
+        runtimeHash: bid.runtimeHash ?? "UNATTESTED_RUNTIME",
+        capability: bid.capability,
+        lookback,
+      },
+    );
+    if (!result.rankEligible) {
+      profiles.set(key, null);
+      continue;
+    }
+    const attempts = Number(result.attempts);
+    const successes = Number(result.successes);
+    if (
+      !Number.isSafeInteger(attempts) ||
+      !Number.isSafeInteger(successes) ||
+      attempts < 0 ||
+      successes < 0 ||
+      successes > attempts
+    ) {
+      throw new Error("AUTONOMY_CHAIN_PERFORMANCE_INVALID");
+    }
+    profiles.set(key, { attempts, successes });
+  }
+  return Object.fromEntries(
+    [...profiles.entries()].filter(([, record]) => record !== null),
+  );
 }
 
 function validAuditText(value, minimum, maximum) {
@@ -395,6 +440,11 @@ export async function runAutonomyRoleCycle({
               ...profile,
               bidderAddress: wallet.address,
               operatorGroup: config.operatorGroup,
+              runtimeHash:
+                profile.runtimeHash ??
+                config.sourceSnapshotDigest ??
+                config.runtime ??
+                "UNATTESTED_RUNTIME",
               expiresAt: Math.min(
                 Number(profile.expiresAt ?? now + 10 * 60 * 1_000),
                 Number(event.expiresAt),
@@ -546,7 +596,15 @@ export async function runAutonomyRoleCycle({
             event.opportunityId,
           ).map((candidate) => unwrapCoordinationEvent(candidate));
           if (bids.length >= plan.tasks.length) {
-            const award = selectWinningBids(plan, bids);
+            const verifiedPerformance =
+              await readVerifiedPerformanceForBids(mcp, bids, {
+                lookback: Number(
+                  config.verifiedPerformanceLookback ?? 8,
+                ),
+              });
+            const award = selectWinningBids(plan, bids, {
+              verifiedPerformance,
+            });
             const originalOpportunity = (all.events ?? []).find(
               (candidate) =>
                 candidate.eventType ===

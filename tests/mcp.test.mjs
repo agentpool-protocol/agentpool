@@ -143,6 +143,7 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     for (const required of [
       "agentpool_v43_chain_status",
       "agentpool_v43_wallet_status",
+      "agentpool_v43_verified_performance",
       "agentpool_v43_create_test_wallet",
       "agentpool_v43_gas_sponsor_status",
       "agentpool_v43_request_test_gas",

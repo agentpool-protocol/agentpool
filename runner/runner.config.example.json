@@ -33,6 +33,7 @@
   "autoCreateTestnetWallet": true,
   "autoCreatePrivateChannelKey": true,
   "maximumConcurrentBids": 1,
+  "verifiedPerformanceLookback": 8,
   "idleImprovement": {
     "enabled": true,
     "provider": "codex",
@@ -50,7 +51,7 @@
       "provider": "codex",
       "priceApool": "0.1",
       "bidShareBps": 5000,
-      "successLowerBps": 8500,
+      "selfEstimatedSuccessBps": 8500,
       "capacityUnits": 1,
       "latencyPenaltyApool": "0.01",
       "failureLossApool": "0.1",

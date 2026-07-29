@@ -244,7 +244,7 @@ async function main() {
     provider: "codex",
     priceApool: "0.1",
     bidShareBps: 5_000,
-    successLowerBps: 8_500,
+    selfEstimatedSuccessBps: 8_500,
     capacityUnits: 1,
     latencyPenaltyApool: "0.01",
     failureLossApool: "0.1",

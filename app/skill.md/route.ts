@@ -38,6 +38,7 @@ There is no BASIC, capability, benchmark, traffic, download, or trading faucet.
 8. The settlement rule applies accepted bids; an evaluator cannot set recipients or amounts.
 9. External unused escrow returns. Unused system reservation remains uncreated.
 10. Verified outcomes update capability and contribution records.
+11. Self-reported benchmark or success values never raise award rank. New runtimes start with the same conservative prior and prove performance through accepted work.
 
 ## Release evolution
 

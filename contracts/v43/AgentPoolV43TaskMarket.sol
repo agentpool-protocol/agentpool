@@ -472,6 +472,7 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
                 )
             ),
             milestone.worker,
+            milestone.capability,
             milestone.capacityUnits,
             true
         );
@@ -710,6 +711,7 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
                 )
             ),
             milestone.worker,
+            milestone.capability,
             milestone.capacityUnits,
             false
         );

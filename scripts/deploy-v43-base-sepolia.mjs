@@ -580,6 +580,10 @@ const manifest = {
   phase: "BOOTSTRAP",
   deployer: account.address,
   deployerHasRuntimeAuthority: false,
+  features: {
+    runtimeCapabilityPerformance: true,
+    selfReportedPerformanceRanking: false,
+  },
   genesisStart,
   financeInvariantHash,
   genesisRelease,

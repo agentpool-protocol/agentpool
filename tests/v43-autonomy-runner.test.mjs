@@ -15,9 +15,11 @@ import {
   detectImprovementIssues,
   evaluateCanary,
   gasDecision,
+  performanceProfileKey,
   rankWorkChoicesByExpectedNetProfit,
   selectWinningBids,
   validateExecutionResult,
+  verifiedSuccessBps,
 } from "../runner/agentpool-autonomy-core.mjs";
 import {
   buildExecutorResultSchema,
@@ -31,6 +33,7 @@ import {
   sealPrivateJson,
 } from "../runner/private-channel.mjs";
 import {
+  readVerifiedPerformanceForBids,
   runAutonomyRoleCycle,
   runIdleImprovementCycle,
   runValidatorCycle,
@@ -125,6 +128,97 @@ test("three provider capabilities form one budget-safe DAG", () => {
     ["qwen", "codex", "claude"],
   );
   assert.equal(award.reservedBaseUnits, "20000000000000000000");
+});
+
+test("self-reported performance cannot manipulate autonomous awards", () => {
+  const plan = buildTaskDag({
+    schema: "agentpool.autonomy.opportunity/v1",
+    id: "opportunity:self-report",
+    capability: "code",
+    maxBudgetApool: "10",
+    task: { kind: "AGENT_EXECUTE" },
+  });
+  const task = plan.tasks[0];
+  const cheap = createRiskAdjustedBid(task, {
+    provider: "new-cheap",
+    bidderAddress: address(10),
+    operatorGroup: "group-cheap",
+    runtimeHash: "runtime-cheap",
+    priceApool: "1",
+    successLowerBps: 1,
+    capacityUnits: 1,
+    expiresAt: Date.now() + 60_000,
+  });
+  const expensive = createRiskAdjustedBid(task, {
+    provider: "self-promoted",
+    bidderAddress: address(11),
+    operatorGroup: "group-expensive",
+    runtimeHash: "runtime-expensive",
+    priceApool: "2",
+    successLowerBps: 10_000,
+    capacityUnits: 1,
+    expiresAt: Date.now() + 60_000,
+  });
+  expensive.riskAdjustedBaseUnits = "0";
+
+  assert.equal(cheap.selfEstimatedSuccessBps, 1);
+  assert.equal(expensive.selfEstimatedSuccessBps, 10_000);
+  assert.equal(cheap.successLowerBps, 5_000);
+  assert.equal(expensive.successLowerBps, 5_000);
+  assert.equal(
+    selectWinningBids(plan, [expensive, cheap]).selected[0].provider,
+    "new-cheap",
+  );
+});
+
+test("only verified outcomes improve autonomous award ranking", () => {
+  const plan = buildTaskDag({
+    schema: "agentpool.autonomy.opportunity/v1",
+    id: "opportunity:verified-history",
+    capability: "code",
+    maxBudgetApool: "10",
+    task: { kind: "AGENT_EXECUTE" },
+  });
+  const task = plan.tasks[0];
+  const cold = createRiskAdjustedBid(task, {
+    provider: "cold",
+    bidderAddress: address(12),
+    operatorGroup: "group-cold",
+    runtimeHash: "runtime-cold",
+    priceApool: "1",
+    successLowerBps: 10_000,
+    capacityUnits: 1,
+    expiresAt: Date.now() + 60_000,
+  });
+  const proven = createRiskAdjustedBid(task, {
+    provider: "proven",
+    bidderAddress: address(13),
+    operatorGroup: "group-proven",
+    runtimeHash: "runtime-proven",
+    priceApool: "2",
+    successLowerBps: 1,
+    capacityUnits: 1,
+    expiresAt: Date.now() + 60_000,
+  });
+  const provenKey = performanceProfileKey(proven);
+  const award = selectWinningBids(
+    plan,
+    [cold, proven],
+    {
+      verifiedPerformance: {
+        [provenKey]: { attempts: 20, successes: 20 },
+      },
+    },
+  );
+
+  assert.equal(verifiedSuccessBps(), 5_000);
+  assert.equal(verifiedSuccessBps({ attempts: 20, successes: 20 }), 9_166);
+  assert.equal(award.selected[0].provider, "proven");
+  assert.equal(award.selected[0].performanceSource, "VERIFIED_OUTCOMES");
+  assert.throws(
+    () => verifiedSuccessBps({ attempts: 1, successes: 2 }),
+    /AUTONOMY_PERFORMANCE_RECORD_INVALID/,
+  );
 });
 
 test("market type never overrides expected net profit", () => {
@@ -460,10 +554,66 @@ function relayMcp(initialEvents = []) {
       if (name === "agentpool_v43_resolve_milestone_onchain") {
         return { transactionHash: `0x${"42".repeat(32)}` };
       }
+      if (name === "agentpool_v43_verified_performance") {
+        return {
+          rankEligible: false,
+          source: "COLD_START",
+          reason: "LEGACY_LEDGER_NO_RUNTIME_CAPABILITY_HISTORY",
+          attempts: "0",
+          successes: "0",
+        };
+      }
       throw new Error(`UNEXPECTED_TOOL:${name}`);
     },
   };
 }
+
+test("coordinator imports only rank-eligible onchain capability history", async () => {
+  const bids = [
+    {
+      bidderAddress: address(1),
+      runtimeHash: "runtime-a",
+      capability: "code",
+    },
+    {
+      bidderAddress: address(2),
+      runtimeHash: "runtime-b",
+      capability: "code",
+    },
+  ];
+  const calls = [];
+  const performance = await readVerifiedPerformanceForBids(
+    {
+      async call(name, args) {
+        calls.push({ name, args });
+        return args.agent === address(1)
+          ? {
+              rankEligible: true,
+              attempts: "8",
+              successes: "7",
+            }
+          : {
+              rankEligible: false,
+              attempts: "999",
+              successes: "999",
+            };
+      },
+    },
+    bids,
+  );
+  assert.deepEqual(performance, {
+    [performanceProfileKey(bids[0])]: {
+      attempts: 8,
+      successes: 7,
+    },
+  });
+  assert.equal(calls.length, 2);
+  assert.ok(
+    calls.every(
+      (call) => call.name === "agentpool_v43_verified_performance",
+    ),
+  );
+});
 
 test("idle capacity audits a real system issue only when it beats market work", async () => {
   const mcp = relayMcp();

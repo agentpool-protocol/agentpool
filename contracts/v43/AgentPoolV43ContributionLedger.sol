@@ -47,6 +47,17 @@ contract AgentPoolV43ContributionLedger is
     mapping(address => bool) public override isActiveSource;
     mapping(bytes32 => bool) public claimedReceipt;
     mapping(uint64 => mapping(address => Outcome)) public outcomes;
+    mapping(
+        uint64 =>
+            mapping(address => mapping(bytes32 => Outcome))
+    ) public runtimeOutcomes;
+    mapping(
+        uint64 =>
+            mapping(
+                address =>
+                    mapping(bytes32 => mapping(bytes32 => Outcome))
+            )
+    ) public runtimeCapabilityOutcomes;
     mapping(uint64 => Outcome) public epochTotals;
     mapping(address => bool) public agentBecameEligible;
     mapping(bytes32 => bool) public groupBecameEligible;
@@ -63,6 +74,21 @@ contract AgentPoolV43ContributionLedger is
         address indexed source,
         address indexed agent,
         bytes32 indexed receiptId,
+        uint256 units,
+        bool successful
+    );
+    event RuntimeOutcomeRecorded(
+        address indexed agent,
+        bytes32 indexed runtimeHash,
+        bytes32 indexed receiptId,
+        uint256 units,
+        bool successful
+    );
+    event RuntimeCapabilityOutcomeRecorded(
+        address indexed agent,
+        bytes32 indexed runtimeHash,
+        bytes32 indexed capability,
+        bytes32 receiptId,
         uint256 units,
         bool successful
     );
@@ -146,6 +172,7 @@ contract AgentPoolV43ContributionLedger is
     function recordOutcome(
         bytes32 receiptId,
         address agent,
+        bytes32 capability,
         uint128 units,
         bool successful
     ) external {
@@ -153,6 +180,7 @@ contract AgentPoolV43ContributionLedger is
         if (
             receiptId == bytes32(0) ||
             agent == address(0) ||
+            capability == bytes32(0) ||
             units == 0 ||
             !profiles[agent].registered
         ) revert InvalidTerms();
@@ -161,11 +189,22 @@ contract AgentPoolV43ContributionLedger is
 
         uint64 epoch = currentEpoch();
         Outcome storage agentOutcome = outcomes[epoch][agent];
+        bytes32 runtimeHash = profiles[agent].runtimeHash;
+        Outcome storage runtimeOutcome = runtimeOutcomes[epoch][agent][
+            runtimeHash
+        ];
+        Outcome storage capabilityOutcome = runtimeCapabilityOutcomes[epoch][
+            agent
+        ][runtimeHash][capability];
         Outcome storage total = epochTotals[epoch];
         agentOutcome.attempted += units;
+        runtimeOutcome.attempted += units;
+        capabilityOutcome.attempted += units;
         total.attempted += units;
         if (successful) {
             agentOutcome.successful += units;
+            runtimeOutcome.successful += units;
+            capabilityOutcome.successful += units;
             total.successful += units;
             successfulSettlementCount++;
             totalSuccessfulUnits += units;
@@ -192,6 +231,21 @@ contract AgentPoolV43ContributionLedger is
         emit OutcomeRecorded(
             msg.sender,
             agent,
+            receiptId,
+            units,
+            successful
+        );
+        emit RuntimeCapabilityOutcomeRecorded(
+            agent,
+            runtimeHash,
+            capability,
+            receiptId,
+            units,
+            successful
+        );
+        emit RuntimeOutcomeRecorded(
+            agent,
+            runtimeHash,
             receiptId,
             units,
             successful
@@ -235,6 +289,56 @@ contract AgentPoolV43ContributionLedger is
             : shareCap;
         uint256 reliabilityBps = (successful * BPS) / attempted;
         return (cappedContribution * reliabilityBps) / BPS;
+    }
+
+    function runtimePerformanceAt(
+        address agent,
+        bytes32 runtimeHash,
+        uint64 endEpoch,
+        uint8 lookback
+    ) external view override returns (uint256 attempted, uint256 successful) {
+        if (
+            agent == address(0) ||
+            runtimeHash == bytes32(0) ||
+            lookback == 0 ||
+            lookback > MAX_LOOKBACK
+        ) revert InvalidTerms();
+        uint64 count = endEpoch + 1 < lookback
+            ? endEpoch + 1
+            : uint64(lookback);
+        for (uint64 offset = 0; offset < count; offset++) {
+            Outcome storage outcome = runtimeOutcomes[
+                endEpoch - offset
+            ][agent][runtimeHash];
+            attempted += outcome.attempted;
+            successful += outcome.successful;
+        }
+    }
+
+    function runtimeCapabilityPerformanceAt(
+        address agent,
+        bytes32 runtimeHash,
+        bytes32 capability,
+        uint64 endEpoch,
+        uint8 lookback
+    ) external view override returns (uint256 attempted, uint256 successful) {
+        if (
+            agent == address(0) ||
+            runtimeHash == bytes32(0) ||
+            capability == bytes32(0) ||
+            lookback == 0 ||
+            lookback > MAX_LOOKBACK
+        ) revert InvalidTerms();
+        uint64 count = endEpoch + 1 < lookback
+            ? endEpoch + 1
+            : uint64(lookback);
+        for (uint64 offset = 0; offset < count; offset++) {
+            Outcome storage outcome = runtimeCapabilityOutcomes[
+                endEpoch - offset
+            ][agent][runtimeHash][capability];
+            attempted += outcome.attempted;
+            successful += outcome.successful;
+        }
     }
 
     function setSource(address source, bool active) external override {

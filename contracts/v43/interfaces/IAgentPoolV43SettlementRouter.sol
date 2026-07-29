@@ -5,6 +5,7 @@ interface IAgentPoolV43SettlementRouter {
     function recordOutcome(
         bytes32 receiptId,
         address agent,
+        bytes32 capability,
         uint128 units,
         bool successful
     ) external;

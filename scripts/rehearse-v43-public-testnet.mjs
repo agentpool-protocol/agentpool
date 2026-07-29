@@ -1802,6 +1802,63 @@ for (let index = 0; index < 23; index++) {
     label: `epoch-zero-${index}`,
   });
 }
+const originalRuntimeHash = keccak256(toBytes("runtime-0"));
+const originalRuntimePerformance = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "runtimePerformanceAt",
+  [agents[0].address, originalRuntimeHash, 0, 8],
+);
+const originalCapabilityPerformance = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "runtimeCapabilityPerformanceAt",
+  [agents[0].address, originalRuntimeHash, capability, 0, 8],
+);
+const unrelatedCapabilityPerformance = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "runtimeCapabilityPerformanceAt",
+  [
+    agents[0].address,
+    originalRuntimeHash,
+    keccak256(toBytes("unrelated-capability")),
+    0,
+    8,
+  ],
+);
+check(
+  "verified work accrues only to the active runtime and capability",
+  originalRuntimePerformance[0] > 0n &&
+    originalRuntimePerformance[1] > 0n &&
+    originalCapabilityPerformance[0] > 0n &&
+    originalCapabilityPerformance[1] > 0n &&
+    unrelatedCapabilityPerformance[0] === 0n &&
+    unrelatedCapabilityPerformance[1] === 0n,
+  true,
+);
+const replacementRuntimeHash = keccak256(
+  toBytes("runtime-0-replacement"),
+);
+await write(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "updateRuntime",
+  [replacementRuntimeHash],
+  agents[0].key,
+);
+const replacementRuntimeBeforeWork = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "runtimeCapabilityPerformanceAt",
+  [agents[0].address, replacementRuntimeHash, capability, 0, 8],
+);
+check(
+  "a replacement runtime cannot inherit prior model performance",
+  replacementRuntimeBeforeWork[0] === 0n &&
+    replacementRuntimeBeforeWork[1] === 0n,
+  true,
+);
 blockTimestamp += 7n * 86_400n + 1n;
 await settleJob({
   funding: 3,
@@ -1812,6 +1869,18 @@ await settleJob({
   capacityUnits: 1,
   label: "epoch-one-0",
 });
+const replacementRuntimeAfterWork = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "runtimeCapabilityPerformanceAt",
+  [agents[0].address, replacementRuntimeHash, capability, 1, 8],
+);
+check(
+  "replacement runtime starts earning performance from its own result",
+  replacementRuntimeAfterWork[0] === 1n &&
+    replacementRuntimeAfterWork[1] === 1n,
+  true,
+);
 check(
   "two active epochs and real work open limited TRANSITION",
   await read(

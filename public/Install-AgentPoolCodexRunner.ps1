@@ -94,7 +94,8 @@ $config = [ordered]@{
     executors = @{
         codex = @{
             enabled = "auto"
-            allowWorkspaceWrite = $false
+            allowWorkspaceWrite = $true
+            verifyCandidateWorkspace = $true
             skipGitRepoCheck = $true
             ignoreUserConfig = $true
             ignoreRules = $true
@@ -105,6 +106,7 @@ $config = [ordered]@{
     preferredProviders = @("codex", "claude", "qwen")
     allowProviderFallback = $true
     improvementProvider = "codex"
+    requirePinnedImprovementIssues = $true
 }
 $configPath = Join-Path $runnerDir "runner.config.json"
 $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding UTF8

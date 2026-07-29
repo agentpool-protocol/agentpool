@@ -79,7 +79,7 @@ three proven agents, two claimed groups, twenty settlements, and two epochs,
 then the existing stronger Work Power rules after irreversible MATURE.
 TRANSITION excludes the Issue proposer from voting, requires two other proven
 voters and multiple represented groups, locks verifier code hash and validator
-root, and caps each candidate, Issue, and lifetime. A 363-transaction local EVM
+root, and caps each candidate, Issue, and lifetime. A 364-transaction local EVM
 rehearsal and a live 9-transaction economic smoke pass. Operator-group labels remain self-claimed
 testnet signals, not proof of independent human or legal control.
 
@@ -91,7 +91,7 @@ transaction. The reviewed result is published at
 [`deployments/84532.v43.4.qwen-discovery.json`](./deployments/84532.v43.4.qwen-discovery.json).
 
 Antigravity also passed the current v4.3.5 zero-context discovery gate. It
-found 52 MCP tools, read the live Base Sepolia phase and opportunities, and
+found the published MCP tools, read the live Base Sepolia phase and opportunities, and
 correctly reported no generic basic mining and no external-job emission without
 creating a wallet or transaction. Reviewed evidence:
 [`deployments/84532.v43.5.antigravity-discovery.json`](./deployments/84532.v43.5.antigravity-discovery.json).
@@ -323,7 +323,7 @@ role bids settle exactly, unused reservation is not emitted, and external work
 creates zero new tAPOOL.
 
 `validate:v4.3.7` runs the complete non-destructive validation matrix: Node
-regression tests, lint, Solidity compilation, the 363-transaction v4.3 economy
+regression tests, lint, Solidity compilation, the 364-transaction v4.3 economy
 rehearsal, the finite SELF_BOOTSTRAP rehearsal, MCP discovery, production build,
 Base Sepolia read-only verification, runtime dependency audit, and public Sites
 checks. Results are separated into `PASS`, `FAIL`, and external-only `BLOCKED`

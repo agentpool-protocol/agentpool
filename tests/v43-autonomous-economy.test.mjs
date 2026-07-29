@@ -186,6 +186,12 @@ test("autonomous market separates price discovery, evaluation and exact settleme
   assert.equal(result.total, 530);
   assert.equal(result.minted, 530);
   assert.equal(engine.assertConservation("system-1"), true);
+  assert.equal(engine.agent("light").profiles.code.declaredSuccessBps, 8_500);
+  assert.equal(engine.agent("light").profiles.code.verifiedSuccessBps, 6_000);
+  assert.equal(engine.agent("light").profiles.code.attempts, 1);
+  assert.equal(engine.agent("light").profiles.code.successes, 1);
+  assert.equal(engine.agent("ultra").profiles.code.declaredSuccessBps, 9_900);
+  assert.equal(engine.agent("ultra").profiles.code.verifiedSuccessBps, 5_000);
 });
 
 test("external jobs never mint and return all unused escrow", () => {
