@@ -20,6 +20,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run contracts:compile
+      - run: npm run evidence:v4.4:source
+      - run: npm run evidence:v4.4:source:verify
       - run: npm run contracts:rehearse:v4.3:public
+      - run: npm run contracts:rehearse:v4.4:mainnet
+      - run: npm run contracts:rehearse:v4.4:full
       - run: npm run build
       - run: npm test

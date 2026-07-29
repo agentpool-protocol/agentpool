@@ -73,6 +73,19 @@ let blockTimestamp = BigInt(Math.floor(Date.now() / 1_000));
 let transactionCount = 0;
 let gasSpent = 0n;
 const checks = [];
+let randomState = 0x44a91c3d;
+
+function randomBelow(exclusiveMaximum) {
+  randomState ^= randomState << 13;
+  randomState ^= randomState >>> 17;
+  randomState ^= randomState << 5;
+  randomState >>>= 0;
+  return randomState % exclusiveMaximum;
+}
+
+function wholeApool(value) {
+  return parseEther(String(value));
+}
 
 function normalized(value) {
   return typeof value === "bigint" ? value.toString() : value;
@@ -412,6 +425,97 @@ check(
       "totalEmitted",
     )),
 );
+
+let expectedCoreEmission = 80n;
+const statefulCases = 32;
+for (let caseIndex = 0; caseIndex < statefulCases; caseIndex++) {
+  const reserved = BigInt(1 + randomBelow(100));
+  const settled = BigInt(randomBelow(Number(reserved) + 1));
+  const reservationId = keccak256(
+    toBytes(`v44-stateful-${caseIndex}-${reserved}-${settled}`),
+  );
+  await write(
+    "AgentPoolV44EpochVaultHarness",
+    harness,
+    "reserve",
+    [coreVault, reservationId, wholeApool(reserved)],
+  );
+  if (settled != 0n) {
+    const first =
+      settled === 1n
+        ? 1n
+        : BigInt(1 + randomBelow(Number(settled)));
+    await write(
+      "AgentPoolV44EpochVaultHarness",
+      harness,
+      "settle",
+      [coreVault, reservationId, [worker], [wholeApool(first)]],
+    );
+    if (first < settled) {
+      await write(
+        "AgentPoolV44EpochVaultHarness",
+        harness,
+        "settle",
+        [
+          coreVault,
+          reservationId,
+          [worker],
+          [wholeApool(settled - first)],
+        ],
+      );
+    }
+    expectedCoreEmission += settled;
+  }
+  await write(
+    "AgentPoolV44EpochVaultHarness",
+    harness,
+    "release",
+    [coreVault, reservationId],
+  );
+  check(
+    `stateful.${caseIndex}.reservationConserved`,
+    await read("AgentPoolV43EpochVault", coreVault, "totalReserved"),
+    0n,
+  );
+  check(
+    `stateful.${caseIndex}.emissionConserved`,
+    await read("AgentPoolV43EpochVault", coreVault, "totalEmitted"),
+    wholeApool(expectedCoreEmission),
+  );
+  check(
+    `stateful.${caseIndex}.supplyConserved`,
+    await read("AgentPoolV44Token", token, "totalSupply"),
+    wholeApool(expectedCoreEmission + 50n),
+  );
+}
+
+const coreWeeklyCap = BigInt(config.emission.coreWeeklyCapApool);
+const firstEpochRemainder = coreWeeklyCap - expectedCoreEmission;
+const exactCapReservation = keccak256(toBytes("v44-exact-weekly-cap"));
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "reserve",
+  [coreVault, exactCapReservation, wholeApool(firstEpochRemainder)],
+);
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "settle",
+  [coreVault, exactCapReservation, [worker], [wholeApool(firstEpochRemainder)]],
+);
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "release",
+  [coreVault, exactCapReservation],
+);
+expectedCoreEmission = coreWeeklyCap;
+check(
+  "coreVault.firstEpochReachedExactCap",
+  await read("AgentPoolV43EpochVault", coreVault, "epochEmitted", [0n]),
+  wholeApool(coreWeeklyCap),
+);
 await expectRevert("coreVault.weeklyCapCannotBeExceeded", () =>
   write(
     "AgentPoolV44EpochVaultHarness",
@@ -434,6 +538,109 @@ await expectRevert("vault.attackerCannotReserveDirectly", () =>
   ),
 );
 
+blockTimestamp = BigInt(genesisStart + 604_800 + 1);
+const nextEpochReservation = keccak256(toBytes("v44-next-epoch"));
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "reserve",
+  [coreVault, nextEpochReservation, wholeApool(7)],
+);
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "settle",
+  [coreVault, nextEpochReservation, [worker], [wholeApool(3)]],
+);
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "release",
+  [coreVault, nextEpochReservation],
+);
+expectedCoreEmission += 3n;
+check(
+  "coreVault.nextEpochHasIndependentBudget",
+  await read("AgentPoolV43EpochVault", coreVault, "epochEmitted", [1n]),
+  wholeApool(3),
+);
+check(
+  "token.supplyStillEqualsVaultEmissionsAfterEpochRollover",
+  await read("AgentPoolV44Token", token, "totalSupply"),
+  (await read("AgentPoolV43EpochVault", coreVault, "totalEmitted")) +
+    (await read(
+      "AgentPoolV43EpochVault",
+      evolutionVault,
+      "totalEmitted",
+    )),
+);
+
+const lifetimeGenesis = Number(blockTimestamp + 10n);
+const lifetimeVault = await deploy("AgentPoolV43EpochVault", [
+  token,
+  keccak256(toBytes("LIFETIME_INVARIANT")),
+  lifetimeGenesis,
+  wholeApool(100),
+  wholeApool(150),
+  deployer,
+]);
+await write(
+  "AgentPoolV43EpochVault",
+  lifetimeVault,
+  "configureMarket",
+  [harness],
+);
+blockTimestamp = BigInt(lifetimeGenesis + 1);
+const lifetimeFirst = keccak256(toBytes("v44-lifetime-first"));
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "reserve",
+  [lifetimeVault, lifetimeFirst, wholeApool(100)],
+);
+blockTimestamp += 604_800n;
+await expectRevert("vault.lifetimeCapCountsOpenPriorEpochReservations", () =>
+  write(
+    "AgentPoolV44EpochVaultHarness",
+    harness,
+    "reserve",
+    [
+      lifetimeVault,
+      keccak256(toBytes("v44-lifetime-over")),
+      wholeApool(51),
+    ],
+  ),
+);
+const lifetimeSecond = keccak256(toBytes("v44-lifetime-second"));
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "reserve",
+  [lifetimeVault, lifetimeSecond, wholeApool(50)],
+);
+check(
+  "vault.lifetimeCapCanBeReachedExactly",
+  await read("AgentPoolV43EpochVault", lifetimeVault, "totalReserved"),
+  wholeApool(150),
+);
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "release",
+  [lifetimeVault, lifetimeFirst],
+);
+await write(
+  "AgentPoolV44EpochVaultHarness",
+  harness,
+  "release",
+  [lifetimeVault, lifetimeSecond],
+);
+check(
+  "vault.releasedLifetimeReservationsDoNotMint",
+  await read("AgentPoolV43EpochVault", lifetimeVault, "totalReserved"),
+  0n,
+);
+
 const report = {
   schema: "agentpool.mainnet.v44.local-rehearsal/v1",
   ok: checks.every((entry) => entry.passed),
@@ -441,11 +648,14 @@ const report = {
   token,
   coreVault,
   evolutionVault,
+  lifetimeVault,
   harness,
   userEscrow,
   transactions: transactionCount,
   gasSpent: gasSpent.toString(),
   checks,
+  statefulCases,
+  randomSeed: "0x44a91c3d",
   generatedAt: new Date().toISOString(),
 };
 const reportPath = path.join(

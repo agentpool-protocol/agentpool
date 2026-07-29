@@ -27,15 +27,25 @@ Run from a clean, committed checkout:
 ```powershell
 npm ci
 npm run contracts:compile
+npm run evidence:v4.4:source
+npm run evidence:v4.4:source:verify
 npm run contracts:rehearse:v4.4:mainnet
 npm run contracts:rehearse:v4.4:full
 npm test
 ```
 
-The focused rehearsal proves zero premint, minter isolation, weekly cap
-enforcement, reservation release, and unauthorized-call rejection. The full
-rehearsal runs the current immutable finance kernel through BOOTSTRAP,
-TRANSITION, and MATURE with the v4.4 APOOL token.
+The source-evidence pair binds the exact Git commit and tree, Solidity source
+blob IDs, compiler version and settings, package lock, configuration, finance
+invariant, and creation/runtime bytecode hashes. Verification recomputes the
+whole report and rejects any changed field.
+
+The focused rehearsal proves zero premint, minter isolation, pre-genesis
+closure, weekly and lifetime cap enforcement, reservation release, and
+unauthorized-call rejection. It also runs 32 deterministic stateful
+reserve/partial-settle/release sequences and checks reservation, emission, and
+supply conservation after every case. The full rehearsal runs the current
+immutable finance kernel through BOOTSTRAP, TRANSITION, and MATURE with the
+v4.4 APOOL token.
 
 ## Evidence gates
 

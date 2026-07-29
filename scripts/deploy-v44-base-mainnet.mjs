@@ -14,7 +14,6 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import {
   CHAIN_ID,
-  CONTRACT_TYPES,
   NETWORK,
   ROOT,
   VERSION,

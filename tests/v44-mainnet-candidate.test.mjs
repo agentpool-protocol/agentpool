@@ -15,6 +15,10 @@ import {
   loadAndValidateConfig,
   loadAndValidateGates,
 } from "../scripts/lib/v44-mainnet.mjs";
+import {
+  buildV44ReleaseEvidence,
+  verifyV44ReleaseEvidence,
+} from "../scripts/generate-v44-release-evidence.mjs";
 
 function source(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), "utf8");
@@ -78,6 +82,10 @@ test("v4.4 epoch emission cannot reserve or settle before genesis", () => {
   );
   assert.match(rehearsal, /vault\.emissionCannotReserveBeforeGenesis/);
   assert.match(rehearsal, /token\.supplyRemainsZeroBeforeGenesis/);
+  assert.match(rehearsal, /const statefulCases = 32/);
+  assert.match(rehearsal, /reservationConserved/);
+  assert.match(rehearsal, /supplyConserved/);
+  assert.match(rehearsal, /lifetimeCapCountsOpenPriorEpochReservations/);
 });
 
 test("v4.4 artifacts are present, deployable, and under the EVM size limit", () => {
@@ -90,6 +98,34 @@ test("v4.4 artifacts are present, deployable, and under the EVM size limit", () 
   assert.equal(
     evidence.AgentPoolV44Token.sourceName,
     "contracts/v44/AgentPoolV44Token.sol",
+  );
+});
+
+test("v4.4 source evidence binds the exact tree, compiler, and bytecode", () => {
+  const evidence = buildV44ReleaseEvidence({ requireClean: false });
+  assert.match(evidence.sourceCommit, /^[0-9a-f]{40}$/);
+  assert.match(evidence.sourceTree, /^[0-9a-f]{40}$/);
+  assert.match(evidence.evidenceSha256, /^[0-9a-f]{64}$/);
+  assert.match(evidence.solcVersion, /^0\.8\.36\+/);
+  assert.equal(evidence.compilerSettings.optimizer.runs, 500);
+  assert.equal(evidence.compilerSettings.viaIR, true);
+  assert.equal(evidence.compilerSettings.evmVersion, "cancun");
+  assert.ok(
+    evidence.soliditySources.some(
+      (entry) => entry.file === "contracts/v44/AgentPoolV44Token.sol",
+    ),
+  );
+  assert.match(
+    evidence.artifacts.AgentPoolV44Token.runtimeBytecodeHash,
+    /^0x[0-9a-f]{64}$/,
+  );
+  verifyV44ReleaseEvidence(evidence, { requireClean: false });
+
+  const tampered = structuredClone(evidence);
+  tampered.compilerSettings.optimizer.runs = 1;
+  assert.throws(
+    () => verifyV44ReleaseEvidence(tampered, { requireClean: false }),
+    /V44_SOURCE_EVIDENCE_MISMATCH/,
   );
 });
 
@@ -189,4 +225,16 @@ test("v4.4 deployment path is Base-mainnet-only and excludes test mocks", () => 
   assert.match(deploy, /confirmations: 2/);
   assert.match(deploy, /V44_RESIDUAL_AUTHORITY/);
   assert.match(verify, /supplyEqualsEpochEmissions/);
+});
+
+test("CI reproduces v4.4 evidence and both mainnet rehearsals", () => {
+  const workflow = source(".github/workflows/ci.yml");
+  for (const command of [
+    "npm run evidence:v4.4:source",
+    "npm run evidence:v4.4:source:verify",
+    "npm run contracts:rehearse:v4.4:mainnet",
+    "npm run contracts:rehearse:v4.4:full",
+  ]) {
+    assert.match(workflow, new RegExp(command.replaceAll(".", "\\.")));
+  }
 });
