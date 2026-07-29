@@ -4,22 +4,7 @@
   "release": "4.3.5-staged-autonomy-alpha",
   "authority": "versioned-bytecode-content-hashes-and-proof-of-contribution",
   "status": "base-sepolia-alpha",
-  "selfBootstrapOverlay": {
-    "release": "4.3.7-self-bootstrap-overlay-alpha",
-    "manifest": "deployments/84532.v43.7.json",
-    "contract": "0x5c35cdd23F20A1269aF802A21fdcdabFdBb298cC",
-    "mode": "SELF_BOOTSTRAP",
-    "sameAgentMayFillMultipleRoles": true,
-    "payout": "sum of precommitted accepted work-item quotes with distinct objective receipts",
-    "maxItemQuoteApool": "2",
-    "maxIssueBudgetApool": "5",
-    "dailyCapApool": "5",
-    "lifetimeCapApool": "10",
-    "createsWorkPower": false,
-    "canRecommendRelease": false,
-    "canMint": false
-  },
-  "generatedAt": "2026-07-28T12:29:09.808Z",
+  "generatedAt": "2026-07-29T14:52:23.477Z",
   "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
   "sourceMirrors": [
     "https://github.com/agentpool-protocol/agentpool"
@@ -127,73 +112,73 @@
   "artifacts": {
     "AgentPoolV43ContributionLedger": {
       "source": "contracts/v43/AgentPoolV43ContributionLedger.sol",
-      "artifactSha256": "0x8980d38f0b4a1db2dc97dc32aef69c10d32f506f3e1ba428e4cd7ac21d1e1cbf",
-      "runtimeCodeHash": "0x468bcfbfa690d2ab716c09528d76aa402a2dd3417498b5793cc4c509c2287e31"
+      "artifactSha256": "0x81642858fc9ba75ce9ef6c7cd766294a84e518835f0e2276ac1cbe28af5b6032",
+      "runtimeCodeHash": "0xfd0006395d9cadbcd5f5a13caf95097f024e135a4fa9b2050e79df9b12c4b585"
     },
     "AgentPoolV43EvolutionConsensus": {
       "source": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
-      "artifactSha256": "0x27f48035e452658f6b51a74c9ac3919d46ab7dfb9256f309f7ecd8c0f733b563",
-      "runtimeCodeHash": "0x8199d77ce377c442b618e566c612d376a669e4c50dacd6925fd5beab8a0f72df"
+      "artifactSha256": "0x59a4a3c52a8fc299aff3b2b199b33b26afbbfdbbc68e241bbf0dca4d5cb05f65",
+      "runtimeCodeHash": "0x2bf08244d999c6874b8efd1521a4d3406aa3e62682851dcf5acd030d7669ddd0"
     },
     "AgentPoolV432IssueConsensus": {
       "source": "contracts/v43/AgentPoolV432IssueConsensus.sol",
-      "artifactSha256": "0x14edde8d344e8f232642add7cb4d8645017da802398abe0eb6f72343ddf67ab9",
-      "runtimeCodeHash": "0xc210f5a1ec1ebfd359008ab823d15742aaa7ae11f5231ddd298a44e5e0920b4a"
+      "artifactSha256": "0xcfd9ca74aa3d545d3b454fb67bd1bcee5e8cfa202c59da93011b9a58c6628134",
+      "runtimeCodeHash": "0xfa81bd846c6aedc59f31ffee4a5f622a2166ff6228d0713cde5613c87ab3f2b9"
     },
     "AgentPoolV435SystemIssueGate": {
       "source": "contracts/v43/AgentPoolV435SystemIssueGate.sol",
-      "artifactSha256": "0xc6dc0a2dae2629c41662f76c2ec19696ca7d992d2131b880c226129d53a244fb",
-      "runtimeCodeHash": "0xa3cee49faa9aef7f823656c58c2d091adda6d9842c7cc56a4ed30d908ce57662"
+      "artifactSha256": "0xaa8dd5082dff01f5a077beae89ac16693309fe9ff260bbf6b8b1c1f0bd90e75d",
+      "runtimeCodeHash": "0x062a528ddf3480a024df76c56a4b62507c71e7189ada6457249044a16b093a5a"
     },
     "AgentPoolV435TransitionIssueConsensus": {
       "source": "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
-      "artifactSha256": "0x6bc9251293919359b80a277cc7e580cf65a376105a2fa0cc2211f35ddfdc0efd",
-      "runtimeCodeHash": "0x38e04b4215a44901872ac75db6c9762fd6eca620f1b9e22413fa0a069e54e658"
+      "artifactSha256": "0xf647baa3443bd021d30e635d3ea5c832ffccb819e8c35e0949eb406b29bd9585",
+      "runtimeCodeHash": "0xf52d37fc6ff72699c3340225936a5fe47e7f4280af3125642702928772d80f67"
     },
     "AgentPoolV432TaskMarket": {
       "source": "contracts/v43/AgentPoolV432TaskMarket.sol",
-      "artifactSha256": "0x370cbb985ae6d9e9262e790b3cc7a314d2bfbb38e2d8f799281efee17ff7fbed",
-      "runtimeCodeHash": "0xe3dbd1864e693e70e587ac643fb8c06ff2897ddea46b73054eb8eda4a4085235"
+      "artifactSha256": "0x8b7b3c69b29a96e1a8867fcb3e090d5c9a9153367c7cf1a8e98c85d90f20456f",
+      "runtimeCodeHash": "0x4078031411e9d2aef95625ce7cb38a2c4da130bd77924e9968595c32d5c6ad74"
     },
     "AgentPoolV43Token": {
       "source": "contracts/v43/AgentPoolV43Token.sol",
-      "artifactSha256": "0x340b97087e45f7e6cd5367b89b5524de062da2ea667a0e714bff30860a64ed89",
-      "runtimeCodeHash": "0x6b33e0688967ec8c706ec60e46097d24180343109f877e7a1728fee032e082ba"
+      "artifactSha256": "0x602bc60a73e5593f967ddd22ed565db1e23509daf59955186dc32bb1286082dc",
+      "runtimeCodeHash": "0xd1739ec60c39a1341ff30fbdd9f7d256627c6acaa75b6ba92ddf5740cfc0cfdc"
     },
     "AgentPoolV43EpochVault": {
       "source": "contracts/v43/AgentPoolV43EpochVault.sol",
-      "artifactSha256": "0x0a22b6687afce1d22a5df6c5ac17d4b43d9c6d025b9d8e34f2fd71e5b0001668",
-      "runtimeCodeHash": "0x57e62ba5997e3293caeabdefc619f373af3c9479636b15b629505441b32c42a5"
+      "artifactSha256": "0xc27bd1dd47e338b8a832830a4c3a4f81f9b2b33522ca9effb6f540a603650bbd",
+      "runtimeCodeHash": "0xda38df47233e71fe173b9a773972f9f2fb3aeda8164317b0d7b533e048729964"
     },
     "AgentPoolV43UserEscrowKernel": {
       "source": "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
-      "artifactSha256": "0x67d49bfe76810d7c2fa9b8552bf33c2dfbe01afc9073ea5ce9e4ec4600aa0cdf",
-      "runtimeCodeHash": "0x4451c9481a08adff55144e3455cd4ee49a265ada8c6fa04fec68088d28fdd046"
+      "artifactSha256": "0xe2ab691e138c36d84f5f0dea0a9e2540eeeae82ad9a86252f1f3603d4b1369b5",
+      "runtimeCodeHash": "0xc1509cf6991b7f4ee46085835cf004bbb1dbd52377269f67b934de551191769f"
     },
     "AgentPoolV43ReleaseRegistry": {
       "source": "contracts/v43/AgentPoolV43ReleaseRegistry.sol",
-      "artifactSha256": "0xb5097e17f7879aba559eef7bff95b7e0a7a644b7d6ab487bdbe099b28e1b571b",
-      "runtimeCodeHash": "0xf3a41b5eeda7dca8d054c1877a1722368ef10eb82c0878ad061edaf1c75580cb"
+      "artifactSha256": "0x87fdedfea70e006633ca91750741ea6bbeaf014050d14c2233ab867b7aa0b49f",
+      "runtimeCodeHash": "0xbc7123ae187cfe428cce42e7bb7b0190d26ef010a90663b4239f8b2ae80447d8"
     },
     "AgentPoolV43CapacityRegistry": {
       "source": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
-      "artifactSha256": "0xcfa03f4dbe102bf03c744808db810f6813585497bd42475ca31a701ff053326e",
-      "runtimeCodeHash": "0xcaa84b495775f5c6373532d5f8a2626f119bd6dc1fa52ed76cf3d8e11c83320d"
+      "artifactSha256": "0xccd1fe624ed1f072d28a007ed0cd22749f9f782d55a0073b436b16e53509a6cc",
+      "runtimeCodeHash": "0xc21670e6b9b1bab9015d9dc6a2aca244edc6de9fe3abba64d625630831ece377"
     },
     "AgentPoolV432ProofRegistry": {
       "source": "contracts/v43/AgentPoolV432ProofRegistry.sol",
-      "artifactSha256": "0x048b91d0f7f0f4975a140e4ace1e353bacecc79e3d033c714798e540a5e9d9cb",
-      "runtimeCodeHash": "0x1bc777c139ca14bb469395ead89c438f17a28f49deae7d7112862bbe8a575014"
+      "artifactSha256": "0x5aeea37a0f06196ee999afe6aeaa501b3513eb2fc7373e4f1a212823e54c6510",
+      "runtimeCodeHash": "0x42ab9e7778249323dfac1f2887a785ecba687ac1ca409b07a3f65ef22353f320"
     },
     "AgentPoolV43SettlementRouter": {
       "source": "contracts/v43/AgentPoolV43SettlementRouter.sol",
-      "artifactSha256": "0x8663b2dd76ddb1b484524b2db428365dc82f9be2c40da10620b65a47ada0d652",
-      "runtimeCodeHash": "0x2490fc74fd68791cabf2c10f7f6bc90450fa16416246c539a319fd522a61f0d6"
+      "artifactSha256": "0x0f22135ff5f35618fa25c431ff75c0aa6631803e0bbad6577ccab4421860ea10",
+      "runtimeCodeHash": "0x7fb954820d5ce719b9d0baa18e6b1253bfe8e12ab2f31d01d573237d0560457f"
     },
     "AgentPoolV43HashObjectiveVerifier": {
       "source": "contracts/v43/AgentPoolV43HashObjectiveVerifier.sol",
-      "artifactSha256": "0x77bebdf0b56403e3826e1a68b9db83543feabcaec25517064bc3939cf2331f59",
-      "runtimeCodeHash": "0xf30c4355cff8c336030442872dfb8fc0a0b50073e1ee15af2ac1daaa74123cbf"
+      "artifactSha256": "0xda1a0a7d3390d00878d3a0c6c23234832b4220cf2b04b451ab72d8b8d8a8ea0f",
+      "runtimeCodeHash": "0x3ee7f162dd6a9be22ba9eeca355f09c9d48a9f133811eed26b0ddcda77e7c636"
     }
   },
   "machineInterfaces": {
@@ -206,7 +191,7 @@
       "persistentEventLog": true,
       "walletCustody": "device-local-test-wallet-or-local-environment-only",
       "chainWrites": "Base Sepolia only",
-      "toolCount": 61
+      "toolCount": 76
     },
     "sharedCoordinationRelay": {
       "endpoint": "/api/v4.3/coordination/events",
@@ -221,8 +206,8 @@
   },
   "rehearsal": {
     "passed": true,
-    "transactionCount": 354,
-    "checkCount": 40
+    "transactionCount": 364,
+    "checkCount": 52
   },
   "economicSmoke": {
     "passed": true,

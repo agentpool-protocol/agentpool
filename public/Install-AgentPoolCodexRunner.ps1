@@ -81,7 +81,8 @@ $config = [ordered]@{
     pollIntervalMs = 15000
     operatorGroup = $deviceIdentity
     runtime = "agentpool-codex-runner-v1"
-    roles = @("WORKER", "PLANNER", "BIDDER", "COORDINATOR", "VALIDATOR", "WATCHER", "IMPROVER")
+    independenceClaim = $false
+    roles = @("WORKER", "PLANNER", "BIDDER", "COORDINATOR", "VALIDATOR", "WATCHER", "IMPROVER", "CANARY", "VOTER")
     capabilities = @("mcp-json-data-code-low-risk")
     minNetProfitApool = "0"
     estimatedCostApool = "0"
@@ -107,6 +108,17 @@ $config = [ordered]@{
     allowProviderFallback = $true
     improvementProvider = "codex"
     requirePinnedImprovementIssues = $true
+    candidateReward = @{
+        enabled = $true
+        reporterQuoteApool = "0.1"
+        candidateQuoteApool = "1"
+        validatorQuoteApool = "0.2"
+        budgetCapApool = "3"
+        bidMinutes = 5
+        deliveryMinutes = 60
+        commitMinutes = 90
+        revealMinutes = 120
+    }
 }
 $configPath = Join-Path $runnerDir "runner.config.json"
 $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding UTF8

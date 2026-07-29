@@ -496,10 +496,13 @@ export function decideWorkPowerVote(votes, {
   supportBps = 6_667,
   perAgentCapBps = 1_000,
 }) {
+  const voteList = Array.isArray(votes) ? votes.filter(Boolean) : [];
   const cap = (BigInt(eligiblePower) * BigInt(perAgentCapBps)) / 10_000n;
   const unique = new Map();
-  for (const vote of votes) {
-    if (!unique.has(vote.agentId)) unique.set(vote.agentId, vote);
+  for (const vote of voteList) {
+    if (vote.agentId && !unique.has(vote.agentId)) {
+      unique.set(vote.agentId, vote);
+    }
   }
   const normalized = [...unique.values()].map((vote) => ({
     ...vote,

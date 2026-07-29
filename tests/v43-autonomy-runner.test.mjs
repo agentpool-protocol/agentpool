@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -23,8 +25,10 @@ import {
 } from "../runner/agentpool-autonomy-core.mjs";
 import {
   buildExecutorResultSchema,
+  computeWorkspaceDigest,
   createExecutionAdapter,
   createExecutorRegistry,
+  materializeCandidateArtifact,
   resolveProviderLaunch,
 } from "../runner/execution-adapters.mjs";
 import {
@@ -35,6 +39,7 @@ import {
 import {
   readVerifiedPerformanceForBids,
   runAutonomyRoleCycle,
+  runCandidateRewardSettlementCycle,
   runIdleImprovementCycle,
   runValidatorCycle,
   validateIdleImprovementAudit,
@@ -299,17 +304,22 @@ test("process adapters use shell=false and normalize all provider outputs", asyn
 });
 
 test("candidate evidence comes from actual workspace changes and host tests", async () => {
-  const workspace = await mkdtemp(
-    path.join(os.tmpdir(), "agentpool-candidate-evidence-"),
+  const testRoot = await mkdtemp(
+    path.join(os.tmpdir(), "agentpool-candidate-evidence-root-"),
   );
+  const workspace = path.join(testRoot, "source");
+  const artifactRoot = path.join(testRoot, "artifacts");
+  const replayRoot = path.join(testRoot, "replays");
   try {
+    await mkdir(workspace, { recursive: true });
     await mkdir(path.join(workspace, "tests"), { recursive: true });
     await writeFile(
       path.join(workspace, "tests", "candidate.test.mjs"),
       [
         'import assert from "node:assert/strict";',
+        'import { existsSync } from "node:fs";',
         'import test from "node:test";',
-        'test("candidate", () => assert.equal(2 + 2, 4));',
+        'test("candidate", () => assert.equal(existsSync("candidate.txt"), true));',
       ].join("\n"),
     );
     const output = JSON.stringify({
@@ -336,8 +346,10 @@ test("candidate evidence comes from actual workspace changes and host tests", as
         ].join(""),
       ],
       workspace,
-      allowedWorkspaceRoots: [workspace],
+      allowedWorkspaceRoots: [testRoot],
       verifyCandidateWorkspace: true,
+      allowWorkspaceWrite: true,
+      candidateArtifactRoot: artifactRoot,
     });
     const result = await adapter.execute({
       instruction: "implement candidate",
@@ -347,9 +359,43 @@ test("candidate evidence comes from actual workspace changes and host tests", as
     assert.equal(result.evidence.testPassed, true);
     assert.equal(result.evidence.hostVerified, true);
     assert.match(result.evidence.patchDigest, /^sha256:[0-9a-f]{64}$/);
+    assert.match(
+      result.evidence.sourceSnapshotDigest,
+      /^sha256:[0-9a-f]{64}$/,
+    );
+    assert.match(
+      result.evidence.artifactDigest,
+      /^sha256:[0-9a-f]{64}$/,
+    );
+    assert.equal(result.evidence.artifactSizeBytes > 0, true);
+    assert.equal(result.evidence.objectiveCanaryPassed, true);
+    assert.equal(result.evidence.candidateMetrics.qualityBps, 10_000);
+    assert.equal(result.evidence.baselineMetrics.qualityBps, 0);
+    assert.equal(
+      existsSync(result.evidence.localArtifactPath),
+      true,
+    );
+    assert.equal(
+      existsSync(path.join(workspace, "candidate.txt")),
+      false,
+    );
     assert.equal(result.evidence.testCommand, "node --test tests/*.test.mjs");
+    const replay = await materializeCandidateArtifact({
+      baseWorkspace: workspace,
+      artifactPath: result.evidence.localArtifactPath,
+      artifactDigest: result.evidence.artifactDigest,
+      targetRoot: replayRoot,
+    });
+    assert.deepEqual(replay.changedFiles, ["candidate.txt"]);
+    assert.equal(
+      await readFile(
+        path.join(replay.workspace, "candidate.txt"),
+        "utf8",
+      ),
+      "real change",
+    );
   } finally {
-    await rm(workspace, { recursive: true, force: true });
+    await rm(testRoot, { recursive: true, force: true });
   }
 });
 
@@ -487,6 +533,89 @@ test("canary adoption and Work Power rules reject single-agent control", () => {
     decideWorkPowerVote(votes, { eligiblePower: 10_000n }).approved,
     true,
   );
+  assert.deepEqual(
+    decideWorkPowerVote(null, {
+      eligiblePower: 10_000n,
+      minimumParticipants: 5,
+      minimumGroups: 3,
+    }),
+    {
+      approved: false,
+      participants: 0,
+      groups: 0,
+      participation: "0",
+      support: "0",
+      quorumReached: false,
+      supportReached: false,
+    },
+  );
+});
+
+test("a bootstrap runner may self-canary but cannot turn it into a vote", async () => {
+  const candidate = {
+    id: "evt:self-candidate",
+    eventType: "IMPROVEMENT_CANDIDATE",
+    opportunityId: "improvement:self-canary",
+    actorAddress: address(9),
+    body: {
+      payload: {
+        issueId: "issue:self-canary",
+        evidence: {
+          candidateMetrics: {
+            qualityBps: 10_000,
+            cost: 10,
+            latencyMs: 10,
+            securityRegressions: 0,
+          },
+          baselineMetrics: {
+            qualityBps: 0,
+            cost: 10,
+            latencyMs: 10,
+            securityRegressions: 1,
+          },
+        },
+        expiresAt: Date.now() + 60_000,
+      },
+    },
+    createdAt: 10,
+    expiresAt: Date.now() + 60_000,
+  };
+  const mcp = relayMcp([candidate]);
+  const state = newRunnerState();
+  const canary = await runAutonomyRoleCycle({
+    config: { roles: ["CANARY", "VOTER"] },
+    mcp,
+    state,
+    wallet: { address: address(9) },
+    now: 20,
+  });
+  assert.equal(canary.outcomes[0].status, "advisory-only");
+  const event = mcp.events.find(
+    (entry) => entry.eventType === "CANARY_RESULT",
+  );
+  assert.equal(event.body.payload.independent, false);
+  assert.equal(event.body.payload.advisoryOnly, true);
+  assert.equal(event.body.payload.createsWorkPower, false);
+
+  const vote = await runAutonomyRoleCycle({
+    config: { roles: ["CANARY", "VOTER"] },
+    mcp,
+    state,
+    wallet: { address: address(9) },
+    now: Date.now() + 1,
+  });
+  assert.equal(
+    vote.outcomes.some(
+      (outcome) =>
+        outcome.role === "VOTER" &&
+        outcome.reason === "INDEPENDENT_CANARY_REQUIRED",
+    ),
+    true,
+  );
+  assert.equal(
+    mcp.events.some((entry) => entry.eventType === "WORK_POWER_VOTE"),
+    false,
+  );
 });
 
 test("gas policy self-funds, sponsors, or pauses without debt", () => {
@@ -521,9 +650,12 @@ test("gas policy self-funds, sponsors, or pauses without debt", () => {
 function relayMcp(initialEvents = []) {
   const events = [...initialEvents];
   const calls = [];
-  return {
+  const artifacts = new Map();
+  const relay = {
     events,
     calls,
+    artifacts,
+    publisherAddress: address(9),
     async call(name, args) {
       calls.push({ name, args });
       if (name === "agentpool_v43_shared_coordination") {
@@ -543,13 +675,43 @@ function relayMcp(initialEvents = []) {
           id: `evt:${events.length + 1}`,
           eventType: args.eventType,
           opportunityId: args.opportunityId,
-          actorAddress: address(9),
+          actorAddress: relay.publisherAddress,
           body,
           createdAt: Date.now() + events.length,
           expiresAt: args.expiresAt,
         };
         events.push(event);
         return { id: event.id };
+      }
+      if (
+        name === "agentpool_v43_publish_candidate_artifact"
+      ) {
+        const manifest = JSON.parse(args.artifactJson);
+        artifacts.set(args.artifactDigest, args.artifactJson);
+        return {
+          artifactDigest: args.artifactDigest,
+          authorAddress: relay.publisherAddress,
+          sourceSnapshotDigest: manifest.sourceSnapshotDigest,
+          patchDigest: manifest.patchDigest,
+          sizeBytes: Buffer.byteLength(args.artifactJson),
+          immutable: true,
+          publicPath:
+            `/api/v4.3/candidates/artifacts?digest=${encodeURIComponent(args.artifactDigest)}`,
+        };
+      }
+      if (name === "agentpool_v43_candidate_artifact") {
+        const artifactJson = artifacts.get(args.artifactDigest);
+        if (!artifactJson) {
+          throw new Error("V43_CANDIDATE_ARTIFACT_NOT_FOUND");
+        }
+        const manifest = JSON.parse(artifactJson);
+        return {
+          artifactDigest: args.artifactDigest,
+          artifactJson,
+          sizeBytes: Buffer.byteLength(artifactJson),
+          sourceSnapshotDigest: manifest.sourceSnapshotDigest,
+          patchDigest: manifest.patchDigest,
+        };
       }
       if (name === "agentpool_v43_resolve_milestone_onchain") {
         return { transactionHash: `0x${"42".repeat(32)}` };
@@ -566,7 +728,265 @@ function relayMcp(initialEvents = []) {
       throw new Error(`UNEXPECTED_TOOL:${name}`);
     },
   };
+  return relay;
 }
+
+test("autonomous candidate reward cycle quotes before work and completes one-AI incubation", async () => {
+  const wallet = { address: address(9) };
+  const issueId = "issue:autonomous-reward-e2e";
+  const opportunityId = "improvement:autonomous-reward-e2e";
+  const sourceSnapshotDigest = `sha256:${"ab".repeat(32)}`;
+  const artifactDigest = `sha256:${"cd".repeat(32)}`;
+  const patchDigest = `sha256:${"ef".repeat(32)}`;
+  const issueEvent = {
+    id: "evt:reward-issue",
+    eventType: "IMPROVEMENT_ISSUE",
+    opportunityId,
+    actorAddress: wallet.address,
+    body: {
+      payload: {
+        issueId,
+        evidence: { digest: "reproduced-defect-v1" },
+        sourceSnapshotDigest,
+        acceptanceCriteria: { regressionTestRequired: true },
+      },
+    },
+    createdAt: 1,
+    expiresAt: 60_000,
+  };
+  const events = [issueEvent];
+  const calls = [];
+  const issue = {
+    state: "NONE",
+    deadlines: { bid: 2, delivery: 10, commit: 20, reveal: 30 },
+    candidates: [],
+    validations: [],
+    selectedCandidateId: 0,
+    artifactDigest: null,
+  };
+  let paidApool = 0;
+  const mcp = {
+    async call(name, args) {
+      calls.push({ name, args });
+      if (name === "agentpool_v439_candidate_reward_status") {
+        return { deployed: true };
+      }
+      if (name === "agentpool_v43_shared_coordination") {
+        return {
+          events: events.filter(
+            (event) =>
+              (!args.eventType ||
+                event.eventType === args.eventType) &&
+              (!args.opportunityId ||
+                event.opportunityId === args.opportunityId),
+          ),
+        };
+      }
+      if (name === "agentpool_v439_candidate_reward_issue") {
+        return structuredClone(issue);
+      }
+      if (name === "agentpool_v439_open_candidate_reward_issue") {
+        issue.state = "BIDDING";
+        return { transactionHash: `0x${"01".repeat(32)}` };
+      }
+      if (name === "agentpool_v439_prepare_candidate_bid") {
+        return { planCommitment: `0x${"11".repeat(32)}` };
+      }
+      if (name === "agentpool_v439_submit_candidate_bid") {
+        issue.candidates.push({
+          candidateId: 1,
+          author: wallet.address,
+          quoteApool: args.quoteApool,
+        });
+        issue.selectedCandidateId = 1;
+        return { transactionHash: `0x${"02".repeat(32)}` };
+      }
+      if (name === "agentpool_v439_award_candidate") {
+        issue.state = "RUNNING";
+        return { transactionHash: `0x${"03".repeat(32)}` };
+      }
+      if (name === "agentpool_v439_deliver_candidate") {
+        issue.state = "VALIDATING";
+        issue.artifactDigest = args.artifactDigest;
+        return { transactionHash: `0x${"04".repeat(32)}` };
+      }
+      if (name === "agentpool_v439_prepare_validation") {
+        return {
+          validationCommitment: `0x${"22".repeat(32)}`,
+        };
+      }
+      if (name === "agentpool_v439_commit_validation") {
+        issue.validations.push({
+          validator: wallet.address,
+          commitment: args.validationCommitment,
+          quoteApool: args.quoteApool,
+          revealed: false,
+        });
+        return { transactionHash: `0x${"05".repeat(32)}` };
+      }
+      if (name === "agentpool_v439_reveal_validation") {
+        issue.validations[0].revealed = true;
+        return { transactionHash: `0x${"06".repeat(32)}` };
+      }
+      if (name === "agentpool_v439_finalize_candidate_reward") {
+        issue.state = "SETTLED";
+        paidApool = 0.1 + 1 + 0.2;
+        return { transactionHash: `0x${"07".repeat(32)}` };
+      }
+      throw new Error(`UNEXPECTED_TOOL:${name}`);
+    },
+  };
+  const state = newRunnerState();
+  const config = {
+    candidateReward: {
+      enabled: true,
+      reporterQuoteApool: "0.1",
+      candidateQuoteApool: "1",
+      validatorQuoteApool: "0.2",
+      budgetCapApool: "3",
+      bidMinutes: 1,
+      deliveryMinutes: 2,
+      commitMinutes: 3,
+      revealMinutes: 4,
+    },
+  };
+  const runAt = (now) =>
+    runCandidateRewardSettlementCycle({
+      config,
+      mcp,
+      state,
+      wallet,
+      now,
+    });
+
+  assert.equal((await runAt(1_000)).outcomes[0].status, "issue-opened");
+  assert.equal(
+    (await runAt(1_100)).outcomes[0].status,
+    "candidate-bid-submitted",
+  );
+  assert.equal(
+    (await runAt(3_000)).outcomes[0].status,
+    "candidate-awarded",
+  );
+  assert.equal(
+    (await runAt(3_100)).outcomes[0].status,
+    "awaiting-selected-candidate-delivery",
+  );
+
+  events.push({
+    id: "evt:reward-candidate",
+    eventType: "IMPROVEMENT_CANDIDATE",
+    opportunityId,
+    actorAddress: wallet.address,
+    body: {
+      payload: {
+        issueId,
+        evidence: { artifactDigest, patchDigest },
+      },
+    },
+    createdAt: 4,
+    expiresAt: 60_000,
+  });
+  assert.equal(
+    (await runAt(3_200)).outcomes[0].status,
+    "candidate-delivered",
+  );
+  events.push({
+    id: "evt:reward-canary",
+    eventType: "CANARY_RESULT",
+    opportunityId,
+    actorAddress: wallet.address,
+    body: {
+      payload: {
+        artifactDigest,
+        assessment: { passed: true },
+        candidate: { qualityBps: 10_000 },
+        baseline: { qualityBps: 0 },
+        replayedArtifact: true,
+      },
+    },
+    createdAt: 5,
+    expiresAt: 60_000,
+  });
+  assert.equal(
+    (await runAt(4_000)).outcomes[0].status,
+    "validation-committed",
+  );
+  assert.equal(
+    (await runAt(21_000)).outcomes[0].status,
+    "validation-revealed",
+  );
+  assert.equal(
+    (await runAt(31_000)).outcomes[0].status,
+    "finalized",
+  );
+  assert.equal(
+    (await runAt(32_000)).outcomes[0].status,
+    "settled",
+  );
+  assert.equal(paidApool, 1.3);
+  const openIndex = calls.findIndex(
+    (call) =>
+      call.name ===
+      "agentpool_v439_open_candidate_reward_issue",
+  );
+  const bidIndex = calls.findIndex(
+    (call) =>
+      call.name === "agentpool_v439_submit_candidate_bid",
+  );
+  const deliveryIndex = calls.findIndex(
+    (call) =>
+      call.name === "agentpool_v439_deliver_candidate",
+  );
+  assert.ok(openIndex >= 0 && bidIndex > openIndex);
+  assert.ok(deliveryIndex > bidIndex);
+});
+
+test("reward-enabled improver cannot edit a candidate before its bid is awarded", async () => {
+  const issueId = "issue:prework-gate";
+  const event = {
+    id: "evt:prework-gate",
+    eventType: "IMPROVEMENT_ISSUE",
+    opportunityId: "improvement:prework-gate",
+    actorAddress: address(9),
+    body: {
+      payload: {
+        issueId,
+        provider: "codex",
+        sourceSnapshotDigest: `sha256:${"12".repeat(32)}`,
+        expiresAt: 60_000,
+      },
+    },
+    createdAt: 1,
+    expiresAt: 60_000,
+  };
+  let executions = 0;
+  const result = await runAutonomyRoleCycle({
+    config: {
+      roles: ["IMPROVER"],
+      candidateReward: { enabled: true },
+    },
+    mcp: relayMcp([event]),
+    state: newRunnerState(),
+    wallet: { address: address(9) },
+    executorRegistry: {
+      async execute() {
+        executions += 1;
+        throw new Error("PREWORK_EXECUTION_MUST_NOT_HAPPEN");
+      },
+    },
+    now: 10,
+  });
+  assert.equal(
+    result.outcomes[0].status,
+    "awaiting-prework-reward-award",
+  );
+  assert.equal(executions, 0);
+  assert.equal(
+    result.state.autonomy.candidateRewards[issueId].stage,
+    "DISCOVERED",
+  );
+});
 
 test("coordinator imports only rank-eligible onchain capability history", async () => {
   const bids = [
@@ -828,6 +1248,24 @@ test("an improvement candidate needs changed-file and passing-test evidence", as
       testCommand: "node --test tests/v43-autonomy-runner.test.mjs",
       testPassed: true,
       patchDigest: "sha256:strict-evidence-gate",
+      sourceSnapshotDigest: `sha256:${"12".repeat(32)}`,
+      artifactDigest: `sha256:${"34".repeat(32)}`,
+      artifactSizeBytes: 1_024,
+      objectiveCanaryPassed: true,
+      objectiveCanaryReason:
+        "REGRESSION_TEST_FAILS_ON_BASELINE_AND_PASSES_ON_CANDIDATE",
+      candidateMetrics: {
+        qualityBps: 10_000,
+        cost: 10,
+        latencyMs: 10,
+        securityRegressions: 0,
+      },
+      baselineMetrics: {
+        qualityBps: 0,
+        cost: 10,
+        latencyMs: 10,
+        securityRegressions: 1,
+      },
       hostVerified: true,
     },
   });
@@ -895,6 +1333,41 @@ test("idle improvement retries an unfulfilled issue with host-verified evidence"
             testCommand: "node --test tests/*.test.mjs",
             testPassed: true,
             patchDigest: `sha256:${"ab".repeat(32)}`,
+            sourceSnapshotDigest: `sha256:${"cd".repeat(32)}`,
+            artifactDigest: `sha256:${"ef".repeat(32)}`,
+            artifactSizeBytes: 2_048,
+            artifactJson: JSON.stringify({
+              schema: "agentpool.candidate.patch/v1",
+              sourceSnapshotDigest: `sha256:${"cd".repeat(32)}`,
+              patchDigest: `sha256:${"ab".repeat(32)}`,
+              testCommand: "node --test tests/*.test.mjs",
+              testPassed: true,
+              objectiveCanary: { passed: true },
+              changes: [
+                {
+                  path: "runner/retry-candidate.mjs",
+                  action: "ADD",
+                  beforeSha256: null,
+                  afterSha256: "ab".repeat(32),
+                  contentBase64: "Y2FuZGlkYXRl",
+                },
+              ],
+            }),
+            objectiveCanaryPassed: true,
+            objectiveCanaryReason:
+              "REGRESSION_TEST_FAILS_ON_BASELINE_AND_PASSES_ON_CANDIDATE",
+            candidateMetrics: {
+              qualityBps: 10_000,
+              cost: 10,
+              latencyMs: 10,
+              securityRegressions: 0,
+            },
+            baselineMetrics: {
+              qualityBps: 0,
+              cost: 10,
+              latencyMs: 10,
+              securityRegressions: 1,
+            },
             hostVerified: true,
           },
         };
@@ -910,6 +1383,190 @@ test("idle improvement retries an unfulfilled issue with host-verified evidence"
     1,
   );
   assert.equal(state.autonomy.idleImprovement.activeOpportunityId, null);
+});
+
+test("a candidate is published, independently replayed, canaried, and voted without mutating the source", async () => {
+  const testRoot = await mkdtemp(
+    path.join(os.tmpdir(), "agentpool-autonomous-improvement-e2e-"),
+  );
+  const source = path.join(testRoot, "source");
+  const artifacts = path.join(testRoot, "artifacts");
+  const candidates = path.join(testRoot, "candidates");
+  const replays = path.join(testRoot, "replays");
+  try {
+    await mkdir(path.join(source, "tests"), { recursive: true });
+    await writeFile(
+      path.join(source, "feature.mjs"),
+      "export const fixed = false;\n",
+    );
+    await writeFile(
+      path.join(source, "tests", "feature.test.mjs"),
+      [
+        'import assert from "node:assert/strict";',
+        'import test from "node:test";',
+        'import { fixed } from "../feature.mjs";',
+        'test("the isolated candidate fixes the defect", () => {',
+        "  assert.equal(fixed, true);",
+        "});",
+      ].join("\n"),
+    );
+    const sourceSnapshotDigest =
+      await computeWorkspaceDigest(source);
+    const executorOutput = JSON.stringify({
+      content:
+        "Implemented the reproducible defect fix in the isolated candidate workspace.",
+      evidence: {
+        summary: "isolated objective fix",
+        digest: "isolated-objective-fix-v1",
+      },
+    });
+    const adapter = createExecutionAdapter({
+      provider: "codex",
+      enabled: true,
+      command: process.execPath,
+      args: [
+        "-e",
+        [
+          'require("node:fs").writeFileSync("feature.mjs", "export const fixed = true;\\n");',
+          `process.stdout.write(${JSON.stringify(executorOutput)});`,
+        ].join(""),
+      ],
+      workspace: source,
+      allowedWorkspaceRoots: [testRoot],
+      verifyCandidateWorkspace: true,
+      allowWorkspaceWrite: true,
+      candidateWorkspaceRoot: candidates,
+      candidateArtifactRoot: artifacts,
+      sourceSnapshotDigest,
+      timeoutMs: 10_000,
+    });
+    const issue = {
+      id: "evt:objective-e2e-issue",
+      eventType: "IMPROVEMENT_ISSUE",
+      opportunityId: "improvement:objective-e2e",
+      actorAddress: address(8),
+      body: {
+        payload: {
+          issueId: "issue:objective-e2e",
+          provider: "codex",
+          instruction:
+            "Fix the reproducible false feature flag in an isolated candidate.",
+          acceptanceCriteria: {
+            test: "tests/feature.test.mjs",
+          },
+          sourceSnapshotDigest,
+          expiresAt: Date.now() + 60_000,
+        },
+      },
+      createdAt: 1,
+      expiresAt: Date.now() + 60_000,
+    };
+    const mcp = relayMcp([issue]);
+    mcp.publisherAddress = address(9);
+    const improvement = await runAutonomyRoleCycle({
+      config: {
+        roles: ["IMPROVER"],
+        improvementProvider: "codex",
+        requirePinnedImprovementIssues: true,
+        sourceSnapshotDigest,
+        operatorGroup: "candidate-operator-group",
+        runtime: "candidate-runtime",
+        independenceClaim: true,
+      },
+      mcp,
+      state: newRunnerState(),
+      wallet: { address: address(9) },
+      executorRegistry: {
+        execute: (task) => adapter.execute(task),
+      },
+      now: 10,
+    });
+    assert.equal(improvement.outcomes[0].status, "candidate-published");
+    assert.equal(
+      await readFile(path.join(source, "feature.mjs"), "utf8"),
+      "export const fixed = false;\n",
+    );
+    const candidate = mcp.events.find(
+      (event) => event.eventType === "IMPROVEMENT_CANDIDATE",
+    );
+    assert.ok(candidate);
+    assert.equal(candidate.body.payload.evidence.hostVerified, true);
+    assert.equal(
+      candidate.body.payload.evidence.objectiveCanaryPassed,
+      true,
+    );
+    assert.equal(
+      mcp.artifacts.has(
+        candidate.body.payload.evidence.artifactDigest,
+      ),
+      true,
+    );
+
+    mcp.publisherAddress = address(7);
+    const canary = await runAutonomyRoleCycle({
+      config: {
+        roles: ["CANARY"],
+        operatorGroup: "validator-operator-group",
+        independenceClaim: true,
+        candidateVerification: {
+          baseWorkspace: source,
+          targetRoot: replays,
+          executorConfig: { timeoutMs: 10_000 },
+        },
+      },
+      mcp,
+      state: newRunnerState(),
+      wallet: { address: address(7) },
+      now: 20,
+    });
+    assert.equal(
+      canary.outcomes.some(
+        (outcome) =>
+          outcome.role === "CANARY" &&
+          outcome.status === "proven",
+      ),
+      true,
+    );
+    const canaryEvent = mcp.events.find(
+      (event) =>
+        event.eventType === "CANARY_RESULT" &&
+        event.actorAddress === address(7),
+    );
+    assert.equal(canaryEvent.body.payload.independent, true);
+    assert.equal(canaryEvent.body.payload.replayedArtifact, true);
+    assert.equal(canaryEvent.body.payload.rewardEligible, true);
+    assert.equal(canaryEvent.body.payload.createsWorkPower, false);
+
+    mcp.publisherAddress = address(6);
+    const vote = await runAutonomyRoleCycle({
+      config: {
+        roles: ["VOTER"],
+        operatorGroup: "independent-voter-group",
+      },
+      mcp,
+      state: newRunnerState(),
+      wallet: { address: address(6) },
+      now: 30,
+    });
+    assert.equal(
+      vote.outcomes.some(
+        (outcome) =>
+          outcome.role === "VOTER" &&
+          outcome.status === "support",
+      ),
+      true,
+    );
+    assert.equal(
+      mcp.events.some(
+        (event) =>
+          event.eventType === "WORK_POWER_VOTE" &&
+          event.actorAddress === address(6),
+      ),
+      true,
+    );
+  } finally {
+    await rm(testRoot, { recursive: true, force: true });
+  }
 });
 
 test("idle improvement stops retrying after the bounded candidate limit", async () => {

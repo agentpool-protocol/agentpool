@@ -22,6 +22,7 @@ import {
   RUNNER_EVENT_TYPES,
   unwrapCoordinationEvent,
 } from "./agentpool-runner-core.mjs";
+import { verifyPublishedCandidateArtifact } from "./execution-adapters.mjs";
 
 function roleEnabled(config, role) {
   return (config.roles ?? ["WORKER"]).includes(role);
@@ -32,8 +33,33 @@ function autonomyState(state) {
     cursor: 0,
     processed: {},
     validations: {},
+    candidateRewards: {},
   };
+  state.autonomy.candidateRewards ??= {};
   return state.autonomy;
+}
+
+function candidateRewardRecord(state, issueId) {
+  const local = autonomyState(state);
+  local.candidateRewards[issueId] ??= {
+    stage: "DISCOVERED",
+    plan: null,
+    planSalt: null,
+    planCommitment: null,
+    validationSalt: null,
+    validationScoreBps: null,
+    validationEvidenceDigest: null,
+    terminal: false,
+  };
+  return local.candidateRewards[issueId];
+}
+
+function sameAddress(left, right) {
+  return (
+    typeof left === "string" &&
+    typeof right === "string" &&
+    left.toLowerCase() === right.toLowerCase()
+  );
 }
 
 async function publish(mcp, eventType, event, payload, now) {
@@ -272,6 +298,18 @@ export function validateImprovementCandidateExecution(execution) {
     !validAuditText(evidence.testCommand, 3, 1_000) ||
     !validAuditText(evidence.patchDigest, 8, 200) ||
     !/^[A-Za-z0-9._:-]+$/.test(evidence.patchDigest) ||
+    !validAuditText(evidence.sourceSnapshotDigest, 8, 200) ||
+    !/^sha256:[0-9a-f]{64}$/.test(evidence.sourceSnapshotDigest) ||
+    !validAuditText(evidence.artifactDigest, 8, 200) ||
+    !/^sha256:[0-9a-f]{64}$/.test(evidence.artifactDigest) ||
+    !Number.isSafeInteger(evidence.artifactSizeBytes) ||
+    evidence.artifactSizeBytes <= 0 ||
+    evidence.objectiveCanaryPassed !== true ||
+    !evidence.candidateMetrics ||
+    !evidence.baselineMetrics ||
+    Number(evidence.candidateMetrics.qualityBps) <=
+      Number(evidence.baselineMetrics.qualityBps) ||
+    Number(evidence.candidateMetrics.securityRegressions ?? 1) !== 0 ||
     evidence.hostVerified !== true ||
     !validAuditText(execution?.content, 20, 20_000)
   ) {
@@ -291,6 +329,13 @@ export function validateImprovementCandidateExecution(execution) {
       testCommand: evidence.testCommand.trim(),
       testPassed: true,
       patchDigest: evidence.patchDigest.trim(),
+      sourceSnapshotDigest: evidence.sourceSnapshotDigest.trim(),
+      artifactDigest: evidence.artifactDigest.trim(),
+      artifactSizeBytes: evidence.artifactSizeBytes,
+      objectiveCanaryPassed: true,
+      objectiveCanaryReason: evidence.objectiveCanaryReason,
+      candidateMetrics: evidence.candidateMetrics,
+      baselineMetrics: evidence.baselineMetrics,
       hostVerified: true,
     },
   };
@@ -358,8 +403,36 @@ async function publishImprovementCandidate({
   provider,
   execution,
   validation,
+  config,
   now,
 }) {
+  const localArtifactPath =
+    execution.evidence?.localArtifactPath ?? null;
+  const artifactJson =
+    typeof execution.evidence?.artifactJson === "string"
+      ? execution.evidence.artifactJson
+      : localArtifactPath
+        ? await fs.promises.readFile(localArtifactPath, "utf8")
+        : null;
+  if (!artifactJson) {
+    throw new Error("CANDIDATE_PUBLIC_ARTIFACT_REQUIRED");
+  }
+  const artifact = await mcp.call(
+    "agentpool_v43_publish_candidate_artifact",
+    {
+      artifactDigest: validation.evidence.artifactDigest,
+      artifactJson,
+    },
+  );
+  if (
+    artifact.artifactDigest !== validation.evidence.artifactDigest ||
+    artifact.sourceSnapshotDigest !==
+      validation.evidence.sourceSnapshotDigest ||
+    artifact.patchDigest !== validation.evidence.patchDigest ||
+    artifact.immutable !== true
+  ) {
+    throw new Error("CANDIDATE_PUBLIC_ARTIFACT_RECEIPT_INVALID");
+  }
   return publish(
     mcp,
     RUNNER_EVENT_TYPES.improvementCandidate,
@@ -368,9 +441,16 @@ async function publishImprovementCandidate({
       schema: "agentpool.improvement.candidate/v1",
       issueId: payload.issueId,
       authorAddress: wallet.address,
+      operatorGroup: config.operatorGroup ?? null,
+      runtime: config.runtime ?? null,
+      independenceClaim: config.independenceClaim === true,
       provider,
       content: execution.content,
-      evidence: validation.evidence,
+      evidence: {
+        ...validation.evidence,
+        artifactPublicPath: artifact.publicPath,
+        artifactAuthorAddress: artifact.authorAddress,
+      },
       sourceSnapshotDigest: payload.sourceSnapshotDigest,
       directCoreMutation: false,
       expiresAt: payload.expiresAt,
@@ -735,6 +815,26 @@ export async function runAutonomyRoleCycle({
         executorRegistry
       ) {
         const provider = payload.provider ?? config.improvementProvider;
+        if (config.candidateReward?.enabled === true) {
+          const reward = candidateRewardRecord(
+            state,
+            payload.issueId,
+          );
+          if (reward.stage !== "RUNNING_SELECTED") {
+            outcomes.push({
+              role: "IMPROVER",
+              status: "awaiting-prework-reward-award",
+              issueId: payload.issueId,
+              rewardStage: reward.stage,
+            });
+            local.processed[key] = now;
+            local.cursor = Math.max(
+              local.cursor,
+              Number(event.createdAt) + 1,
+            );
+            continue;
+          }
+        }
         const sourceStatus = improvementSourceStatus(payload, config);
         if (!sourceStatus.valid) {
           outcomes.push({
@@ -795,6 +895,7 @@ export async function runAutonomyRoleCycle({
           provider,
           execution: attempt.execution,
           validation: attempt.validation,
+          config,
           now,
         });
         outcomes.push({
@@ -806,13 +907,57 @@ export async function runAutonomyRoleCycle({
 
       if (
         event.eventType === RUNNER_EVENT_TYPES.improvementCandidate &&
-        roleEnabled(config, "CANARY") &&
-        String(event.actorAddress).toLowerCase() !==
-          String(wallet.address).toLowerCase()
+        roleEnabled(config, "CANARY")
       ) {
-        const candidateMetrics = payload.evidence?.candidateMetrics;
-        const baselineMetrics = payload.evidence?.baselineMetrics;
+        let candidateMetrics = payload.evidence?.candidateMetrics;
+        let baselineMetrics = payload.evidence?.baselineMetrics;
+        let independentReplay = null;
+        if (config.candidateVerification?.baseWorkspace) {
+          const downloaded = await mcp.call(
+            "agentpool_v43_candidate_artifact",
+            {
+              artifactDigest: payload.evidence?.artifactDigest,
+            },
+          );
+          independentReplay =
+            await verifyPublishedCandidateArtifact({
+              baseWorkspace:
+                config.candidateVerification.baseWorkspace,
+              artifactJson: downloaded.artifactJson,
+              artifactDigest: payload.evidence.artifactDigest,
+              targetRoot:
+                config.candidateVerification.targetRoot,
+              config:
+                config.candidateVerification.executorConfig ?? {},
+            });
+          if (
+            downloaded.artifactDigest !==
+              payload.evidence.artifactDigest ||
+            independentReplay.sourceSnapshotDigest !==
+              payload.evidence.sourceSnapshotDigest ||
+            independentReplay.patchDigest !==
+              payload.evidence.patchDigest ||
+            independentReplay.objectiveCanaryPassed !== true
+          ) {
+            throw new Error(
+              "CANDIDATE_INDEPENDENT_REPLAY_MISMATCH",
+            );
+          }
+          candidateMetrics = independentReplay.candidateMetrics;
+          baselineMetrics = independentReplay.baselineMetrics;
+        }
         if (candidateMetrics && baselineMetrics) {
+          const independent =
+            String(event.actorAddress).toLowerCase() !==
+              String(wallet.address).toLowerCase() &&
+            payload.independenceClaim === true &&
+            config.independenceClaim === true &&
+            typeof payload.operatorGroup === "string" &&
+            payload.operatorGroup.length > 0 &&
+            typeof config.operatorGroup === "string" &&
+            config.operatorGroup.length > 0 &&
+            payload.operatorGroup !== config.operatorGroup &&
+            independentReplay !== null;
           const assessment = evaluateCanary(
             candidateMetrics,
             baselineMetrics,
@@ -833,6 +978,23 @@ export async function runAutonomyRoleCycle({
               thresholds: config.canaryThresholds ?? {},
               assessment,
               isolated: true,
+              independent,
+              candidateIndependenceClaim:
+                payload.independenceClaim === true,
+              validatorIndependenceClaim:
+                config.independenceClaim === true,
+              candidateOperatorGroup:
+                payload.operatorGroup ?? null,
+              validatorOperatorGroup:
+                config.operatorGroup ?? null,
+              advisoryOnly: !independent,
+              artifactDigest: payload.evidence?.artifactDigest,
+              patchDigest: payload.evidence?.patchDigest,
+              sourceSnapshotDigest:
+                payload.evidence?.sourceSnapshotDigest,
+              replayedArtifact: independentReplay !== null,
+              createsWorkPower: false,
+              rewardEligible: independent && assessment.passed,
               directCoreMutation: false,
               expiresAt: payload.expiresAt,
             },
@@ -840,7 +1002,11 @@ export async function runAutonomyRoleCycle({
           );
           outcomes.push({
             role: "CANARY",
-            status: assessment.passed ? "proven" : "quarantined",
+            status: !independent
+              ? "advisory-only"
+              : assessment.passed
+                ? "proven"
+                : "quarantined",
             eventId: published.id,
           });
         }
@@ -850,6 +1016,20 @@ export async function runAutonomyRoleCycle({
         event.eventType === AUTONOMY_EVENT_TYPES.canary &&
         roleEnabled(config, "VOTER")
       ) {
+        if (payload.independent !== true) {
+          outcomes.push({
+            role: "VOTER",
+            status: "skipped",
+            reason: "INDEPENDENT_CANARY_REQUIRED",
+            eventId: event.id,
+          });
+          local.processed[key] = now;
+          local.cursor = Math.max(
+            local.cursor,
+            Number(event.createdAt) + 1,
+          );
+          continue;
+        }
         const assessment = evaluateCanary(
           payload.candidate,
           payload.baseline,
@@ -995,6 +1175,26 @@ export async function runIdleImprovementCycle({
           };
         }
       }
+      if (issueEvent && config.candidateReward?.enabled === true) {
+        const issuePayload = unwrapCoordinationEvent(issueEvent);
+        const reward = candidateRewardRecord(
+          state,
+          issuePayload.issueId,
+        );
+        if (reward.stage !== "RUNNING_SELECTED") {
+          return {
+            outcomes: [
+              {
+                role: "IDLE_IMPROVEMENT",
+                status: "awaiting-prework-reward-award",
+                issueId: issuePayload.issueId,
+                rewardStage: reward.stage,
+              },
+            ],
+            state,
+          };
+        }
+      }
       if (
         issueEvent &&
         now - Number(idle.lastCandidateAttemptAt ?? 0) >=
@@ -1033,6 +1233,7 @@ export async function runIdleImprovementCycle({
             provider,
             execution: attempt.execution,
             validation: attempt.validation,
+            config,
             now,
           });
           idle.activeCandidateEventId = published.id;
@@ -1297,6 +1498,451 @@ export async function runIdleImprovementCycle({
     eventId: published.id,
     expectedNetProfitApool: best.expectedNetProfitApool,
   });
+  return { outcomes, state };
+}
+
+export async function runCandidateRewardSettlementCycle({
+  config,
+  mcp,
+  state,
+  wallet,
+  now = Date.now(),
+}) {
+  if (config.candidateReward?.enabled !== true) {
+    return { outcomes: [], state };
+  }
+  const outcomes = [];
+  let status;
+  try {
+    status = await mcp.call(
+      "agentpool_v439_candidate_reward_status",
+      {},
+    );
+  } catch (error) {
+    return {
+      outcomes: [
+        {
+          role: "CANDIDATE_REWARD",
+          status: "unavailable",
+          error:
+            error instanceof Error ? error.message : String(error),
+        },
+      ],
+      state,
+    };
+  }
+  if (status.deployed !== true) {
+    return {
+      outcomes: [
+        {
+          role: "CANDIDATE_REWARD",
+          status: "deployment-pending",
+          reason:
+            status.reason ?? "BASE_SEPOLIA_DEPLOYMENT_PENDING",
+        },
+      ],
+      state,
+    };
+  }
+
+  const relay = await mcp.call(
+    "agentpool_v43_shared_coordination",
+    {
+      eventType: AUTONOMY_EVENT_TYPES.issue,
+      since: 0,
+      limit: 100,
+    },
+  );
+  const issueEvents = [...(relay.events ?? [])].sort(
+    (left, right) =>
+      Number(left.createdAt) - Number(right.createdAt),
+  );
+  const local = autonomyState(state);
+  const activeIssueId = local.candidateRewardActiveIssueId;
+  let selectedEvents = activeIssueId
+    ? issueEvents.filter(
+        (event) =>
+          unwrapCoordinationEvent(event).issueId === activeIssueId,
+      )
+    : [];
+  if (selectedEvents.length === 0) {
+    local.candidateRewardActiveIssueId = null;
+    const configuredCandidateQuote = String(
+      config.candidateReward.candidateQuoteApool ?? "1",
+    );
+    const configuredReporterQuote = String(
+      config.candidateReward.reporterQuoteApool ?? "0.1",
+    );
+    const configuredValidatorQuote = String(
+      config.candidateReward.validatorQuoteApool ?? "0.2",
+    );
+    const choices = issueEvents.map((event) => {
+      const payload = unwrapCoordinationEvent(event);
+      const reward =
+        Number(configuredCandidateQuote) +
+        (sameAddress(event.actorAddress, wallet.address)
+          ? Number(configuredReporterQuote)
+          : 0) +
+        (roleEnabled(config, "CANARY")
+          ? Number(configuredValidatorQuote)
+          : 0);
+      return {
+        id: payload.issueId,
+        rewardApool: String(reward),
+        successProbabilityBps: Number(
+          config.candidateReward.successProbabilityBps ?? 7_500,
+        ),
+        estimatedCostApool: String(
+          config.candidateReward.estimatedCostApool ??
+            config.idleImprovement?.estimatedCostApool ??
+            "0",
+        ),
+        estimatedGasApool: String(
+          config.candidateReward.estimatedGasApool ??
+            config.idleImprovement?.estimatedGasApool ??
+            "0",
+        ),
+        failureLossApool: String(
+          config.candidateReward.failureLossApool ??
+            config.idleImprovement?.failureLossApool ??
+            "0",
+        ),
+      };
+    });
+    const best = rankWorkChoicesByExpectedNetProfit(choices, {
+      minimumNetProfitApool: config.minNetProfitApool ?? "0",
+      capacityUnits: 1,
+    })[0];
+    if (!best) return { outcomes, state };
+    selectedEvents = issueEvents.filter(
+      (event) =>
+        unwrapCoordinationEvent(event).issueId === best.id,
+    );
+    local.candidateRewardActiveIssueId = best.id;
+  }
+  const nowSeconds = Math.floor(now / 1_000);
+  for (const event of selectedEvents) {
+    const payload = unwrapCoordinationEvent(event);
+    if (!payload.issueId || Number(event.expiresAt) <= now) continue;
+    const record = candidateRewardRecord(state, payload.issueId);
+    if (record.terminal) continue;
+    try {
+      let issue = await mcp.call(
+        "agentpool_v439_candidate_reward_issue",
+        { issueId: payload.issueId },
+      );
+      if (
+        issue.state === "NONE" &&
+        sameAddress(event.actorAddress, wallet.address)
+      ) {
+        const reporterQuoteApool = String(
+          config.candidateReward.reporterQuoteApool ?? "0.1",
+        );
+        const candidateQuoteApool = String(
+          config.candidateReward.candidateQuoteApool ?? "1",
+        );
+        const validatorQuoteApool = String(
+          config.candidateReward.validatorQuoteApool ?? "0.2",
+        );
+        const budgetCapApool = String(
+          config.candidateReward.budgetCapApool ??
+            Number(reporterQuoteApool) +
+              Number(candidateQuoteApool) +
+              Number(validatorQuoteApool),
+        );
+        await mcp.call(
+          "agentpool_v439_open_candidate_reward_issue",
+          {
+            issueId: payload.issueId,
+            issueDigest:
+              payload.evidence?.digest ??
+              autonomyDigest({
+                issueId: payload.issueId,
+                evidence: payload.evidence ?? null,
+              }),
+            sourceSnapshotDigest: payload.sourceSnapshotDigest,
+            acceptanceDigest: autonomyDigest(
+              payload.acceptanceCriteria ?? {},
+            ),
+            budgetCapApool,
+            reporterQuoteApool,
+            bidMinutes: Number(
+              config.candidateReward.bidMinutes ?? 5,
+            ),
+            deliveryMinutes: Number(
+              config.candidateReward.deliveryMinutes ?? 60,
+            ),
+            commitMinutes: Number(
+              config.candidateReward.commitMinutes ?? 90,
+            ),
+            revealMinutes: Number(
+              config.candidateReward.revealMinutes ?? 120,
+            ),
+          },
+        );
+        record.stage = "BIDDING";
+        record.reporterQuoteApool = reporterQuoteApool;
+        record.candidateQuoteApool = candidateQuoteApool;
+        record.validatorQuoteApool = validatorQuoteApool;
+        outcomes.push({
+          role: "CANDIDATE_REWARD",
+          status: "issue-opened",
+          issueId: payload.issueId,
+          budgetCapApool,
+        });
+        continue;
+      }
+      if (issue.state === "NONE") continue;
+
+      if (issue.state === "BIDDING") {
+        const ownBid = (issue.candidates ?? []).find((candidate) =>
+          sameAddress(candidate.author, wallet.address),
+        );
+        if (!ownBid && nowSeconds <= issue.deadlines.bid) {
+          record.plan ??= JSON.stringify({
+            schema: "agentpool.candidate.plan/v1",
+            issueId: payload.issueId,
+            sourceSnapshotDigest: payload.sourceSnapshotDigest,
+            acceptanceDigest: autonomyDigest(
+              payload.acceptanceCriteria ?? {},
+            ),
+          });
+          record.planSalt ??= `0x${randomBytes(32).toString("hex")}`;
+          const prepared = await mcp.call(
+            "agentpool_v439_prepare_candidate_bid",
+            {
+              issueId: payload.issueId,
+              plan: record.plan,
+              planSalt: record.planSalt,
+            },
+          );
+          await mcp.call(
+            "agentpool_v439_submit_candidate_bid",
+            {
+              issueId: payload.issueId,
+              quoteApool: String(
+                record.candidateQuoteApool ??
+                  config.candidateReward.candidateQuoteApool ??
+                  "1",
+              ),
+              planCommitment: prepared.planCommitment,
+            },
+          );
+          record.planCommitment = prepared.planCommitment;
+          record.stage = "BID_SUBMITTED";
+          outcomes.push({
+            role: "CANDIDATE_REWARD",
+            status: "candidate-bid-submitted",
+            issueId: payload.issueId,
+          });
+          continue;
+        }
+        if (nowSeconds > issue.deadlines.bid) {
+          await mcp.call("agentpool_v439_award_candidate", {
+            issueId: payload.issueId,
+          });
+          record.stage = "AWARD_PENDING";
+          outcomes.push({
+            role: "CANDIDATE_REWARD",
+            status: "candidate-awarded",
+            issueId: payload.issueId,
+          });
+        }
+        continue;
+      }
+
+      if (issue.state === "RUNNING") {
+        const selected = (issue.candidates ?? []).find(
+          (candidate) =>
+            Number(candidate.candidateId) ===
+            Number(issue.selectedCandidateId),
+        );
+        if (!selected || !sameAddress(selected.author, wallet.address)) {
+          record.stage = "RUNNING_OTHER_CANDIDATE";
+          continue;
+        }
+        record.stage = "RUNNING_SELECTED";
+        const related = await mcp.call(
+          "agentpool_v43_shared_coordination",
+          {
+            opportunityId: event.opportunityId,
+            since: 0,
+            limit: 200,
+          },
+        );
+        const candidate = (related.events ?? []).find(
+          (candidateEvent) =>
+            candidateEvent.eventType ===
+              RUNNER_EVENT_TYPES.improvementCandidate &&
+            sameAddress(
+              candidateEvent.actorAddress,
+              wallet.address,
+            ),
+        );
+        if (!candidate) {
+          outcomes.push({
+            role: "CANDIDATE_REWARD",
+            status: "awaiting-selected-candidate-delivery",
+            issueId: payload.issueId,
+          });
+          continue;
+        }
+        const candidatePayload = unwrapCoordinationEvent(candidate);
+        await mcp.call("agentpool_v439_deliver_candidate", {
+          issueId: payload.issueId,
+          plan: record.plan,
+          planSalt: record.planSalt,
+          artifactDigest:
+            candidatePayload.evidence.artifactDigest,
+          patchDigest: candidatePayload.evidence.patchDigest,
+        });
+        record.stage = "VALIDATING";
+        record.candidateEventId = candidate.id;
+        outcomes.push({
+          role: "CANDIDATE_REWARD",
+          status: "candidate-delivered",
+          issueId: payload.issueId,
+          artifactDigest:
+            candidatePayload.evidence.artifactDigest,
+        });
+        continue;
+      }
+
+      if (issue.state === "VALIDATING") {
+        record.stage = "VALIDATING";
+        const ownValidation = (issue.validations ?? []).find(
+          (validation) =>
+            sameAddress(validation.validator, wallet.address),
+        );
+        const related = await mcp.call(
+          "agentpool_v43_shared_coordination",
+          {
+            opportunityId: event.opportunityId,
+            since: 0,
+            limit: 200,
+          },
+        );
+        const canary = [...(related.events ?? [])]
+          .reverse()
+          .find(
+            (canaryEvent) =>
+              canaryEvent.eventType === AUTONOMY_EVENT_TYPES.canary &&
+              unwrapCoordinationEvent(canaryEvent)
+                .artifactDigest === issue.artifactDigest,
+          );
+        if (
+          !ownValidation &&
+          canary &&
+          nowSeconds <= issue.deadlines.commit
+        ) {
+          const canaryPayload = unwrapCoordinationEvent(canary);
+          record.validationScoreBps =
+            canaryPayload.assessment?.passed === true ? 10_000 : 0;
+          record.validationEvidenceDigest = autonomyDigest({
+            artifactDigest: issue.artifactDigest,
+            assessment: canaryPayload.assessment,
+            candidate: canaryPayload.candidate,
+            baseline: canaryPayload.baseline,
+            replayedArtifact: canaryPayload.replayedArtifact,
+          });
+          record.validationSalt ??=
+            `0x${randomBytes(32).toString("hex")}`;
+          const prepared = await mcp.call(
+            "agentpool_v439_prepare_validation",
+            {
+              issueId: payload.issueId,
+              artifactDigest: issue.artifactDigest,
+              scoreBps: record.validationScoreBps,
+              evidenceDigest:
+                record.validationEvidenceDigest,
+              validationSalt: record.validationSalt,
+            },
+          );
+          await mcp.call(
+            "agentpool_v439_commit_validation",
+            {
+              issueId: payload.issueId,
+              validationCommitment:
+                prepared.validationCommitment,
+              quoteApool: String(
+                record.validatorQuoteApool ??
+                  config.candidateReward.validatorQuoteApool ??
+                  "0.2",
+              ),
+            },
+          );
+          record.stage = "VALIDATION_COMMITTED";
+          outcomes.push({
+            role: "CANDIDATE_REWARD",
+            status: "validation-committed",
+            issueId: payload.issueId,
+          });
+          continue;
+        }
+        if (
+          ownValidation &&
+          !ownValidation.revealed &&
+          nowSeconds > issue.deadlines.commit &&
+          nowSeconds <= issue.deadlines.reveal &&
+          record.validationSalt
+        ) {
+          await mcp.call(
+            "agentpool_v439_reveal_validation",
+            {
+              issueId: payload.issueId,
+              scoreBps: record.validationScoreBps,
+              evidenceDigest:
+                record.validationEvidenceDigest,
+              validationSalt: record.validationSalt,
+            },
+          );
+          record.stage = "VALIDATION_REVEALED";
+          outcomes.push({
+            role: "CANDIDATE_REWARD",
+            status: "validation-revealed",
+            issueId: payload.issueId,
+          });
+          continue;
+        }
+        if (nowSeconds > issue.deadlines.reveal) {
+          await mcp.call(
+            "agentpool_v439_finalize_candidate_reward",
+            { issueId: payload.issueId },
+          );
+          record.stage = "FINALIZED";
+          outcomes.push({
+            role: "CANDIDATE_REWARD",
+            status: "finalized",
+            issueId: payload.issueId,
+          });
+        }
+        continue;
+      }
+
+      if (
+        ["SETTLED", "REJECTED", "EXPIRED"].includes(issue.state)
+      ) {
+        record.stage = issue.state;
+        record.terminal = true;
+        if (local.candidateRewardActiveIssueId === payload.issueId) {
+          local.candidateRewardActiveIssueId = null;
+        }
+        outcomes.push({
+          role: "CANDIDATE_REWARD",
+          status: issue.state.toLowerCase(),
+          issueId: payload.issueId,
+        });
+      }
+    } catch (error) {
+      outcomes.push({
+        role: "CANDIDATE_REWARD",
+        status: "error",
+        issueId: payload.issueId,
+        error:
+          error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   return { outcomes, state };
 }
 

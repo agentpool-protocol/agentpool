@@ -23,6 +23,7 @@ jobs:
       - run: npm run evidence:v4.4:source
       - run: npm run evidence:v4.4:source:verify
       - run: npm run contracts:rehearse:v4.3:public
+      - run: npm run contracts:rehearse:v4.3.9
       - run: npm run contracts:rehearse:v4.4:mainnet
       - run: npm run contracts:rehearse:v4.4:full
       - run: npm run build

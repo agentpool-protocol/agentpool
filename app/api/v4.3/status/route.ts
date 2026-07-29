@@ -26,6 +26,18 @@ export async function GET(): Promise<Response> {
         ...chain.selfBootstrap,
         deployment: V437_DEPLOYMENT,
       },
+      candidateRewardOverlay: {
+        release: "4.3.9-candidate-reward-overlay-alpha",
+        deployed: false,
+        state: "BASE_SEPOLIA_DEPLOYMENT_PENDING",
+        runnerIntegrated: true,
+        dynamicRoleQuotes: true,
+        sameAgentRolesAllowedDuringIncubation: true,
+        createsWorkPower: false,
+        canRecommendRelease: false,
+        canMint: false,
+        testnetOnly: true,
+      },
       chain,
       economicSmoke: {
         passed: V43_SMOKE.ok,

@@ -173,6 +173,8 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
       "agentpool_v43_commit_system_issue_vote_onchain",
       "agentpool_v43_reveal_system_issue_vote_onchain",
       "agentpool_v43_finalize_system_issue_onchain",
+      "agentpool_v43_publish_candidate_artifact",
+      "agentpool_v43_candidate_artifact",
       "agentpool_v437_self_bootstrap_status",
       "agentpool_v437_prepare_evidence",
       "agentpool_v437_self_bootstrap_issue",
@@ -180,6 +182,18 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
       "agentpool_v437_accept_work_bid",
       "agentpool_v437_complete_work",
       "agentpool_v437_settle_self_improvement",
+      "agentpool_v439_candidate_reward_status",
+      "agentpool_v439_candidate_reward_issue",
+      "agentpool_v439_open_candidate_reward_issue",
+      "agentpool_v439_prepare_candidate_bid",
+      "agentpool_v439_submit_candidate_bid",
+      "agentpool_v439_award_candidate",
+      "agentpool_v439_deliver_candidate",
+      "agentpool_v439_prepare_validation",
+      "agentpool_v439_commit_validation",
+      "agentpool_v439_reveal_validation",
+      "agentpool_v439_finalize_candidate_reward",
+      "agentpool_v439_expire_candidate_reward",
     ]) {
       assert.ok(names.includes(required), `${required} is missing`);
     }
@@ -217,6 +231,18 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
         Number(selfBootstrap.paidApool),
       Number(selfBootstrap.fundedApool),
     );
+    const candidateRewardStatus = await client.callTool({
+      name: "agentpool_v439_candidate_reward_status",
+      arguments: {},
+    });
+    const candidateReward = JSON.parse(
+      candidateRewardStatus.content[0].text,
+    );
+    assert.equal(candidateReward.deployed, false);
+    assert.equal(candidateReward.testnetOnly, true);
+    assert.equal(candidateReward.createsWorkPower, false);
+    assert.equal(candidateReward.canRecommendRelease, false);
+    assert.equal(candidateReward.canMint, false);
     const anonymousOpportunities = await client.callTool({
       name: "agentpool_v43_opportunities",
       arguments: {},

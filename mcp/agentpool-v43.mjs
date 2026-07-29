@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -41,6 +42,7 @@ import transitionIssueConsensusArtifact from "../artifacts/AgentPoolV435Transiti
 import issueConsensusArtifact from "../artifacts/AgentPoolV432IssueConsensus.json" with { type: "json" };
 import evolutionConsensusArtifact from "../artifacts/AgentPoolV43EvolutionConsensus.json" with { type: "json" };
 import selfBootstrapArtifact from "../artifacts/AgentPoolV437SelfBootstrapPool.json" with { type: "json" };
+import candidateRewardArtifact from "../artifacts/AgentPoolV439CandidateRewardPool.json" with { type: "json" };
 import {
   AgentPoolV43Engine,
   digest,
@@ -53,6 +55,20 @@ const dataHome = path.resolve(
 const eventsPath = path.join(dataHome, "events.jsonl");
 const walletPath = path.join(dataHome, "base-sepolia-wallet.json");
 const engine = new AgentPoolV43Engine();
+const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
+const candidateRewardDeploymentPath = path.resolve(
+  moduleDirectory,
+  "..",
+  "deployments",
+  "84532.v43.9.json",
+);
+const candidateRewardDeployment = fs.existsSync(
+  candidateRewardDeploymentPath,
+)
+  ? JSON.parse(
+      fs.readFileSync(candidateRewardDeploymentPath, "utf8"),
+    )
+  : null;
 const chainRpcUrl =
   process.env.AGENTPOOL_V43_RPC_URL ?? "https://sepolia.base.org";
 const configuredGasFees = configuredEip1559Fees(process.env);
@@ -81,9 +97,12 @@ const abis = {
   issueConsensus: issueConsensusArtifact.abi,
   evolutionConsensus: evolutionConsensusArtifact.abi,
   selfBootstrap: selfBootstrapArtifact.abi,
+  candidateReward: candidateRewardArtifact.abi,
 };
 const selfBootstrapPool =
   selfBootstrapDeployment.contracts.selfBootstrapPool;
+const candidateRewardPool =
+  candidateRewardDeployment?.contracts?.candidateRewardPool ?? null;
 
 function requireStagedAutonomy() {
   if (!stagedAutonomyAvailable) {
@@ -182,12 +201,109 @@ async function signedRelayRequest(
   };
 }
 
+function requireCandidateRewardPool() {
+  if (!candidateRewardPool) {
+    throw new Error(
+      "V439_CANDIDATE_REWARD_NOT_DEPLOYED:Base Sepolia deployment and verification are required before reward writes",
+    );
+  }
+}
+
+async function signedRawRelayRequest(
+  pathName,
+  bodyText,
+  failureCode,
+  extraHeaders = {},
+) {
+  const account = localAccount();
+  const nonceResponse = await fetch(
+    new URL("/api/v1/auth/nonce", relayBaseUrl),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: account.address }),
+    },
+  );
+  const nonceBody = await nonceResponse.json();
+  if (!nonceResponse.ok) {
+    throw new Error(
+      `V43_RELAY_NONCE_FAILED:${nonceResponse.status}:${JSON.stringify(nonceBody)}`,
+    );
+  }
+  const bodyHash = await sha256Hex(bodyText);
+  const message = [
+    "AgentPool API",
+    "chain:84532",
+    `address:${account.address.toLowerCase()}`,
+    `nonce:${nonceBody.nonce}`,
+    "method:POST",
+    `path:${pathName}`,
+    `body-sha256:${bodyHash}`,
+  ].join("\n");
+  const signature = await account.signMessage({ message });
+  const response = await fetch(new URL(pathName, relayBaseUrl), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": `mcp-${globalThis.crypto.randomUUID()}`,
+      "x-agent-address": account.address,
+      "x-agent-nonce": nonceBody.nonce,
+      "x-agent-signature": signature,
+      ...extraHeaders,
+    },
+    body: bodyText,
+  });
+  const responseBody = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `${failureCode}:${response.status}:${JSON.stringify(responseBody)}`,
+    );
+  }
+  return {
+    ...responseBody,
+    httpStatus: response.status,
+  };
+}
+
 async function publishRelayEvent(body) {
   return signedRelayRequest(
     "/api/v4.3/coordination/events",
     body,
     "V43_RELAY_WRITE_FAILED",
   );
+}
+
+async function fetchCandidateArtifact(artifactDigest) {
+  const url = new URL(
+    "/api/v4.3/candidates/artifacts",
+    relayBaseUrl,
+  );
+  url.searchParams.set("digest", artifactDigest);
+  const response = await fetch(url, {
+    headers: { accept: "application/json" },
+  });
+  const artifactJson = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `V43_CANDIDATE_ARTIFACT_READ_FAILED:${response.status}:${artifactJson.slice(0, 2_000)}`,
+    );
+  }
+  const returnedDigest =
+    response.headers.get("x-agentpool-artifact-digest");
+  if (returnedDigest !== artifactDigest) {
+    throw new Error("V43_CANDIDATE_ARTIFACT_RESPONSE_DIGEST_MISMATCH");
+  }
+  return {
+    artifactDigest,
+    artifactJson,
+    sizeBytes: new TextEncoder().encode(artifactJson).byteLength,
+    authorAddress:
+      response.headers.get("x-agentpool-artifact-author") ?? null,
+    sourceSnapshotDigest:
+      response.headers.get("x-agentpool-source-snapshot") ?? null,
+    patchDigest:
+      response.headers.get("x-agentpool-patch-digest") ?? null,
+  };
 }
 
 function readLocalPrivateKey() {
@@ -442,7 +558,7 @@ const server = new McpServer(
   { name: "agentpool-v43", version: "0.1.0-autonomous-alpha" },
   { capabilities: { logging: {} } },
 );
-const MCP_TOOL_COUNT = 62;
+const MCP_TOOL_COUNT = 76;
 const runtimeCapabilityPerformanceAvailable = Boolean(
   deployment.features?.runtimeCapabilityPerformance,
 );
@@ -1240,7 +1356,530 @@ server.registerTool(
         "settleIssue",
         [bytes32(issueId)],
       ),
-    ),
+  ),
+);
+
+const candidateRewardStates = [
+  "NONE",
+  "BIDDING",
+  "RUNNING",
+  "VALIDATING",
+  "SETTLED",
+  "REJECTED",
+  "EXPIRED",
+];
+
+server.registerTool(
+  "agentpool_v439_candidate_reward_status",
+  {
+    title: "Read autonomous candidate reward settlement status",
+    description:
+      "Reports whether the finite Base Sepolia-only v4.3.9 role-bid reward overlay is deployed. The overlay cannot mint, create Work Power, recommend a release, or run on Base mainnet.",
+    inputSchema: {},
+  },
+  async () => {
+    if (!candidateRewardPool) {
+      return textResult({
+        deployed: false,
+        release: "4.3.9-candidate-reward-overlay-alpha",
+        chainId: 84532,
+        reason: "BASE_SEPOLIA_DEPLOYMENT_PENDING",
+        createsWorkPower: false,
+        canRecommendRelease: false,
+        canMint: false,
+        testnetOnly: true,
+      });
+    }
+    const [funded, reserved, paid, balance] = await Promise.all([
+      chainRead(
+        candidateRewardPool,
+        abis.candidateReward,
+        "totalFunded",
+      ),
+      chainRead(
+        candidateRewardPool,
+        abis.candidateReward,
+        "totalReserved",
+      ),
+      chainRead(
+        candidateRewardPool,
+        abis.candidateReward,
+        "totalPaid",
+      ),
+      chainRead(contracts.token, abis.token, "balanceOf", [
+        candidateRewardPool,
+      ]),
+    ]);
+    return textResult({
+      deployed: true,
+      release: candidateRewardDeployment.version,
+      chainId: 84532,
+      pool: candidateRewardPool,
+      fundedApool: formatUnits(funded, 18),
+      reservedApool: formatUnits(reserved, 18),
+      paidApool: formatUnits(paid, 18),
+      availableApool: formatUnits(
+        balance > reserved ? balance - reserved : 0n,
+        18,
+      ),
+      caps: candidateRewardDeployment.caps,
+      payoutRule: candidateRewardDeployment.payoutRule,
+      sameAgentRolesAllowed: true,
+      independenceClaim: false,
+      createsWorkPower: false,
+      canRecommendRelease: false,
+      canMint: false,
+      testnetOnly: true,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_candidate_reward_issue",
+  {
+    title: "Inspect one autonomous improvement reward Issue",
+    description:
+      "Reads the onchain deadlines, selected bid, immutable artifact digests, validators, and role quotes for one finite testnet Issue.",
+    inputSchema: { issueId: z.string().min(1) },
+  },
+  async ({ issueId }) => {
+    requireCandidateRewardPool();
+    const encodedIssueId = bytes32(issueId);
+    const issue = await chainRead(
+      candidateRewardPool,
+      abis.candidateReward,
+      "issues",
+      [encodedIssueId],
+    );
+    const candidateCount = Number(
+      await chainRead(
+        candidateRewardPool,
+        abis.candidateReward,
+        "candidateCount",
+        [encodedIssueId],
+      ),
+    );
+    const candidates = await Promise.all(
+      Array.from({ length: candidateCount }, async (_, index) => {
+        const candidate = await chainRead(
+          candidateRewardPool,
+          abis.candidateReward,
+          "candidate",
+          [encodedIssueId, index + 1],
+        );
+        return {
+          candidateId: index + 1,
+          author: candidate[0],
+          quoteApool: formatUnits(candidate[1], 18),
+          planCommitment: candidate[2],
+          planHash: candidate[3],
+          delivered: candidate[4],
+        };
+      }),
+    );
+    const validators = await chainRead(
+      candidateRewardPool,
+      abis.candidateReward,
+      "issueValidators",
+      [encodedIssueId],
+    );
+    const validations = await Promise.all(
+      validators.map(async (validator) => {
+        const validation = await chainRead(
+          candidateRewardPool,
+          abis.candidateReward,
+          "validations",
+          [encodedIssueId, validator],
+        );
+        return {
+          validator,
+          commitment: validation[0],
+          operatorGroup: validation[1],
+          evidenceDigest: validation[2],
+          quoteApool: formatUnits(validation[3], 18),
+          scoreBps: Number(validation[4]),
+          revealed: validation[5],
+          paid: validation[6],
+        };
+      }),
+    );
+    return textResult({
+      issueId: encodedIssueId,
+      reporter: issue[0],
+      state: candidateRewardStates[Number(issue[1])],
+      openedDay: Number(issue[2]),
+      deadlines: {
+        bid: Number(issue[3]),
+        delivery: Number(issue[4]),
+        commit: Number(issue[5]),
+        reveal: Number(issue[6]),
+      },
+      budgetCapApool: formatUnits(issue[7], 18),
+      reporterQuoteApool: formatUnits(issue[8], 18),
+      validatorQuoteTotalApool: formatUnits(issue[9], 18),
+      selectedCandidateId: Number(issue[10]),
+      validatorCount: Number(issue[11]),
+      revealedCount: Number(issue[12]),
+      positiveCount: Number(issue[13]),
+      representedGroups: Number(issue[14]),
+      issueDigest: issue[15],
+      sourceSnapshotDigest: issue[16],
+      acceptanceDigest: issue[17],
+      artifactDigest: issue[18],
+      patchDigest: issue[19],
+      candidates,
+      validations,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_open_candidate_reward_issue",
+  {
+    title: "Open a finite dynamically priced improvement Issue",
+    description:
+      "Pins the source snapshot, Issue evidence, acceptance policy, reporter quote, maximum budget, and all deadlines before candidate work starts.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      issueDigest: z.string().min(1),
+      sourceSnapshotDigest: z.string().min(1),
+      acceptanceDigest: z.string().min(1),
+      budgetCapApool: apoolStringSchema,
+      reporterQuoteApool: apoolStringSchema,
+      bidMinutes: z.number().int().min(1).max(1_440).default(5),
+      deliveryMinutes: z.number().int().min(2).max(10_080).default(60),
+      commitMinutes: z.number().int().min(3).max(10_080).default(90),
+      revealMinutes: z.number().int().min(4).max(10_080).default(120),
+    },
+  },
+  async ({
+    issueId,
+    issueDigest,
+    sourceSnapshotDigest,
+    acceptanceDigest,
+    budgetCapApool,
+    reporterQuoteApool,
+    bidMinutes,
+    deliveryMinutes,
+    commitMinutes,
+    revealMinutes,
+  }) => {
+    requireCandidateRewardPool();
+    if (
+      bidMinutes >= deliveryMinutes ||
+      deliveryMinutes >= commitMinutes ||
+      commitMinutes >= revealMinutes
+    ) {
+      throw new Error("V439_DEADLINE_ORDER_INVALID");
+    }
+    const now = Math.floor(Date.now() / 1_000);
+    const encodedIssueId = bytes32(issueId);
+    const receipt = await chainWrite(
+      candidateRewardPool,
+      abis.candidateReward,
+      "openIssue",
+      [
+        encodedIssueId,
+        bytes32(issueDigest),
+        bytes32(sourceSnapshotDigest),
+        bytes32(acceptanceDigest),
+        apool(budgetCapApool),
+        apool(reporterQuoteApool),
+        now + bidMinutes * 60,
+        now + deliveryMinutes * 60,
+        now + commitMinutes * 60,
+        now + revealMinutes * 60,
+      ],
+    );
+    return textResult({
+      ...receipt,
+      issueId: encodedIssueId,
+      budgetCapApool,
+      reporterQuoteApool,
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_prepare_candidate_bid",
+  {
+    title: "Prepare one private candidate plan commitment",
+    description:
+      "Computes the exact pre-work commitment for this device wallet. Keep the plan salt locally until the selected candidate is delivered.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      plan: z.string().min(1),
+      planSalt: z.string().min(1),
+    },
+  },
+  async ({ issueId, plan, planSalt }) => {
+    const account = localAccount();
+    const encodedIssueId = bytes32(issueId);
+    const planHash = bytes32(plan);
+    const salt = bytes32(planSalt);
+    return textResult({
+      issueId: encodedIssueId,
+      author: account.address,
+      planHash,
+      planCommitment: keccak256(
+        encodeAbiParameters(
+          [
+            { type: "bytes32" },
+            { type: "address" },
+            { type: "bytes32" },
+            { type: "bytes32" },
+          ],
+          [encodedIssueId, account.address, planHash, salt],
+        ),
+      ),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_submit_candidate_bid",
+  {
+    title: "Submit a pre-work candidate implementation bid",
+    description:
+      "Locks this AI's implementation quote and hidden plan commitment before it edits or tests a candidate.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      quoteApool: apoolStringSchema,
+      planCommitment: z.string().min(1),
+    },
+  },
+  async ({ issueId, quoteApool, planCommitment }) => {
+    requireCandidateRewardPool();
+    return textResult(
+      await chainWrite(
+        candidateRewardPool,
+        abis.candidateReward,
+        "submitCandidateBid",
+        [
+          bytes32(issueId),
+          apool(quoteApool),
+          bytes32(planCommitment),
+        ],
+      ),
+    );
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_award_candidate",
+  {
+    title: "Award the lowest valid candidate bid",
+    description:
+      "After bidding closes, anyone may advance the finite Issue to the selected lowest pre-work quote.",
+    inputSchema: { issueId: z.string().min(1) },
+  },
+  async ({ issueId }) => {
+    requireCandidateRewardPool();
+    return textResult(
+      await chainWrite(
+        candidateRewardPool,
+        abis.candidateReward,
+        "awardCandidate",
+        [bytes32(issueId)],
+      ),
+    );
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_deliver_candidate",
+  {
+    title: "Deliver the selected immutable candidate artifact",
+    description:
+      "Reveals the selected pre-work plan and pins the public immutable artifact and patch digests before validation starts.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      plan: z.string().min(1),
+      planSalt: z.string().min(1),
+      artifactDigest: z.string().min(1),
+      patchDigest: z.string().min(1),
+    },
+  },
+  async ({
+    issueId,
+    plan,
+    planSalt,
+    artifactDigest,
+    patchDigest,
+  }) => {
+    requireCandidateRewardPool();
+    return textResult(
+      await chainWrite(
+        candidateRewardPool,
+        abis.candidateReward,
+        "deliverCandidate",
+        [
+          bytes32(issueId),
+          bytes32(plan),
+          bytes32(planSalt),
+          bytes32(artifactDigest),
+          bytes32(patchDigest),
+        ],
+      ),
+    );
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_prepare_validation",
+  {
+    title: "Prepare one hidden candidate validation commitment",
+    description:
+      "Computes the exact validation commitment for this device wallet. The score and evidence stay hidden until the commit deadline passes.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      artifactDigest: z.string().min(1),
+      scoreBps: z.number().int().min(0).max(10_000),
+      evidenceDigest: z.string().min(1),
+      validationSalt: z.string().min(1),
+    },
+  },
+  async ({
+    issueId,
+    artifactDigest,
+    scoreBps,
+    evidenceDigest,
+    validationSalt,
+  }) => {
+    const account = localAccount();
+    const encodedIssueId = bytes32(issueId);
+    return textResult({
+      issueId: encodedIssueId,
+      validator: account.address,
+      validationCommitment: keccak256(
+        encodeAbiParameters(
+          [
+            { type: "bytes32" },
+            { type: "address" },
+            { type: "bytes32" },
+            { type: "uint16" },
+            { type: "bytes32" },
+            { type: "bytes32" },
+          ],
+          [
+            encodedIssueId,
+            account.address,
+            bytes32(artifactDigest),
+            scoreBps,
+            bytes32(evidenceDigest),
+            bytes32(validationSalt),
+          ],
+        ),
+      ),
+    });
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_commit_validation",
+  {
+    title: "Commit an independently replayed candidate score",
+    description:
+      "Locks the validator's pre-work quote and hidden score/evidence commitment before reveal.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      validationCommitment: z.string().min(1),
+      quoteApool: apoolStringSchema,
+    },
+  },
+  async ({ issueId, validationCommitment, quoteApool }) => {
+    requireCandidateRewardPool();
+    return textResult(
+      await chainWrite(
+        candidateRewardPool,
+        abis.candidateReward,
+        "commitValidation",
+        [
+          bytes32(issueId),
+          bytes32(validationCommitment),
+          apool(quoteApool),
+        ],
+      ),
+    );
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_reveal_validation",
+  {
+    title: "Reveal a committed candidate validation",
+    description:
+      "Reveals the score and evidence digest after the commit window. The contract rejects any value that differs from the prior commitment.",
+    inputSchema: {
+      issueId: z.string().min(1),
+      scoreBps: z.number().int().min(0).max(10_000),
+      evidenceDigest: z.string().min(1),
+      validationSalt: z.string().min(1),
+    },
+  },
+  async ({
+    issueId,
+    scoreBps,
+    evidenceDigest,
+    validationSalt,
+  }) => {
+    requireCandidateRewardPool();
+    return textResult(
+      await chainWrite(
+        candidateRewardPool,
+        abis.candidateReward,
+        "revealValidation",
+        [
+          bytes32(issueId),
+          scoreBps,
+          bytes32(evidenceDigest),
+          bytes32(validationSalt),
+        ],
+      ),
+    );
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_finalize_candidate_reward",
+  {
+    title: "Finalize dynamic autonomous improvement role payouts",
+    description:
+      "After reveal closes, pays the proven reporter and selected implementer only on pass, pays every valid revealed validator quote, and releases all unused budget.",
+    inputSchema: { issueId: z.string().min(1) },
+  },
+  async ({ issueId }) => {
+    requireCandidateRewardPool();
+    return textResult(
+      await chainWrite(
+        candidateRewardPool,
+        abis.candidateReward,
+        "finalizeIssue",
+        [bytes32(issueId)],
+      ),
+    );
+  },
+);
+
+server.registerTool(
+  "agentpool_v439_expire_candidate_reward",
+  {
+    title: "Release an abandoned candidate reward reservation",
+    description:
+      "Permissionlessly releases the finite reserved test tokens when an Issue receives no bid or its selected candidate misses delivery.",
+    inputSchema: { issueId: z.string().min(1) },
+  },
+  async ({ issueId }) => {
+    requireCandidateRewardPool();
+    return textResult(
+      await chainWrite(
+        candidateRewardPool,
+        abis.candidateReward,
+        "expireIssue",
+        [bytes32(issueId)],
+      ),
+    );
+  },
 );
 
 server.registerTool(
@@ -2506,6 +3145,46 @@ server.registerTool(
       }),
     );
   },
+);
+
+server.registerTool(
+  "agentpool_v43_publish_candidate_artifact",
+  {
+    title: "Publish an immutable candidate patch artifact",
+    description:
+      "Uploads one host-verified candidate patch manifest to public immutable testnet storage. The exact bytes are signed by this device wallet; this does not settle work, mint, vote, or create Work Power.",
+    inputSchema: {
+      artifactDigest: z
+        .string()
+        .regex(/^sha256:[0-9a-f]{64}$/),
+      artifactJson: z.string().min(2).max(5 * 1024 * 1024),
+    },
+  },
+  async ({ artifactDigest, artifactJson }) =>
+    textResult(
+      await signedRawRelayRequest(
+        "/api/v4.3/candidates/artifacts",
+        artifactJson,
+        "V43_CANDIDATE_ARTIFACT_WRITE_FAILED",
+        { "x-agentpool-artifact-digest": artifactDigest },
+      ),
+    ),
+);
+
+server.registerTool(
+  "agentpool_v43_candidate_artifact",
+  {
+    title: "Download an immutable candidate patch artifact",
+    description:
+      "Downloads the exact public patch manifest for independent digest verification, reconstruction, regression testing, and canary comparison. This tool is read-only.",
+    inputSchema: {
+      artifactDigest: z
+        .string()
+        .regex(/^sha256:[0-9a-f]{64}$/),
+    },
+  },
+  async ({ artifactDigest }) =>
+    textResult(await fetchCandidateArtifact(artifactDigest)),
 );
 
 server.registerTool(

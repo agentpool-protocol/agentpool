@@ -5,14 +5,18 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  cp,
   mkdir,
+  mkdtemp,
   rm,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 
 const PROVIDERS = new Set(["codex", "claude", "qwen"]);
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
+const DEFAULT_MAX_CANDIDATE_ARTIFACT_BYTES = 5 * 1024 * 1024;
 const WORKSPACE_EVIDENCE_IGNORES = new Set([
   ".git",
   ".next",
@@ -252,6 +256,225 @@ function workspacePatchDigest(changedFiles, after) {
   return `sha256:${digest.digest("hex")}`;
 }
 
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function validArtifactPath(value) {
+  if (typeof value !== "string" || value.length === 0) return false;
+  const normalized = value.replaceAll("\\", "/");
+  return (
+    normalized === value &&
+    !normalized.startsWith("/") &&
+    !/^[A-Za-z]:\//.test(normalized) &&
+    normalized.split("/").every(
+      (segment) => segment.length > 0 && segment !== "." && segment !== "..",
+    )
+  );
+}
+
+async function createCandidateWorkspace(baseWorkspace, config) {
+  const root = path.resolve(
+    config.candidateWorkspaceRoot ??
+      path.join(path.dirname(baseWorkspace), "candidates"),
+  );
+  assertWorkspaceAllowed(root, config.allowedWorkspaceRoots ?? []);
+  await mkdir(root, { recursive: true });
+  const workspace = await mkdtemp(path.join(root, "candidate-"));
+  await cp(baseWorkspace, workspace, {
+    recursive: true,
+    force: true,
+    filter: (candidate) => {
+      const relative = path.relative(baseWorkspace, candidate);
+      return !relative
+        .split(path.sep)
+        .some((segment) => WORKSPACE_EVIDENCE_IGNORES.has(segment));
+    },
+  });
+  return workspace;
+}
+
+async function persistCandidateArtifact({
+  baseWorkspace,
+  candidateWorkspace,
+  before,
+  after,
+  changedFiles,
+  patchDigest,
+  sourceSnapshotDigest,
+  verification,
+  canary,
+  config,
+}) {
+  const changes = [];
+  let payloadBytes = 0;
+  for (const file of changedFiles) {
+    const absolute = path.join(candidateWorkspace, file);
+    const exists = fs.existsSync(absolute);
+    const content = exists ? await fs.promises.readFile(absolute) : null;
+    payloadBytes += content?.byteLength ?? 0;
+    if (
+      payloadBytes >
+      Number(
+        config.maxCandidateArtifactBytes ??
+          DEFAULT_MAX_CANDIDATE_ARTIFACT_BYTES,
+      )
+    ) {
+      throw new Error("CANDIDATE_ARTIFACT_SIZE_LIMIT_EXCEEDED");
+    }
+    changes.push({
+      path: file,
+      action: exists ? (before.has(file) ? "MODIFY" : "ADD") : "DELETE",
+      beforeSha256: before.get(file) ?? null,
+      afterSha256: after.get(file) ?? null,
+      contentBase64: content?.toString("base64") ?? null,
+    });
+  }
+  const manifest = {
+    schema: "agentpool.candidate.patch/v1",
+    sourceSnapshotDigest,
+    patchDigest,
+    testCommand: verification.testCommand,
+    testPassed: verification.testPassed,
+    objectiveCanary: canary,
+    changes,
+  };
+  const serialized = `${JSON.stringify(manifest)}\n`;
+  const artifactDigest = `sha256:${sha256(serialized)}`;
+  const artifactRoot = path.resolve(
+    config.candidateArtifactRoot ??
+      path.join(path.dirname(baseWorkspace), "candidate-artifacts"),
+  );
+  assertWorkspaceAllowed(artifactRoot, config.allowedWorkspaceRoots ?? []);
+  await mkdir(artifactRoot, { recursive: true });
+  const artifactPath = path.join(
+    artifactRoot,
+    `${artifactDigest.slice("sha256:".length)}.json`,
+  );
+  await writeFile(artifactPath, serialized, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  return {
+    artifactDigest,
+    artifactPath,
+    artifactSizeBytes: Buffer.byteLength(serialized),
+  };
+}
+
+export async function materializeCandidateArtifact({
+  baseWorkspace,
+  artifactPath,
+  artifactDigest,
+  targetRoot,
+}) {
+  const serialized = await fs.promises.readFile(artifactPath, "utf8");
+  const computedArtifactDigest = `sha256:${sha256(serialized)}`;
+  if (computedArtifactDigest !== artifactDigest) {
+    throw new Error("CANDIDATE_ARTIFACT_DIGEST_MISMATCH");
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(serialized);
+  } catch {
+    throw new Error("CANDIDATE_ARTIFACT_JSON_INVALID");
+  }
+  if (
+    manifest?.schema !== "agentpool.candidate.patch/v1" ||
+    !/^sha256:[0-9a-f]{64}$/.test(
+      String(manifest.sourceSnapshotDigest ?? ""),
+    ) ||
+    !/^sha256:[0-9a-f]{64}$/.test(String(manifest.patchDigest ?? "")) ||
+    manifest.testPassed !== true ||
+    manifest.objectiveCanary?.passed !== true ||
+    typeof manifest.testCommand !== "string" ||
+    !Array.isArray(manifest.changes) ||
+    manifest.changes.length === 0 ||
+    manifest.changes.length > 40
+  ) {
+    throw new Error("CANDIDATE_ARTIFACT_MANIFEST_INVALID");
+  }
+  const baseDigest = await computeWorkspaceDigest(baseWorkspace);
+  if (baseDigest !== manifest.sourceSnapshotDigest) {
+    throw new Error("CANDIDATE_ARTIFACT_SOURCE_MISMATCH");
+  }
+  await mkdir(targetRoot, { recursive: true });
+  const workspace = await mkdtemp(path.join(targetRoot, "replay-"));
+  await cp(baseWorkspace, workspace, {
+    recursive: true,
+    force: true,
+    filter: (candidate) => {
+      const relative = path.relative(baseWorkspace, candidate);
+      return !relative
+        .split(path.sep)
+        .some((segment) => WORKSPACE_EVIDENCE_IGNORES.has(segment));
+    },
+  });
+  const before = await workspaceFileHashes(workspace);
+  try {
+    for (const change of manifest.changes) {
+      if (
+        !validArtifactPath(change?.path) ||
+        !["ADD", "MODIFY", "DELETE"].includes(change?.action) ||
+        (change.beforeSha256 !== null &&
+          !/^[0-9a-f]{64}$/.test(String(change.beforeSha256))) ||
+        (change.afterSha256 !== null &&
+          !/^[0-9a-f]{64}$/.test(String(change.afterSha256))) ||
+        before.get(change.path) !== (change.beforeSha256 ?? undefined)
+      ) {
+        throw new Error("CANDIDATE_ARTIFACT_CHANGE_INVALID");
+      }
+      const absolute = path.resolve(workspace, change.path);
+      if (!isPathInside(workspace, absolute)) {
+        throw new Error("CANDIDATE_ARTIFACT_PATH_ESCAPE");
+      }
+      if (change.action === "DELETE") {
+        if (
+          change.afterSha256 !== null ||
+          change.contentBase64 !== null ||
+          !fs.existsSync(absolute)
+        ) {
+          throw new Error("CANDIDATE_ARTIFACT_DELETE_INVALID");
+        }
+        await unlink(absolute);
+        continue;
+      }
+      if (
+        typeof change.contentBase64 !== "string" ||
+        change.afterSha256 === null
+      ) {
+        throw new Error("CANDIDATE_ARTIFACT_CONTENT_REQUIRED");
+      }
+      const content = Buffer.from(change.contentBase64, "base64");
+      if (sha256(content) !== change.afterSha256) {
+        throw new Error("CANDIDATE_ARTIFACT_CONTENT_HASH_MISMATCH");
+      }
+      await mkdir(path.dirname(absolute), { recursive: true });
+      await writeFile(absolute, content, { mode: 0o600 });
+    }
+    const after = await workspaceFileHashes(workspace);
+    const changedFiles = changedWorkspaceFiles(before, after);
+    const patchDigest = workspacePatchDigest(changedFiles, after);
+    if (
+      patchDigest !== manifest.patchDigest ||
+      changedFiles.join("\0") !==
+        manifest.changes.map((change) => change.path).sort().join("\0")
+    ) {
+      throw new Error("CANDIDATE_ARTIFACT_PATCH_MISMATCH");
+    }
+    return {
+      workspace,
+      manifest,
+      sourceSnapshotDigest: baseDigest,
+      patchDigest,
+      changedFiles,
+    };
+  } catch (error) {
+    await rm(workspace, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 export async function computeWorkspaceDigest(workspace) {
   const hashes = await workspaceFileHashes(workspace);
   const digest = createHash("sha256");
@@ -266,6 +489,66 @@ export async function computeWorkspaceDigest(workspace) {
   return `sha256:${digest.digest("hex")}`;
 }
 
+export async function verifyPublishedCandidateArtifact({
+  baseWorkspace,
+  artifactJson,
+  artifactDigest,
+  targetRoot,
+  config = {},
+}) {
+  if (typeof artifactJson !== "string" || artifactJson.length === 0) {
+    throw new Error("CANDIDATE_ARTIFACT_JSON_REQUIRED");
+  }
+  await mkdir(targetRoot, { recursive: true });
+  const downloadRoot = await mkdtemp(
+    path.join(targetRoot, "download-"),
+  );
+  const artifactPath = path.join(downloadRoot, "candidate.json");
+  await writeFile(artifactPath, artifactJson, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  let replay;
+  try {
+    replay = await materializeCandidateArtifact({
+      baseWorkspace,
+      artifactPath,
+      artifactDigest,
+      targetRoot,
+    });
+    const verification = await verifyCandidateWorkspace(
+      replay.workspace,
+      config,
+    );
+    const canary = await verifyObjectiveCandidateCanary({
+      baseWorkspace,
+      candidateWorkspace: replay.workspace,
+      changedFiles: replay.changedFiles,
+      candidateVerification: verification,
+      config: {
+        ...config,
+        candidateWorkspaceRoot: targetRoot,
+      },
+    });
+    return {
+      sourceSnapshotDigest: replay.sourceSnapshotDigest,
+      patchDigest: replay.patchDigest,
+      changedFiles: replay.changedFiles,
+      testCommand: verification.testCommand,
+      testPassed: verification.testPassed,
+      objectiveCanaryPassed: canary.passed,
+      objectiveCanaryReason: canary.reason,
+      candidateMetrics: canary.candidateMetrics,
+      baselineMetrics: canary.baselineMetrics,
+    };
+  } finally {
+    if (replay?.workspace) {
+      await rm(replay.workspace, { recursive: true, force: true });
+    }
+    await rm(downloadRoot, { recursive: true, force: true });
+  }
+}
+
 async function verifyCandidateWorkspace(workspace, config) {
   const testsDirectory = path.join(workspace, "tests");
   const testFiles = fs.existsSync(testsDirectory)
@@ -276,8 +559,9 @@ async function verifyCandidateWorkspace(workspace, config) {
     : [];
   const testCommand = "node --test tests/*.test.mjs";
   if (testFiles.length === 0) {
-    return { testCommand, testPassed: false };
+    return { testCommand, testPassed: false, durationMs: 0 };
   }
+  const startedAt = Date.now();
   try {
     await runProcess(process.execPath, ["--test", ...testFiles], {
       cwd: workspace,
@@ -301,9 +585,89 @@ async function verifyCandidateWorkspace(workspace, config) {
           DEFAULT_MAX_OUTPUT_BYTES,
       ),
     });
-    return { testCommand, testPassed: true };
+    return {
+      testCommand,
+      testPassed: true,
+      durationMs: Math.max(1, Date.now() - startedAt),
+    };
   } catch {
-    return { testCommand, testPassed: false };
+    return {
+      testCommand,
+      testPassed: false,
+      durationMs: Math.max(1, Date.now() - startedAt),
+    };
+  }
+}
+
+async function verifyObjectiveCandidateCanary({
+  baseWorkspace,
+  candidateWorkspace,
+  changedFiles,
+  candidateVerification,
+  config,
+}) {
+  const changedTests = changedFiles.filter(
+    (file) =>
+      file.startsWith("tests/") &&
+      file.endsWith(".test.mjs") &&
+      fs.existsSync(path.join(candidateWorkspace, file)),
+  );
+  const root = path.resolve(
+    config.candidateWorkspaceRoot ??
+      path.join(path.dirname(baseWorkspace), "candidates"),
+  );
+  const baselineWorkspace = await mkdtemp(
+    path.join(root, "baseline-canary-"),
+  );
+  try {
+    await cp(baseWorkspace, baselineWorkspace, {
+      recursive: true,
+      force: true,
+      filter: (candidate) => {
+        const relative = path.relative(baseWorkspace, candidate);
+        return !relative
+          .split(path.sep)
+          .some((segment) => WORKSPACE_EVIDENCE_IGNORES.has(segment));
+      },
+    });
+    for (const file of changedTests) {
+      const source = path.join(candidateWorkspace, file);
+      const destination = path.join(baselineWorkspace, file);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await fs.promises.copyFile(source, destination);
+    }
+    const baselineVerification = await verifyCandidateWorkspace(
+      baselineWorkspace,
+      config,
+    );
+    const candidateMetrics = {
+      qualityBps: candidateVerification.testPassed ? 10_000 : 0,
+      cost: candidateVerification.durationMs,
+      latencyMs: candidateVerification.durationMs,
+      securityRegressions: candidateVerification.testPassed ? 0 : 1,
+    };
+    const baselineMetrics = {
+      qualityBps: baselineVerification.testPassed ? 10_000 : 0,
+      cost: baselineVerification.durationMs,
+      latencyMs: baselineVerification.durationMs,
+      securityRegressions: baselineVerification.testPassed ? 0 : 1,
+    };
+    const passed =
+      candidateVerification.testPassed === true &&
+      baselineVerification.testPassed === false;
+    return {
+      passed,
+      reason: passed
+        ? "REGRESSION_TEST_FAILS_ON_BASELINE_AND_PASSES_ON_CANDIDATE"
+        : changedTests.length === 0
+          ? "CANDIDATE_REGRESSION_TEST_REQUIRED"
+          : "CANDIDATE_DOES_NOT_PROVE_OBJECTIVE_IMPROVEMENT",
+      candidateMetrics,
+      baselineMetrics,
+      changedTests,
+    };
+  } finally {
+    await rm(baselineWorkspace, { recursive: true, force: true });
   }
 }
 
@@ -426,18 +790,42 @@ export function createExecutionAdapter(config = {}) {
       const temporary = await fs.promises.mkdtemp(
         path.join(os.tmpdir(), `agentpool-${provider}-`),
       );
-      const schemaPath = path.join(temporary, "result.schema.json");
-      const outputPath = path.join(temporary, "result.json");
       const verifyCandidate =
         task.workspaceMode === "ISOLATED_CANARY" &&
         config.verifyCandidateWorkspace !== false;
+      const executionWorkspace = verifyCandidate
+        ? await createCandidateWorkspace(workspace, config)
+        : workspace;
+      const schemaPath = path.join(temporary, "result.schema.json");
+      const outputPath = path.join(temporary, "result.json");
       const workspaceBefore = verifyCandidate
-        ? await workspaceFileHashes(workspace)
+        ? await workspaceFileHashes(executionWorkspace)
         : null;
+      const actualSourceSnapshotDigest = verifyCandidate
+        ? await computeWorkspaceDigest(workspace)
+        : null;
+      if (
+        verifyCandidate &&
+        config.sourceSnapshotDigest &&
+        config.sourceSnapshotDigest !== actualSourceSnapshotDigest
+      ) {
+        await rm(temporary, { recursive: true, force: true });
+        await rm(executionWorkspace, {
+          recursive: true,
+          force: true,
+        });
+        throw new Error("EXECUTOR_SOURCE_SNAPSHOT_DIGEST_MISMATCH");
+      }
       const schema = buildExecutorResultSchema();
       await mkdir(temporary, { recursive: true });
       await writeFile(schemaPath, JSON.stringify(schema), "utf8");
       const prompt = buildExecutorPrompt(task);
+      const executionConfig = {
+        ...config,
+        allowWorkspaceWrite:
+          task.workspaceMode === "ISOLATED_CANARY" &&
+          config.allowWorkspaceWrite === true,
+      };
       const generatedArgs = Array.isArray(config.args)
         ? config.args.map((item) =>
             String(item)
@@ -445,11 +833,17 @@ export function createExecutionAdapter(config = {}) {
               .replaceAll("{schema}", schemaPath)
               .replaceAll("{output}", outputPath),
           )
-        : providerArgs(provider, prompt, schemaPath, outputPath, config);
+        : providerArgs(
+            provider,
+            prompt,
+            schemaPath,
+            outputPath,
+            executionConfig,
+          );
       const args = [...launch.prefixArgs, ...generatedArgs];
       try {
         const result = await runProcess(command, args, {
-          cwd: workspace,
+          cwd: executionWorkspace,
           env: {
             PATH: process.env.PATH,
             SystemRoot: process.env.SystemRoot,
@@ -473,30 +867,67 @@ export function createExecutionAdapter(config = {}) {
           provider,
         );
         if (verifyCandidate) {
-          const workspaceAfter = await workspaceFileHashes(workspace);
+          const workspaceAfter =
+            await workspaceFileHashes(executionWorkspace);
           const changedFiles = changedWorkspaceFiles(
             workspaceBefore,
             workspaceAfter,
           );
           const verification = await verifyCandidateWorkspace(
-            workspace,
+            executionWorkspace,
             config,
           );
+          const canary = await verifyObjectiveCandidateCanary({
+            baseWorkspace: workspace,
+            candidateWorkspace: executionWorkspace,
+            changedFiles,
+            candidateVerification: verification,
+            config,
+          });
+          const patchDigest = workspacePatchDigest(
+            changedFiles,
+            workspaceAfter,
+          );
+          const sourceSnapshotDigest =
+            actualSourceSnapshotDigest;
+          const artifact = await persistCandidateArtifact({
+            baseWorkspace: workspace,
+            candidateWorkspace: executionWorkspace,
+            before: workspaceBefore,
+            after: workspaceAfter,
+            changedFiles,
+            patchDigest,
+            sourceSnapshotDigest,
+            verification,
+            canary,
+            config,
+          });
           normalized.evidence = {
             ...normalized.evidence,
             changedFiles,
             testCommand: verification.testCommand,
             testPassed: verification.testPassed,
-            patchDigest: workspacePatchDigest(
-              changedFiles,
-              workspaceAfter,
-            ),
+            patchDigest,
+            sourceSnapshotDigest,
+            artifactDigest: artifact.artifactDigest,
+            artifactSizeBytes: artifact.artifactSizeBytes,
+            localArtifactPath: artifact.artifactPath,
+            objectiveCanaryPassed: canary.passed,
+            objectiveCanaryReason: canary.reason,
+            candidateMetrics: canary.candidateMetrics,
+            baselineMetrics: canary.baselineMetrics,
             hostVerified: true,
           };
         }
         return normalized;
       } finally {
         await rm(temporary, { recursive: true, force: true });
+        if (verifyCandidate) {
+          await rm(executionWorkspace, {
+            recursive: true,
+            force: true,
+          });
+        }
       }
     },
   };

@@ -72,6 +72,20 @@ whose distinct objective receipts pass. Per-item, per-Issue, daily, and lifetime
 caps bound self-pricing. The exact deployment is
 [`deployments/84532.v43.7.json`](./deployments/84532.v43.7.json).
 
+v4.3.9 replaces the fixed-output self-bootstrap workflow with a finite
+candidate-reward incubation overlay. A reporter pins the Issue, source
+snapshot, acceptance policy, budget, and its own quote; implementers bid before
+editing; the lowest valid bid delivers one immutable public patch artifact;
+validators bid before commit/reveal replay evidence. Settlement pays the sum of
+the proven role quotes, so one early AI may earn several role payments when it
+actually performs several jobs. A failed candidate pays neither reporter nor
+implementer, while a validator that submits a valid negative result still
+receives its quoted validation fee. The overlay is constructor-bound to Base
+Sepolia, finite-prefunded, and cannot mint, write Work Power, or recommend a
+release. Its local contract and Runner flow are implemented; public deployment
+remains pending until the test deployer and funder have enough Base Sepolia test
+ETH.
+
 The v4.3.5 ownerless contracts add an automatic
 `BOOTSTRAP → TRANSITION → MATURE` path:
 fixed catalog work only during early BOOTSTRAP, capped EVOLUTION Issues after
@@ -297,6 +311,8 @@ npm run contracts:rehearse:v4.1
 npm run contracts:rehearse:v4.2
 npm run contracts:rehearse:v4.3:public
 npm run contracts:rehearse:v4.3.7
+npm run contracts:rehearse:v4.3.9
+npm run contracts:preflight:v4.3.9
 npm run contracts:verify:v4.3
 npm run contracts:smoke:v4.3
 npm run mcp:bundle
@@ -329,6 +345,14 @@ Base Sepolia read-only verification, runtime dependency audit, and public Sites
 checks. Results are separated into `PASS`, `FAIL`, and external-only `BLOCKED`
 states in [V437_VALIDATION_REPORT.md](V437_VALIDATION_REPORT.md); the acceptance
 criteria are listed in [V437_TEST_MATRIX.md](V437_TEST_MATRIX.md).
+
+`contracts:rehearse:v4.3.9` proves quote-before-work ordering, cheapest-bid
+selection, exact multi-role payment, immutable artifact replay protection,
+commit/reveal binding, rejected-candidate nonpayment, valid negative-validator
+payment, expiry recovery, and zero authority over minting, Work Power, or
+release recommendation. `contracts:preflight:v4.3.9` is read-only and exits
+with code 2 until both the deployer and token funder have enough Base Sepolia
+test gas.
 
 ## v4.1 Base Sepolia deployment
 

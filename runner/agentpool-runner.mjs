@@ -25,6 +25,7 @@ import {
 import {
   executeRunnerTaskWithAdapters,
   runAutonomyRoleCycle,
+  runCandidateRewardSettlementCycle,
   runIdleImprovementCycle,
   runValidatorCycle,
   sealRunnerResultForBuyer,
@@ -59,6 +60,7 @@ async function loadConfig() {
     estimatedCostApool: "0",
     estimatedGasApool: "0",
     autoResolveObjective: false,
+    independenceClaim: false,
     capabilities: ["mcp-json-data-code-low-risk"],
     roles: [
       "WORKER",
@@ -67,6 +69,8 @@ async function loadConfig() {
       "COORDINATOR",
       "WATCHER",
       "IMPROVER",
+      "CANARY",
+      "VOTER",
     ],
     executors: {
       codex: {
@@ -85,6 +89,17 @@ async function loadConfig() {
       estimatedCostApool: "0",
       estimatedGasApool: "0",
       failureLossApool: "0",
+    },
+    candidateReward: {
+      enabled: true,
+      reporterQuoteApool: "0.1",
+      candidateQuoteApool: "1",
+      validatorQuoteApool: "0.2",
+      budgetCapApool: "3",
+      bidMinutes: 5,
+      deliveryMinutes: 60,
+      commitMinutes: 90,
+      revealMinutes: 120,
     },
     requirePinnedImprovementIssues: true,
     operatorGroup: "codex-single-device",
@@ -234,6 +249,35 @@ async function main() {
     ignoreRules: true,
     ...(config.executors.codex ?? {}),
   };
+  for (const provider of ["codex", "claude", "qwen"]) {
+    if (!config.executors[provider]) continue;
+    config.executors[provider].sourceSnapshotDigest =
+      config.sourceSnapshotDigest;
+    config.executors[provider].candidateWorkspaceRoot =
+      path.join(workspaceRoot, "candidates");
+    config.executors[provider].candidateArtifactRoot =
+      path.join(runnerHome, "candidate-artifacts");
+    config.executors[provider].allowedWorkspaceRoots = [
+      ...(config.executors[provider].allowedWorkspaceRoots ?? []),
+      runnerHome,
+    ];
+  }
+  config.candidateVerification = {
+    baseWorkspace: codexWorkspace,
+    targetRoot: path.join(workspaceRoot, "candidate-replays"),
+    executorConfig: {
+      timeoutMs: Number(
+        config.candidateVerification?.timeoutMs ??
+          config.executors.codex.timeoutMs ??
+          120_000,
+      ),
+      maxOutputBytes: Number(
+        config.candidateVerification?.maxOutputBytes ??
+          config.executors.codex.maxOutputBytes ??
+          1_000_000,
+      ),
+    },
+  };
   config.executors.preferredProviders =
     config.preferredProviders ?? ["codex", "claude", "qwen"];
   config.executors.allowProviderFallback =
@@ -308,6 +352,13 @@ async function main() {
       },
     });
     state = workerResult.state;
+    const rewardBefore = await runCandidateRewardSettlementCycle({
+      config,
+      mcp,
+      state,
+      wallet: workerResult.wallet,
+    });
+    state = rewardBefore.state;
     const autonomyResult = await runAutonomyRoleCycle({
       config,
       mcp,
@@ -324,8 +375,15 @@ async function main() {
         wallet: workerResult.wallet,
         executorRegistry,
         marketOutcomes: autonomyResult.outcomes,
-      });
+    });
     state = idleImprovementResult.state;
+    const rewardAfter = await runCandidateRewardSettlementCycle({
+      config,
+      mcp,
+      state,
+      wallet: workerResult.wallet,
+    });
+    state = rewardAfter.state;
     const validationResult = await runValidatorCycle({
       config,
       mcp,
@@ -342,8 +400,10 @@ async function main() {
         providers: executorRegistry.providers(),
         outcomes: [
           ...workerResult.outcomes,
+          ...rewardBefore.outcomes,
           ...autonomyResult.outcomes,
           ...idleImprovementResult.outcomes,
+          ...rewardAfter.outcomes,
           ...validationResult.outcomes,
         ],
       })}\n`,

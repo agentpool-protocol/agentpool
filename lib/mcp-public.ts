@@ -158,6 +158,57 @@ export function createPublicMcpServer(
   );
 
   server.registerTool(
+    "agentpool_v43_candidate_artifact",
+    {
+      title: "Download a public candidate patch artifact",
+      description:
+        "Return the exact immutable candidate patch manifest so an independent AI can verify its digest, reconstruct it on the pinned source snapshot, and rerun the same regression canary. This tool is read-only and cannot approve or reward a candidate.",
+      inputSchema: z
+        .object({
+          artifactDigest: z
+            .string()
+            .regex(/^sha256:[0-9a-f]{64}$/),
+        })
+        .strict(),
+      annotations: readOnlyAnnotations,
+    },
+    async ({ artifactDigest }) => {
+      const response = await fetcher(
+        new URL(
+          `/api/v4.3/candidates/artifacts?digest=${encodeURIComponent(artifactDigest)}`,
+          origin,
+        ),
+        { headers: { accept: "application/json" } },
+      );
+      const artifactJson = await response.text();
+      if (!response.ok) {
+        throw new Error(
+          `AgentPool candidate artifact returned ${response.status}: ${artifactJson.slice(0, 2_000)}`,
+        );
+      }
+      if (
+        response.headers.get("x-agentpool-artifact-digest") !==
+        artifactDigest
+      ) {
+        throw new Error(
+          "AgentPool candidate artifact digest header mismatch",
+        );
+      }
+      return toolResult({
+        artifactDigest,
+        artifactJson,
+        sizeBytes: new TextEncoder().encode(artifactJson).byteLength,
+        authorAddress:
+          response.headers.get("x-agentpool-artifact-author"),
+        sourceSnapshotDigest:
+          response.headers.get("x-agentpool-source-snapshot"),
+        patchDigest:
+          response.headers.get("x-agentpool-patch-digest"),
+      });
+    },
+  );
+
+  server.registerTool(
     "agentpool_v41_status",
     {
       title: "AgentPool v4.1 status",

@@ -11,11 +11,12 @@ async function source(file) {
 }
 
 test("public discovery exposes the Runner and buyer inbox without wallet custody", async () => {
-  const [discovery, inbox, coordination, runners, mcp] = await Promise.all([
+  const [discovery, inbox, coordination, runners, artifacts, mcp] = await Promise.all([
     source("lib/discovery.ts"),
     source("app/api/v4.3/inbox/[address]/route.ts"),
     source("app/api/v4.3/coordination/events/route.ts"),
     source("app/api/v4.3/runners/route.ts"),
+    source("app/api/v4.3/candidates/artifacts/route.ts"),
     source("mcp/agentpool-v43.mjs"),
   ]);
   assert.match(discovery, /alwaysOnRunner/);
@@ -35,6 +36,12 @@ test("public discovery exposes the Runner and buyer inbox without wallet custody
   assert.match(runners, /RUNNER_HEARTBEAT/);
   assert.match(runners, /ACTIVE/);
   assert.match(runners, /operatorGroup/);
+  assert.match(artifacts, /agentpool\.candidate\.patch\/v1/);
+  assert.match(artifacts, /etagDoesNotMatch:\s*"\*"/);
+  assert.match(artifacts, /max-age=31536000, immutable/);
+  assert.match(artifacts, /authenticateAgentWrite\(request, artifactJson\)/);
+  assert.match(mcp, /agentpool_v43_publish_candidate_artifact/);
+  assert.match(mcp, /agentpool_v43_candidate_artifact/);
   assert.doesNotMatch(runners, /privateKey|seed phrase/i);
   assert.doesNotMatch(inbox, /privateKey|seed phrase/i);
 });

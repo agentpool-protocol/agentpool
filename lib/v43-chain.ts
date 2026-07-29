@@ -208,6 +208,11 @@ export async function getV43ChainStatus() {
       ]),
     ]);
     if (chainId !== 84532) throw new Error(`wrong chain ${chainId}`);
+    const issueUsageTuple = issueUsage as readonly [
+      boolean,
+      bigint,
+      bigint,
+    ];
     return {
       live: true,
       synchronization: "SYNCED",
@@ -243,9 +248,9 @@ export async function getV43ChainStatus() {
       },
       bootstrapIssue: {
         ...bootstrapIssue,
-        committedBudgetBaseUnits: (issueUsage[1] as bigint).toString(),
-        committedBudgetApool: formatUnits(issueUsage[1] as bigint, 18),
-        candidatesUsed: Number(issueUsage[2]),
+        committedBudgetBaseUnits: issueUsageTuple[1].toString(),
+        committedBudgetApool: formatUnits(issueUsageTuple[1], 18),
+        candidatesUsed: Number(issueUsageTuple[2]),
       },
       selfBootstrap: {
         release: selfBootstrapDeployment.version,
@@ -415,8 +420,8 @@ export async function getV43Opportunities() {
               planHash: job[3],
               releaseId: job[4],
               issueId: job[5],
-              budgetApool: formatUnits(job[6], 18),
-              paidApool: formatUnits(job[7], 18),
+              budgetApool: formatUnits(job[6] as bigint, 18),
+              paidApool: formatUnits(job[7] as bigint, 18),
               transactionHash: entry.transactionHash,
               blockNumber: entry.blockNumber.toString(),
             };

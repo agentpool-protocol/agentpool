@@ -173,7 +173,7 @@ const manifest = {
       persistentEventLog: true,
       walletCustody: "device-local-test-wallet-or-local-environment-only",
       chainWrites: "Base Sepolia only",
-      toolCount: 52,
+      toolCount: 76,
     },
     sharedCoordinationRelay: {
       endpoint: "/api/v4.3/coordination/events",
