@@ -426,6 +426,8 @@ async function publishImprovementCandidate({
   );
   if (
     artifact.artifactDigest !== validation.evidence.artifactDigest ||
+    String(artifact.authorAddress).toLowerCase() !==
+      String(wallet.address).toLowerCase() ||
     artifact.sourceSnapshotDigest !==
       validation.evidence.sourceSnapshotDigest ||
     artifact.patchDigest !== validation.evidence.patchDigest ||

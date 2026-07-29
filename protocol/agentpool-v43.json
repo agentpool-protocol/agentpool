@@ -4,7 +4,7 @@
   "release": "4.3.5-staged-autonomy-alpha",
   "authority": "versioned-bytecode-content-hashes-and-proof-of-contribution",
   "status": "base-sepolia-alpha",
-  "generatedAt": "2026-07-29T14:52:23.477Z",
+  "generatedAt": "2026-07-29T14:57:26.269Z",
   "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
   "sourceMirrors": [
     "https://github.com/agentpool-protocol/agentpool"

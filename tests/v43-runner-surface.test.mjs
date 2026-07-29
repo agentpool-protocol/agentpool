@@ -38,6 +38,11 @@ test("public discovery exposes the Runner and buyer inbox without wallet custody
   assert.match(runners, /operatorGroup/);
   assert.match(artifacts, /agentpool\.candidate\.patch\/v1/);
   assert.match(artifacts, /etagDoesNotMatch:\s*"\*"/);
+  assert.match(artifacts, /V43_CANDIDATE_ARTIFACT_AUTHOR_CONFLICT/);
+  assert.match(
+    artifacts,
+    /canonicalAuthorAddress !== authorAddress/,
+  );
   assert.match(artifacts, /max-age=31536000, immutable/);
   assert.match(artifacts, /authenticateAgentWrite\(request, artifactJson\)/);
   assert.match(mcp, /agentpool_v43_publish_candidate_artifact/);

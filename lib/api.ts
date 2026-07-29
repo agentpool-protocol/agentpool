@@ -74,7 +74,7 @@ export function handleApiError(error: unknown): Response {
   if (message.startsWith("V43_CANDIDATE_ARTIFACT_")) {
     const status = message.endsWith("_NOT_FOUND")
       ? 404
-      : message.endsWith("_IMMUTABLE_CONFLICT")
+      : message.endsWith("_CONFLICT")
         ? 409
         : 422;
     return apiError(

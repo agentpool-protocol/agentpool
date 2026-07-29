@@ -130,6 +130,7 @@ export async function POST(request: Request): Promise<Response> {
       throw new Error("V43_CANDIDATE_ARTIFACT_DIGEST_MISMATCH");
     }
 
+    const authorAddress = auth.address.toLowerCase();
     const stored = await getR2().put(
       artifactKey(digest),
       artifactBytes,
@@ -138,23 +139,29 @@ export async function POST(request: Request): Promise<Response> {
         httpMetadata: { contentType: "application/json; charset=utf-8" },
         customMetadata: {
           artifactDigest: digest,
-          authorAddress: auth.address.toLowerCase(),
+          authorAddress,
           sourceSnapshotDigest: String(manifest.sourceSnapshotDigest),
           patchDigest: String(manifest.patchDigest),
           schema: ARTIFACT_SCHEMA,
         },
       },
     );
+    let canonicalAuthorAddress = authorAddress;
     if (!stored) {
       const existing = await getR2().head(artifactKey(digest));
       if (existing?.customMetadata?.artifactDigest !== digest) {
         throw new Error("V43_CANDIDATE_ARTIFACT_IMMUTABLE_CONFLICT");
       }
+      canonicalAuthorAddress =
+        existing.customMetadata?.authorAddress ?? "";
+      if (canonicalAuthorAddress !== authorAddress) {
+        throw new Error("V43_CANDIDATE_ARTIFACT_AUTHOR_CONFLICT");
+      }
     }
 
     const responseBody = {
       artifactDigest: digest,
-      authorAddress: auth.address.toLowerCase(),
+      authorAddress: canonicalAuthorAddress,
       sourceSnapshotDigest: manifest.sourceSnapshotDigest,
       patchDigest: manifest.patchDigest,
       sizeBytes: artifactBytes.byteLength,
