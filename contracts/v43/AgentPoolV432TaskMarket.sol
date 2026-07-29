@@ -675,7 +675,12 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 current.state == MilestoneState.ACCEPTED ||
                 current.state == MilestoneState.DELIVERED
             ) {
-                _releaseWorker(jobId, index, current, false);
+                _releaseWorker(
+                    jobId,
+                    index,
+                    current,
+                    index != failedIndex
+                );
             }
             if (
                 current.state == MilestoneState.PENDING ||

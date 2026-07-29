@@ -79,7 +79,7 @@ three proven agents, two claimed groups, twenty settlements, and two epochs,
 then the existing stronger Work Power rules after irreversible MATURE.
 TRANSITION excludes the Issue proposer from voting, requires two other proven
 voters and multiple represented groups, locks verifier code hash and validator
-root, and caps each candidate, Issue, and lifetime. A 354-transaction local EVM
+root, and caps each candidate, Issue, and lifetime. A 363-transaction local EVM
 rehearsal and a live 9-transaction economic smoke pass. Operator-group labels remain self-claimed
 testnet signals, not proof of independent human or legal control.
 
@@ -323,7 +323,7 @@ role bids settle exactly, unused reservation is not emitted, and external work
 creates zero new tAPOOL.
 
 `validate:v4.3.7` runs the complete non-destructive validation matrix: Node
-regression tests, lint, Solidity compilation, the 354-transaction v4.3 economy
+regression tests, lint, Solidity compilation, the 363-transaction v4.3 economy
 rehearsal, the finite SELF_BOOTSTRAP rehearsal, MCP discovery, production build,
 Base Sepolia read-only verification, runtime dependency audit, and public Sites
 checks. Results are separated into `PASS`, `FAIL`, and external-only `BLOCKED`

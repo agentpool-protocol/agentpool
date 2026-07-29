@@ -1115,6 +1115,206 @@ check(
   supplyBeforeExternal,
 );
 
+// If one parallel leaf fails, only that worker may lose its bond. Other
+// accepted leaves are cancelled by the project-wide abort, so their bonds and
+// capacity must be returned even though they did not settle.
+const abortLabel = "external-parallel-abort-bonds";
+const abortBuyer = firstExternal.worker;
+const abortWorkers = [firstSystem.worker, agents[4]];
+const abortBond = parseEther("2");
+const abortAllocation = parseEther("2");
+const abortKeeperFee = parseEther("1");
+const abortBudget = parseEther("7");
+const abortPlanHash = keccak256(toBytes(`${abortLabel}-plan`));
+const abortEvidence = abortWorkers.map((_, index) => {
+  const specificationHash = keccak256(
+    toBytes(`${abortLabel}-specification-${index}`),
+  );
+  return {
+    specificationHash,
+    ...evidenceFor(`${abortLabel}-${index}`, specificationHash),
+  };
+});
+const abortTerms = abortWorkers.map((worker, index) => ({
+  worker: worker.address,
+  verifier,
+  capability,
+  specificationHash: abortEvidence[index].specificationHash,
+  expectedEvidenceHash: abortEvidence[index].expectedEvidenceHash,
+  payoutRoot: payoutRoot([worker.address], [abortAllocation]),
+  allocation: abortAllocation,
+  workerBond: abortBond,
+  keeperFee: abortKeeperFee,
+  deadline: Number(blockTimestamp + BigInt((index + 1) * 86_400)),
+  capacityUnits: 2,
+  minimumReveals: 0,
+  passScoreBps: 0,
+  commitWindow: 0,
+  revealWindow: 0,
+}));
+const abortPolicies = abortTerms.map(() => ({
+  validatorRoot: `0x${"00".repeat(32)}`,
+  minimumOperatorGroups: 0,
+}));
+const abortNonce = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "nextJobNonce",
+);
+const abortJobId = jobIdFor(
+  abortBuyer.address,
+  abortNonce,
+  abortPlanHash,
+);
+await write(
+  "AgentPoolV43Token",
+  token,
+  "transfer",
+  [abortWorkers[1].address, abortBond],
+  abortBuyer.key,
+);
+for (const worker of abortWorkers) {
+  await write(
+    "AgentPoolV43Token",
+    token,
+    "approve",
+    [market, abortBond],
+    worker.key,
+  );
+}
+const abortBuyerBefore = await read(
+  "AgentPoolV43Token",
+  token,
+  "balanceOf",
+  [abortBuyer.address],
+);
+const failedWorkerBefore = await read(
+  "AgentPoolV43Token",
+  token,
+  "balanceOf",
+  [abortWorkers[0].address],
+);
+const innocentWorkerBefore = await read(
+  "AgentPoolV43Token",
+  token,
+  "balanceOf",
+  [abortWorkers[1].address],
+);
+const supplyBeforeAbort = await read(
+  "AgentPoolV43Token",
+  token,
+  "totalSupply",
+);
+await write(
+  "AgentPoolV43Token",
+  token,
+  "approve",
+  [userEscrow, abortBudget],
+  abortBuyer.key,
+);
+await write(
+  "AgentPoolV432TaskMarket",
+  market,
+  "createExternalJobV2",
+  [
+    abortBudget,
+    abortPlanHash,
+    genesisRelease,
+    abortTerms,
+    abortPolicies,
+    [0, 0],
+  ],
+  abortBuyer.key,
+);
+for (let milestoneIndex = 0; milestoneIndex < abortWorkers.length; milestoneIndex++) {
+  await write(
+    "AgentPoolV432TaskMarket",
+    market,
+    "acceptMilestone",
+    [abortJobId, milestoneIndex],
+    abortWorkers[milestoneIndex].key,
+  );
+}
+await write(
+  "AgentPoolV432TaskMarket",
+  market,
+  "deliver",
+  [abortJobId, 0, abortEvidence[0].deliveryHash],
+  abortWorkers[0].key,
+);
+await write(
+  "AgentPoolV432TaskMarket",
+  market,
+  "resolve",
+  [
+    abortJobId,
+    0,
+    toHex("invalid-parallel-delivery-proof"),
+    [abortWorkers[0].address],
+    [abortAllocation],
+  ],
+);
+const abortedJob = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "jobs",
+  [abortJobId],
+);
+const failedMilestone = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [abortJobId, 0],
+);
+const innocentMilestone = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [abortJobId, 1],
+);
+check("failed parallel job is rejected", abortedJob[2], 5);
+check("failed parallel leaf is rejected", failedMilestone[16], 5);
+check("innocent parallel leaf is refunded", innocentMilestone[16], 6);
+check(
+  "failed parallel worker alone loses its bond",
+  await read("AgentPoolV43Token", token, "balanceOf", [
+    abortWorkers[0].address,
+  ]),
+  failedWorkerBefore - abortBond,
+);
+check(
+  "innocent parallel worker recovers its full bond",
+  await read("AgentPoolV43Token", token, "balanceOf", [
+    abortWorkers[1].address,
+  ]),
+  innocentWorkerBefore,
+);
+check(
+  "external buyer recovers budget and receives only failed bond",
+  await read("AgentPoolV43Token", token, "balanceOf", [
+    abortBuyer.address,
+  ]),
+  abortBuyerBefore + abortBond,
+);
+for (const worker of abortWorkers) {
+  const offer = await read(
+    "AgentPoolV43CapacityRegistry",
+    capacityRegistry,
+    "offers",
+    [worker.address, capability],
+  );
+  check(
+    `parallel abort releases ${worker.address} capacity`,
+    offer[1],
+    0,
+  );
+}
+check(
+  "parallel abort never mints",
+  await read("AgentPoolV43Token", token, "totalSupply"),
+  supplyBeforeAbort,
+);
+
 // A worker cannot validate its own milestone, and the job cannot settle until
 // three explicitly allowlisted, independently registered operator groups have
 // committed and revealed evidence.
