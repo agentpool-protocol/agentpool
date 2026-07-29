@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readFile,
+  rename,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +22,7 @@ import { createExecutorRegistry } from "./execution-adapters.mjs";
 import {
   executeRunnerTaskWithAdapters,
   runAutonomyRoleCycle,
+  runIdleImprovementCycle,
   runValidatorCycle,
   sealRunnerResultForBuyer,
 } from "./agentpool-role-runner-core.mjs";
@@ -66,6 +73,16 @@ async function loadConfig() {
     preferredProviders: ["codex", "claude", "qwen"],
     allowProviderFallback: true,
     improvementProvider: "codex",
+    idleImprovement: {
+      enabled: true,
+      provider: "codex",
+      auditIntervalMs: 60 * 60 * 1_000,
+      retryIntervalMs: 10 * 60 * 1_000,
+      successProbabilityBps: 7_500,
+      estimatedCostApool: "0",
+      estimatedGasApool: "0",
+      failureLossApool: "0",
+    },
     operatorGroup: "codex-single-device",
     runtime: "agentpool-codex-runner-v1",
     maximumConsecutiveFailures: 20,
@@ -138,6 +155,52 @@ async function ensurePrivateChannel(config, runnerHome) {
   config.privateChannelPublicKey = generated.publicKey;
 }
 
+async function prepareSourceSnapshot(workspaceRoot) {
+  const snapshot = path.join(
+    workspaceRoot,
+    `agentpool-source-${process.pid}`,
+  );
+  await mkdir(snapshot, { recursive: true });
+  const entries = [
+    "app",
+    "contracts",
+    "db",
+    "lib",
+    "mcp",
+    "runner",
+    "scripts",
+    "sdk",
+    "tests",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "README.md",
+  ];
+  for (const entry of entries) {
+    const source = path.join(root, entry);
+    if (!fs.existsSync(source)) continue;
+    await cp(source, path.join(snapshot, entry), {
+      recursive: true,
+      force: true,
+      filter: (candidate) => {
+        const relative = path.relative(root, candidate);
+        return !relative
+          .split(path.sep)
+          .some((segment) =>
+            [
+              ".git",
+              ".next",
+              "dist",
+              "node_modules",
+              "outputs",
+            ].includes(segment),
+          );
+      },
+    });
+  }
+  return snapshot;
+}
+
 async function main() {
   const config = await loadConfig();
   const runnerHome = path.resolve(
@@ -146,15 +209,19 @@ async function main() {
       path.join(os.homedir(), ".agentpool-runner"),
   );
   const statePath = path.join(runnerHome, "state.json");
-  const workspaceRoot = path.join(runnerHome, "workspaces");
-  const codexWorkspace = path.join(workspaceRoot, "codex");
-  await mkdir(codexWorkspace, { recursive: true });
+  const workspaceRoot = path.join(
+    root,
+    "work",
+    "agentpool-runner",
+  );
+  await mkdir(workspaceRoot, { recursive: true });
+  const codexWorkspace = await prepareSourceSnapshot(workspaceRoot);
   config.executors ??= {};
   config.executors.codex = {
     enabled: "auto",
     workspace: codexWorkspace,
     allowedWorkspaceRoots: [workspaceRoot],
-    allowWorkspaceWrite: false,
+    allowWorkspaceWrite: true,
     skipGitRepoCheck: true,
     ignoreUserConfig: true,
     ignoreRules: true,
@@ -168,7 +235,8 @@ async function main() {
     enabled: true,
     capability,
     provider: "codex",
-    priceApool: "1",
+    priceApool: "0.1",
+    bidShareBps: 5_000,
     successLowerBps: 8_500,
     capacityUnits: 1,
     latencyPenaltyApool: "0.01",
@@ -241,6 +309,16 @@ async function main() {
       executorRegistry,
     });
     state = autonomyResult.state;
+    const idleImprovementResult =
+      await runIdleImprovementCycle({
+        config,
+        mcp,
+        state,
+        wallet: workerResult.wallet,
+        executorRegistry,
+        marketOutcomes: autonomyResult.outcomes,
+      });
+    state = idleImprovementResult.state;
     const validationResult = await runValidatorCycle({
       config,
       mcp,
@@ -258,6 +336,7 @@ async function main() {
         outcomes: [
           ...workerResult.outcomes,
           ...autonomyResult.outcomes,
+          ...idleImprovementResult.outcomes,
           ...validationResult.outcomes,
         ],
       })}\n`,

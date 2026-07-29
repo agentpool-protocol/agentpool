@@ -32,12 +32,24 @@
   "heartbeatIntervalMs": 60000,
   "autoCreateTestnetWallet": true,
   "autoCreatePrivateChannelKey": true,
+  "maximumConcurrentBids": 1,
+  "idleImprovement": {
+    "enabled": true,
+    "provider": "codex",
+    "auditIntervalMs": 3600000,
+    "retryIntervalMs": 600000,
+    "successProbabilityBps": 7500,
+    "estimatedCostApool": "0",
+    "estimatedGasApool": "0",
+    "failureLossApool": "0"
+  },
   "bidProfiles": [
     {
       "enabled": true,
       "capability": "mcp-json-data-code-low-risk",
       "provider": "codex",
-      "priceApool": "1",
+      "priceApool": "0.1",
+      "bidShareBps": 5000,
       "successLowerBps": 8500,
       "capacityUnits": 1,
       "latencyPenaltyApool": "0.01",

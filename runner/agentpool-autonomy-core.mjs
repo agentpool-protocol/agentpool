@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 
 export const AUTONOMY_EVENT_TYPES = Object.freeze({
   opportunity: "AUTONOMY_OPPORTUNITY",
@@ -54,6 +54,11 @@ export function buildTaskDag(opportunity) {
     seen.add(id);
     return {
       id,
+      market:
+        opportunity.market ??
+        opportunity.kind ??
+        opportunity.funding ??
+        "UNKNOWN",
       capability: String(step.capability ?? opportunity.capability),
       dependencies: Array.isArray(step.dependencies)
         ? step.dependencies.map(String)
@@ -91,7 +96,26 @@ export function buildTaskDag(opportunity) {
 }
 
 export function createRiskAdjustedBid(task, profile) {
-  const price = parseUnits(String(profile.priceApool), 18);
+  const maximum = BigInt(task.maxBudgetBaseUnits);
+  const minimum = parseUnits(
+    String(profile.minimumPriceApool ?? profile.priceApool ?? "0"),
+    18,
+  );
+  const shareBps = BigInt(
+    Math.max(0, Math.min(10_000, Number(profile.bidShareBps ?? 0))),
+  );
+  const shared = shareBps > 0n
+    ? (maximum * shareBps) / 10_000n
+    : minimum;
+  const configuredMaximum = profile.maximumPriceApool === undefined
+    ? maximum
+    : parseUnits(String(profile.maximumPriceApool), 18);
+  if (minimum > maximum) {
+    throw new Error("AUTONOMY_BID_EXCEEDS_TASK_BUDGET");
+  }
+  const price = [maximum, configuredMaximum]
+    .reduce((lowest, value) => (value < lowest ? value : lowest), maximum);
+  const quotedPrice = shared > price ? price : shared < minimum ? minimum : shared;
   const success = BigInt(
     Math.max(1, Math.min(10_000, Number(profile.successLowerBps))),
   );
@@ -107,27 +131,102 @@ export function createRiskAdjustedBid(task, profile) {
     String(profile.concentrationPenaltyApool ?? "0"),
     18,
   );
+  const estimatedCost = parseUnits(
+    String(profile.estimatedCostApool ?? "0"),
+    18,
+  );
+  const estimatedGas = parseUnits(
+    String(profile.estimatedGasApool ?? "0"),
+    18,
+  );
   const riskAdjusted =
-    (price * 10_000n) / success +
+    (quotedPrice * 10_000n) / success +
     latencyPenalty +
     (failureLoss * (10_000n - success)) / 10_000n +
     concentration;
-  if (price > BigInt(task.maxBudgetBaseUnits)) {
+  if (quotedPrice > maximum) {
     throw new Error("AUTONOMY_BID_EXCEEDS_TASK_BUDGET");
   }
+  const expectedNetProfit =
+    (quotedPrice * success) / 10_000n -
+    estimatedCost -
+    estimatedGas -
+    (failureLoss * (10_000n - success)) / 10_000n -
+    concentration;
   return {
     schema: "agentpool.autonomy.bid/v1",
     taskId: task.id,
+    market: task.market ?? null,
     capability: task.capability,
     provider: profile.provider,
     bidderAddress: profile.bidderAddress,
     operatorGroup: profile.operatorGroup,
-    priceBaseUnits: price.toString(),
+    priceBaseUnits: quotedPrice.toString(),
     riskAdjustedBaseUnits: riskAdjusted.toString(),
+    expectedNetProfitBaseUnits: expectedNetProfit.toString(),
+    expectedNetProfitApool: formatUnits(expectedNetProfit, 18),
     successLowerBps: Number(success),
     capacityUnits: Number(profile.capacityUnits ?? 1),
     expiresAt: Number(profile.expiresAt),
   };
+}
+
+export function rankWorkChoicesByExpectedNetProfit(
+  choices,
+  { minimumNetProfitApool = "0", capacityUnits = 1 } = {},
+) {
+  const minimum = parseUnits(String(minimumNetProfitApool), 18);
+  const capacity = Math.max(0, Number(capacityUnits));
+  return choices
+    .filter((choice) => choice && typeof choice === "object")
+    .map((choice) => {
+      const reward = parseUnits(String(choice.rewardApool ?? "0"), 18);
+      const success = BigInt(
+        Math.max(
+          1,
+          Math.min(10_000, Number(choice.successProbabilityBps ?? 10_000)),
+        ),
+      );
+      const estimatedCost = parseUnits(
+        String(choice.estimatedCostApool ?? "0"),
+        18,
+      );
+      const estimatedGas = parseUnits(
+        String(choice.estimatedGasApool ?? "0"),
+        18,
+      );
+      const failureLoss = parseUnits(
+        String(choice.failureLossApool ?? "0"),
+        18,
+      );
+      const opportunityCost = parseUnits(
+        String(choice.opportunityCostApool ?? "0"),
+        18,
+      );
+      const expectedNet =
+        (reward * success) / 10_000n -
+        estimatedCost -
+        estimatedGas -
+        (failureLoss * (10_000n - success)) / 10_000n -
+        opportunityCost;
+      return {
+        ...choice,
+        expectedNetProfitBaseUnits: expectedNet.toString(),
+        expectedNetProfitApool: formatUnits(expectedNet, 18),
+      };
+    })
+    .filter(
+      (choice) =>
+        BigInt(choice.expectedNetProfitBaseUnits) >= minimum,
+    )
+    .sort((left, right) => {
+      const profit =
+        BigInt(right.expectedNetProfitBaseUnits) -
+        BigInt(left.expectedNetProfitBaseUnits);
+      if (profit !== 0n) return profit > 0n ? 1 : -1;
+      return String(left.id).localeCompare(String(right.id));
+    })
+    .slice(0, capacity);
 }
 
 export function selectWinningBids(plan, bids) {

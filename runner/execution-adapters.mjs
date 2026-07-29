@@ -284,6 +284,13 @@ export function createExecutionAdapter(config = {}) {
             properties: {
               summary: { type: "string" },
               digest: { type: "string" },
+              changedFiles: {
+                type: "array",
+                items: { type: "string" },
+              },
+              testCommand: { type: "string" },
+              testPassed: { type: "boolean" },
+              patchDigest: { type: "string" },
             },
             required: ["summary", "digest"],
             additionalProperties: false,

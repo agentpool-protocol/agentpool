@@ -10,6 +10,7 @@ import {
   detectImprovementIssues,
   evaluateCanary,
   gasDecision,
+  rankWorkChoicesByExpectedNetProfit,
   selectWinningBids,
   validateExecutionResult,
 } from "../runner/agentpool-autonomy-core.mjs";
@@ -25,7 +26,10 @@ import {
 } from "../runner/private-channel.mjs";
 import {
   runAutonomyRoleCycle,
+  runIdleImprovementCycle,
   runValidatorCycle,
+  validateIdleImprovementAudit,
+  validateImprovementCandidateExecution,
 } from "../runner/agentpool-role-runner-core.mjs";
 import { newRunnerState } from "../runner/agentpool-runner-core.mjs";
 
@@ -95,6 +99,51 @@ test("three provider capabilities form one budget-safe DAG", () => {
     ["qwen", "codex", "claude"],
   );
   assert.equal(award.reservedBaseUnits, "20000000000000000000");
+});
+
+test("market type never overrides expected net profit", () => {
+  const systemWins = rankWorkChoicesByExpectedNetProfit(
+    [
+      {
+        id: "cheap-external",
+        market: "EXTERNAL",
+        rewardApool: "0.2",
+        successProbabilityBps: 10_000,
+        estimatedCostApool: "0.1",
+      },
+      {
+        id: "valuable-system-improvement",
+        market: "SYSTEM_IMPROVEMENT",
+        rewardApool: "2",
+        successProbabilityBps: 8_000,
+        estimatedCostApool: "0.2",
+        failureLossApool: "0.1",
+      },
+    ],
+    { minimumNetProfitApool: "0.01", capacityUnits: 1 },
+  );
+  assert.equal(systemWins[0].id, "valuable-system-improvement");
+
+  const externalWins = rankWorkChoicesByExpectedNetProfit(
+    [
+      {
+        id: "valuable-external",
+        market: "EXTERNAL",
+        rewardApool: "5",
+        successProbabilityBps: 9_000,
+        estimatedCostApool: "0.5",
+      },
+      {
+        id: "small-system-improvement",
+        market: "SYSTEM_IMPROVEMENT",
+        rewardApool: "1",
+        successProbabilityBps: 9_000,
+        estimatedCostApool: "0.2",
+      },
+    ],
+    { minimumNetProfitApool: "0.01", capacityUnits: 1 },
+  );
+  assert.equal(externalWins[0].id, "valuable-external");
 });
 
 test("process adapters use shell=false and normalize all provider outputs", async () => {
@@ -334,6 +383,221 @@ function relayMcp(initialEvents = []) {
     },
   };
 }
+
+test("idle capacity audits a real system issue only when it beats market work", async () => {
+  const mcp = relayMcp();
+  const originalCall = mcp.call.bind(mcp);
+  mcp.call = async (name, args) => {
+    if (name === "agentpool_v437_self_bootstrap_status") {
+      return {
+        open: true,
+        availableApool: "8.5",
+        caps: { maxItemQuoteApool: "2" },
+      };
+    }
+    return originalCall(name, args);
+  };
+  const executorRegistry = {
+    async execute() {
+      return {
+        provider: "codex",
+        content: JSON.stringify({
+          status: "ISSUE",
+          title: "Runner misses cross-market expected-profit ranking",
+          affectedFiles: ["runner/agentpool-role-runner-core.mjs"],
+          reproductionSteps: [
+            "Offer one cheap EXTERNAL task and one higher-value SYSTEM_IMPROVEMENT task.",
+            "Observe that the market label previously selected the cheaper task.",
+          ],
+          impact:
+            "A cheap external task can occupy capacity while more valuable system work waits.",
+          proposedFix:
+            "Rank every market choice with one expected-net-profit formula before reserving capacity.",
+          acceptanceTest:
+            "Assert the system task wins when its expected net profit is higher and the external task wins after its reward increases.",
+        }),
+        evidence: {
+          summary: "reproducible ranking gap",
+          digest: "ranking-gap-v1",
+        },
+      };
+    },
+  };
+  const state = newRunnerState();
+  const result = await runIdleImprovementCycle({
+    config: {
+      roles: ["WATCHER", "IMPROVER"],
+      improvementProvider: "codex",
+      idleImprovement: {
+        enabled: true,
+        auditIntervalMs: 1,
+        retryIntervalMs: 1,
+      },
+    },
+    mcp,
+    state,
+    wallet: { address: address(9) },
+    executorRegistry,
+    marketOutcomes: [
+      {
+        eventId: "cheap-external",
+        market: "EXTERNAL",
+        expectedNetProfitApool: "0.1",
+      },
+    ],
+    now: 10,
+  });
+  assert.equal(result.outcomes[0].status, "issue-published");
+  const issue = mcp.events.find(
+    (event) => event.eventType === "IMPROVEMENT_ISSUE",
+  );
+  assert.equal(
+    issue.body.payload.funding,
+    "SELF_BOOTSTRAP_EXISTING_TAPOOL",
+  );
+  assert.equal(issue.body.payload.rewardCapApool, "2");
+
+  const higherMarket = await runIdleImprovementCycle({
+    config: {
+      roles: ["WATCHER", "IMPROVER"],
+      idleImprovement: {
+        enabled: true,
+        auditIntervalMs: 1,
+        retryIntervalMs: 1,
+      },
+    },
+    mcp: {
+      async call(name) {
+        if (name === "agentpool_v437_self_bootstrap_status") {
+          return {
+            open: true,
+            availableApool: "8.5",
+            caps: { maxItemQuoteApool: "2" },
+          };
+        }
+        return { events: [] };
+      },
+    },
+    state: newRunnerState(),
+    wallet: { address: address(9) },
+    executorRegistry: {
+      async execute() {
+        throw new Error("SHOULD_NOT_AUDIT_LOWER_PROFIT_WORK");
+      },
+    },
+    marketOutcomes: [
+      {
+        eventId: "valuable-external",
+        market: "EXTERNAL",
+        expectedNetProfitApool: "5",
+      },
+    ],
+    now: 10,
+  });
+  assert.equal(
+    higherMarket.outcomes[0].status,
+    "higher-profit-market-work",
+  );
+});
+
+test("idle improvement rejects unsupported prose before publishing rewards", async () => {
+  assert.deepEqual(
+    validateIdleImprovementAudit({
+      content: "ISSUE: unsupported claim",
+      evidence: {
+        summary: "superficial evidence",
+        digest: "superficial-v1",
+      },
+    }),
+    {
+      status: "invalid-audit-evidence",
+      reason: "AUDIT_CONTENT_MUST_BE_JSON",
+    },
+  );
+
+  const mcp = relayMcp();
+  const originalCall = mcp.call.bind(mcp);
+  mcp.call = async (name, args) => {
+    if (name === "agentpool_v437_self_bootstrap_status") {
+      return {
+        open: true,
+        availableApool: "8.5",
+        caps: { maxItemQuoteApool: "2" },
+      };
+    }
+    return originalCall(name, args);
+  };
+  const result = await runIdleImprovementCycle({
+    config: {
+      roles: ["WATCHER", "IMPROVER"],
+      idleImprovement: {
+        enabled: true,
+        auditIntervalMs: 1,
+        retryIntervalMs: 1,
+      },
+    },
+    mcp,
+    state: newRunnerState(),
+    wallet: { address: address(9) },
+    executorRegistry: {
+      async execute() {
+        return {
+          provider: "codex",
+          content: "ISSUE: unsupported claim",
+          evidence: {
+            summary: "superficial evidence",
+            digest: "superficial-v1",
+          },
+        };
+      },
+    },
+    now: 10,
+  });
+  assert.equal(
+    result.outcomes[0].status,
+    "invalid-audit-evidence",
+  );
+  assert.equal(
+    mcp.events.some(
+      (event) => event.eventType === "IMPROVEMENT_ISSUE",
+    ),
+    false,
+  );
+});
+
+test("an improvement candidate needs changed-file and passing-test evidence", async () => {
+  assert.deepEqual(
+    validateImprovementCandidateExecution({
+      content:
+        "The isolated workspace was read-only, so no candidate was implemented.",
+      evidence: {
+        summary: "write blocked",
+        digest: "write-blocked-v1",
+      },
+    }),
+    {
+      valid: false,
+      reason: "CANDIDATE_CHANGE_AND_TEST_EVIDENCE_REQUIRED",
+    },
+  );
+  const valid = validateImprovementCandidateExecution({
+    content:
+      "Implemented strict idle-audit evidence validation and added its regression test.",
+    evidence: {
+      summary: "strict evidence gate",
+      digest: "strict-evidence-gate-v1",
+      changedFiles: [
+        "runner/agentpool-role-runner-core.mjs",
+        "tests/v43-autonomy-runner.test.mjs",
+      ],
+      testCommand: "node --test tests/v43-autonomy-runner.test.mjs",
+      testPassed: true,
+      patchDigest: "sha256:strict-evidence-gate",
+    },
+  });
+  assert.equal(valid.valid, true);
+  assert.equal(valid.evidence.changedFiles.length, 2);
+});
 
 test("planner, bidder and coordinator roles exchange signed market events", async () => {
   const first = {
