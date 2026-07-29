@@ -47,6 +47,13 @@ supply conservation after every case. The full rehearsal runs the current
 immutable finance kernel through BOOTSTRAP, TRANSITION, and MATURE with the
 v4.4 APOOL token.
 
+The maintainer Slither pass and its unresolved trust-boundary questions are
+recorded in [audits/V44_SLITHER_TRIAGE.md](./audits/V44_SLITHER_TRIAGE.md).
+It is not an independent audit. Give
+[audits/V44_GPT_REVIEW_PACKET.md](./audits/V44_GPT_REVIEW_PACKET.md) to an
+external GPT or human reviewer so they inspect the exact source and return
+reproducible findings rather than relying on the maintainer's conclusions.
+
 ## Evidence gates
 
 `mainnet-v44-gates.json` is an intentionally blocked, tracked template. Never

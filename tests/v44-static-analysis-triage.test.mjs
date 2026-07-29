@@ -1,0 +1,97 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+
+const root = process.cwd();
+
+function source(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
+test("v4.4 external escrow cannot pull from an arbitrary buyer", () => {
+  const escrow = source(
+    "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
+  );
+  const market = source("contracts/v43/AgentPoolV432TaskMarket.sol");
+
+  assert.match(escrow, /if \(msg\.sender != market\) revert Unauthorized\(\)/);
+  assert.match(escrow, /if \(market != address\(0\)\) revert AlreadyConfigured\(\)/);
+  assert.match(escrow, /configurationAuthority = address\(0\)/);
+  assert.match(
+    escrow,
+    /token\.safeTransferFrom\(buyer, address\(this\), amount\)/,
+  );
+
+  assert.match(
+    market,
+    /function createExternalJob\([\s\S]*?revert Unauthorized\(\)/,
+  );
+  assert.match(
+    market,
+    /function createExternalJobV2\([\s\S]*?userEscrow\.lock\(jobId, msg\.sender, budget\)/,
+  );
+});
+
+test("v4.4 money-moving market entrypoints are reentrancy guarded", () => {
+  const market = source("contracts/v43/AgentPoolV432TaskMarket.sol");
+
+  for (const entrypoint of [
+    "createExternalJobV2",
+    "createSystemJobV2",
+    "acceptMilestone",
+    "resolve",
+    "refundExpired",
+  ]) {
+    assert.match(
+      market,
+      new RegExp(
+        `function ${entrypoint}\\([\\s\\S]*?\\) external[^\\{]*nonReentrant`,
+      ),
+      `${entrypoint} must remain nonReentrant`,
+    );
+  }
+});
+
+test("v4.4 one-shot callback paths commit state before external calls", () => {
+  const baseMarket = source("contracts/v43/AgentPoolV43TaskMarket.sol");
+  const market = source("contracts/v43/AgentPoolV432TaskMarket.sol");
+
+  const deliveryState = market.indexOf(
+    "milestone.state = MilestoneState.DELIVERED;",
+  );
+  const openRound = market.indexOf("proofRegistryV2.openRoundWithPolicy(");
+  assert.ok(deliveryState > 0);
+  assert.ok(openRound > deliveryState);
+
+  const attestedState = baseMarket.indexOf(
+    "milestone.candidateAttested = true;",
+  );
+  const attestCall = baseMarket.indexOf("settlementRouter.attestCandidate(");
+  assert.ok(attestedState > 0);
+  assert.ok(attestCall > attestedState);
+
+  const adoptionState = baseMarket.indexOf(
+    "milestone.adoptionRecorded = true;",
+  );
+  const adoptionCall = baseMarket.indexOf(
+    "settlementRouter.recordAdoption(",
+  );
+  assert.ok(adoptionState > 0);
+  assert.ok(adoptionCall > adoptionState);
+});
+
+test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
+  const triage = source("audits/V44_SLITHER_TRIAGE.md");
+  const packet = source("audits/V44_GPT_REVIEW_PACKET.md");
+
+  assert.match(triage, /not an independent audit/i);
+  assert.match(triage, /does not satisfy `mainnet-v44-gates\.json`/);
+  assert.match(triage, /High:\s+1 reported, 0 confirmed/);
+  assert.match(triage, /Medium:\s+28 reported, 0 confirmed/);
+
+  assert.match(packet, /git rev-parse HEAD/);
+  assert.match(packet, /sha256\(outputs\/v44-source-reproducibility\.json\)/);
+  assert.match(packet, /release-gate decision for this exact commit/i);
+  assert.match(packet, /BLOCK.*REVIEW_INCOMPLETE.*NO_CONFIRMED_BLOCKER/s);
+});
