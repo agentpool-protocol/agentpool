@@ -27,6 +27,7 @@ contract AgentPoolV43ContributionLedger is
     uint8 public constant MAX_LOOKBACK = 8;
     uint16 public constant MAX_AGENT_SHARE_BPS = 1_000;
     uint16 public constant BPS = 10_000;
+    uint16 public constant WORK_POWER_SCALE = 10_000;
     uint16 public constant MIN_MATURE_AGENTS = 5;
     uint16 public constant MIN_MATURE_GROUPS = 3;
     uint64 public constant MIN_MATURE_SETTLEMENTS = 50;
@@ -71,6 +72,13 @@ contract AgentPoolV43ContributionLedger is
     );
     event RuntimeUpdated(address indexed agent, bytes32 runtimeHash);
     event OutcomeRecorded(
+        address indexed source,
+        address indexed agent,
+        bytes32 indexed receiptId,
+        uint256 units,
+        bool successful
+    );
+    event PerformanceRecorded(
         address indexed source,
         address indexed agent,
         bytes32 indexed receiptId,
@@ -176,6 +184,44 @@ contract AgentPoolV43ContributionLedger is
         uint128 units,
         bool successful
     ) external {
+        _record(
+            receiptId,
+            agent,
+            capability,
+            units,
+            successful,
+            true
+        );
+    }
+
+    /// @notice Records verified execution history without creating Work Power.
+    ///         External buyer-funded jobs use this path so circular self-trades
+    ///         cannot capture protocol governance.
+    function recordPerformance(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external override {
+        _record(
+            receiptId,
+            agent,
+            capability,
+            units,
+            successful,
+            false
+        );
+    }
+
+    function _record(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful,
+        bool governanceEligible
+    ) private {
         if (!isActiveSource[msg.sender]) revert Unauthorized();
         if (
             receiptId == bytes32(0) ||
@@ -188,7 +234,6 @@ contract AgentPoolV43ContributionLedger is
         claimedReceipt[receiptId] = true;
 
         uint64 epoch = currentEpoch();
-        Outcome storage agentOutcome = outcomes[epoch][agent];
         bytes32 runtimeHash = profiles[agent].runtimeHash;
         Outcome storage runtimeOutcome = runtimeOutcomes[epoch][agent][
             runtimeHash
@@ -196,15 +241,44 @@ contract AgentPoolV43ContributionLedger is
         Outcome storage capabilityOutcome = runtimeCapabilityOutcomes[epoch][
             agent
         ][runtimeHash][capability];
-        Outcome storage total = epochTotals[epoch];
-        agentOutcome.attempted += units;
         runtimeOutcome.attempted += units;
         capabilityOutcome.attempted += units;
+        if (successful) {
+            runtimeOutcome.successful += units;
+            capabilityOutcome.successful += units;
+        }
+        if (!governanceEligible) {
+            emit PerformanceRecorded(
+                msg.sender,
+                agent,
+                receiptId,
+                units,
+                successful
+            );
+            emit RuntimeCapabilityOutcomeRecorded(
+                agent,
+                runtimeHash,
+                capability,
+                receiptId,
+                units,
+                successful
+            );
+            emit RuntimeOutcomeRecorded(
+                agent,
+                runtimeHash,
+                receiptId,
+                units,
+                successful
+            );
+            return;
+        }
+
+        Outcome storage agentOutcome = outcomes[epoch][agent];
+        Outcome storage total = epochTotals[epoch];
+        agentOutcome.attempted += units;
         total.attempted += units;
         if (successful) {
             agentOutcome.successful += units;
-            runtimeOutcome.successful += units;
-            capabilityOutcome.successful += units;
             total.successful += units;
             successfulSettlementCount++;
             totalSuccessfulUnits += units;
@@ -283,12 +357,19 @@ contract AgentPoolV43ContributionLedger is
         }
         if (attempted == 0 || successful == 0) return 0;
         uint256 total = totalSuccessfulAt(endEpoch, lookback);
-        uint256 shareCap = (total * MAX_AGENT_SHARE_BPS) / BPS;
-        uint256 cappedContribution = successful < shareCap
-            ? successful
-            : shareCap;
+        // Keep Work Power in 1/BPS contribution-unit precision. Flooring the
+        // ten-percent cap to whole units can make an otherwise reachable
+        // quorum mathematically impossible for small early networks.
+        uint256 successfulScaled = successful * WORK_POWER_SCALE;
+        uint256 shareCapScaled = total * MAX_AGENT_SHARE_BPS;
+        uint256 cappedContributionScaled =
+            successfulScaled < shareCapScaled
+                ? successfulScaled
+                : shareCapScaled;
         uint256 reliabilityBps = (successful * BPS) / attempted;
-        return (cappedContribution * reliabilityBps) / BPS;
+        return
+            (cappedContributionScaled * reliabilityBps) /
+            BPS;
     }
 
     function runtimePerformanceAt(

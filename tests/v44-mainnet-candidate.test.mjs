@@ -69,6 +69,7 @@ test("v4.4 mainnet config preserves supply and emission conservation", () => {
   );
   assert.equal(config.bootstrap.minimumValidatorGroups, 3);
   assert.equal(config.bootstrap.minimumReveals, 3);
+  assert.equal(config.bootstrap.capacityUnits, 100);
 });
 
 test("v4.4 epoch emission cannot reserve or settle before genesis", () => {
@@ -263,6 +264,18 @@ test("v4.4 bootstrap root binds independent addresses, groups, and proof", () =>
   assert.equal(terms.validators.length, 3);
   assert.equal(new Set(terms.validators.map((entry) => entry.group)).size, 3);
   assert.equal(terms.issue.bootstrapProposer, env.V44_BOOTSTRAP_PROPOSER);
+  const changedConfig = structuredClone(config);
+  changedConfig.bootstrap.capacityUnits += 1;
+  const changedTerms = buildBootstrapTerms({
+    config: changedConfig,
+    releaseInputs,
+    verifier: "0x2000000000000000000000000000000000000006",
+  });
+  assert.notEqual(
+    changedTerms.objectiveRoot,
+    terms.objectiveRoot,
+    "bootstrap Work Power units must be pinned by the objective root",
+  );
 });
 
 test("v4.4 deployment path is Base-mainnet-only and excludes test mocks", () => {

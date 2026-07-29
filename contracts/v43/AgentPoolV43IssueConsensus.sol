@@ -223,7 +223,7 @@ contract AgentPoolV43IssueConsensus is ReentrancyGuard {
         bool passes =
             proposal.voterCount >= MIN_VOTERS &&
             proposal.groupCount >= MIN_GROUPS &&
-            cast * BPS >= total * QUORUM_BPS &&
+            cast >= total * QUORUM_BPS &&
             uint256(proposal.yesWeight) * BPS >=
                 cast * SUPERMAJORITY_BPS;
         if (!passes) {

@@ -284,6 +284,7 @@ function objectiveLeaf(term, policy) {
         { type: "bytes32" },
         { type: "bytes32" },
         { type: "bytes32" },
+        { type: "uint32" },
         { type: "uint16" },
         { type: "uint16" },
         { type: "uint32" },
@@ -296,6 +297,7 @@ function objectiveLeaf(term, policy) {
         term.capability,
         term.specificationHash,
         term.expectedEvidenceHash,
+        term.capacityUnits,
         term.minimumReveals,
         term.passScoreBps,
         term.commitWindow,
@@ -327,7 +329,7 @@ function evidenceFor(label, specificationHash) {
   };
 }
 
-function issueFor(label, funding = 3) {
+function issueFor(label, funding = 3, capacityUnits = 1) {
   const specificationHash = keccak256(
     toBytes(`${label}-specification`),
   );
@@ -341,6 +343,7 @@ function issueFor(label, funding = 3) {
     capability,
     specificationHash,
     expectedEvidenceHash: evidence.expectedEvidenceHash,
+    capacityUnits,
     minimumReveals: 0,
     passScoreBps: 0,
     commitWindow: 0,
@@ -417,7 +420,9 @@ const bootstrapLabels = [
   ...Array.from({ length: 25 }, (_, index) => `epoch-one-${index}`),
   ...Array.from({ length: 5 }, (_, index) => `candidate-adoption-${index}`),
 ];
-const bootstrapIssues = bootstrapLabels.map((label) => issueFor(label));
+const bootstrapIssues = bootstrapLabels.map((label) =>
+  issueFor(label, 3, label === "bootstrap-improvement" ? 5 : 1),
+);
 const bootstrapIssueByLabel = new Map(
   bootstrapLabels.map((label, index) => [label, bootstrapIssues[index]]),
 );
@@ -429,6 +434,15 @@ const dynamicValidatorEntries = agents.slice(0, 4).map((agent, index) => ({
 }));
 const dynamicValidatorCatalog = merkleFromLeaves(
   dynamicValidatorEntries.map((entry) =>
+    validatorLeaf(entry.address, entry.group),
+  ),
+);
+const evolvedValidatorEntries = [1, 2, 3, 5].map((agentIndex) => ({
+  ...agents[agentIndex],
+  group: keccak256(toBytes(`operator-group-${agentIndex % 4}`)),
+}));
+const evolvedValidatorCatalog = merkleFromLeaves(
+  evolvedValidatorEntries.map((entry) =>
     validatorLeaf(entry.address, entry.group),
   ),
 );
@@ -476,13 +490,17 @@ const market = await deploy("AgentPoolV432TaskMarket", [
   financeInvariantHash,
 ]);
 
-function dynamicIssueFor(label, funding = 3) {
+function dynamicIssueFor(
+  label,
+  funding = 3,
+  validatorCatalog = dynamicValidatorCatalog,
+) {
   const specificationHash = keccak256(
     toBytes(`${label}-specification`),
   );
   const evidence = evidenceFor(label, specificationHash);
   const policy = {
-    validatorRoot: dynamicValidatorCatalog.root,
+    validatorRoot: validatorCatalog.root,
     minimumOperatorGroups: 3,
   };
   const objective = {
@@ -490,6 +508,7 @@ function dynamicIssueFor(label, funding = 3) {
     capability,
     specificationHash,
     expectedEvidenceHash: evidence.expectedEvidenceHash,
+    capacityUnits: 2,
     minimumReveals: 3,
     passScoreBps: 9_000,
     commitWindow: 60,
@@ -502,7 +521,7 @@ function dynamicIssueFor(label, funding = 3) {
     verifier,
     expectedEvidenceHash: evidence.expectedEvidenceHash,
     objectiveRoot: objectiveLeaf(objective, policy),
-    validatorRoot: dynamicValidatorCatalog.root,
+    validatorRoot: validatorCatalog.root,
     candidateBudgetCap: parseEther("10"),
     totalBudgetCap: parseEther("30"),
     maxCandidates: 3,
@@ -758,6 +777,9 @@ async function settleDynamicIssue({
   funding,
   allocation = parseEther("3"),
   keeperFee = parseEther("1"),
+  validatorEntries = dynamicValidatorEntries,
+  validatorCatalog = dynamicValidatorCatalog,
+  validatorStart = 1,
 }) {
   const creator = agents[5];
   const worker = agents[4];
@@ -839,7 +861,7 @@ async function settleDynamicIssue({
       ["PROOF", jobId, 0],
     ),
   );
-  const validators = dynamicValidatorEntries.slice(1, 4);
+  const validators = validatorEntries.slice(validatorStart, validatorStart + 3);
   const score = 9_500;
   const salts = validators.map((_, index) =>
     keccak256(toBytes(`${label}-validator-salt-${index}`)),
@@ -868,7 +890,7 @@ async function settleDynamicIssue({
       [
         roundId,
         commitment,
-        dynamicValidatorCatalog.proofs.get(
+        validatorCatalog.proofs.get(
           validatorLeaf(validator.address, validator.group),
         ),
       ],
@@ -937,7 +959,7 @@ const firstSystem = await settleJob({
   releaseId: genesisRelease,
   allocation: parseEther("100"),
   keeperFee: parseEther("5"),
-  capacityUnits: 10,
+  capacityUnits: 5,
   label: "bootstrap-improvement",
 });
 check(
@@ -1015,6 +1037,25 @@ const supplyBeforeExternal = await read(
 const systemImprovementCapability = keccak256(
   toBytes("agentpool-system-improvement"),
 );
+const governanceUnitsBeforeExternal = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "totalSuccessfulAt",
+  [0, 8],
+);
+const externalWorkerRuntime = keccak256(toBytes("runtime-1"));
+const externalPerformanceBefore = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "runtimeCapabilityPerformanceAt",
+  [
+    agents[1].address,
+    externalWorkerRuntime,
+    systemImprovementCapability,
+    0,
+    8,
+  ],
+);
 await write(
   "AgentPoolV43CapacityRegistry",
   capacityRegistry,
@@ -1049,6 +1090,51 @@ check(
     firstSystem.worker.address,
   ]),
   parseEther("45"),
+);
+check(
+  "external buyer work records performance without creating Work Power",
+  (
+    await read(
+      "AgentPoolV43ContributionLedger",
+      ledger,
+      "totalSuccessfulAt",
+      [0, 8],
+    )
+  ) === governanceUnitsBeforeExternal,
+  true,
+);
+const externalPerformanceAfter = await read(
+  "AgentPoolV43ContributionLedger",
+  ledger,
+  "runtimeCapabilityPerformanceAt",
+  [
+    agents[1].address,
+    externalWorkerRuntime,
+    systemImprovementCapability,
+    0,
+    8,
+  ],
+);
+check(
+  "external verified execution still updates the worker capability profile",
+  externalPerformanceAfter[0] === externalPerformanceBefore[0] + 10n &&
+    externalPerformanceAfter[1] === externalPerformanceBefore[1] + 10n,
+  true,
+);
+await expectRevert(
+  "one external milestone cannot inflate performance with unbounded units",
+  () =>
+    settleJob({
+      funding: 1,
+      creatorKey: firstSystem.worker.key,
+      workerIndex: 1,
+      releaseId: genesisRelease,
+      allocation: parseEther("1"),
+      keeperFee: parseEther("1"),
+      capacityUnits: 1_000_001,
+      label: "external-capacity-inflation",
+      jobCapability: systemImprovementCapability,
+    }),
 );
 const buyerFundedReceipt = keccak256(
   toBytes("buyer-funded-bootstrap-candidate-receipt"),
@@ -1916,6 +2002,11 @@ const unsafeTransitionIssue = {
   ...dynamicIssueFor("unsafe-transition-budget", 3),
   candidateBudgetCap: parseEther("11"),
 };
+const unsafeTransitionValidatorIssue = dynamicIssueFor(
+  "unsafe-transition-validator-set",
+  3,
+  evolvedValidatorCatalog,
+);
 const proposerBalanceBeforeUnsafeIssue = await read(
   "AgentPoolV43Token",
   token,
@@ -1932,6 +2023,23 @@ await expectRevert(
       [
         unsafeTransitionIssue,
         keccak256(toBytes("unsafe-transition-evidence")),
+        proposalBond,
+        transitionCommitDeadline,
+        transitionRevealDeadline,
+      ],
+      agents[0].key,
+    ),
+);
+await expectRevert(
+  "TRANSITION cannot replace the deployment validator set",
+  () =>
+    write(
+      "AgentPoolV435TransitionIssueConsensus",
+      transitionIssueConsensus,
+      "propose",
+      [
+        unsafeTransitionValidatorIssue,
+        keccak256(toBytes("unsafe-transition-validator-evidence")),
         proposalBond,
         transitionCommitDeadline,
         transitionRevealDeadline,
@@ -2088,7 +2196,16 @@ check(
   true,
 );
 
-const matureIssue = dynamicIssueFor("mature-core-approved-issue", 2);
+const matureIssue = dynamicIssueFor(
+  "mature-core-approved-issue",
+  2,
+  evolvedValidatorCatalog,
+);
+check(
+  "MATURE Issue may propose a validator root distinct from deployment",
+  matureIssue.validatorRoot !== dynamicValidatorCatalog.root,
+  true,
+);
 await write(
   "AgentPoolV43Token",
   token,
@@ -2155,11 +2272,31 @@ check(
   ),
   true,
 );
-await settleDynamicIssue({
+const matureSettlement = await settleDynamicIssue({
   label: "mature-core-approved-issue",
   issue: matureIssue,
   funding: 2,
+  validatorEntries: evolvedValidatorEntries,
+  validatorCatalog: evolvedValidatorCatalog,
+  validatorStart: 0,
 });
+const matureProofRound = keccak256(
+  encodeAbiParameters(
+    [
+      { type: "string" },
+      { type: "bytes32" },
+      { type: "uint32" },
+    ],
+    ["PROOF", matureSettlement.jobId, 0],
+  ),
+);
+check(
+  "MATURE approved validator set verifies work across three groups",
+  await read("AgentPoolV432ProofRegistry", proofRegistry, "groupCount", [
+    matureProofRound,
+  ]),
+  3,
+);
 
 await write(
   "AgentPoolV43Token",

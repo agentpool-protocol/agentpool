@@ -33,6 +33,7 @@
     "minimumReveals": 3,
     "passScoreBps": 8000,
     "minimumValidatorGroups": 3,
+    "capacityUnits": 100,
     "funding": 3,
     "maximumLifetimeSeconds": 2592000
   },

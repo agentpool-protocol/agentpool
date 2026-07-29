@@ -121,6 +121,8 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
     uint32 public constant MIN_PROOF_WINDOW = 60;
     uint32 public constant MAX_PROOF_WINDOW = 3 days;
     uint16 public constant BPS = 10_000;
+    uint32 public constant MAX_CONTRIBUTION_UNITS_PER_MILESTONE =
+        1_000_000;
     bytes32 public constant SYSTEM_IMPROVEMENT_CAPABILITY =
         0x805bcba7d015dd2c50bd6727020ab95dd6bbc7b5dade14d865bcc962f4e4cff8;
     uint16 public constant MAX_MILESTONES = 32;
@@ -655,6 +657,8 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
                 term.deadline <= block.timestamp ||
                 term.deadline <= previousDeadline ||
                 term.capacityUnits == 0 ||
+                term.capacityUnits >
+                    MAX_CONTRIBUTION_UNITS_PER_MILESTONE ||
                 term.passScoreBps > BPS ||
                 (
                     term.minimumReveals != 0 &&

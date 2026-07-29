@@ -211,6 +211,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             term.capability,
             term.specificationHash,
             term.expectedEvidenceHash,
+            term.capacityUnits,
             term.minimumReveals,
             term.passScoreBps,
             term.commitWindow,
@@ -480,7 +481,8 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         }
         milestone.state = MilestoneState.SETTLED;
         _releaseWorker(jobId, milestoneIndex, milestone, true);
-        settlementRouter.recordOutcome(
+        _recordVerifiedOutcome(
+            jobId,
             keccak256(
                 abi.encode(
                     "AGENTPOOL_V432_SETTLEMENT",
@@ -602,6 +604,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             term.capability,
             term.specificationHash,
             term.expectedEvidenceHash,
+            term.capacityUnits,
             term.minimumReveals,
             term.passScoreBps,
             term.commitWindow,
@@ -629,6 +632,8 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             term.keeperFee == 0 ||
             term.deadline <= block.timestamp ||
             term.capacityUnits == 0 ||
+            term.capacityUnits >
+                MAX_CONTRIBUTION_UNITS_PER_MILESTONE ||
             term.passScoreBps > BPS ||
             (
                 term.minimumReveals != 0 &&
@@ -697,7 +702,8 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         activeMilestones[jobId] = 0;
         if (failedState == MilestoneState.REJECTED) {
             Milestone storage failed = milestones[jobId][failedIndex];
-            settlementRouter.recordOutcome(
+            _recordVerifiedOutcome(
+                jobId,
                 keccak256(
                     abi.encode(
                         "AGENTPOOL_V432_REJECTION",
@@ -712,6 +718,33 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             );
         }
         _returnRemaining(jobId, job, finalState);
+    }
+
+    function _recordVerifiedOutcome(
+        bytes32 jobId,
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) private {
+        if (jobs[jobId].funding == Funding.EXTERNAL) {
+            settlementRouter.recordPerformanceOutcome(
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            );
+        } else {
+            settlementRouter.recordOutcome(
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            );
+        }
     }
 
     function _settleSystem(

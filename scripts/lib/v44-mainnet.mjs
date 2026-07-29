@@ -19,6 +19,7 @@ export const VERSION = "4.4.0-ownerless-mainnet-candidate";
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export const ZERO_BYTES32 =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
+export const MAX_CONTRIBUTION_UNITS_PER_MILESTONE = 1_000_000;
 
 export const CONTRACT_TYPES = Object.freeze({
   token: "AgentPoolV44Token",
@@ -196,6 +197,7 @@ export function loadAndValidateConfig(
     ["bootstrap.minimumReveals", config.bootstrap?.minimumReveals, 3],
     ["bootstrap.passScoreBps", config.bootstrap?.passScoreBps, 1],
     ["bootstrap.minimumValidatorGroups", config.bootstrap?.minimumValidatorGroups, 3],
+    ["bootstrap.capacityUnits", config.bootstrap?.capacityUnits, 1],
     ["bootstrap.funding", config.bootstrap?.funding, 0],
     ["bootstrap.maximumLifetimeSeconds", config.bootstrap?.maximumLifetimeSeconds, 1],
   ]) {
@@ -230,6 +232,8 @@ export function loadAndValidateConfig(
     config.bootstrap.minimumReveals >
       config.bootstrap.minimumValidatorGroups ||
     config.bootstrap.passScoreBps > 10_000 ||
+    config.bootstrap.capacityUnits >
+      MAX_CONTRIBUTION_UNITS_PER_MILESTONE ||
     config.bootstrap.funding !== 3
   ) {
     throw new Error("V44_BOOTSTRAP_CONFIG_INVALID");
@@ -444,6 +448,7 @@ export function buildBootstrapTerms({
         { type: "bytes32" },
         { type: "bytes32" },
         { type: "bytes32" },
+        { type: "uint32" },
         { type: "uint16" },
         { type: "uint16" },
         { type: "uint32" },
@@ -456,6 +461,7 @@ export function buildBootstrapTerms({
         releaseInputs.bootstrap.capabilityHash,
         releaseInputs.bootstrap.specificationHash,
         expectedEvidenceHash,
+        config.bootstrap.capacityUnits,
         config.bootstrap.minimumReveals,
         config.bootstrap.passScoreBps,
         60,

@@ -197,10 +197,17 @@ const financeInvariantHash = keccak256(
   ),
 );
 const genesisRelease = keccak256(toBytes("agentpool-v4.2"));
+const releaseRegistry = await deploy("AgentPoolV43ReleaseRegistry", [
+  genesisRelease,
+  keccak256(toBytes("agentpool-v4.2-module")),
+  keccak256(toBytes("agentpool-v4.2-manifest")),
+  deployer,
+]);
 const proposalBond = parseEther("10");
 const consensus = await deploy("AgentPoolV43EvolutionConsensus", [
   token,
   ledger,
+  releaseRegistry,
   financeInvariantHash,
   genesisRelease,
   proposalBond,
@@ -214,6 +221,9 @@ await write("MockV43SettlementSource", sourceB, "configure", [
   consensus,
 ]);
 await write("AgentPoolV43ContributionLedger", ledger, "configureConsensus", [
+  consensus,
+]);
+await write("AgentPoolV43ReleaseRegistry", releaseRegistry, "configureConsensus", [
   consensus,
 ]);
 
@@ -248,8 +258,19 @@ for (let index = 0; index < agents.length; index++) {
     [group, runtimeHash],
     agents[index].key,
   );
+  for (let settlement = 0; settlement < 4; settlement++) {
+    await write("MockV43SettlementSource", sourceA, "record", [
+      keccak256(toBytes(`work-receipt-${index}-${settlement}`)),
+      agents[index].address,
+      1_000n,
+      true,
+    ]);
+  }
+}
+blockTimestamp += 7n * 24n * 60n * 60n;
+for (let index = 0; index < agents.length; index++) {
   await write("MockV43SettlementSource", sourceA, "record", [
-    keccak256(toBytes(`work-receipt-${index}`)),
+    keccak256(toBytes(`work-receipt-${index}-4`)),
     agents[index].address,
     1_000n,
     true,
@@ -262,9 +283,9 @@ check(
     "AgentPoolV43ContributionLedger",
     ledger,
     "totalSuccessfulAt",
-    [0, 8],
+    [1, 8],
   ),
-  10_000n,
+  50_000n,
 );
 check(
   "one agent is capped at ten percent of recent contribution",
@@ -272,9 +293,9 @@ check(
     "AgentPoolV43ContributionLedger",
     ledger,
     "votingPowerAt",
-    [agents[0].address, 0, 8],
+    [agents[0].address, 1, 8],
   ),
-  1_000n,
+  50_000_000n,
 );
 await expectRevert("inactive source cannot fabricate work power", () =>
   write("MockV43SettlementSource", sourceB, "record", [
@@ -286,7 +307,7 @@ await expectRevert("inactive source cannot fabricate work power", () =>
 );
 await expectRevert("one receipt cannot be counted twice", () =>
   write("MockV43SettlementSource", sourceA, "record", [
-    keccak256(toBytes("work-receipt-0")),
+    keccak256(toBytes("work-receipt-0-0")),
     agents[0].address,
     1_000n,
     true,

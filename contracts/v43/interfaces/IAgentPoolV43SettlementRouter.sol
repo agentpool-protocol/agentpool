@@ -10,6 +10,14 @@ interface IAgentPoolV43SettlementRouter {
         bool successful
     ) external;
 
+    function recordPerformanceOutcome(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external;
+
     function attestCandidate(
         bytes32 receiptId,
         address proposer,

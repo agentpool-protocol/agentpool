@@ -19,8 +19,10 @@ import {
 ///         BOOTSTRAP accepts only the finite catalog committed at deployment.
 ///         TRANSITION accepts tightly capped Issues approved by independent
 ///         contribution voters. MATURE accepts Work Power approved Issues.
-///         Every dynamic Issue remains restricted to the verifier code hash,
-///         validator set and financial caps fixed in this contract.
+///         Every dynamic Issue remains restricted to the verifier code hash
+///         and financial caps fixed in this contract. TRANSITION also uses the
+///         deployment validator root; MATURE Work Power may approve a new root
+///         without changing the settlement or reserve contracts.
 contract AgentPoolV435SystemIssueGate is
     IAgentPoolV435SystemIssueGate
 {
@@ -291,7 +293,7 @@ contract AgentPoolV435SystemIssueGate is
         if (
             issue.bootstrapProposer != address(0) ||
             issue.verifier.codehash != dynamicVerifierCodehash ||
-            issue.validatorRoot != dynamicValidatorRoot ||
+            (transition && issue.validatorRoot != dynamicValidatorRoot) ||
             issue.candidateBudgetCap > dynamicCandidateBudgetCap ||
             issue.totalBudgetCap > dynamicIssueBudgetCap ||
             issue.maxCandidates > dynamicMaxCandidates ||

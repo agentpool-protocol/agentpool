@@ -290,7 +290,7 @@ contract AgentPoolV435TransitionIssueConsensus is ReentrancyGuard {
             block.timestamp < proposalIssues[proposalId].expiresAt &&
             proposal.voterCount >= MIN_VOTERS &&
             proposal.groupCount >= MIN_GROUPS &&
-            cast * BPS >= total * QUORUM_BPS &&
+            cast >= total * QUORUM_BPS &&
             uint256(proposal.yesWeight) * BPS >=
                 cast * SUPERMAJORITY_BPS;
         if (passed) {
