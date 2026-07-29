@@ -427,7 +427,7 @@ check(
 );
 
 let expectedCoreEmission = 80n;
-const statefulCases = 32;
+const statefulCases = 128;
 for (let caseIndex = 0; caseIndex < statefulCases; caseIndex++) {
   const reserved = BigInt(1 + randomBelow(100));
   const settled = BigInt(randomBelow(Number(reserved) + 1));

@@ -147,7 +147,7 @@ test("v4.4 epoch emission cannot reserve or settle before genesis", () => {
   );
   assert.match(rehearsal, /vault\.emissionCannotReserveBeforeGenesis/);
   assert.match(rehearsal, /token\.supplyRemainsZeroBeforeGenesis/);
-  assert.match(rehearsal, /const statefulCases = 32/);
+  assert.match(rehearsal, /const statefulCases = 128/);
   assert.match(rehearsal, /reservationConserved/);
   assert.match(rehearsal, /supplyConserved/);
   assert.match(rehearsal, /lifetimeCapCountsOpenPriorEpochReservations/);

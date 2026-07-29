@@ -42,7 +42,7 @@ whole report and rejects any changed field.
 
 The focused rehearsal proves zero premint, minter isolation, pre-genesis
 closure, weekly and lifetime cap enforcement, reservation release, and
-unauthorized-call rejection. It also runs 32 deterministic stateful
+unauthorized-call rejection. It also runs 128 deterministic stateful
 reserve/partial-settle/release sequences and checks reservation, emission, and
 supply conservation after every case. The full rehearsal runs the current
 immutable finance kernel through BOOTSTRAP, TRANSITION, and MATURE with the
