@@ -129,6 +129,22 @@ test("v4.4 source evidence binds the exact tree, compiler, and bytecode", () => 
   );
 });
 
+test("Solidity compilation canonicalizes source newlines across operating systems", () => {
+  const compiler = source("scripts/compile-contracts.mjs");
+  assert.match(
+    compiler,
+    /function canonicalSource\(file\) \{[\s\S]*replace\(\/\\r\\n\?\/gu, "\\n"\)/,
+  );
+  assert.equal(
+    compiler.match(/\{ content: canonicalSource\(file\) \}/g)?.length,
+    1,
+  );
+  assert.equal(
+    compiler.match(/\{ contents: canonicalSource\(match\) \}/g)?.length,
+    1,
+  );
+});
+
 test("v4.4 mainnet gates fail closed while evidence is blocked", () => {
   assert.throws(
     () => loadAndValidateGates({}),
