@@ -84,14 +84,33 @@ test("v4.4 one-shot callback paths commit state before external calls", () => {
 test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
   const triage = source("audits/V44_SLITHER_TRIAGE.md");
   const packet = source("audits/V44_GPT_REVIEW_PACKET.md");
+  const checker = source("scripts/check-v44-slither.mjs");
+  const workflow = source(".github/workflows/ci.yml");
+  const baseline = JSON.parse(
+    source("audits/v44-slither-baseline.json"),
+  );
 
   assert.match(triage, /not an independent audit/i);
   assert.match(triage, /does not satisfy `mainnet-v44-gates\.json`/);
   assert.match(triage, /High:\s+1 reported, 0 confirmed/);
   assert.match(triage, /Medium:\s+28 reported, 0 confirmed/);
+  assert.match(triage, /npm run security:slither:v4\.4/);
 
   assert.match(packet, /git rev-parse HEAD/);
   assert.match(packet, /sha256\(outputs\/v44-source-reproducibility\.json\)/);
   assert.match(packet, /release-gate decision for this exact commit/i);
   assert.match(packet, /BLOCK.*REVIEW_INCOMPLETE.*NO_CONFIRMED_BLOCKER/s);
+
+  assert.equal(
+    baseline.schema,
+    "agentpool.security.slither-baseline/v1",
+  );
+  assert.equal(Object.keys(baseline.contracts).length, 14);
+  assert.match(checker, /V44_SLITHER_BASELINE_CHANGED/);
+  assert.match(checker, /detector\.impact !== "High"/);
+  assert.match(checker, /detector\.impact !== "Medium"/);
+  assert.match(workflow, /security-static:/);
+  assert.match(workflow, /slither-analyzer==0\.11\.6/);
+  assert.match(workflow, /solc-select install 0\.8\.36/);
+  assert.match(workflow, /npm run security:slither:v4\.4/);
 });

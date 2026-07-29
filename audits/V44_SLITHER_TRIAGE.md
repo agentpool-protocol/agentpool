@@ -34,6 +34,12 @@ viaIR: true
 dependencies: compiled, findings excluded
 ```
 
+The machine-readable detector profile is pinned in
+`audits/v44-slither-baseline.json`. `npm run security:slither:v4.4` reruns all
+14 targets and fails if any high/medium detector type or count changes. A
+decrease also requires review and an intentional baseline update; it is not
+silently accepted.
+
 Representative invocation from the repository root:
 
 ```powershell

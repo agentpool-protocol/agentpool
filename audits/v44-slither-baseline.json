@@ -1,0 +1,83 @@
+{
+  "schema": "agentpool.security.slither-baseline/v1",
+  "slitherVersion": "0.11.6",
+  "solcVersion": "0.8.36+commit.8a079791",
+  "compilerSettings": {
+    "optimizer": true,
+    "optimizerRuns": 500,
+    "viaIR": true,
+    "excludeDependencies": true
+  },
+  "contracts": {
+    "AgentPoolV432IssueConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV432IssueConsensus.sol",
+      "detectors": {}
+    },
+    "AgentPoolV432ProofRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV432ProofRegistry.sol",
+      "detectors": {}
+    },
+    "AgentPoolV432TaskMarket": {
+      "sourceName": "contracts/v43/AgentPoolV432TaskMarket.sol",
+      "detectors": {
+        "Medium:incorrect-equality": 2,
+        "Medium:reentrancy-no-eth": 13,
+        "Medium:uninitialized-local": 6,
+        "Medium:unused-return": 2
+      }
+    },
+    "AgentPoolV435SystemIssueGate": {
+      "sourceName": "contracts/v43/AgentPoolV435SystemIssueGate.sol",
+      "detectors": {}
+    },
+    "AgentPoolV435TransitionIssueConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
+      "detectors": {
+        "Medium:unused-return": 1
+      }
+    },
+    "AgentPoolV43CapacityRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
+      "detectors": {}
+    },
+    "AgentPoolV43ContributionLedger": {
+      "sourceName": "contracts/v43/AgentPoolV43ContributionLedger.sol",
+      "detectors": {
+        "Medium:divide-before-multiply": 1,
+        "Medium:uninitialized-local": 2
+      }
+    },
+    "AgentPoolV43EpochVault": {
+      "sourceName": "contracts/v43/AgentPoolV43EpochVault.sol",
+      "detectors": {}
+    },
+    "AgentPoolV43EvolutionConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
+      "detectors": {}
+    },
+    "AgentPoolV43HashObjectiveVerifier": {
+      "sourceName": "contracts/v43/AgentPoolV43HashObjectiveVerifier.sol",
+      "detectors": {}
+    },
+    "AgentPoolV43ReleaseRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV43ReleaseRegistry.sol",
+      "detectors": {
+        "Medium:incorrect-equality": 1
+      }
+    },
+    "AgentPoolV43SettlementRouter": {
+      "sourceName": "contracts/v43/AgentPoolV43SettlementRouter.sol",
+      "detectors": {}
+    },
+    "AgentPoolV43UserEscrowKernel": {
+      "sourceName": "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
+      "detectors": {
+        "High:arbitrary-send-erc20": 1
+      }
+    },
+    "AgentPoolV44Token": {
+      "sourceName": "contracts/v44/AgentPoolV44Token.sol",
+      "detectors": {}
+    }
+  }
+}

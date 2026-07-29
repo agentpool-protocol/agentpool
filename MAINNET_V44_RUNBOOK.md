@@ -27,6 +27,7 @@ Run from a clean, committed checkout:
 ```powershell
 npm ci
 npm run contracts:compile
+npm run security:slither:v4.4
 npm run evidence:v4.4:source
 npm run evidence:v4.4:source:verify
 npm run contracts:rehearse:v4.4:mainnet
