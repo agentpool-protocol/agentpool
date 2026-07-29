@@ -44,9 +44,15 @@ contract MockV43SettlementSource {
     function adopt(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external {
-        consensus.recordAdoption(proposalId, adopter, receiptId);
+        consensus.recordAdoption(
+            proposalId,
+            adopter,
+            receiptId,
+            releaseId
+        );
     }
 
     function attest(

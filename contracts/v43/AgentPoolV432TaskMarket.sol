@@ -50,15 +50,15 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         uint16 minimumOperatorGroups;
     }
 
-    IAgentPoolV432ProofRegistry public immutable proofRegistryV2;
-    IAgentPoolV432SystemIssueGate public immutable systemIssueGateV2;
+    IAgentPoolV432ProofRegistry private immutable proofRegistryV2;
+    IAgentPoolV432SystemIssueGate private immutable systemIssueGateV2;
     mapping(bytes32 => mapping(uint32 => ValidationPolicy))
-        public validationPolicies;
-    mapping(bytes32 => mapping(uint32 => uint32)) public dependencyMasks;
-    mapping(bytes32 => uint32) public settledMasks;
-    mapping(bytes32 => uint32) public activeMilestones;
-    mapping(bytes32 => uint32) public settledMilestoneCount;
-    mapping(bytes32 => bytes32) public systemObjectiveRoots;
+        private validationPolicies;
+    mapping(bytes32 => mapping(uint32 => uint32)) private dependencyMasks;
+    mapping(bytes32 => uint32) private settledMasks;
+    mapping(bytes32 => uint32) private activeMilestones;
+    mapping(bytes32 => uint32) private settledMilestoneCount;
+    mapping(bytes32 => bytes32) private systemObjectiveRoots;
 
     event SlashReused(bytes32 indexed jobId, uint256 amount);
     event DependencyGraphPinned(bytes32 indexed jobId, uint32 milestoneCount);
@@ -168,6 +168,12 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             MilestoneTerms calldata term = terms[index];
             ValidationPolicy calldata policy = policies[index];
             if (
+                term.verifier != issue.verifier ||
+                term.minimumReveals != issue.minimumReveals ||
+                term.passScoreBps != issue.passScoreBps ||
+                policy.validatorRoot != issue.validatorRoot ||
+                policy.minimumOperatorGroups !=
+                    issue.minimumValidatorGroups ||
                 term.deadline > issue.expiresAt ||
                 !MerkleProof.verifyCalldata(
                     objectiveProofs[index],
@@ -290,6 +296,15 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                     newObjectiveProofs[index],
                     objectiveRoot,
                     newObjective
+                )
+            ) revert Unauthorized();
+            if (
+                job.funding != Funding.EXTERNAL &&
+                !_sameSystemPolicy(
+                    jobId,
+                    index,
+                    newTerms[index],
+                    newPolicies[index]
                 )
             ) revert Unauthorized();
             for (uint32 prior = 0; prior < index; prior++) {
@@ -437,12 +452,19 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 milestone.expectedEvidenceHash,
                 proof
             );
+        // A caller-selected invalid proof must never be able to reject another
+        // agent's delivery. Invalid deterministic evidence is a no-op; a bad
+        // delivery is eventually handled by the validator result or the
+        // permissionless expiry/refund path.
+        if (!passed) revert VerificationFailed();
         if (milestone.minimumReveals != 0) {
             bytes32 roundId = _proofRoundId(jobId, milestoneIndex);
             ValidationPolicy storage policy =
                 validationPolicies[jobId][milestoneIndex];
+            if (!proofRegistryV2.roundReady(roundId)) {
+                revert InvalidState();
+            }
             if (
-                !proofRegistryV2.roundReady(roundId) ||
                 proofRegistryV2.revealCount(roundId) <
                     milestone.minimumReveals ||
                 proofRegistryV2.groupCount(roundId) <
@@ -718,6 +740,25 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             );
         }
         _returnRemaining(jobId, job, finalState);
+    }
+
+    function _sameSystemPolicy(
+        bytes32 jobId,
+        uint32 index,
+        MilestoneTerms calldata term,
+        ValidationPolicy calldata policy
+    ) private view returns (bool) {
+        Milestone storage current = milestones[jobId][index];
+        ValidationPolicy storage currentPolicy =
+            validationPolicies[jobId][index];
+        return
+            term.verifier == current.verifier &&
+            term.deadline <= current.deadline &&
+            term.minimumReveals == current.minimumReveals &&
+            term.passScoreBps == current.passScoreBps &&
+            policy.validatorRoot == currentPolicy.validatorRoot &&
+            policy.minimumOperatorGroups ==
+                currentPolicy.minimumOperatorGroups;
     }
 
     function _recordVerifiedOutcome(

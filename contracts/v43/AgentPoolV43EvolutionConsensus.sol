@@ -530,13 +530,15 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external {
         Proposal storage proposal = proposals[proposalId];
         if (
             proposal.state != ProposalState.ADOPTION ||
             block.timestamp > proposal.adoptionDeadline ||
-            !ledger.isActiveSource(msg.sender)
+            !ledger.isActiveSource(msg.sender) ||
+            proposal.releaseId != releaseId
         ) revert Unauthorized();
         if (
             adopter == address(0) ||

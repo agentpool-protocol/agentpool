@@ -3,6 +3,8 @@ import path from "node:path";
 import {
   createPublicClient,
   createWalletClient,
+  encodeDeployData,
+  encodeFunctionData,
   formatEther,
   getAddress,
   http,
@@ -20,11 +22,16 @@ import {
   ZERO_ADDRESS,
   artifact,
   artifactBytecodeEvidence,
+  assertConfigurationProvenance,
+  assertDeploymentProvenance,
   assertTrackedTreeClean,
+  attachTransactionHash,
+  beginTransactionIntent,
   buildBootstrapTerms,
   collectReleaseInputs,
   loadAndValidateConfig,
   loadAndValidateGates,
+  redactBootstrapSecrets,
   requireEnv,
   serializeIssue,
   sha256Json,
@@ -72,8 +79,12 @@ const deploymentIdentity = {
   deployer: account.address,
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
+  bootstrapObjectivesSha256: releaseInputs.bootstrap.objectivesSha256,
 };
 if (existingPartial) {
+  if (existingPartial.schemaVersion !== 2) {
+    throw new Error("V44_PARTIAL_SCHEMA_UNSUPPORTED");
+  }
   for (const [key, expected] of Object.entries(deploymentIdentity)) {
     const actual = existingPartial[key];
     const same =
@@ -85,12 +96,26 @@ if (existingPartial) {
 }
 
 const state = existingPartial ?? {
+  schemaVersion: 2,
   ...deploymentIdentity,
   network: NETWORK,
   contracts: {},
   transactionHashes: [],
+  deploymentTransactions: {},
+  creationInputHashes: {},
+  configurationTransactions: {},
+  configurationInputHashes: {},
+  transactionIntents: {},
+  accountedTransactionHashes: [],
   gasUsed: "0",
 };
+state.transactionHashes = [...new Set(state.transactionHashes ?? [])];
+state.deploymentTransactions ??= {};
+state.creationInputHashes ??= {};
+state.configurationTransactions ??= {};
+state.configurationInputHashes ??= {};
+state.transactionIntents ??= {};
+state.accountedTransactionHashes ??= [];
 let gasUsed = BigInt(state.gasUsed ?? "0");
 
 function savePartial() {
@@ -117,32 +142,103 @@ async function assertCode(address, label) {
   return code;
 }
 
-async function deploy(name, args, key) {
-  if (state.contracts[key]) {
-    await assertCode(state.contracts[key], key);
-    return getAddress(state.contracts[key]);
+function recordTransaction(hash) {
+  if (!state.transactionHashes.includes(hash)) {
+    state.transactionHashes.push(hash);
   }
-  const compiled = artifact(name);
-  const hash = await wallet.deployContract({
-    account,
-    abi: compiled.abi,
-    bytecode: compiled.bytecode,
-    args,
-  });
-  state.transactionHashes.push(hash);
-  savePartial();
+}
+
+function accountReceiptGas(hash, receipt) {
+  if (!state.accountedTransactionHashes.includes(hash)) {
+    gasUsed += receipt.gasUsed;
+    state.accountedTransactionHashes.push(hash);
+  }
+}
+
+async function waitForSuccess(hash, label) {
   const receipt = await client.waitForTransactionReceipt({
     hash,
     confirmations: 2,
     timeout: 300_000,
   });
-  if (receipt.status !== "success" || !receipt.contractAddress) {
-    throw new Error(`${name}_DEPLOYMENT_FAILED:${hash}`);
+  if (receipt.status !== "success") {
+    throw new Error(`${label}_FAILED:${hash}`);
   }
-  gasUsed += receipt.gasUsed;
-  state.contracts[key] = getAddress(receipt.contractAddress);
+  accountReceiptGas(hash, receipt);
+  return receipt;
+}
+
+async function validateDeployment(name, args, key) {
+  const hash = state.deploymentTransactions[key];
+  if (!hash) throw new Error(`V44_PARTIAL_DEPLOYMENT_TX_MISSING:${key}`);
+  const compiled = artifact(name);
+  const expectedInput = encodeDeployData({
+    abi: compiled.abi,
+    bytecode: compiled.bytecode,
+    args,
+  });
+  const receipt = await waitForSuccess(hash, `${name}_DEPLOYMENT`);
+  const transaction = await client.getTransaction({ hash });
+  const address = assertDeploymentProvenance({
+    key,
+    expectedFrom: account.address,
+    expectedInput,
+    expectedAddress: state.contracts[key],
+    transaction,
+    receipt,
+  });
+  await assertCode(address, key);
+  state.contracts[key] = address;
+  state.creationInputHashes[key] = keccak256(expectedInput);
+  recordTransaction(hash);
   savePartial();
-  return state.contracts[key];
+  return address;
+}
+
+async function deploy(name, args, key) {
+  if (state.contracts[key] && !state.deploymentTransactions[key]) {
+    throw new Error(`V44_PARTIAL_DEPLOYMENT_TX_MISSING:${key}`);
+  }
+  if (state.deploymentTransactions[key]) {
+    return validateDeployment(name, args, key);
+  }
+  const compiled = artifact(name);
+  const expectedInput = encodeDeployData({
+    abi: compiled.abi,
+    bytecode: compiled.bytecode,
+    args,
+  });
+  const intentKey = `deploy:${key}`;
+  const nonce = await client.getTransactionCount({
+    address: account.address,
+    blockTag: "pending",
+  });
+  beginTransactionIntent({
+    intents: state.transactionIntents,
+    key: intentKey,
+    kind: "deployment",
+    nonce,
+    to: null,
+    inputHash: keccak256(expectedInput),
+  });
+  savePartial();
+  const hash = await wallet.deployContract({
+    account,
+    abi: compiled.abi,
+    bytecode: compiled.bytecode,
+    args,
+    nonce,
+  });
+  state.deploymentTransactions[key] = hash;
+  attachTransactionHash({
+    intents: state.transactionIntents,
+    key: intentKey,
+    hash,
+  });
+  state.creationInputHashes[key] = keccak256(expectedInput);
+  recordTransaction(hash);
+  savePartial();
+  return validateDeployment(name, args, key);
 }
 
 async function read(name, address, functionName, args = []) {
@@ -155,28 +251,71 @@ async function read(name, address, functionName, args = []) {
 }
 
 async function write(name, address, functionName, args, configured) {
-  if (configured) return null;
-  const simulation = await client.simulateContract({
-    account,
-    address,
+  const normalizedAddress = getAddress(address);
+  const step = `${normalizedAddress.toLowerCase()}:${functionName}`;
+  const expectedInput = encodeFunctionData({
     abi: artifact(name).abi,
     functionName,
     args,
   });
-  const hash = await wallet.writeContract(simulation.request);
-  state.transactionHashes.push(hash);
-  savePartial();
-  const receipt = await client.waitForTransactionReceipt({
-    hash,
-    confirmations: 2,
-    timeout: 300_000,
-  });
-  if (receipt.status !== "success") {
-    throw new Error(`${name}.${functionName}_FAILED:${hash}`);
+  const existingHash = state.configurationTransactions[step];
+  if (configured && !existingHash) {
+    throw new Error(`V44_PARTIAL_CONFIGURATION_TX_MISSING:${step}`);
   }
-  gasUsed += receipt.gasUsed;
+  if (existingHash) {
+    const receipt = await waitForSuccess(
+      existingHash,
+      `${name}.${functionName}`,
+    );
+    const transaction = await client.getTransaction({ hash: existingHash });
+    assertConfigurationProvenance({
+      key: step,
+      expectedFrom: account.address,
+      expectedTo: normalizedAddress,
+      expectedInput,
+      transaction,
+      receipt,
+    });
+    state.configurationInputHashes[step] = keccak256(expectedInput);
+    recordTransaction(existingHash);
+    savePartial();
+    return existingHash;
+  }
+  const intentKey = `configure:${step}`;
+  const simulation = await client.simulateContract({
+    account,
+    address: normalizedAddress,
+    abi: artifact(name).abi,
+    functionName,
+    args,
+  });
+  const nonce = await client.getTransactionCount({
+    address: account.address,
+    blockTag: "pending",
+  });
+  beginTransactionIntent({
+    intents: state.transactionIntents,
+    key: intentKey,
+    kind: "configuration",
+    nonce,
+    to: normalizedAddress,
+    inputHash: keccak256(expectedInput),
+  });
   savePartial();
-  return hash;
+  const hash = await wallet.writeContract({
+    ...simulation.request,
+    nonce,
+  });
+  state.configurationTransactions[step] = hash;
+  attachTransactionHash({
+    intents: state.transactionIntents,
+    key: intentKey,
+    hash,
+  });
+  state.configurationInputHashes[step] = keccak256(expectedInput);
+  recordTransaction(hash);
+  savePartial();
+  return write(name, normalizedAddress, functionName, args, false);
 }
 
 const financeInvariantHash = configEvidence.financeInvariantHash;
@@ -287,8 +426,8 @@ state.bootstrap = {
   expectedEvidenceHash: bootstrap.expectedEvidenceHash,
   validatorRoot: bootstrap.validatorRoot,
   validators: bootstrap.validators,
-  deliveryHash: releaseInputs.bootstrap.deliveryHash,
-  objectiveProof: releaseInputs.bootstrap.objectiveProof,
+  objectives: bootstrap.objectives,
+  objectivesSha256: bootstrap.objectivesSha256,
 };
 savePartial();
 
@@ -557,7 +696,7 @@ for (const [key, address] of Object.entries(state.contracts)) {
 }
 const artifacts = artifactBytecodeEvidence();
 const manifest = {
-  schema: "agentpool.mainnet.v44.deployment/v1",
+  schema: "agentpool.mainnet.v44.deployment/v2",
   version: VERSION,
   chainId: CHAIN_ID,
   network: NETWORK,
@@ -578,7 +717,7 @@ const manifest = {
   genesisManifestHash: releaseInputs.genesisManifestHash,
   financeInvariantHash,
   bootstrapVerifierCodehash: verifierCodehash,
-  bootstrap: state.bootstrap,
+  bootstrap: redactBootstrapSecrets(state.bootstrap),
   token: config.token,
   emission: config.emission,
   dynamicIssues: config.dynamicIssues,
@@ -586,6 +725,11 @@ const manifest = {
   contracts: state.contracts,
   artifactBytecode: artifacts,
   deployedCodeHashes,
+  deploymentTransactions: state.deploymentTransactions,
+  creationInputHashes: state.creationInputHashes,
+  configurationTransactions: state.configurationTransactions,
+  configurationInputHashes: state.configurationInputHashes,
+  transactionIntents: state.transactionIntents,
   transactionHashes: state.transactionHashes,
   gasUsed: gasUsed.toString(),
   deployedAt: new Date().toISOString(),

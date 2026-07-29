@@ -37,6 +37,7 @@ contract AgentPoolV435SystemIssueGate is
     uint64 public constant MIN_TRANSITION_SETTLEMENTS = 20;
     uint16 public constant MIN_TRANSITION_EPOCHS = 2;
     uint16 public constant MIN_DYNAMIC_REVEALS = 3;
+    uint16 public constant MAX_DYNAMIC_REVEALS = 15;
     uint16 public constant MIN_DYNAMIC_GROUPS = 2;
     uint16 public constant MIN_DYNAMIC_PASS_SCORE_BPS = 8_000;
 
@@ -267,6 +268,7 @@ contract AgentPoolV435SystemIssueGate is
             issue.funding > 3 ||
             issue.expiresAt <= block.timestamp ||
             issue.passScoreBps > 10_000 ||
+            issue.minimumReveals > MAX_DYNAMIC_REVEALS ||
             issue.minimumValidatorGroups > issue.minimumReveals ||
             (
                 issue.minimumReveals == 0 &&

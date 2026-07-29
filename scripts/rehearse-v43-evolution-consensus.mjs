@@ -468,6 +468,7 @@ for (let index = 0; index < 5; index++) {
     1n,
     agents[index].address,
     keccak256(toBytes(`candidate-adoption-${index}`)),
+    releaseId,
   ]);
 }
 check(

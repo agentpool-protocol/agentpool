@@ -13,6 +13,8 @@ import {
 ///         allowlist and operator-group diversity. Evaluators still cannot
 ///         submit a payout or recipient.
 contract AgentPoolV432ProofRegistry is IAgentPoolV432ProofRegistry {
+    uint16 public constant MAX_REVEALS = 15;
+
     struct Round {
         uint64 commitDeadline;
         uint64 revealDeadline;
@@ -174,6 +176,7 @@ contract AgentPoolV432ProofRegistry is IAgentPoolV432ProofRegistry {
         if (
             !round.opened ||
             block.timestamp > round.commitDeadline ||
+            round.committed >= MAX_REVEALS ||
             commitment == bytes32(0) ||
             group == bytes32(0) ||
             group == round.excludedGroup ||

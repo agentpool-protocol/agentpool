@@ -35,6 +35,7 @@ interface IAgentPoolV43SettlementRouter {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external;
 }

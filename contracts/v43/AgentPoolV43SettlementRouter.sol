@@ -26,7 +26,8 @@ interface IAgentPoolV43EvolutionSink {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external;
 }
 
@@ -150,10 +151,11 @@ contract AgentPoolV43SettlementRouter is IAgentPoolV43SettlementRouter {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external override {
         if (msg.sender != market) revert Unauthorized();
-        consensus.recordAdoption(proposalId, adopter, receiptId);
+        consensus.recordAdoption(proposalId, adopter, receiptId, releaseId);
     }
 
     function _bubble(bytes memory result) private pure {

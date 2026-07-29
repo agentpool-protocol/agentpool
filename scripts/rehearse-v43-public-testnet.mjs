@@ -310,8 +310,72 @@ function objectiveLeaf(term, policy) {
   return keccak256(encodeAbiParameters([{ type: "bytes32" }], [inner]));
 }
 
+const candidateLabels = new Set([
+  "bootstrap-improvement",
+  "external-buyer-work",
+]);
+
+const candidateCanary = {
+  qualityBps: 9_300,
+  baselineQualityBps: 9_100,
+  cost: 900,
+  baselineCost: 1_000,
+  latency: 1_000,
+  baselineLatency: 1_000,
+  securityRegressions: 0,
+};
+
+function candidateArtifactFor(label, canary = candidateCanary) {
+  const moduleHash = keccak256(toBytes(`${label}-candidate-module`));
+  const manifestHash = keccak256(toBytes(`${label}-candidate-manifest`));
+  const canaryHash = keccak256(
+    encodeAbiParameters(
+      [
+        { type: "uint16" },
+        { type: "uint16" },
+        { type: "uint64" },
+        { type: "uint64" },
+        { type: "uint64" },
+        { type: "uint64" },
+        { type: "uint16" },
+      ],
+      [
+        canary.qualityBps,
+        canary.baselineQualityBps,
+        BigInt(canary.cost),
+        BigInt(canary.baselineCost),
+        BigInt(canary.latency),
+        BigInt(canary.baselineLatency),
+        canary.securityRegressions,
+      ],
+    ),
+  );
+  return {
+    moduleHash,
+    manifestHash,
+    deliveryHash: keccak256(
+      encodeAbiParameters(
+        [
+          { type: "string" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+        ],
+        [
+          "AGENTPOOL_CANDIDATE_ARTIFACT",
+          moduleHash,
+          manifestHash,
+          canaryHash,
+        ],
+      ),
+    ),
+  };
+}
+
 function evidenceFor(label, specificationHash) {
-  const deliveryHash = keccak256(toBytes(`${label}-delivery`));
+  const deliveryHash = candidateLabels.has(label)
+    ? candidateArtifactFor(label).deliveryHash
+    : keccak256(toBytes(`${label}-delivery`));
   const proof = toHex(`${label}-proof`);
   return {
     deliveryHash,
@@ -970,17 +1034,59 @@ check(
 
 const candidateReceiptId = keccak256(toBytes("bootstrap-candidate-attestation"));
 const candidateRelease = keccak256(toBytes("agentpool-v4.3-candidate"));
-const candidateModuleHash = keccak256(toBytes("candidate-module"));
-const candidateManifestHash = keccak256(toBytes("candidate-manifest"));
-const canary = {
-  qualityBps: 9_300,
-  baselineQualityBps: 9_100,
-  cost: 900,
-  baselineCost: 1_000,
-  latency: 1_000,
-  baselineLatency: 1_000,
-  securityRegressions: 0,
-};
+const {
+  moduleHash: candidateModuleHash,
+  manifestHash: candidateManifestHash,
+} = candidateArtifactFor("bootstrap-improvement");
+const canary = candidateCanary;
+await expectRevert(
+  "a settled improvement cannot attest an unrelated release artifact",
+  () =>
+    write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "attestCandidate",
+      [
+        firstSystem.jobId,
+        0,
+        keccak256(toBytes("unbound-candidate-attestation")),
+        keccak256(toBytes("unbound-module")),
+        keccak256(toBytes("unbound-manifest")),
+        canary.qualityBps,
+        canary.baselineQualityBps,
+        canary.cost,
+        canary.baselineCost,
+        canary.latency,
+        canary.baselineLatency,
+        canary.securityRegressions,
+      ],
+      firstSystem.worker.key,
+    ),
+);
+await expectRevert(
+  "a settled improvement cannot attach unverified canary metrics",
+  () =>
+    write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "attestCandidate",
+      [
+        firstSystem.jobId,
+        0,
+        keccak256(toBytes("unbound-canary-attestation")),
+        candidateModuleHash,
+        candidateManifestHash,
+        canary.qualityBps + 1,
+        canary.baselineQualityBps,
+        canary.cost,
+        canary.baselineCost,
+        canary.latency,
+        canary.baselineLatency,
+        canary.securityRegressions,
+      ],
+      firstSystem.worker.key,
+    ),
+);
 await write(
   "AgentPoolV432TaskMarket",
   market,
@@ -1142,12 +1248,10 @@ const buyerFundedReceipt = keccak256(
 const buyerFundedRelease = keccak256(
   toBytes("buyer-funded-bootstrap-candidate-release"),
 );
-const buyerFundedModule = keccak256(
-  toBytes("buyer-funded-bootstrap-candidate-module"),
-);
-const buyerFundedManifest = keccak256(
-  toBytes("buyer-funded-bootstrap-candidate-manifest"),
-);
+const {
+  moduleHash: buyerFundedModule,
+  manifestHash: buyerFundedManifest,
+} = candidateArtifactFor("external-buyer-work");
 await write(
   "AgentPoolV432TaskMarket",
   market,
@@ -1328,17 +1432,39 @@ await write(
   [abortJobId, 0, abortEvidence[0].deliveryHash],
   abortWorkers[0].key,
 );
+await expectRevert(
+  "caller-selected invalid proof cannot reject a delivered milestone",
+  () =>
+    write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "resolve",
+      [
+        abortJobId,
+        0,
+        toHex("invalid-parallel-delivery-proof"),
+        [abortWorkers[0].address],
+        [abortAllocation],
+      ],
+    ),
+);
+const deliveredBeforeExpiry = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [abortJobId, 0],
+);
+check(
+  "invalid deterministic proof leaves delivery pending",
+  deliveredBeforeExpiry[16],
+  3,
+);
+blockTimestamp = BigInt(abortTerms[0].deadline + 86_400 + 1);
 await write(
   "AgentPoolV432TaskMarket",
   market,
-  "resolve",
-  [
-    abortJobId,
-    0,
-    toHex("invalid-parallel-delivery-proof"),
-    [abortWorkers[0].address],
-    [abortAllocation],
-  ],
+  "refundExpired",
+  [abortJobId, 0],
 );
 const abortedJob = await read(
   "AgentPoolV432TaskMarket",
@@ -1358,8 +1484,8 @@ const innocentMilestone = await read(
   "milestones",
   [abortJobId, 1],
 );
-check("failed parallel job is rejected", abortedJob[2], 5);
-check("failed parallel leaf is rejected", failedMilestone[16], 5);
+check("failed parallel job expires safely", abortedJob[2], 7);
+check("failed parallel leaf is refunded after expiry", failedMilestone[16], 6);
 check("innocent parallel leaf is refunded", innocentMilestone[16], 6);
 check(
   "failed parallel worker alone loses its bond",
@@ -1699,14 +1825,26 @@ for (const milestoneIndex of [0, 1]) {
     dagWorkers[milestoneIndex].key,
   );
 }
+const firstParallelMilestone = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [dagJobId, 0],
+);
+const secondParallelMilestone = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [dagJobId, 1],
+);
 check(
-  "independent DAG leaves reserve capacity in parallel",
-  await read(
-    "AgentPoolV432TaskMarket",
-    market,
-    "activeMilestones",
-    [dagJobId],
-  ),
+  "first independent DAG leaf reserves capacity",
+  firstParallelMilestone[16],
+  2,
+);
+check(
+  "second independent DAG leaf reserves capacity in parallel",
+  secondParallelMilestone[16],
   2,
 );
 await write(
@@ -1723,14 +1861,26 @@ await write("AgentPoolV432TaskMarket", market, "resolve", [
   [dagWorkers[1].address],
   [parseEther("2")],
 ]);
+const outOfOrderFirst = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [dagJobId, 0],
+);
+const outOfOrderSecond = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [dagJobId, 1],
+);
 check(
-  "out-of-order independent leaf settles without closing the DAG",
-  await read(
-    "AgentPoolV432TaskMarket",
-    market,
-    "settledMasks",
-    [dagJobId],
-  ),
+  "out-of-order leaf settles",
+  outOfOrderSecond[16],
+  4,
+);
+check(
+  "out-of-order settlement does not close the first active leaf",
+  outOfOrderFirst[16],
   2,
 );
 await expectRevert(
@@ -1817,15 +1967,23 @@ await write(
   ],
   firstSystem.worker.key,
 );
+const preservedFirst = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [dagJobId, 0],
+);
+const preservedSecond = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "milestones",
+  [dagJobId, 1],
+);
+check("partial replan preserves the first completed leaf", preservedFirst[16], 4);
 check(
-  "partial replan preserves the two completed leaves",
-  await read(
-    "AgentPoolV432TaskMarket",
-    market,
-    "settledMasks",
-    [dagJobId],
-  ),
-  3,
+  "partial replan preserves the second completed leaf",
+  preservedSecond[16],
+  4,
 );
 await write(
   "AgentPoolV432TaskMarket",
@@ -2363,6 +2521,33 @@ check(
   "vote makes the release await independent adoption",
   await read("AgentPoolV43ReleaseRegistry", releaseRegistry, "recommendedRelease"),
   genesisRelease,
+);
+
+const unrelatedAdoptionJob = await settleJob({
+  funding: 1,
+  creatorKey: agents[1].key,
+  workerIndex: 0,
+  releaseId: genesisRelease,
+  allocation: parseEther("1"),
+  keeperFee: parseEther("1"),
+  capacityUnits: 1,
+  label: "unrelated-release-adoption",
+});
+await expectRevert(
+  "a settled job cannot adopt a release that it did not execute",
+  () =>
+    write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "recordReleaseAdoption",
+      [
+        unrelatedAdoptionJob.jobId,
+        0,
+        1n,
+        keccak256(toBytes("unrelated-release-adoption-receipt")),
+      ],
+      unrelatedAdoptionJob.worker.key,
+    ),
 );
 
 for (let index = 0; index < 5; index++) {

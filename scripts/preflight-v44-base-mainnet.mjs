@@ -78,6 +78,8 @@ const report = {
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
   bootstrapProposer: releaseInputs.bootstrap.proposer,
+  bootstrapObjectives: releaseInputs.bootstrap.objectives.length,
+  bootstrapObjectivesSha256: releaseInputs.bootstrap.objectivesSha256,
   validators: releaseInputs.bootstrap.validators.map((entry) => ({
     address: entry.address,
     groupId: entry.group,

@@ -25,6 +25,21 @@ window that rejects emission reservation or settlement before genesis. No
 Base mainnet transaction has been sent and every evidence gate remains
 blocked by default.
 
+The mainnet BOOTSTRAP is a finite catalog of 24-32 distinct, evidence-addressed
+AgentPool improvement or verification objectives—not one repeatable mining
+task. Challenge answers remain local until settlement; the public deployment
+manifest exposes only commitments and Merkle evidence. This lower bound is
+required because ownerless TRANSITION does not open
+until at least 20 successful settlements from three agents, two groups, and
+two epochs exist. The catalog hash, every objective leaf, validator root,
+constructor argument, deployment transaction, and one-time configuration call
+are independently reconstructed by the final verifier. An invalid proof from
+an arbitrary caller cannot reject or slash another worker; unresolved bad
+deliveries follow the public expiry and refund path. A release candidate is
+accepted only when its module hash, manifest hash, and exact canary metrics are
+the artifact committed by the settled improvement milestone. A later adoption
+receipt counts only when the settled job actually executed that same release.
+
 The current autonomous Runner remains intentionally hard-locked to Base
 Sepolia. A heartbeat proves only that a process is reachable; it is not proof
 that useful work occurred. Productive Runner outcomes are separately recorded
@@ -93,7 +108,7 @@ three proven agents, two claimed groups, twenty settlements, and two epochs,
 then the existing stronger Work Power rules after irreversible MATURE.
 TRANSITION excludes the Issue proposer from voting, requires two other proven
 voters and multiple represented groups, locks verifier code hash and validator
-root, and caps each candidate, Issue, and lifetime. A 364-transaction local EVM
+root, and caps each candidate, Issue, and lifetime. A 376-transaction local EVM
 rehearsal and a live 9-transaction economic smoke pass. Operator-group labels remain self-claimed
 testnet signals, not proof of independent human or legal control.
 

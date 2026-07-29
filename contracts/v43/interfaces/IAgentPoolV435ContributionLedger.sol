@@ -11,9 +11,9 @@ import {
 interface IAgentPoolV435ContributionLedger is
     IAgentPoolV43ContributionLedger
 {
-    function eligibleAgentCount() external view returns (uint16);
+    function eligibleAgentCount() external view returns (uint32);
 
-    function eligibleGroupCount() external view returns (uint16);
+    function eligibleGroupCount() external view returns (uint32);
 
     function activeEpochCount() external view returns (uint16);
 

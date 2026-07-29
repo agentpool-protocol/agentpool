@@ -60,6 +60,21 @@ export function sha256Json(value) {
     .digest("hex");
 }
 
+export function redactBootstrapSecrets(bootstrap) {
+  if (!bootstrap || !Array.isArray(bootstrap.objectives)) {
+    throw new Error("V44_BOOTSTRAP_EVIDENCE_INVALID");
+  }
+  return {
+    ...bootstrap,
+    objectives: bootstrap.objectives.map((entry) => {
+      const publicEntry = { ...entry };
+      delete publicEntry.deliveryHash;
+      delete publicEntry.objectiveProof;
+      return publicEntry;
+    }),
+  };
+}
+
 export function artifact(name) {
   const filePath = path.join(ROOT, "artifacts", `${name}.json`);
   if (!fs.existsSync(filePath)) throw new Error(`V44_ARTIFACT_MISSING:${name}`);
@@ -198,6 +213,8 @@ export function loadAndValidateConfig(
     ["bootstrap.passScoreBps", config.bootstrap?.passScoreBps, 1],
     ["bootstrap.minimumValidatorGroups", config.bootstrap?.minimumValidatorGroups, 3],
     ["bootstrap.capacityUnits", config.bootstrap?.capacityUnits, 1],
+    ["bootstrap.minimumObjectives", config.bootstrap?.minimumObjectives, 24],
+    ["bootstrap.maximumObjectives", config.bootstrap?.maximumObjectives, 20],
     ["bootstrap.funding", config.bootstrap?.funding, 0],
     ["bootstrap.maximumLifetimeSeconds", config.bootstrap?.maximumLifetimeSeconds, 1],
   ]) {
@@ -229,11 +246,15 @@ export function loadAndValidateConfig(
     throw new Error("V44_DYNAMIC_CANDIDATE_BUDGETS_EXCEED_ISSUE_CAP");
   }
   if (
-    config.bootstrap.minimumReveals >
-      config.bootstrap.minimumValidatorGroups ||
+    config.bootstrap.minimumValidatorGroups >
+      config.bootstrap.minimumReveals ||
     config.bootstrap.passScoreBps > 10_000 ||
     config.bootstrap.capacityUnits >
       MAX_CONTRIBUTION_UNITS_PER_MILESTONE ||
+    config.bootstrap.minimumObjectives < 24 ||
+    config.bootstrap.maximumObjectives > 32 ||
+    config.bootstrap.minimumObjectives >
+      config.bootstrap.maximumObjectives ||
     config.bootstrap.funding !== 3
   ) {
     throw new Error("V44_BOOTSTRAP_CONFIG_INVALID");
@@ -334,6 +355,126 @@ export function assertTrackedTreeClean() {
   }
 }
 
+function sameAddress(left, right) {
+  return (
+    typeof left === "string" &&
+    typeof right === "string" &&
+    left.toLowerCase() === right.toLowerCase()
+  );
+}
+
+export function assertDeploymentProvenance({
+  key,
+  expectedFrom,
+  expectedInput,
+  expectedAddress,
+  transaction,
+  receipt,
+}) {
+  if (receipt?.status !== "success") {
+    throw new Error(`V44_DEPLOYMENT_RECEIPT_FAILED:${key}`);
+  }
+  if (!sameAddress(transaction?.from, expectedFrom)) {
+    throw new Error(`V44_DEPLOYMENT_FROM_MISMATCH:${key}`);
+  }
+  if (transaction?.input?.toLowerCase() !== expectedInput.toLowerCase()) {
+    throw new Error(`V44_DEPLOYMENT_INPUT_MISMATCH:${key}`);
+  }
+  if (!receipt.contractAddress) {
+    throw new Error(`V44_DEPLOYMENT_ADDRESS_MISSING:${key}`);
+  }
+  if (
+    expectedAddress &&
+    !sameAddress(receipt.contractAddress, expectedAddress)
+  ) {
+    throw new Error(`V44_DEPLOYMENT_ADDRESS_MISMATCH:${key}`);
+  }
+  return getAddress(receipt.contractAddress);
+}
+
+export function assertConfigurationProvenance({
+  key,
+  expectedFrom,
+  expectedTo,
+  expectedInput,
+  transaction,
+  receipt,
+}) {
+  if (receipt?.status !== "success") {
+    throw new Error(`V44_CONFIGURATION_RECEIPT_FAILED:${key}`);
+  }
+  if (!sameAddress(transaction?.from, expectedFrom)) {
+    throw new Error(`V44_CONFIGURATION_FROM_MISMATCH:${key}`);
+  }
+  if (!sameAddress(transaction?.to, expectedTo)) {
+    throw new Error(`V44_CONFIGURATION_TO_MISMATCH:${key}`);
+  }
+  if (transaction?.input?.toLowerCase() !== expectedInput.toLowerCase()) {
+    throw new Error(`V44_CONFIGURATION_INPUT_MISMATCH:${key}`);
+  }
+}
+
+export function beginTransactionIntent({
+  intents,
+  key,
+  kind,
+  nonce,
+  to,
+  inputHash,
+  createdAt = new Date().toISOString(),
+}) {
+  if (intents[key]) throw new Error(`V44_UNCERTAIN_BROADCAST:${key}`);
+  intents[key] = {
+    kind,
+    nonce,
+    to,
+    inputHash,
+    createdAt,
+  };
+  return intents[key];
+}
+
+export function attachTransactionHash({ intents, key, hash }) {
+  const intent = intents[key];
+  if (!intent) throw new Error(`V44_TRANSACTION_INTENT_MISSING:${key}`);
+  if (intent.hash && intent.hash.toLowerCase() !== hash.toLowerCase()) {
+    throw new Error(`V44_TRANSACTION_HASH_MISMATCH:${key}`);
+  }
+  intent.hash = hash;
+  return intent;
+}
+
+export function assertTransactionMatchesIntent({
+  key,
+  intent,
+  expectedFrom,
+  transaction,
+}) {
+  if (!intent || !transaction) {
+    throw new Error(`V44_RECONCILE_TRANSACTION_MISSING:${key}`);
+  }
+  if (!sameAddress(transaction.from, expectedFrom)) {
+    throw new Error(`V44_RECONCILE_FROM_MISMATCH:${key}`);
+  }
+  if (BigInt(transaction.nonce) !== BigInt(intent.nonce)) {
+    throw new Error(`V44_RECONCILE_NONCE_MISMATCH:${key}`);
+  }
+  if (
+    (intent.to === null && transaction.to !== null) ||
+    (intent.to !== null && !sameAddress(transaction.to, intent.to))
+  ) {
+    throw new Error(`V44_RECONCILE_TO_MISMATCH:${key}`);
+  }
+  if (
+    typeof transaction.input !== "string" ||
+    keccak256(transaction.input).toLowerCase() !==
+      intent.inputHash.toLowerCase()
+  ) {
+    throw new Error(`V44_RECONCILE_INPUT_MISMATCH:${key}`);
+  }
+  return true;
+}
+
 export function collectReleaseInputs({
   env = process.env,
   deployerAddress,
@@ -380,17 +521,102 @@ export function collectReleaseInputs({
   ) {
     throw new Error("V44_VALIDATOR_GROUPS_MUST_BE_DISTINCT");
   }
+  const objectivesPath = path.resolve(
+    ROOT,
+    requireEnv("V44_BOOTSTRAP_OBJECTIVES_FILE", env),
+  );
+  if (!fs.existsSync(objectivesPath)) {
+    throw new Error("V44_BOOTSTRAP_OBJECTIVES_MISSING");
+  }
+  const objectivesSha256 = sha256File(objectivesPath);
+  const expectedObjectivesSha256 = requireEnv(
+    "V44_BOOTSTRAP_OBJECTIVES_SHA256",
+    env,
+  ).toLowerCase();
+  if (
+    !SHA256_PATTERN.test(expectedObjectivesSha256) ||
+    objectivesSha256 !== expectedObjectivesSha256
+  ) {
+    throw new Error("V44_BOOTSTRAP_OBJECTIVES_SHA256_MISMATCH");
+  }
+  const objectiveCatalog = readJson(objectivesPath);
+  if (
+    objectiveCatalog.schema !==
+      "agentpool.mainnet.v44.bootstrap-objectives/v1" ||
+    !Array.isArray(objectiveCatalog.objectives) ||
+    objectiveCatalog.objectives.length < 24 ||
+    objectiveCatalog.objectives.length > 32
+  ) {
+    throw new Error("V44_BOOTSTRAP_OBJECTIVES_INVALID");
+  }
+  const objectives = objectiveCatalog.objectives.map((entry, index) => {
+    const capabilityHash = entry?.capabilityHash;
+    const specificationHash = entry?.specificationHash;
+    const deliveryHash = entry?.deliveryHash;
+    const objectiveProof = entry?.objectiveProofHex;
+    const capacityUnits = entry?.capacityUnits;
+    for (const [label, value] of [
+      ["capabilityHash", capabilityHash],
+      ["specificationHash", specificationHash],
+      ["deliveryHash", deliveryHash],
+    ]) {
+      if (
+        typeof value !== "string" ||
+        !HASH_PATTERN.test(value) ||
+        value.toLowerCase() === ZERO_BYTES32
+      ) {
+        throw new Error(
+          `V44_BOOTSTRAP_OBJECTIVE_INVALID:${index}:${label}`,
+        );
+      }
+    }
+    if (
+      typeof objectiveProof !== "string" ||
+      !/^0x(?:[0-9a-fA-F]{2}){32,}$/.test(objectiveProof) ||
+      !Number.isInteger(capacityUnits) ||
+      capacityUnits < 1 ||
+      capacityUnits > MAX_CONTRIBUTION_UNITS_PER_MILESTONE
+    ) {
+      throw new Error(`V44_BOOTSTRAP_OBJECTIVE_INVALID:${index}`);
+    }
+    return {
+      capabilityHash: capabilityHash.toLowerCase(),
+      specificationHash: specificationHash.toLowerCase(),
+      deliveryHash: deliveryHash.toLowerCase(),
+      objectiveProof: objectiveProof.toLowerCase(),
+      capacityUnits,
+    };
+  });
+  const objectiveIdentities = objectives.map((entry) =>
+    keccak256(
+      encodeAbiParameters(
+        [
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "uint32" },
+        ],
+        [
+          entry.capabilityHash,
+          entry.specificationHash,
+          entry.deliveryHash,
+          keccak256(entry.objectiveProof),
+          entry.capacityUnits,
+        ],
+      ),
+    ),
+  );
+  if (new Set(objectiveIdentities).size !== objectiveIdentities.length) {
+    throw new Error("V44_BOOTSTRAP_OBJECTIVES_DUPLICATE");
+  }
   const bootstrap = {
     proposer: bootstrapProposer,
     validators,
     issueId: requireBytes32("V44_BOOTSTRAP_ISSUE_ID", env),
-    capabilityHash: requireBytes32("V44_BOOTSTRAP_CAPABILITY_HASH", env),
-    specificationHash: requireBytes32(
-      "V44_BOOTSTRAP_SPECIFICATION_HASH",
-      env,
-    ),
-    deliveryHash: requireBytes32("V44_BOOTSTRAP_DELIVERY_HASH", env),
-    objectiveProof: requireHex("V44_BOOTSTRAP_OBJECTIVE_PROOF_HEX", env),
+    objectives,
+    objectivesPath,
+    objectivesSha256,
   };
   const genesisModuleHash = requireBytes32("V44_GENESIS_MODULE_HASH", env);
   const genesisManifestHash = requireBytes32("V44_GENESIS_MANIFEST_HASH", env);
@@ -431,53 +657,84 @@ export function buildBootstrapTerms({
     );
   });
   const validatorCatalog = merkleCatalog(validatorLeaves);
+  if (
+    releaseInputs.bootstrap.objectives.length <
+      config.bootstrap.minimumObjectives ||
+    releaseInputs.bootstrap.objectives.length >
+      config.bootstrap.maximumObjectives
+  ) {
+    throw new Error("V44_BOOTSTRAP_OBJECTIVE_COUNT_INVALID");
+  }
+  const objectives = releaseInputs.bootstrap.objectives.map((entry) => {
+    if (entry.capacityUnits > config.bootstrap.capacityUnits) {
+      throw new Error("V44_BOOTSTRAP_OBJECTIVE_CAPACITY_EXCEEDED");
+    }
+    const expectedEvidenceHash = keccak256(
+      encodeAbiParameters(
+        [{ type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }],
+        [
+          entry.specificationHash,
+          entry.deliveryHash,
+          keccak256(entry.objectiveProof),
+        ],
+      ),
+    );
+    const objectiveInner = keccak256(
+      encodeAbiParameters(
+        [
+          { type: "address" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "bytes32" },
+          { type: "uint32" },
+          { type: "uint16" },
+          { type: "uint16" },
+          { type: "uint32" },
+          { type: "uint32" },
+          { type: "bytes32" },
+          { type: "uint16" },
+        ],
+        [
+          getAddress(verifier),
+          entry.capabilityHash,
+          entry.specificationHash,
+          expectedEvidenceHash,
+          entry.capacityUnits,
+          config.bootstrap.minimumReveals,
+          config.bootstrap.passScoreBps,
+          60,
+          60,
+          validatorCatalog.root,
+          config.bootstrap.minimumValidatorGroups,
+        ],
+      ),
+    );
+    return {
+      ...entry,
+      expectedEvidenceHash,
+      leaf: keccak256(
+        encodeAbiParameters([{ type: "bytes32" }], [objectiveInner]),
+      ),
+    };
+  });
+  if (new Set(objectives.map((entry) => entry.leaf)).size !== objectives.length) {
+    throw new Error("V44_BOOTSTRAP_OBJECTIVE_LEAVES_DUPLICATE");
+  }
+  const objectiveCatalog = merkleCatalog(
+    objectives.map((entry) => entry.leaf),
+  );
+  const objectiveRoot = objectiveCatalog.root;
+  const catalogDigest = `0x${releaseInputs.bootstrap.objectivesSha256}`;
   const expectedEvidenceHash = keccak256(
     encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }],
-      [
-        releaseInputs.bootstrap.specificationHash,
-        releaseInputs.bootstrap.deliveryHash,
-        keccak256(releaseInputs.bootstrap.objectiveProof),
-      ],
+      [{ type: "bytes32" }, { type: "bytes32" }],
+      [objectiveRoot, validatorCatalog.root],
     ),
-  );
-  const objectiveInner = keccak256(
-    encodeAbiParameters(
-      [
-        { type: "address" },
-        { type: "bytes32" },
-        { type: "bytes32" },
-        { type: "bytes32" },
-        { type: "uint32" },
-        { type: "uint16" },
-        { type: "uint16" },
-        { type: "uint32" },
-        { type: "uint32" },
-        { type: "bytes32" },
-        { type: "uint16" },
-      ],
-      [
-        getAddress(verifier),
-        releaseInputs.bootstrap.capabilityHash,
-        releaseInputs.bootstrap.specificationHash,
-        expectedEvidenceHash,
-        config.bootstrap.capacityUnits,
-        config.bootstrap.minimumReveals,
-        config.bootstrap.passScoreBps,
-        60,
-        60,
-        validatorCatalog.root,
-        config.bootstrap.minimumValidatorGroups,
-      ],
-    ),
-  );
-  const objectiveRoot = keccak256(
-    encodeAbiParameters([{ type: "bytes32" }], [objectiveInner]),
   );
   const issue = {
     issueId: releaseInputs.bootstrap.issueId,
     bootstrapProposer: releaseInputs.bootstrap.proposer,
-    specificationHash: releaseInputs.bootstrap.specificationHash,
+    specificationHash: catalogDigest,
     verifier: getAddress(verifier),
     expectedEvidenceHash,
     objectiveRoot,
@@ -527,6 +784,11 @@ export function buildBootstrapTerms({
     issueRoot,
     objectiveRoot,
     expectedEvidenceHash,
+    objectives: objectives.map((entry, index) => ({
+      ...entry,
+      proof: objectiveCatalog.proofs[index],
+    })),
+    objectivesSha256: releaseInputs.bootstrap.objectivesSha256,
     validatorRoot: validatorCatalog.root,
     validators: validators.map((entry, index) => ({
       ...entry,

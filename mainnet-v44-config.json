@@ -34,6 +34,8 @@
     "passScoreBps": 8000,
     "minimumValidatorGroups": 3,
     "capacityUnits": 100,
+    "minimumObjectives": 24,
+    "maximumObjectives": 32,
     "funding": 3,
     "maximumLifetimeSeconds": 2592000
   },

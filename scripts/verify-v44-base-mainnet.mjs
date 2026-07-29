@@ -2,9 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   createPublicClient,
+  encodeDeployData,
+  encodeFunctionData,
   http,
   keccak256,
   parseEther,
+  toBytes,
 } from "viem";
 import { base } from "viem/chains";
 import {
@@ -14,8 +17,14 @@ import {
   VERSION,
   ZERO_ADDRESS,
   artifact,
+  assertConfigurationProvenance,
+  assertDeploymentProvenance,
+  buildBootstrapTerms,
+  collectReleaseInputs,
+  currentGitCommit,
   loadAndValidateConfig,
   loadAndValidateGates,
+  redactBootstrapSecrets,
   requireEnv,
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
@@ -26,7 +35,7 @@ const manifestPath =
 if (!fs.existsSync(manifestPath)) throw new Error("V44_MANIFEST_MISSING");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 if (
-  manifest.schema !== "agentpool.mainnet.v44.deployment/v1" ||
+  manifest.schema !== "agentpool.mainnet.v44.deployment/v2" ||
   manifest.chainId !== CHAIN_ID ||
   manifest.network !== "Base" ||
   manifest.version !== VERSION
@@ -35,6 +44,17 @@ if (
 }
 const configEvidence = loadAndValidateConfig();
 const gateEvidence = loadAndValidateGates();
+const sourceCommit = requireEnv("V44_SOURCE_COMMIT").toLowerCase();
+if (!/^[0-9a-f]{40}$/.test(sourceCommit)) {
+  throw new Error("V44_SOURCE_COMMIT_INVALID");
+}
+if (sourceCommit !== currentGitCommit().toLowerCase()) {
+  throw new Error("V44_SOURCE_COMMIT_NOT_HEAD");
+}
+const releaseInputs = collectReleaseInputs({
+  deployerAddress: manifest.deployer,
+  allowPastGenesis: true,
+});
 const rpcUrl = requireEnv("AGENTPOOL_MAINNET_RPC_URL");
 const client = createPublicClient({
   chain: base,
@@ -90,11 +110,163 @@ check(
   configEvidence.financeInvariantHash,
   manifest.financeInvariantHash,
 );
+check("manifest.sourceCommit", manifest.sourceCommit, sourceCommit);
+check(
+  "manifest.genesisStart",
+  BigInt(manifest.genesisStart),
+  BigInt(releaseInputs.genesisStart),
+);
+check(
+  "manifest.genesisRelease",
+  manifest.genesisRelease,
+  releaseInputs.genesisRelease,
+);
 check("manifest.deployerHasRuntimeAuthority", manifest.deployerHasRuntimeAuthority, false);
+
+const expectedBootstrap = buildBootstrapTerms({
+  config: configEvidence.config,
+  releaseInputs,
+  verifier: manifest.contracts.objectiveVerifier,
+});
+const proposalBond = parseEther(
+  configEvidence.config.consensus.proposalBondApool,
+);
+const deploymentArguments = {
+  token: [manifest.deployer],
+  settlementRouter: [manifest.deployer],
+  releaseRegistry: [
+    manifest.genesisRelease,
+    manifest.genesisModuleHash,
+    manifest.genesisManifestHash,
+    manifest.deployer,
+  ],
+  capacityRegistry: [manifest.deployer],
+  userEscrow: [manifest.contracts.token, manifest.deployer],
+  coreEpochVault: [
+    manifest.contracts.token,
+    keccak256(toBytes("CORE")),
+    BigInt(manifest.genesisStart),
+    parseEther(configEvidence.config.emission.coreWeeklyCapApool),
+    parseEther(configEvidence.config.emission.coreLifetimeCapApool),
+    manifest.deployer,
+  ],
+  evolutionEpochVault: [
+    manifest.contracts.token,
+    keccak256(toBytes("EVOLUTION")),
+    BigInt(manifest.genesisStart),
+    parseEther(configEvidence.config.emission.evolutionWeeklyCapApool),
+    parseEther(configEvidence.config.emission.evolutionLifetimeCapApool),
+    manifest.deployer,
+  ],
+  contributionLedger: [
+    BigInt(manifest.genesisStart),
+    manifest.contracts.settlementRouter,
+    manifest.deployer,
+  ],
+  proofRegistry: [
+    manifest.contracts.contributionLedger,
+    manifest.deployer,
+  ],
+  evolutionConsensus: [
+    manifest.contracts.token,
+    manifest.contracts.contributionLedger,
+    manifest.contracts.releaseRegistry,
+    manifest.financeInvariantHash,
+    manifest.genesisRelease,
+    proposalBond,
+  ],
+  objectiveVerifier: [],
+  systemIssueGate: [
+    expectedBootstrap.issueRoot,
+    manifest.contracts.contributionLedger,
+    manifest.deployer,
+    manifest.bootstrapVerifierCodehash,
+    expectedBootstrap.validatorRoot,
+    parseEther(
+      configEvidence.config.dynamicIssues.candidateBudgetCapApool,
+    ),
+    parseEther(configEvidence.config.dynamicIssues.issueBudgetCapApool),
+    configEvidence.config.dynamicIssues.maxCandidates,
+    configEvidence.config.dynamicIssues.maxLifetimeSeconds,
+  ],
+  transitionIssueConsensus: [
+    manifest.contracts.token,
+    manifest.contracts.contributionLedger,
+    manifest.contracts.systemIssueGate,
+    proposalBond,
+  ],
+  issueConsensus: [
+    manifest.contracts.token,
+    manifest.contracts.contributionLedger,
+    manifest.contracts.systemIssueGate,
+    proposalBond,
+  ],
+  taskMarket: [
+    manifest.contracts.token,
+    manifest.contracts.userEscrow,
+    manifest.contracts.coreEpochVault,
+    manifest.contracts.evolutionEpochVault,
+    manifest.contracts.contributionLedger,
+    manifest.contracts.releaseRegistry,
+    manifest.contracts.capacityRegistry,
+    manifest.contracts.proofRegistry,
+    manifest.contracts.settlementRouter,
+    manifest.contracts.systemIssueGate,
+    manifest.financeInvariantHash,
+  ],
+};
 
 const codeHashes = {};
 for (const [key, type] of Object.entries(CONTRACT_TYPES)) {
-  const address = manifest.contracts?.[key];
+  const deploymentHash = manifest.deploymentTransactions?.[key];
+  if (!deploymentHash) {
+    throw new Error(`V44_DEPLOYMENT_TX_MISSING:${key}`);
+  }
+  const compiled = artifact(type);
+  const receipt = await client.getTransactionReceipt({
+    hash: deploymentHash,
+  });
+  const transaction = await client.getTransaction({
+    hash: deploymentHash,
+  });
+  const expectedCreationInput = encodeDeployData({
+    abi: compiled.abi,
+    bytecode: compiled.bytecode,
+    args: deploymentArguments[key],
+  });
+  const intent = manifest.transactionIntents?.[`deploy:${key}`];
+  if (!intent) throw new Error(`V44_DEPLOYMENT_INTENT_MISSING:${key}`);
+  const address = assertDeploymentProvenance({
+    key,
+    expectedFrom: manifest.deployer,
+    expectedInput: expectedCreationInput,
+    expectedAddress: manifest.contracts?.[key],
+    transaction,
+    receipt,
+  });
+  check(`creationTransaction.to:${key}`, transaction.to, null);
+  check(`creationTransaction.intentHash:${key}`, intent.hash, deploymentHash);
+  check(`creationTransaction.intentNonce:${key}`, intent.nonce, transaction.nonce);
+  check(
+    `creationTransaction.intentInputHash:${key}`,
+    intent.inputHash,
+    keccak256(transaction.input),
+  );
+  check(
+    `creationTransaction.currentArtifact:${key}`,
+    transaction.input.toLowerCase() === expectedCreationInput.toLowerCase(),
+    true,
+  );
+  check(
+    `creationTransaction.inputHash:${key}`,
+    keccak256(transaction.input),
+    manifest.creationInputHashes?.[key],
+  );
+  check(
+    `creationArtifact.hash:${key}`,
+    keccak256(compiled.bytecode),
+    manifest.artifactBytecode?.[type]?.creationBytecodeHash,
+  );
   const code = address ? await client.getCode({ address }) : "0x";
   check(`bytecode:${key}`, Boolean(code && code !== "0x"), true);
   if (code && code !== "0x") {
@@ -107,8 +279,178 @@ for (const [key, type] of Object.entries(CONTRACT_TYPES)) {
       manifest.deployedCodeHashes?.[key],
     );
   }
-  artifact(type);
 }
+
+const configurationHashes = Object.values(
+  manifest.configurationTransactions ?? {},
+);
+function configurationKey(address, functionName) {
+  return `${address.toLowerCase()}:${functionName}`;
+}
+function configurationInput(name, functionName, args) {
+  return encodeFunctionData({
+    abi: artifact(name).abi,
+    functionName,
+    args,
+  });
+}
+const expectedConfigurationInputs = Object.fromEntries([
+  [
+    configurationKey(manifest.contracts.token, "configureMinters"),
+    configurationInput("AgentPoolV44Token", "configureMinters", [
+      manifest.contracts.coreEpochVault,
+      manifest.contracts.evolutionEpochVault,
+    ]),
+  ],
+  ...[
+    manifest.contracts.coreEpochVault,
+    manifest.contracts.evolutionEpochVault,
+  ].map((address) => [
+    configurationKey(address, "configureMarket"),
+    configurationInput("AgentPoolV43EpochVault", "configureMarket", [
+      manifest.contracts.taskMarket,
+    ]),
+  ]),
+  ...[
+    ["AgentPoolV43UserEscrowKernel", manifest.contracts.userEscrow],
+    ["AgentPoolV43CapacityRegistry", manifest.contracts.capacityRegistry],
+    ["AgentPoolV432ProofRegistry", manifest.contracts.proofRegistry],
+  ].map(([name, address]) => [
+    configurationKey(address, "configureMarket"),
+    configurationInput(name, "configureMarket", [
+      manifest.contracts.taskMarket,
+    ]),
+  ]),
+  [
+    configurationKey(
+      manifest.contracts.contributionLedger,
+      "configureConsensus",
+    ),
+    configurationInput(
+      "AgentPoolV43ContributionLedger",
+      "configureConsensus",
+      [manifest.contracts.evolutionConsensus],
+    ),
+  ],
+  [
+    configurationKey(
+      manifest.contracts.releaseRegistry,
+      "configureConsensus",
+    ),
+    configurationInput(
+      "AgentPoolV43ReleaseRegistry",
+      "configureConsensus",
+      [manifest.contracts.evolutionConsensus],
+    ),
+  ],
+  [
+    configurationKey(manifest.contracts.settlementRouter, "configure"),
+    configurationInput("AgentPoolV43SettlementRouter", "configure", [
+      manifest.contracts.contributionLedger,
+      manifest.contracts.evolutionConsensus,
+      manifest.contracts.taskMarket,
+    ]),
+  ],
+  [
+    configurationKey(manifest.contracts.systemIssueGate, "configure"),
+    configurationInput("AgentPoolV435SystemIssueGate", "configure", [
+      manifest.contracts.taskMarket,
+      manifest.contracts.transitionIssueConsensus,
+      manifest.contracts.issueConsensus,
+    ]),
+  ],
+]);
+check(
+  "manifest.configurationCount",
+  Object.keys(manifest.configurationTransactions ?? {}).length,
+  Object.keys(expectedConfigurationInputs).length,
+);
+for (const [key, hash] of Object.entries(
+  manifest.configurationTransactions ?? {},
+)) {
+  const [address] = key.split(":");
+  const receipt = await client.getTransactionReceipt({ hash });
+  const transaction = await client.getTransaction({ hash });
+  const intent = manifest.transactionIntents?.[`configure:${key}`];
+  if (!intent) throw new Error(`V44_CONFIGURATION_INTENT_MISSING:${key}`);
+  const expectedInput = expectedConfigurationInputs[key];
+  if (!expectedInput) {
+    throw new Error(`V44_CONFIGURATION_STEP_UNEXPECTED:${key}`);
+  }
+  assertConfigurationProvenance({
+    key,
+    expectedFrom: manifest.deployer,
+    expectedTo: address,
+    expectedInput,
+    transaction,
+    receipt,
+  });
+  check(`configurationTransaction.intentHash:${key}`, intent.hash, hash);
+  check(
+    `configurationTransaction.intentNonce:${key}`,
+    intent.nonce,
+    transaction.nonce,
+  );
+  check(
+    `configurationTransaction.intentInputHash:${key}`,
+    intent.inputHash,
+    keccak256(transaction.input),
+  );
+  check(
+    `configurationTransaction.inputHash:${key}`,
+    keccak256(transaction.input),
+    manifest.configurationInputHashes?.[key],
+  );
+}
+const expectedTransactionHashes = [
+  ...new Set([
+    ...Object.values(manifest.deploymentTransactions ?? {}),
+    ...configurationHashes,
+  ]),
+].sort();
+const recordedTransactionHashes = [
+  ...new Set(manifest.transactionHashes ?? []),
+].sort();
+check(
+  "manifest.transactionHashesUnique",
+  (manifest.transactionHashes ?? []).length,
+  recordedTransactionHashes.length,
+);
+check(
+  "manifest.transactionSetComplete",
+  JSON.stringify(recordedTransactionHashes),
+  JSON.stringify(expectedTransactionHashes),
+);
+
+check(
+  "bootstrap.issueRoot",
+  manifest.bootstrap?.issueRoot,
+  expectedBootstrap.issueRoot,
+);
+check(
+  "bootstrap.objectiveRoot",
+  manifest.bootstrap?.objectiveRoot,
+  expectedBootstrap.objectiveRoot,
+);
+check(
+  "bootstrap.objectivesSha256",
+  manifest.bootstrap?.objectivesSha256,
+  releaseInputs.bootstrap.objectivesSha256,
+);
+check(
+  "bootstrap.objectiveCount",
+  manifest.bootstrap?.objectives?.length,
+  releaseInputs.bootstrap.objectives.length,
+);
+check(
+  "bootstrap.objectivesExact",
+  JSON.stringify(manifest.bootstrap?.objectives),
+  JSON.stringify(
+    redactBootstrapSecrets({
+      objectives: expectedBootstrap.objectives,
+    }).objectives,
+  ),
+);
 
 for (const [label, name, address, field] of [
   [
@@ -325,6 +667,46 @@ check(
   manifest.contracts.token,
 );
 check(
+  "ledger.genesisStart",
+  await read(
+    "AgentPoolV43ContributionLedger",
+    manifest.contracts.contributionLedger,
+    "genesisStart",
+  ),
+  BigInt(manifest.genesisStart),
+);
+check(
+  "proof.ledger",
+  await read(
+    "AgentPoolV432ProofRegistry",
+    manifest.contracts.proofRegistry,
+    "ledger",
+  ),
+  manifest.contracts.contributionLedger,
+);
+for (const [field, expected] of [
+  ["token", manifest.contracts.token],
+  ["userEscrow", manifest.contracts.userEscrow],
+  ["coreEpochVault", manifest.contracts.coreEpochVault],
+  ["evolutionEpochVault", manifest.contracts.evolutionEpochVault],
+  ["contributionLedger", manifest.contracts.contributionLedger],
+  ["releaseRegistry", manifest.contracts.releaseRegistry],
+  ["capacityRegistry", manifest.contracts.capacityRegistry],
+  ["proofRegistry", manifest.contracts.proofRegistry],
+  ["settlementRouter", manifest.contracts.settlementRouter],
+  ["systemIssueGate", manifest.contracts.systemIssueGate],
+]) {
+  check(
+    `taskMarket.${field}`,
+    await read(
+      "AgentPoolV432TaskMarket",
+      manifest.contracts.taskMarket,
+      field,
+    ),
+    expected,
+  );
+}
+check(
   "registry.consensus",
   await read(
     "AgentPoolV43ReleaseRegistry",
@@ -360,6 +742,32 @@ check(
     [manifest.contracts.settlementRouter],
   ),
   true,
+);
+for (const [field, expected] of [
+  ["token", manifest.contracts.token],
+  ["ledger", manifest.contracts.contributionLedger],
+  ["releaseRegistry", manifest.contracts.releaseRegistry],
+  ["financeInvariantHash", manifest.financeInvariantHash],
+  ["recommendedRelease", manifest.genesisRelease],
+]) {
+  check(
+    `evolutionConsensus.${field}`,
+    await read(
+      "AgentPoolV43EvolutionConsensus",
+      manifest.contracts.evolutionConsensus,
+      field,
+    ),
+    expected,
+  );
+}
+check(
+  "evolutionConsensus.minimumProposalBond",
+  await read(
+    "AgentPoolV43EvolutionConsensus",
+    manifest.contracts.evolutionConsensus,
+    "minimumProposalBond",
+  ),
+  parseEther(configEvidence.config.consensus.proposalBondApool),
 );
 check(
   "router.market",
@@ -451,6 +859,61 @@ check(
   ),
   manifest.bootstrap.validatorRoot,
 );
+for (const [field, expected] of [
+  ["ledger", manifest.contracts.contributionLedger],
+  [
+    "dynamicCandidateBudgetCap",
+    parseEther(configEvidence.config.dynamicIssues.candidateBudgetCapApool),
+  ],
+  [
+    "dynamicIssueBudgetCap",
+    parseEther(configEvidence.config.dynamicIssues.issueBudgetCapApool),
+  ],
+  ["dynamicMaxCandidates", configEvidence.config.dynamicIssues.maxCandidates],
+  [
+    "dynamicMaxLifetime",
+    BigInt(configEvidence.config.dynamicIssues.maxLifetimeSeconds),
+  ],
+]) {
+  check(
+    `issueGate.${field}`,
+    await read(
+      "AgentPoolV435SystemIssueGate",
+      manifest.contracts.systemIssueGate,
+      field,
+    ),
+    expected,
+  );
+}
+for (const [label, contractName, address] of [
+  [
+    "transitionConsensus",
+    "AgentPoolV435TransitionIssueConsensus",
+    manifest.contracts.transitionIssueConsensus,
+  ],
+  [
+    "matureConsensus",
+    "AgentPoolV432IssueConsensus",
+    manifest.contracts.issueConsensus,
+  ],
+]) {
+  for (const [field, expected] of [
+    ["token", manifest.contracts.token],
+    ["ledger", manifest.contracts.contributionLedger],
+    ["issueGate", manifest.contracts.systemIssueGate],
+  ]) {
+    check(
+      `${label}.${field}`,
+      await read(contractName, address, field),
+      expected,
+    );
+  }
+  check(
+    `${label}.minimumBond`,
+    await read(contractName, address, "minimumBond"),
+    parseEther(configEvidence.config.consensus.proposalBondApool),
+  );
+}
 
 for (const [index, hash] of manifest.transactionHashes.entries()) {
   const receipt = await client.getTransactionReceipt({ hash });

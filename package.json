@@ -57,6 +57,7 @@
     "contracts:verify:v4.3.9": "node --env-file-if-exists=.env.local scripts/verify-v439-candidate-reward.mjs",
     "contracts:preflight:v4.4:mainnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.mainnet.local scripts/preflight-v44-base-mainnet.mjs",
     "contracts:deploy:v4.4:mainnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.mainnet.local scripts/deploy-v44-base-mainnet.mjs",
+    "contracts:reconcile:v4.4:mainnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.mainnet.local scripts/reconcile-v44-mainnet-intent.mjs",
     "contracts:verify:v4.4:mainnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.mainnet.local scripts/verify-v44-base-mainnet.mjs",
     "contracts:rehearse:v4.4:mainnet": "node scripts/rehearse-v44-mainnet-candidate.mjs",
     "contracts:rehearse:v4.4:full": "node scripts/rehearse-v44-full-mainnet-candidate.mjs",

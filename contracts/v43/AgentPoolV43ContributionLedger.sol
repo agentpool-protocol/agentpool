@@ -37,8 +37,8 @@ contract AgentPoolV43ContributionLedger is
     address public bootstrapAuthority;
     address public consensus;
     bool public override mature;
-    uint16 public eligibleAgentCount;
-    uint16 public eligibleGroupCount;
+    uint32 public eligibleAgentCount;
+    uint32 public eligibleGroupCount;
     uint16 public activeEpochCount;
     uint64 public successfulSettlementCount;
     uint256 public totalSuccessfulUnits;
@@ -103,8 +103,8 @@ contract AgentPoolV43ContributionLedger is
     event SourceStatusChanged(address indexed source, bool active);
     event ConsensusConfigured(address indexed consensus);
     event MaturityReached(
-        uint16 eligibleAgents,
-        uint16 eligibleGroups,
+        uint32 eligibleAgents,
+        uint32 eligibleGroups,
         uint64 successfulSettlements,
         uint16 activeEpochs
     );
