@@ -119,6 +119,7 @@ const coreLifetimeCap = parseEther("900000000000");
 const evolutionLifetimeCap = parseEther("100000000000");
 const dynamicCandidateBudgetCap = parseEther("10");
 const dynamicIssueBudgetCap = parseEther("30");
+const dynamicCandidateBond = parseEther("10");
 const dynamicMaxCandidates = 3;
 const dynamicMaxLifetime = 60 * 86_400;
 
@@ -447,6 +448,7 @@ const systemIssueGate = await deploy(
   "AgentPoolV435SystemIssueGate",
   [
     bootstrapIssueRoot,
+    token,
     ledger,
     account.address,
     verifierCodehash,
@@ -455,6 +457,7 @@ const systemIssueGate = await deploy(
     dynamicIssueBudgetCap,
     dynamicMaxCandidates,
     dynamicMaxLifetime,
+    dynamicCandidateBond,
   ],
   "systemIssueGate",
 );
@@ -602,6 +605,7 @@ const manifest = {
     supermajorityBps: 6667,
     dynamicCandidateBudgetCapApool: "10",
     dynamicIssueBudgetCapApool: "30",
+    dynamicCandidateBondApool: "10",
     dynamicMaxCandidates,
     dynamicMaxLifetimeSeconds: dynamicMaxLifetime,
     verifierCodehash,

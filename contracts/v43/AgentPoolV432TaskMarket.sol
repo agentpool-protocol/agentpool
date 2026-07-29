@@ -38,6 +38,9 @@ import {
 import {
     IAgentPoolV432SystemIssueGate
 } from "./interfaces/IAgentPoolV432SystemIssueGate.sol";
+import {
+    IAgentPoolV435SystemIssueGate
+} from "./interfaces/IAgentPoolV435SystemIssueGate.sol";
 
 /// @notice Security-compatible v4.3.2 settlement market. It keeps the v4.3.1
 ///         finance kernel but makes system evidence and validator membership
@@ -51,22 +54,16 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
     }
 
     IAgentPoolV432ProofRegistry private immutable proofRegistryV2;
-    IAgentPoolV432SystemIssueGate private immutable systemIssueGateV2;
+    IAgentPoolV435SystemIssueGate private immutable systemIssueGateV2;
     mapping(bytes32 => mapping(uint32 => ValidationPolicy))
         private validationPolicies;
     mapping(bytes32 => mapping(uint32 => uint32)) private dependencyMasks;
     mapping(bytes32 => uint32) private settledMasks;
     mapping(bytes32 => uint32) private activeMilestones;
     mapping(bytes32 => uint32) private settledMilestoneCount;
-    mapping(bytes32 => bytes32) private systemObjectiveRoots;
 
     event SlashReused(bytes32 indexed jobId, uint256 amount);
     event DependencyGraphPinned(bytes32 indexed jobId, uint32 milestoneCount);
-    event RemainingPlanReplaced(
-        bytes32 indexed jobId,
-        bytes32 indexed newPlanHash,
-        uint32 settledMask
-    );
 
     constructor(
         IERC20 token_,
@@ -78,7 +75,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         IAgentPoolV43CapacityRegistry capacityRegistry_,
         IAgentPoolV432ProofRegistry proofRegistry_,
         IAgentPoolV43SettlementRouter settlementRouter_,
-        IAgentPoolV432SystemIssueGate systemIssueGate_,
+        IAgentPoolV435SystemIssueGate systemIssueGate_,
         bytes32 financeInvariantHash_
     )
         AgentPoolV43TaskMarket(
@@ -188,15 +185,19 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 ) revert InvalidTerms();
             }
         }
+        uint128 reservedBudget = _committedBudget(terms);
+        if (reservedBudget > budget) {
+            revert BudgetExceeded();
+        }
         systemIssueGateV2.consumeFor(
             issue,
-            budget,
+            reservedBudget,
             msg.sender,
             bootstrapProof
         );
         jobId = _createJob(
             funding,
-            budget,
+            reservedBudget,
             planHash,
             releaseId,
             issue.issueId,
@@ -204,8 +205,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         );
         _storePolicies(jobId, policies);
         _storeDependencies(jobId, dependencies);
-        systemObjectiveRoots[jobId] = issue.objectiveRoot;
-        _vault(funding).reserve(jobId, budget);
+        _vault(funding).reserve(jobId, reservedBudget);
     }
 
     function objectiveLeaf(
@@ -255,90 +255,16 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
     }
 
     function replanRemainingV2(
-        bytes32 jobId,
-        bytes32 newPlanHash,
-        MilestoneTerms[] calldata newTerms,
-        ValidationPolicy[] calldata newPolicies,
-        uint32[] calldata newDependencies,
-        bytes32[][] calldata newObjectiveProofs
-    ) external {
-        Job storage job = jobs[jobId];
-        if (
-            msg.sender != job.creator ||
-            job.state != JobState.BUDGET_HOLD ||
-            activeMilestones[jobId] != 0 ||
-            newPlanHash == bytes32(0) ||
-            newTerms.length != job.milestoneCount
-        ) revert Unauthorized();
-        _validatePlan(newTerms, newPolicies, newDependencies);
-        uint256 committed = job.paid;
-        uint32 settled = settledMasks[jobId];
-        bytes32 objectiveRoot = systemObjectiveRoots[jobId];
-        if (
-            (
-                job.funding == Funding.EXTERNAL &&
-                newObjectiveProofs.length != 0
-            ) ||
-            (
-                job.funding != Funding.EXTERNAL &&
-                newObjectiveProofs.length != newTerms.length
-            )
-        ) revert InvalidTerms();
-        for (uint32 index = 0; index < newTerms.length; index++) {
-            uint32 bit = uint32(1) << index;
-            bytes32 newObjective = objectiveLeaf(
-                newTerms[index],
-                newPolicies[index]
-            );
-            if (
-                objectiveRoot != bytes32(0) &&
-                !MerkleProof.verifyCalldata(
-                    newObjectiveProofs[index],
-                    objectiveRoot,
-                    newObjective
-                )
-            ) revert Unauthorized();
-            if (
-                job.funding != Funding.EXTERNAL &&
-                !_sameSystemPolicy(
-                    jobId,
-                    index,
-                    newTerms[index],
-                    newPolicies[index]
-                )
-            ) revert Unauthorized();
-            for (uint32 prior = 0; prior < index; prior++) {
-                if (
-                    objectiveLeaf(
-                        newTerms[prior],
-                        newPolicies[prior]
-                    ) == newObjective
-                ) revert InvalidTerms();
-            }
-            if ((settled & bit) != 0) {
-                if (
-                    _storedObjectiveLeaf(jobId, index) != newObjective ||
-                    dependencyMasks[jobId][index] !=
-                    newDependencies[index]
-                ) revert InvalidTerms();
-                continue;
-            }
-            Milestone storage current = milestones[jobId][index];
-            if (current.state != MilestoneState.PENDING) {
-                revert InvalidState();
-            }
-            _replaceMilestone(jobId, index, newTerms[index]);
-            validationPolicies[jobId][index] = newPolicies[index];
-            dependencyMasks[jobId][index] = newDependencies[index];
-            committed +=
-                uint256(newTerms[index].allocation) +
-                newTerms[index].keeperFee;
-        }
-        if (committed > job.budget) revert BudgetExceeded();
-        job.planHash = newPlanHash;
-        job.state = JobState.OPEN;
-        emit JobReplanned(jobId, newPlanHash);
-        emit RemainingPlanReplaced(jobId, newPlanHash, settled);
+        bytes32,
+        bytes32,
+        MilestoneTerms[] calldata,
+        ValidationPolicy[] calldata,
+        uint32[] calldata,
+        bytes32[][] calldata
+    ) external pure {
+        // Replanning creates a new continuation job. Existing jobs remain
+        // immutable so prices, workers, proofs, and payout roots cannot change.
+        revert Unauthorized();
     }
 
     function acceptMilestone(
@@ -359,6 +285,9 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             block.timestamp > milestone.deadline
         ) revert InvalidState();
         if (msg.sender != milestone.worker) revert Unauthorized();
+        if (contributionLedger.operatorGroup(msg.sender) == bytes32(0)) {
+            revert Unauthorized();
+        }
         capacityRegistry.reserve(
             _capacityHoldId(jobId, milestoneIndex),
             msg.sender,
@@ -409,6 +338,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 contributionLedger.operatorGroup(milestone.worker),
                 policy.minimumOperatorGroups
             );
+            milestone.deadline = commitDeadline + milestone.revealWindow;
         }
         emit MilestoneDelivered(
             jobId,
@@ -461,17 +391,22 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             bytes32 roundId = _proofRoundId(jobId, milestoneIndex);
             ValidationPolicy storage policy =
                 validationPolicies[jobId][milestoneIndex];
-            if (!proofRegistryV2.roundReady(roundId)) {
-                revert InvalidState();
+            uint8 proofStatus = proofRegistryV2.resolutionStatus(
+                roundId,
+                milestone.minimumReveals,
+                policy.minimumOperatorGroups,
+                milestone.passScoreBps
+            );
+            if (proofStatus == 1) {
+                _abortJob(
+                    jobId,
+                    milestoneIndex,
+                    MilestoneState.REFUNDED,
+                    JobState.REFUNDED
+                );
+                return;
             }
-            if (
-                proofRegistryV2.revealCount(roundId) <
-                    milestone.minimumReveals ||
-                proofRegistryV2.groupCount(roundId) <
-                    policy.minimumOperatorGroups ||
-                proofRegistryV2.medianScore(roundId) <
-                    milestone.passScoreBps
-            ) passed = false;
+            passed = proofStatus == 3;
         }
         if (!passed) {
             _abortJob(
@@ -528,6 +463,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         settledMilestoneCount[jobId]++;
         activeMilestones[jobId]--;
         if (settledMilestoneCount[jobId] == job.milestoneCount) {
+            _releaseIssueAdmission(job);
             _closeSuccessful(jobId, job);
         }
     }
@@ -552,11 +488,14 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 milestone.state != MilestoneState.DELIVERED
             )
         ) revert InvalidState();
+        bool validatorFailure =
+            milestone.state == MilestoneState.DELIVERED &&
+            milestone.minimumReveals != 0;
         _abortJob(
             jobId,
             milestoneIndex,
             MilestoneState.REFUNDED,
-            JobState.EXPIRED
+            validatorFailure ? JobState.REFUNDED : JobState.EXPIRED
         );
     }
 
@@ -615,81 +554,6 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         emit DependencyGraphPinned(jobId, uint32(dependencies.length));
     }
 
-    function _storedObjectiveLeaf(
-        bytes32 jobId,
-        uint32 index
-    ) private view returns (bytes32) {
-        Milestone storage term = milestones[jobId][index];
-        ValidationPolicy storage policy = validationPolicies[jobId][index];
-        return keccak256(bytes.concat(keccak256(abi.encode(
-            term.verifier,
-            term.capability,
-            term.specificationHash,
-            term.expectedEvidenceHash,
-            term.capacityUnits,
-            term.minimumReveals,
-            term.passScoreBps,
-            term.commitWindow,
-            term.revealWindow,
-            policy.validatorRoot,
-            policy.minimumOperatorGroups
-        ))));
-    }
-
-    function _replaceMilestone(
-        bytes32 jobId,
-        uint32 index,
-        MilestoneTerms calldata term
-    ) private {
-        if (
-            term.worker == address(0) ||
-            term.worker == jobs[jobId].creator ||
-            term.verifier == address(0) ||
-            term.verifier.code.length == 0 ||
-            term.capability == bytes32(0) ||
-            term.specificationHash == bytes32(0) ||
-            term.expectedEvidenceHash == bytes32(0) ||
-            term.payoutRoot == bytes32(0) ||
-            term.allocation == 0 ||
-            term.keeperFee == 0 ||
-            term.deadline <= block.timestamp ||
-            term.capacityUnits == 0 ||
-            term.capacityUnits >
-                MAX_CONTRIBUTION_UNITS_PER_MILESTONE ||
-            term.passScoreBps > BPS ||
-            (
-                term.minimumReveals != 0 &&
-                (
-                    term.commitWindow < MIN_PROOF_WINDOW ||
-                    term.revealWindow < MIN_PROOF_WINDOW ||
-                    term.commitWindow > MAX_PROOF_WINDOW ||
-                    term.revealWindow > MAX_PROOF_WINDOW
-                )
-            )
-        ) revert InvalidTerms();
-        milestones[jobId][index] = Milestone({
-            worker: term.worker,
-            verifier: term.verifier,
-            capability: term.capability,
-            specificationHash: term.specificationHash,
-            expectedEvidenceHash: term.expectedEvidenceHash,
-            payoutRoot: term.payoutRoot,
-            deliveryHash: bytes32(0),
-            allocation: term.allocation,
-            workerBond: term.workerBond,
-            keeperFee: term.keeperFee,
-            deadline: term.deadline,
-            capacityUnits: term.capacityUnits,
-            minimumReveals: term.minimumReveals,
-            passScoreBps: term.passScoreBps,
-            commitWindow: term.commitWindow,
-            revealWindow: term.revealWindow,
-            state: MilestoneState.PENDING,
-            candidateAttested: false,
-            adoptionRecorded: false
-        });
-    }
-
     function _abortJob(
         bytes32 jobId,
         uint32 failedIndex,
@@ -707,7 +571,8 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                     jobId,
                     index,
                     current,
-                    index != failedIndex
+                    index != failedIndex ||
+                        finalState == JobState.REFUNDED
                 );
             }
             if (
@@ -739,26 +604,31 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 false
             );
         }
+        _releaseIssueAdmission(job);
         _returnRemaining(jobId, job, finalState);
     }
 
-    function _sameSystemPolicy(
-        bytes32 jobId,
-        uint32 index,
-        MilestoneTerms calldata term,
-        ValidationPolicy calldata policy
-    ) private view returns (bool) {
-        Milestone storage current = milestones[jobId][index];
-        ValidationPolicy storage currentPolicy =
-            validationPolicies[jobId][index];
-        return
-            term.verifier == current.verifier &&
-            term.deadline <= current.deadline &&
-            term.minimumReveals == current.minimumReveals &&
-            term.passScoreBps == current.passScoreBps &&
-            policy.validatorRoot == currentPolicy.validatorRoot &&
-            policy.minimumOperatorGroups ==
-                currentPolicy.minimumOperatorGroups;
+    function _releaseIssueAdmission(Job storage job) private {
+        if (job.funding != Funding.EXTERNAL) {
+            systemIssueGateV2.releaseFor(
+                job.issueId,
+                job.budget,
+                job.creator
+            );
+        }
+    }
+
+    function _committedBudget(
+        MilestoneTerms[] calldata terms
+    ) private pure returns (uint128) {
+        uint256 committed;
+        for (uint256 index = 0; index < terms.length; index++) {
+            committed +=
+                uint256(terms[index].allocation) +
+                terms[index].keeperFee;
+        }
+        if (committed > type(uint128).max) revert BudgetExceeded();
+        return uint128(committed);
     }
 
     function _recordVerifiedOutcome(

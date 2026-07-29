@@ -17,8 +17,11 @@ import {
   VERSION,
   ZERO_ADDRESS,
   artifact,
+  artifactBytecodeEvidence,
+  assertManifestEvidenceClaims,
   assertConfigurationProvenance,
   assertDeploymentProvenance,
+  assertTrackedTreeClean,
   buildBootstrapTerms,
   collectReleaseInputs,
   currentGitCommit,
@@ -28,6 +31,7 @@ import {
   requireEnv,
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
+import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
 
 const manifestPath =
   process.env.V44_DEPLOYMENT_MANIFEST ??
@@ -35,15 +39,19 @@ const manifestPath =
 if (!fs.existsSync(manifestPath)) throw new Error("V44_MANIFEST_MISSING");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 if (
-  manifest.schema !== "agentpool.mainnet.v44.deployment/v2" ||
+  manifest.schema !== "agentpool.mainnet.v44.deployment/v3" ||
   manifest.chainId !== CHAIN_ID ||
   manifest.network !== "Base" ||
   manifest.version !== VERSION
 ) {
   throw new Error("V44_MANIFEST_INVALID");
 }
+assertTrackedTreeClean();
 const configEvidence = loadAndValidateConfig();
 const gateEvidence = loadAndValidateGates();
+const sourceEvidence = verifyV44ReleaseEvidenceFile(
+  gateEvidence.evidencePaths.finalSourceReproducibility,
+);
 const sourceCommit = requireEnv("V44_SOURCE_COMMIT").toLowerCase();
 if (!/^[0-9a-f]{40}$/.test(sourceCommit)) {
   throw new Error("V44_SOURCE_COMMIT_INVALID");
@@ -54,6 +62,13 @@ if (sourceCommit !== currentGitCommit().toLowerCase()) {
 const releaseInputs = collectReleaseInputs({
   deployerAddress: manifest.deployer,
   allowPastGenesis: true,
+});
+assertManifestEvidenceClaims({
+  manifest,
+  gateEvidence,
+  sourceEvidence: sourceEvidence.evidence,
+  releaseInputs,
+  artifacts: artifactBytecodeEvidence(),
 });
 const rpcUrl = requireEnv("AGENTPOOL_MAINNET_RPC_URL");
 const client = createPublicClient({
@@ -104,6 +119,21 @@ check(
   "manifest.gatesSha256",
   gateEvidence.gatesSha256,
   manifest.gatesSha256,
+);
+check(
+  "manifest.approvedGateEvidence",
+  sha256Json(manifest.approvedGateEvidence),
+  sha256Json(gateEvidence.approved),
+);
+check(
+  "manifest.sourceEvidenceFileSha256",
+  manifest.sourceEvidenceFileSha256,
+  sourceEvidence.fileSha256,
+);
+check(
+  "manifest.sourceEvidenceBodySha256",
+  manifest.sourceEvidenceBodySha256,
+  sourceEvidence.evidence.evidenceSha256,
 );
 check(
   "manifest.financeInvariantHash",
@@ -178,6 +208,7 @@ const deploymentArguments = {
   objectiveVerifier: [],
   systemIssueGate: [
     expectedBootstrap.issueRoot,
+    manifest.contracts.token,
     manifest.contracts.contributionLedger,
     manifest.deployer,
     manifest.bootstrapVerifierCodehash,
@@ -188,6 +219,9 @@ const deploymentArguments = {
     parseEther(configEvidence.config.dynamicIssues.issueBudgetCapApool),
     configEvidence.config.dynamicIssues.maxCandidates,
     configEvidence.config.dynamicIssues.maxLifetimeSeconds,
+    parseEther(
+      configEvidence.config.dynamicIssues.candidateAdmissionBondApool,
+    ),
   ],
   transitionIssueConsensus: [
     manifest.contracts.token,
@@ -266,6 +300,21 @@ for (const [key, type] of Object.entries(CONTRACT_TYPES)) {
     `creationArtifact.hash:${key}`,
     keccak256(compiled.bytecode),
     manifest.artifactBytecode?.[type]?.creationBytecodeHash,
+  );
+  check(
+    `creationArtifact.sourceName:${key}`,
+    compiled.sourceName,
+    manifest.artifactBytecode?.[type]?.sourceName,
+  );
+  check(
+    `creationArtifact.runtimeHash:${key}`,
+    keccak256(compiled.deployedBytecode),
+    manifest.artifactBytecode?.[type]?.runtimeBytecodeHash,
+  );
+  check(
+    `creationArtifact.runtimeBytes:${key}`,
+    (compiled.deployedBytecode.length - 2) / 2,
+    manifest.artifactBytecode?.[type]?.runtimeBytes,
   );
   const code = address ? await client.getCode({ address }) : "0x";
   check(`bytecode:${key}`, Boolean(code && code !== "0x"), true);
@@ -860,6 +909,7 @@ check(
   manifest.bootstrap.validatorRoot,
 );
 for (const [field, expected] of [
+  ["token", manifest.contracts.token],
   ["ledger", manifest.contracts.contributionLedger],
   [
     "dynamicCandidateBudgetCap",
@@ -873,6 +923,12 @@ for (const [field, expected] of [
   [
     "dynamicMaxLifetime",
     BigInt(configEvidence.config.dynamicIssues.maxLifetimeSeconds),
+  ],
+  [
+    "dynamicCandidateBond",
+    parseEther(
+      configEvidence.config.dynamicIssues.candidateAdmissionBondApool,
+    ),
   ],
 ]) {
   check(

@@ -580,7 +580,7 @@ const lifetimeVault = await deploy("AgentPoolV43EpochVault", [
   token,
   keccak256(toBytes("LIFETIME_INVARIANT")),
   lifetimeGenesis,
-  wholeApool(100),
+  wholeApool(150),
   wholeApool(150),
   deployer,
 ]);

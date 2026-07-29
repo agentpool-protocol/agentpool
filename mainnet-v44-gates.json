@@ -1,5 +1,5 @@
 {
-  "schema": "agentpool.mainnet.v44.gates/v1",
+  "schema": "agentpool.mainnet.v44.gates/v2",
   "network": "base-mainnet",
   "chainId": 8453,
   "release": "4.4.0-ownerless-mainnet-candidate",
@@ -8,36 +8,43 @@
     "finalSourceReproducibility": {
       "status": "blocked",
       "evidenceSha256": null,
+      "evidenceFile": null,
       "evidenceOwner": "release-reproducibility"
     },
     "independentSecurityReview": {
       "status": "blocked",
       "evidenceSha256": null,
+      "evidenceFile": null,
       "evidenceOwner": "independent-security-reviewers"
     },
     "publicTestnetReliability": {
       "status": "blocked",
       "evidenceSha256": null,
+      "evidenceFile": null,
       "evidenceOwner": "public-testnet-observers"
     },
     "validatorIndependence": {
       "status": "blocked",
       "evidenceSha256": null,
+      "evidenceFile": null,
       "evidenceOwner": "validator-groups"
     },
     "economicInvariantReview": {
       "status": "blocked",
       "evidenceSha256": null,
+      "evidenceFile": null,
       "evidenceOwner": "protocol-economics-reviewers"
     },
     "deployerLegalAssessment": {
       "status": "blocked",
       "evidenceSha256": null,
+      "evidenceFile": null,
       "evidenceOwner": "actual-mainnet-deployer"
     },
     "nameAndSymbolClearance": {
       "status": "blocked",
       "evidenceSha256": null,
+      "evidenceFile": null,
       "evidenceOwner": "release-community"
     }
   }

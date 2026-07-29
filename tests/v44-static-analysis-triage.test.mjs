@@ -84,6 +84,9 @@ test("v4.4 one-shot callback paths commit state before external calls", () => {
 test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
   const triage = source("audits/V44_SLITHER_TRIAGE.md");
   const packet = source("audits/V44_GPT_REVIEW_PACKET.md");
+  const collaborative = source(
+    "audits/V44_GPT_COLLABORATIVE_REVIEW.md",
+  );
   const checker = source("scripts/check-v44-slither.mjs");
   const workflow = source(".github/workflows/ci.yml");
   const baseline = JSON.parse(
@@ -92,9 +95,21 @@ test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
 
   assert.match(triage, /not an independent audit/i);
   assert.match(triage, /does not satisfy `mainnet-v44-gates\.json`/);
-  assert.match(triage, /High:\s+1 reported, 0 confirmed/);
+  assert.match(triage, /High:\s+2 reported, 0 confirmed/);
   assert.match(triage, /Medium:\s+28 reported, 0 confirmed/);
   assert.match(triage, /npm run security:slither:v4\.4/);
+  assert.match(
+    collaborative,
+    /not an independent\s+security audit/i,
+  );
+  assert.match(
+    collaborative,
+    /validator non-participation.*NO_QUORUM/is,
+  );
+  assert.match(
+    collaborative,
+    /263 transactions, 26 checks, 24 bootstrap\s+objectives/,
+  );
 
   assert.match(packet, /git rev-parse HEAD/);
   assert.match(packet, /sha256\(outputs\/v44-source-reproducibility\.json\)/);

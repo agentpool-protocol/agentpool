@@ -4,7 +4,7 @@
   "solcVersion": "0.8.36+commit.8a079791",
   "compilerSettings": {
     "optimizer": true,
-    "optimizerRuns": 500,
+    "optimizerRuns": 1,
     "viaIR": true,
     "excludeDependencies": true
   },
@@ -21,14 +21,16 @@
       "sourceName": "contracts/v43/AgentPoolV432TaskMarket.sol",
       "detectors": {
         "Medium:incorrect-equality": 2,
-        "Medium:reentrancy-no-eth": 13,
-        "Medium:uninitialized-local": 6,
+        "Medium:reentrancy-no-eth": 14,
+        "Medium:uninitialized-local": 7,
         "Medium:unused-return": 2
       }
     },
     "AgentPoolV435SystemIssueGate": {
       "sourceName": "contracts/v43/AgentPoolV435SystemIssueGate.sol",
-      "detectors": {}
+      "detectors": {
+        "High:arbitrary-send-erc20": 1
+      }
     },
     "AgentPoolV435TransitionIssueConsensus": {
       "sourceName": "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
@@ -43,8 +45,7 @@
     "AgentPoolV43ContributionLedger": {
       "sourceName": "contracts/v43/AgentPoolV43ContributionLedger.sol",
       "detectors": {
-        "Medium:divide-before-multiply": 1,
-        "Medium:uninitialized-local": 2
+        "Medium:uninitialized-local": 1
       }
     },
     "AgentPoolV43EpochVault": {

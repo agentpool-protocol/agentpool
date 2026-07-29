@@ -46,8 +46,6 @@ contract AgentPoolV432IssueConsensus is ReentrancyGuard {
     uint16 public constant BPS = 10_000;
     uint16 public constant QUORUM_BPS = 3_000;
     uint16 public constant SUPERMAJORITY_BPS = 6_667;
-    uint16 public constant MIN_VOTERS = 5;
-    uint16 public constant MIN_GROUPS = 3;
     uint8 public constant LOOKBACK = 8;
     uint64 public constant MIN_PHASE_DURATION = 1 days;
 
@@ -128,7 +126,7 @@ contract AgentPoolV432IssueConsensus is ReentrancyGuard {
             commitDeadline < block.timestamp + MIN_PHASE_DURATION ||
             revealDeadline < commitDeadline + MIN_PHASE_DURATION
         ) revert InvalidTerms();
-        uint64 snapshotEpoch = ledger.currentEpoch();
+        uint64 snapshotEpoch = ledger.governanceSnapshotEpoch();
         if (
             ledger.votingPowerAt(
                 msg.sender,
@@ -233,17 +231,16 @@ contract AgentPoolV432IssueConsensus is ReentrancyGuard {
             LOOKBACK
         );
         bool passed =
-            proposal.voterCount >= MIN_VOTERS &&
-            proposal.groupCount >= MIN_GROUPS &&
-            cast >= total * QUORUM_BPS &&
+            cast * BPS >= total * QUORUM_BPS &&
             uint256(proposal.yesWeight) * BPS >=
-                cast * SUPERMAJORITY_BPS;
+                total * SUPERMAJORITY_BPS;
         if (passed) {
             proposal.state = State.APPROVED;
             issueGate.approveIssueHash(proposal.issueHash);
             token.safeTransfer(proposal.proposer, proposal.bond);
         } else {
             proposal.state = State.REJECTED;
+            proposedIssueHash[proposal.issueHash] = false;
             uint256 returned = proposal.bond / 2;
             slashPool += proposal.bond - returned;
             token.safeTransfer(proposal.proposer, returned);

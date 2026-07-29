@@ -30,7 +30,7 @@ const input = {
   language: "Solidity",
   sources,
   settings: {
-    optimizer: { enabled: true, runs: 500 },
+    optimizer: { enabled: true, runs: 1 },
     viaIR: true,
     evmVersion: "cancun",
     outputSelection: {

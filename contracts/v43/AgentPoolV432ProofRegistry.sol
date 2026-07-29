@@ -212,6 +212,7 @@ contract AgentPoolV432ProofRegistry is IAgentPoolV432ProofRegistry {
         ) revert InvalidState();
         if (
             evaluation.revealed ||
+            representedGroup[roundId][evaluation.operatorGroup] ||
             evaluation.commitment != commitmentFor(
                 roundId,
                 msg.sender,
@@ -225,10 +226,8 @@ contract AgentPoolV432ProofRegistry is IAgentPoolV432ProofRegistry {
         evaluation.evidenceHash = evidenceHash;
         round.revealed++;
         bytes32 group = evaluation.operatorGroup;
-        if (!representedGroup[roundId][group]) {
-            representedGroup[roundId][group] = true;
-            round.representedGroups++;
-        }
+        representedGroup[roundId][group] = true;
+        round.representedGroups++;
         _scores[roundId].push(scoreBps);
         emit EvaluationRevealed(
             roundId,
@@ -236,6 +235,23 @@ contract AgentPoolV432ProofRegistry is IAgentPoolV432ProofRegistry {
             scoreBps,
             evidenceHash
         );
+    }
+
+    function resolutionStatus(
+        bytes32 roundId,
+        uint16 minimumReveals,
+        uint16 minimumGroups,
+        uint16 passScoreBps
+    ) external view override returns (uint8) {
+        Round storage round = rounds[roundId];
+        if (!round.opened || block.timestamp <= round.revealDeadline) {
+            revert InvalidState();
+        }
+        if (
+            round.revealed < minimumReveals ||
+            round.representedGroups < minimumGroups
+        ) return 1;
+        return _medianScore(roundId) < passScoreBps ? 2 : 3;
     }
 
     function revealCount(
@@ -253,6 +269,12 @@ contract AgentPoolV432ProofRegistry is IAgentPoolV432ProofRegistry {
     function medianScore(
         bytes32 roundId
     ) external view override returns (uint16) {
+        return _medianScore(roundId);
+    }
+
+    function _medianScore(
+        bytes32 roundId
+    ) private view returns (uint16) {
         uint16[] memory scores = _scores[roundId];
         if (scores.length == 0) return 0;
         for (uint256 left = 1; left < scores.length; left++) {
@@ -264,7 +286,7 @@ contract AgentPoolV432ProofRegistry is IAgentPoolV432ProofRegistry {
             }
             scores[right] = value;
         }
-        return scores[scores.length / 2];
+        return scores[(scores.length - 1) / 2];
     }
 
     function roundReady(

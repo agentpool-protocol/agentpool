@@ -20,8 +20,9 @@
   "dynamicIssues": {
     "candidateBudgetCapApool": "10",
     "issueBudgetCapApool": "30",
+    "candidateAdmissionBondApool": "10",
     "maxCandidates": 3,
-    "maxLifetimeSeconds": 5184000
+    "maxLifetimeSeconds": 604800
   },
   "consensus": {
     "proposalBondApool": "10"

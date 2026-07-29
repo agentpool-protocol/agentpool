@@ -8,14 +8,17 @@ import {
   CONTRACT_TYPES,
   ROOT,
   VERSION,
+  V44_REQUIRED_GATES,
   artifact,
   artifactBytecodeEvidence,
+  assertManifestEvidenceClaims,
   assertConfigurationProvenance,
   assertDeploymentProvenance,
   assertTransactionMatchesIntent,
   attachTransactionHash,
   beginTransactionIntent,
   buildBootstrapTerms,
+  bootstrapIdentitySha256,
   collectReleaseInputs,
   currentGitCommit,
   loadAndValidateConfig,
@@ -26,6 +29,7 @@ import {
 import {
   buildV44ReleaseEvidence,
   verifyV44ReleaseEvidence,
+  verifyV44ReleaseEvidenceFile,
 } from "../scripts/generate-v44-release-evidence.mjs";
 
 function source(relativePath) {
@@ -172,7 +176,7 @@ test("v4.4 source evidence binds the exact tree, compiler, and bytecode", () => 
   assert.match(evidence.sourceTree, /^[0-9a-f]{40}$/);
   assert.match(evidence.evidenceSha256, /^[0-9a-f]{64}$/);
   assert.match(evidence.solcVersion, /^0\.8\.36\+/);
-  assert.equal(evidence.compilerSettings.optimizer.runs, 500);
+  assert.equal(evidence.compilerSettings.optimizer.runs, 1);
   assert.equal(evidence.compilerSettings.viaIR, true);
   assert.equal(evidence.compilerSettings.evmVersion, "cancun");
   assert.ok(
@@ -187,11 +191,30 @@ test("v4.4 source evidence binds the exact tree, compiler, and bytecode", () => 
   verifyV44ReleaseEvidence(evidence, { requireClean: false });
 
   const tampered = structuredClone(evidence);
-  tampered.compilerSettings.optimizer.runs = 1;
+  tampered.compilerSettings.optimizer.runs = 200;
   assert.throws(
     () => verifyV44ReleaseEvidence(tampered, { requireClean: false }),
     /V44_SOURCE_EVIDENCE_MISMATCH/,
   );
+
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "agentpool-v44-source-evidence-"),
+  );
+  try {
+    const filePath = path.join(directory, "source-evidence.json");
+    fs.writeFileSync(
+      filePath,
+      `${JSON.stringify(evidence, null, 2)}\n`,
+      "utf8",
+    );
+    const fileEvidence = verifyV44ReleaseEvidenceFile(filePath, {
+      requireClean: false,
+    });
+    assert.equal(fileEvidence.fileSha256, sha256File(filePath));
+    assert.notEqual(fileEvidence.fileSha256, evidence.evidenceSha256);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("Solidity compilation canonicalizes source newlines across operating systems", () => {
@@ -219,9 +242,13 @@ test("v4.4 mainnet gates fail closed while evidence is blocked", () => {
   assert.ok(Object.keys(gates.gates).length >= 6);
   assert.ok(
     Object.values(gates.gates).every(
-      (gate) => gate.status === "blocked" && gate.evidenceSha256 === null,
+      (gate) =>
+        gate.status === "blocked" &&
+        gate.evidenceSha256 === null &&
+        gate.evidenceFile === null,
     ),
   );
+  assert.deepEqual(Object.keys(gates.gates), [...V44_REQUIRED_GATES]);
 });
 
 test("approved mainnet gates stay outside the source commit", () => {
@@ -233,9 +260,12 @@ test("approved mainnet gates stay outside the source commit", () => {
   const env = { V44_GATES_FILE: gatesPath };
   try {
     for (const [name, gate] of Object.entries(gates.gates)) {
-      const evidenceSha256 = keccak256(toBytes(`evidence:${name}`)).slice(2);
+      const evidencePath = path.join(temporaryDirectory, `${name}.txt`);
+      fs.writeFileSync(evidencePath, `evidence:${name}\n`, "utf8");
+      const evidenceSha256 = sha256File(evidencePath);
       gate.status = "approved";
       gate.evidenceSha256 = evidenceSha256;
+      gate.evidenceFile = path.basename(evidencePath);
       const envName = `V44_GATE_${name
         .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
         .toUpperCase()}_SHA256`;
@@ -246,16 +276,172 @@ test("approved mainnet gates stay outside the source commit", () => {
     assert.equal(approved.gatesPath, gatesPath);
     assert.equal(
       Object.keys(approved.approved).length,
-      Object.keys(gates.gates).length,
+      V44_REQUIRED_GATES.length,
+    );
+    assert.equal(
+      approved.evidencePaths.finalSourceReproducibility,
+      path.join(temporaryDirectory, "finalSourceReproducibility.txt"),
     );
 
-    env.V44_GATE_FINAL_SOURCE_REPRODUCIBILITY_SHA256 = "00".repeat(32);
+    env.V44_GATE_FINAL_SOURCE_REPRODUCIBILITY_SHA256 = "ff".repeat(32);
     assert.throws(
       () => loadAndValidateGates(env),
       /V44_GATE_EVIDENCE_MISMATCH:finalSourceReproducibility/,
     );
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("v4.4 mainnet gate set and file evidence cannot be self-declared away", () => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "agentpool-v44-gate-regression-"),
+  );
+  const gatesPath = path.join(temporaryDirectory, "approved-gates.json");
+  const gates = JSON.parse(source("mainnet-v44-gates.json"));
+  const env = { V44_GATES_FILE: gatesPath };
+  try {
+    for (const [name, gate] of Object.entries(gates.gates)) {
+      const evidencePath = path.join(temporaryDirectory, `${name}.txt`);
+      fs.writeFileSync(evidencePath, `review:${name}\n`, "utf8");
+      gate.status = "approved";
+      gate.evidenceFile = path.basename(evidencePath);
+      gate.evidenceSha256 = sha256File(evidencePath);
+      const envName = `V44_GATE_${name
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .toUpperCase()}_SHA256`;
+      env[envName] = gate.evidenceSha256;
+    }
+    fs.writeFileSync(gatesPath, JSON.stringify(gates), "utf8");
+    assert.doesNotThrow(() => loadAndValidateGates(env));
+
+    const missing = structuredClone(gates);
+    delete missing.gates.independentSecurityReview;
+    fs.writeFileSync(gatesPath, JSON.stringify(missing), "utf8");
+    assert.throws(
+      () => loadAndValidateGates(env),
+      /V44_GATE_SET_INVALID/,
+    );
+
+    const invented = structuredClone(gates);
+    delete invented.gates.nameAndSymbolClearance;
+    invented.gates.inventedApproval = structuredClone(
+      gates.gates.nameAndSymbolClearance,
+    );
+    fs.writeFileSync(gatesPath, JSON.stringify(invented), "utf8");
+    assert.throws(
+      () => loadAndValidateGates(env),
+      /V44_GATE_SET_INVALID/,
+    );
+
+    const zero = structuredClone(gates);
+    zero.gates.finalSourceReproducibility.evidenceSha256 = "0".repeat(64);
+    fs.writeFileSync(gatesPath, JSON.stringify(zero), "utf8");
+    assert.throws(
+      () => loadAndValidateGates(env),
+      /V44_GATE_BLOCKED:finalSourceReproducibility/,
+    );
+
+    fs.writeFileSync(gatesPath, JSON.stringify(gates), "utf8");
+    fs.appendFileSync(
+      path.join(temporaryDirectory, "finalSourceReproducibility.txt"),
+      "tampered\n",
+      "utf8",
+    );
+    assert.throws(
+      () => loadAndValidateGates(env),
+      /V44_GATE_EVIDENCE_CONTENT_MISMATCH:finalSourceReproducibility/,
+    );
+  } finally {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("v4.4 manifest claims bind gates, source file, bootstrap, and artifacts", () => {
+  const releaseInputs = {
+    bootstrap: {
+      proposer: "0x1000000000000000000000000000000000000001",
+      issueId: `0x${"11".repeat(32)}`,
+      validators: [
+        {
+          address: "0x1000000000000000000000000000000000000002",
+          group: `0x${"21".repeat(32)}`,
+        },
+        {
+          address: "0x1000000000000000000000000000000000000003",
+          group: `0x${"22".repeat(32)}`,
+        },
+        {
+          address: "0x1000000000000000000000000000000000000004",
+          group: `0x${"23".repeat(32)}`,
+        },
+      ],
+    },
+  };
+  const gateEvidence = {
+    approved: Object.fromEntries(
+      V44_REQUIRED_GATES.map((name) => [name, "a".repeat(64)]),
+    ),
+  };
+  const sourceEvidence = { evidenceSha256: "b".repeat(64) };
+  const artifacts = artifactBytecodeEvidence();
+  const manifest = {
+    approvedGateEvidence: structuredClone(gateEvidence.approved),
+    sourceEvidenceFileSha256: "a".repeat(64),
+    sourceEvidenceBodySha256: sourceEvidence.evidenceSha256,
+    bootstrapIdentitySha256: bootstrapIdentitySha256(releaseInputs),
+    artifactBytecode: structuredClone(artifacts),
+  };
+  assert.equal(
+    assertManifestEvidenceClaims({
+      manifest,
+      gateEvidence,
+      sourceEvidence,
+      releaseInputs,
+      artifacts,
+    }),
+    true,
+  );
+  for (const [field, mutate] of [
+    [
+      "gate",
+      (copy) => {
+        copy.approvedGateEvidence.independentSecurityReview = "c".repeat(64);
+      },
+    ],
+    [
+      "source",
+      (copy) => {
+        copy.sourceEvidenceBodySha256 = "c".repeat(64);
+      },
+    ],
+    [
+      "bootstrap",
+      (copy) => {
+        copy.bootstrapIdentitySha256 = "c".repeat(64);
+      },
+    ],
+    [
+      "artifact",
+      (copy) => {
+        copy.artifactBytecode.AgentPoolV44Token.runtimeBytes += 1;
+      },
+    ],
+  ]) {
+    const copy = structuredClone(manifest);
+    mutate(copy);
+    assert.throws(
+      () =>
+        assertManifestEvidenceClaims({
+          manifest: copy,
+          gateEvidence,
+          sourceEvidence,
+          releaseInputs,
+          artifacts,
+        }),
+      /V44_MANIFEST_/,
+      field,
+    );
   }
 });
 
@@ -419,7 +605,7 @@ test("v4.4 deployment path is Base-mainnet-only and excludes test mocks", () => 
   assert.match(deploy, /AgentPoolV44Token/);
   assert.match(deploy, /confirmations: 2/);
   assert.match(deploy, /V44_RESIDUAL_AUTHORITY/);
-  assert.match(deploy, /schemaVersion: 2/);
+  assert.match(deploy, /schemaVersion: 3/);
   assert.match(deploy, /deploymentTransactions/);
   assert.match(deploy, /configurationTransactions/);
   assert.match(deploy, /transactionIntents/);
@@ -428,6 +614,8 @@ test("v4.4 deployment path is Base-mainnet-only and excludes test mocks", () => 
   assert.match(helper, /V44_UNCERTAIN_BROADCAST/);
   assert.match(deploy, /blockTag: "pending"/);
   assert.match(verify, /V44_SOURCE_COMMIT_NOT_HEAD/);
+  assert.match(verify, /assertTrackedTreeClean\(\)/);
+  assert.match(verify, /assertManifestEvidenceClaims/);
   assert.match(verify, /creationTransaction\.currentArtifact/);
   assert.match(verify, /manifest\.transactionSetComplete/);
   assert.match(verify, /supplyEqualsEpochEmissions/);
@@ -591,13 +779,17 @@ test("v4.4 invalid proof cannot be used to slash another worker", () => {
   const invalidProofGuard = market.indexOf(
     "if (!passed) revert VerificationFailed();",
   );
-  const roundReadinessGuard = market.indexOf(
-    "if (!proofRegistryV2.roundReady(roundId))",
+  const resolutionRead = market.indexOf(
+    "uint8 proofStatus = proofRegistryV2.resolutionStatus(",
   );
-  const rejectionBranch = market.indexOf("if (!passed) {", invalidProofGuard + 1);
+  const noQuorumRefund = market.indexOf("if (proofStatus == 1)");
+  const acceptedStatus = market.indexOf("passed = proofStatus == 3");
+  const rejectionBranch = market.indexOf("if (!passed) {", acceptedStatus);
   assert.ok(invalidProofGuard > 0);
-  assert.ok(roundReadinessGuard > invalidProofGuard);
-  assert.ok(rejectionBranch > roundReadinessGuard);
+  assert.ok(resolutionRead > invalidProofGuard);
+  assert.ok(noQuorumRefund > resolutionRead);
+  assert.ok(acceptedStatus > noQuorumRefund);
+  assert.ok(rejectionBranch > acceptedStatus);
   assert.match(
     source("scripts/rehearse-v43-public-testnet.mjs"),
     /caller-selected invalid proof cannot reject a delivered milestone/,
@@ -615,11 +807,13 @@ test("v4.4 system issue policy cannot advertise one verifier set and use another
   ]) {
     assert.match(market, guard);
   }
-  assert.match(market, /function _sameSystemPolicy\(/);
-  assert.match(market, /term\.deadline <= current\.deadline/);
   assert.match(
     market,
-    /job\.funding != Funding\.EXTERNAL &&\s*!_sameSystemPolicy\(/,
+    /Replanning creates a new continuation job/,
+  );
+  assert.match(
+    market,
+    /function replanRemainingV2\([\s\S]*?revert Unauthorized\(\);/,
   );
 });
 
@@ -651,6 +845,47 @@ test("v4.4 adoption proves use of the proposed release", () => {
     source("scripts/rehearse-v43-public-testnet.mjs"),
     /a settled job cannot adopt a release that it did not execute/,
   );
+});
+
+test("v4.4 dynamic candidates lock a refundable admission bond and release their slot", () => {
+  const gate = source("contracts/v43/AgentPoolV435SystemIssueGate.sol");
+  const market = source("contracts/v43/AgentPoolV432TaskMarket.sol");
+  assert.match(
+    gate,
+    /candidateBond\[issue\.issueId\]\[operatorGroup\] =\s*dynamicCandidateBond/,
+  );
+  assert.match(
+    gate,
+    /ledger\.votingPowerAt\(proposer, snapshotEpoch, 8\) == 0/,
+  );
+  assert.match(gate, /function releaseFor\(/);
+  assert.match(gate, /current\.committedBudget -= budget/);
+  assert.match(gate, /current\.candidates--/);
+  assert.match(gate, /token\.safeTransfer\(proposer, returnedBond\)/);
+  assert.equal(
+    market.match(/_releaseIssueAdmission\(job\);/g)?.length,
+    2,
+  );
+  assert.match(
+    source("scripts/rehearse-v43-public-testnet.mjs"),
+    /returns the dynamic candidate admission bond/,
+  );
+});
+
+test("v4.4 full rehearsal deploys and settles the exact mainnet graph", () => {
+  const rehearsal = source(
+    "scripts/rehearse-v44-full-mainnet-candidate.mjs",
+  );
+  assert.doesNotMatch(rehearsal, /rehearse-v43-public-testnet/);
+  assert.match(rehearsal, /buildBootstrapTerms/);
+  assert.match(rehearsal, /AgentPoolV44Token/);
+  assert.match(rehearsal, /config\.bootstrap\.minimumObjectives/);
+  assert.match(
+    rehearsal,
+    /agentpool\.mainnet\.v44\.exact-graph-rehearsal\/v2/,
+  );
+  assert.match(rehearsal, /exactBootstrap\.jobSettled/);
+  assert.match(rehearsal, /exactBootstrap\.candidateSlotReleased/);
 });
 
 test("CI reproduces v4.4 evidence and both mainnet rehearsals", () => {

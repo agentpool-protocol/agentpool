@@ -29,7 +29,7 @@ Analysis environment:
 Slither: 0.11.6
 solc: 0.8.36
 optimizer: enabled
-optimizer runs: 500
+optimizer runs: 1
 viaIR: true
 dependencies: compiled, findings excluded
 ```
@@ -45,7 +45,7 @@ Representative invocation from the repository root:
 ```powershell
 slither contracts/v43/AgentPoolV432TaskMarket.sol `
   --solc C:\path\to\solc.exe `
-  --solc-args "--base-path . --include-path node_modules --allow-paths . --optimize --optimize-runs 500 --via-ir" `
+  --solc-args "--base-path . --include-path node_modules --allow-paths . --optimize --optimize-runs 1 --via-ir" `
   --exclude-dependencies `
   --json task-market.json
 ```
@@ -58,9 +58,14 @@ pipeline. Reviewers must independently record `git rev-parse HEAD`,
 ## Result summary
 
 ```text
-High:   1 reported, 0 confirmed
+High:   2 reported, 0 confirmed
 Medium: 28 reported, 0 confirmed
 ```
+
+This summary describes only Slither detector triage. A separate GPT
+collaborative review found design and liveness blockers that Slither did not
+detect; those fixes and their regression evidence are recorded in
+[V44_GPT_COLLABORATIVE_REVIEW.md](./V44_GPT_COLLABORATIVE_REVIEW.md).
 
 No reported item was accepted as proof that the mainnet candidate is safe.
 Each item below remains part of the external review checklist.
@@ -73,16 +78,16 @@ Each item below remains part of the external review checklist.
 | `AgentPoolV43CapacityRegistry` | 0 | 0 | No high or medium detector output |
 | `AgentPoolV43UserEscrowKernel` | 1 | 0 | Restricted `transferFrom`, see below |
 | `AgentPoolV43EpochVault` | 0 | 0 | No high or medium detector output |
-| `AgentPoolV43ContributionLedger` | 0 | 3 | Conservative flooring and zero defaults |
+| `AgentPoolV43ContributionLedger` | 0 | 1 | Solidity-defined zero accumulator |
 | `AgentPoolV432ProofRegistry` | 0 | 0 | No high or medium detector output |
 | `AgentPoolV43EvolutionConsensus` | 0 | 0 | No high or medium detector output |
 | `AgentPoolV43HashObjectiveVerifier` | 0 | 0 | No high or medium detector output |
-| `AgentPoolV435SystemIssueGate` | 0 | 0 | No high or medium detector output |
+| `AgentPoolV435SystemIssueGate` | 1 | 0 | Restricted dynamic-candidate bond pull |
 | `AgentPoolV435TransitionIssueConsensus` | 0 | 1 | Revert-on-invalid validation call |
 | `AgentPoolV432IssueConsensus` | 0 | 0 | No high or medium detector output |
-| `AgentPoolV432TaskMarket` | 0 | 23 | State ordering, zero defaults, strict equality |
+| `AgentPoolV432TaskMarket` | 0 | 25 | State ordering, zero defaults, strict equality |
 
-## High finding: arbitrary ERC-20 transfer
+## High findings: arbitrary ERC-20 transfers
 
 Slither reports `AgentPoolV43UserEscrowKernel.lock` because it calls
 `safeTransferFrom(buyer, address(this), amount)` and `buyer` is a parameter.
@@ -100,6 +105,25 @@ This is classified as a false positive under the exact deployment wiring, not
 as a reason to waive external review. A reviewer should still try to find a
 path that makes the configured market pass a victim address other than the
 external job creator.
+
+Slither also reports `AgentPoolV435SystemIssueGate.consumeFor` because the
+configured market passes a `proposer` address whose APOOL admission bond is
+pulled into the gate. Under the exact deployment wiring:
+
+1. only the immutable configured TaskMarket may call `consumeFor`;
+2. `createSystemJobV2` passes its direct caller as `proposer`;
+3. the gate recomputes that caller's operator group and verified Work Power;
+4. the caller must approve the exact APOOL token and bond amount;
+5. the bond is recorded before the transfer, and any transfer failure reverts
+   the whole transaction;
+6. every terminal task path calls `releaseFor` with the pinned job creator and
+   budget; and
+7. the exact token has no receiver callback.
+
+This is also classified as a false positive only under the provenance-checked
+market and token graph. External review must attempt to make the market pass a
+different funded proposer, return a bond to a substituted address, reuse a
+released slot, or collect the same bond twice.
 
 ## Medium findings
 
@@ -125,6 +149,12 @@ review must attempt recursive calls through:
 - release registry, and
 - system issue gate.
 
+The additional v4.4 report is the terminal candidate-admission release. That
+call reaches only the immutable issue gate and exact OpenZeppelin APOOL token;
+the ERC-20 transfer has no receiver callback. The job-terminating public
+entrypoints remain `nonReentrant`. This explanation is graph-specific and must
+be retested if either configured address or bytecode changes.
+
 The review must prove that recursion cannot duplicate a payment, capacity
 release, candidate receipt, adoption receipt, or contribution record.
 
@@ -135,12 +165,13 @@ or future enum values from being treated as usable. TaskMarket also uses exact
 milestone counts, payout roots, and dependency masks to reject partially
 matching plans.
 
-### Divide before multiply
+### Work Power arithmetic
 
-Contribution reliability floors the ratio before a later bounded
-multiplication. The flooring is conservative: it can reduce Work Power but
-cannot increase it. Reviewers must verify that no small denominator, epoch
-rollover, or integer-width conversion can reverse that property.
+The previous divide-before-multiply report disappeared when reliability
+multipliers were removed. Work Power is now additive verified contribution
+units at a stable governance snapshot. The baseline treats that decrease as an
+intentional reviewed change; external review must still test epoch rollover,
+identity splitting, and integer-width conversion.
 
 ### Uninitialized local values
 

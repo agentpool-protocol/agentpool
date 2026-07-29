@@ -17,4 +17,11 @@ interface IAgentPoolV435SystemIssueGate is
     function approveTransitionIssue(
         IssueTerms calldata issue
     ) external;
+
+    function releaseFor(
+        bytes32 issueId,
+        uint128 budget,
+        address proposer
+    ) external;
+
 }

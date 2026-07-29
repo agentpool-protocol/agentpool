@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {
     IAgentPoolV43SystemIssueGate
@@ -26,6 +28,8 @@ import {
 contract AgentPoolV435SystemIssueGate is
     IAgentPoolV435SystemIssueGate
 {
+    using SafeERC20 for IERC20;
+
     struct Usage {
         bytes32 termsHash;
         uint128 committedBudget;
@@ -48,6 +52,8 @@ contract AgentPoolV435SystemIssueGate is
     uint128 public immutable dynamicIssueBudgetCap;
     uint16 public immutable dynamicMaxCandidates;
     uint64 public immutable dynamicMaxLifetime;
+    uint128 public immutable dynamicCandidateBond;
+    IERC20 public immutable token;
     IAgentPoolV435ContributionLedger public immutable ledger;
 
     address public configurationAuthority;
@@ -59,6 +65,7 @@ contract AgentPoolV435SystemIssueGate is
     mapping(bytes32 => bool) public transitionApprovedIssueHash;
     mapping(bytes32 => bool) public approvedIssueHash;
     mapping(bytes32 => mapping(bytes32 => bool)) public groupUsed;
+    mapping(bytes32 => mapping(bytes32 => uint128)) public candidateBond;
 
     event Configured(
         address indexed market,
@@ -74,6 +81,14 @@ contract AgentPoolV435SystemIssueGate is
         uint256 budget,
         uint256 candidates
     );
+    event IssueReleased(
+        bytes32 indexed issueId,
+        bytes32 indexed operatorGroup,
+        address indexed proposer,
+        uint256 budget,
+        uint256 returnedBond,
+        uint256 candidates
+    );
 
     error Unauthorized();
     error InvalidTerms();
@@ -83,6 +98,7 @@ contract AgentPoolV435SystemIssueGate is
 
     constructor(
         bytes32 bootstrapRoot_,
+        IERC20 token_,
         IAgentPoolV435ContributionLedger ledger_,
         address configurationAuthority_,
         bytes32 dynamicVerifierCodehash_,
@@ -90,10 +106,12 @@ contract AgentPoolV435SystemIssueGate is
         uint128 dynamicCandidateBudgetCap_,
         uint128 dynamicIssueBudgetCap_,
         uint16 dynamicMaxCandidates_,
-        uint64 dynamicMaxLifetime_
+        uint64 dynamicMaxLifetime_,
+        uint128 dynamicCandidateBond_
     ) {
         if (
             bootstrapRoot_ == bytes32(0) ||
+            address(token_) == address(0) ||
             address(ledger_) == address(0) ||
             configurationAuthority_ == address(0) ||
             dynamicVerifierCodehash_ == bytes32(0) ||
@@ -101,9 +119,11 @@ contract AgentPoolV435SystemIssueGate is
             dynamicCandidateBudgetCap_ == 0 ||
             dynamicIssueBudgetCap_ < dynamicCandidateBudgetCap_ ||
             dynamicMaxCandidates_ == 0 ||
-            dynamicMaxLifetime_ < 1 days
+            dynamicMaxLifetime_ < 1 days ||
+            dynamicCandidateBond_ == 0
         ) revert InvalidTerms();
         bootstrapRoot = bootstrapRoot_;
+        token = token_;
         ledger = ledger_;
         configurationAuthority = configurationAuthority_;
         dynamicVerifierCodehash = dynamicVerifierCodehash_;
@@ -112,6 +132,7 @@ contract AgentPoolV435SystemIssueGate is
         dynamicIssueBudgetCap = dynamicIssueBudgetCap_;
         dynamicMaxCandidates = dynamicMaxCandidates_;
         dynamicMaxLifetime = dynamicMaxLifetime_;
+        dynamicCandidateBond = dynamicCandidateBond_;
     }
 
     function configure(
@@ -143,8 +164,6 @@ contract AgentPoolV435SystemIssueGate is
     function transitionReady() public view override returns (bool) {
         return
             !ledger.mature() &&
-            ledger.eligibleAgentCount() >= MIN_TRANSITION_AGENTS &&
-            ledger.eligibleGroupCount() >= MIN_TRANSITION_GROUPS &&
             ledger.successfulSettlementCount() >=
                 MIN_TRANSITION_SETTLEMENTS &&
             ledger.activeEpochCount() >= MIN_TRANSITION_EPOCHS;
@@ -218,6 +237,10 @@ contract AgentPoolV435SystemIssueGate is
                 issue,
                 transitionApprovedIssueHash[termsHash]
             );
+            uint64 snapshotEpoch = ledger.governanceSnapshotEpoch();
+            if (ledger.votingPowerAt(proposer, snapshotEpoch, 8) == 0) {
+                revert Unauthorized();
+            }
         }
 
         bytes32 operatorGroup = ledger.operatorGroup(proposer);
@@ -242,11 +265,56 @@ contract AgentPoolV435SystemIssueGate is
         current.committedBudget += budget;
         current.candidates++;
         groupUsed[issue.issueId][operatorGroup] = true;
+        if (!bootstrapAdmitted) {
+            candidateBond[issue.issueId][operatorGroup] =
+                dynamicCandidateBond;
+            token.safeTransferFrom(
+                proposer,
+                address(this),
+                dynamicCandidateBond
+            );
+        }
         emit IssueConsumed(
             issue.issueId,
             operatorGroup,
             proposer,
             budget,
+            current.candidates
+        );
+    }
+
+    function releaseFor(
+        bytes32 issueId,
+        uint128 budget,
+        address proposer
+    ) external override {
+        if (msg.sender != market) revert Unauthorized();
+        bytes32 operatorGroup = ledger.operatorGroup(proposer);
+        Usage storage current = usage[issueId];
+        if (
+            issueId == bytes32(0) ||
+            proposer == address(0) ||
+            operatorGroup == bytes32(0) ||
+            !groupUsed[issueId][operatorGroup] ||
+            budget == 0 ||
+            current.candidates == 0 ||
+            current.committedBudget < budget
+        ) revert InvalidTerms();
+
+        current.committedBudget -= budget;
+        current.candidates--;
+        groupUsed[issueId][operatorGroup] = false;
+        uint128 returnedBond = candidateBond[issueId][operatorGroup];
+        if (returnedBond != 0) {
+            candidateBond[issueId][operatorGroup] = 0;
+            token.safeTransfer(proposer, returnedBond);
+        }
+        emit IssueReleased(
+            issueId,
+            operatorGroup,
+            proposer,
+            budget,
+            returnedBond,
             current.candidates
         );
     }

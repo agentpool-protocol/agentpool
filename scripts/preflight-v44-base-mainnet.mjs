@@ -16,11 +16,13 @@ import {
   artifact,
   artifactBytecodeEvidence,
   assertTrackedTreeClean,
+  bootstrapIdentitySha256,
   collectReleaseInputs,
   loadAndValidateConfig,
   loadAndValidateGates,
   requireEnv,
 } from "./lib/v44-mainnet.mjs";
+import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
 
 const manifestPath = path.join(ROOT, "deployments", "8453.v44.json");
 const partialPath = path.join(ROOT, "deployments", "8453.v44.partial.json");
@@ -32,6 +34,9 @@ if (fs.existsSync(partialPath)) {
 assertTrackedTreeClean();
 const configEvidence = loadAndValidateConfig();
 const gateEvidence = loadAndValidateGates();
+const sourceEvidence = verifyV44ReleaseEvidenceFile(
+  gateEvidence.evidencePaths.finalSourceReproducibility,
+);
 const sourceCommit = requireEnv("V44_SOURCE_COMMIT").toLowerCase();
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
 const releaseInputs = collectReleaseInputs({
@@ -80,6 +85,7 @@ const report = {
   bootstrapProposer: releaseInputs.bootstrap.proposer,
   bootstrapObjectives: releaseInputs.bootstrap.objectives.length,
   bootstrapObjectivesSha256: releaseInputs.bootstrap.objectivesSha256,
+  bootstrapIdentitySha256: bootstrapIdentitySha256(releaseInputs),
   validators: releaseInputs.bootstrap.validators.map((entry) => ({
     address: entry.address,
     groupId: entry.group,
@@ -87,6 +93,8 @@ const report = {
   configSha256: configEvidence.configSha256,
   gatesSha256: gateEvidence.gatesSha256,
   approvedGateEvidence: gateEvidence.approved,
+  sourceEvidenceFileSha256: sourceEvidence.fileSha256,
+  sourceEvidenceBodySha256: sourceEvidence.evidence.evidenceSha256,
   financeInvariantHash: configEvidence.financeInvariantHash,
   artifacts: bytecode,
   artifactSetHash: keccak256(

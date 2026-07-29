@@ -6,6 +6,8 @@ interface IAgentPoolV43ContributionLedger {
 
     function currentEpoch() external view returns (uint64);
 
+    function governanceSnapshotEpoch() external view returns (uint64);
+
     function operatorGroup(address agent) external view returns (bytes32);
 
     function isActiveSource(address source) external view returns (bool);

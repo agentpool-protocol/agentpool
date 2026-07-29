@@ -13,6 +13,9 @@ and must not be overwritten.
 - Core lane: at most 63,000 APOOL per week and 900 billion lifetime
 - Evolution lane: at most 7,000 APOOL per week and 100 billion lifetime
 - External buyer jobs: existing buyer APOOL only; no emission
+- Dynamic improvement admission: 10 APOOL refundable bond; candidate slot,
+  issue budget, operator-group lock, and bond are released on every terminal
+  task path
 - Administrator, proxy upgrade, emergency withdrawal, and arbitrary mint: none
 - Temporary deployment authorities: removed during one-time wiring and checked
   again by the independent verifier
@@ -44,9 +47,11 @@ The focused rehearsal proves zero premint, minter isolation, pre-genesis
 closure, weekly and lifetime cap enforcement, reservation release, and
 unauthorized-call rejection. It also runs 128 deterministic stateful
 reserve/partial-settle/release sequences and checks reservation, emission, and
-supply conservation after every case. The full rehearsal runs the current
-immutable finance kernel through BOOTSTRAP, TRANSITION, and MATURE with the
-v4.4 APOOL token.
+supply conservation after every case. The full rehearsal deploys the exact
+15-contract mainnet graph and 24-objective bootstrap catalog, clears all
+temporary authorities, and exercises successful emission, buyer-funded work,
+unregistered-worker rejection, and validator no-quorum refund. It must not
+import or substitute the v4.3 testnet graph.
 
 The maintainer Slither pass and its unresolved trust-boundary questions are
 recorded in [audits/V44_SLITHER_TRIAGE.md](./audits/V44_SLITHER_TRIAGE.md).
@@ -54,6 +59,10 @@ It is not an independent audit. Give
 [audits/V44_GPT_REVIEW_PACKET.md](./audits/V44_GPT_REVIEW_PACKET.md) to an
 external GPT or human reviewer so they inspect the exact source and return
 reproducible findings rather than relying on the maintainer's conclusions.
+The already completed maintainer-directed GPT review and the resulting fixes
+are recorded separately in
+[audits/V44_GPT_COLLABORATIVE_REVIEW.md](./audits/V44_GPT_COLLABORATIVE_REVIEW.md);
+that review also does not satisfy the independent-review gate.
 
 ## Evidence gates
 
@@ -62,8 +71,12 @@ put approvals into that file: doing so would change the source commit after its
 reproducibility hash was calculated. Copy it to the ignored
 `.mainnet-v44-gates.local.json`, set `V44_GATES_FILE` to that path, and change a
 gate to `approved` only after recording the 64-character SHA-256 digest of the
-actual evidence. The same digest must be supplied independently in
-`.env.v44.mainnet.local`.
+actual, non-empty evidence file. Add its path as `evidenceFile` in the local
+gate record. Relative paths are resolved from the local gate file. The digest
+is always the SHA-256 of the complete file bytes, not an internal digest field.
+The same whole-file digest must be supplied independently in
+`.env.v44.mainnet.local`. The loader requires exactly the seven canonical gate
+names, rejects zero digests, and recomputes every referenced file digest.
 
 Required evidence:
 

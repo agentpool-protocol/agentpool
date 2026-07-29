@@ -25,13 +25,8 @@ contract AgentPoolV43ContributionLedger is
 
     uint64 public constant EPOCH_DURATION = 7 days;
     uint8 public constant MAX_LOOKBACK = 8;
-    uint16 public constant MAX_AGENT_SHARE_BPS = 1_000;
     uint16 public constant BPS = 10_000;
-    uint16 public constant WORK_POWER_SCALE = 10_000;
-    uint16 public constant MIN_MATURE_AGENTS = 5;
-    uint16 public constant MIN_MATURE_GROUPS = 3;
     uint64 public constant MIN_MATURE_SETTLEMENTS = 50;
-    uint16 public constant MAX_MATURE_GROUP_SHARE_BPS = 5_000;
 
     uint64 public immutable genesisStart;
     address public bootstrapAuthority;
@@ -41,6 +36,9 @@ contract AgentPoolV43ContributionLedger is
     uint32 public eligibleGroupCount;
     uint16 public activeEpochCount;
     uint64 public successfulSettlementCount;
+    uint64 public latestGovernanceEpoch;
+    uint64 public previousGovernanceEpoch;
+    bool public hasGovernanceWork;
     uint256 public totalSuccessfulUnits;
     uint256 public largestGroupSuccessfulUnits;
 
@@ -156,13 +154,11 @@ contract AgentPoolV43ContributionLedger is
         emit AgentRegistered(msg.sender, group, runtimeHash);
     }
 
-    function updateRuntime(bytes32 runtimeHash) external {
-        AgentProfile storage profile = profiles[msg.sender];
-        if (!profile.registered || runtimeHash == bytes32(0)) {
-            revert InvalidTerms();
-        }
-        profile.runtimeHash = runtimeHash;
-        emit RuntimeUpdated(msg.sender, runtimeHash);
+    function updateRuntime(bytes32) external pure {
+        // A mainnet execution identity is immutable. A new runtime registers a
+        // new profile/address so accepted work cannot be credited to a runtime
+        // that did not execute it.
+        revert Unauthorized();
     }
 
     function operatorGroup(
@@ -192,6 +188,14 @@ contract AgentPoolV43ContributionLedger is
             successful,
             true
         );
+    }
+
+    function governanceSnapshotEpoch() external view override returns (uint64) {
+        if (!hasGovernanceWork) revert InvalidTerms();
+        uint64 epoch = currentEpoch();
+        if (latestGovernanceEpoch < epoch) return latestGovernanceEpoch;
+        if (activeEpochCount < 2) revert InvalidTerms();
+        return previousGovernanceEpoch;
     }
 
     /// @notice Records verified execution history without creating Work Power.
@@ -298,6 +302,9 @@ contract AgentPoolV43ContributionLedger is
             }
             if (!epochBecameActive[epoch]) {
                 epochBecameActive[epoch] = true;
+                previousGovernanceEpoch = latestGovernanceEpoch;
+                latestGovernanceEpoch = epoch;
+                hasGovernanceWork = true;
                 activeEpochCount++;
             }
             _maybeMature();
@@ -348,28 +355,14 @@ contract AgentPoolV43ContributionLedger is
         uint64 count = endEpoch + 1 < lookback
             ? endEpoch + 1
             : uint64(lookback);
-        uint256 attempted;
         uint256 successful;
         for (uint64 offset = 0; offset < count; offset++) {
             Outcome storage outcome = outcomes[endEpoch - offset][agent];
-            attempted += outcome.attempted;
             successful += outcome.successful;
         }
-        if (attempted == 0 || successful == 0) return 0;
-        uint256 total = totalSuccessfulAt(endEpoch, lookback);
-        // Keep Work Power in 1/BPS contribution-unit precision. Flooring the
-        // ten-percent cap to whole units can make an otherwise reachable
-        // quorum mathematically impossible for small early networks.
-        uint256 successfulScaled = successful * WORK_POWER_SCALE;
-        uint256 shareCapScaled = total * MAX_AGENT_SHARE_BPS;
-        uint256 cappedContributionScaled =
-            successfulScaled < shareCapScaled
-                ? successfulScaled
-                : shareCapScaled;
-        uint256 reliabilityBps = (successful * BPS) / attempted;
-        return
-            (cappedContributionScaled * reliabilityBps) /
-            BPS;
+        // Additive verified work is Sybil-neutral: splitting the same units
+        // across more wallets cannot increase aggregate governance power.
+        return successful;
     }
 
     function runtimePerformanceAt(
@@ -434,12 +427,8 @@ contract AgentPoolV43ContributionLedger is
     function _maybeMature() internal {
         if (
             mature ||
-            eligibleAgentCount < MIN_MATURE_AGENTS ||
-            eligibleGroupCount < MIN_MATURE_GROUPS ||
             successfulSettlementCount < MIN_MATURE_SETTLEMENTS ||
-            activeEpochCount < 2 ||
-            largestGroupSuccessfulUnits * BPS >=
-                totalSuccessfulUnits * MAX_MATURE_GROUP_SHARE_BPS
+            activeEpochCount < 2
         ) return;
         mature = true;
         emit MaturityReached(

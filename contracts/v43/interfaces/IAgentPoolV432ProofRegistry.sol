@@ -20,4 +20,13 @@ interface IAgentPoolV432ProofRegistry is IAgentPoolV43ProofRegistry {
     ) external;
 
     function groupCount(bytes32 roundId) external view returns (uint16);
+
+    /// @return 1 on quorum failure, 2 on a completed failing score,
+    ///         and 3 on pass. Reverts while the round is still open.
+    function resolutionStatus(
+        bytes32 roundId,
+        uint16 minimumReveals,
+        uint16 minimumGroups,
+        uint16 passScoreBps
+    ) external view returns (uint8);
 }

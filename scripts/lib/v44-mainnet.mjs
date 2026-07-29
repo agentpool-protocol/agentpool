@@ -20,6 +20,15 @@ export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export const ZERO_BYTES32 =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
 export const MAX_CONTRIBUTION_UNITS_PER_MILESTONE = 1_000_000;
+export const V44_REQUIRED_GATES = Object.freeze([
+  "finalSourceReproducibility",
+  "independentSecurityReview",
+  "publicTestnetReliability",
+  "validatorIndependence",
+  "economicInvariantReview",
+  "deployerLegalAssessment",
+  "nameAndSymbolClearance",
+]);
 
 export const CONTRACT_TYPES = Object.freeze({
   token: "AgentPoolV44Token",
@@ -41,6 +50,7 @@ export const CONTRACT_TYPES = Object.freeze({
 
 const HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+const ZERO_SHA256 = "0".repeat(64);
 
 export function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -198,6 +208,7 @@ export function loadAndValidateConfig(
     ["emission.evolutionLifetimeCapApool", config.emission?.evolutionLifetimeCapApool],
     ["dynamicIssues.candidateBudgetCapApool", config.dynamicIssues?.candidateBudgetCapApool],
     ["dynamicIssues.issueBudgetCapApool", config.dynamicIssues?.issueBudgetCapApool],
+    ["dynamicIssues.candidateAdmissionBondApool", config.dynamicIssues?.candidateAdmissionBondApool],
     ["consensus.proposalBondApool", config.consensus?.proposalBondApool],
     ["bootstrap.candidateBudgetCapApool", config.bootstrap?.candidateBudgetCapApool],
     ["bootstrap.totalBudgetCapApool", config.bootstrap?.totalBudgetCapApool],
@@ -299,40 +310,116 @@ export function loadAndValidateGates(
     : path.resolve(ROOT, configuredPath);
   const gates = readJson(resolvedPath);
   if (
-    gates.schema !== "agentpool.mainnet.v44.gates/v1" ||
+    gates.schema !== "agentpool.mainnet.v44.gates/v2" ||
     gates.chainId !== CHAIN_ID ||
     gates.network !== "base-mainnet" ||
     gates.release !== VERSION
   ) {
     throw new Error("V44_GATES_IDENTITY_INVALID");
   }
+  const configuredGateNames = Object.keys(gates.gates ?? {}).sort();
+  const requiredGateNames = [...V44_REQUIRED_GATES].sort();
+  if (
+    configuredGateNames.length !== requiredGateNames.length ||
+    configuredGateNames.some(
+      (name, index) => name !== requiredGateNames[index],
+    )
+  ) {
+    throw new Error("V44_GATE_SET_INVALID");
+  }
   const approved = {};
-  for (const [name, gate] of Object.entries(gates.gates ?? {})) {
+  const evidencePaths = {};
+  for (const name of V44_REQUIRED_GATES) {
+    const gate = gates.gates[name];
     if (
       gate?.status !== "approved" ||
-      !SHA256_PATTERN.test(gate.evidenceSha256 ?? "")
+      !SHA256_PATTERN.test(gate.evidenceSha256 ?? "") ||
+      gate.evidenceSha256 === ZERO_SHA256
     ) {
       throw new Error(`V44_GATE_BLOCKED:${name}`);
     }
+    if (
+      typeof gate.evidenceFile !== "string" ||
+      gate.evidenceFile.trim().length === 0
+    ) {
+      throw new Error(`V44_GATE_EVIDENCE_FILE_MISSING:${name}`);
+    }
+    const evidencePath = path.isAbsolute(gate.evidenceFile)
+      ? path.resolve(gate.evidenceFile)
+      : path.resolve(path.dirname(resolvedPath), gate.evidenceFile);
+    if (
+      evidencePath === resolvedPath ||
+      !fs.existsSync(evidencePath) ||
+      !fs.statSync(evidencePath).isFile() ||
+      fs.statSync(evidencePath).size === 0
+    ) {
+      throw new Error(`V44_GATE_EVIDENCE_FILE_INVALID:${name}`);
+    }
+    const actualEvidenceSha256 = sha256File(evidencePath);
+    if (actualEvidenceSha256 !== gate.evidenceSha256.toLowerCase()) {
+      throw new Error(`V44_GATE_EVIDENCE_CONTENT_MISMATCH:${name}`);
+    }
     const envName = envNameForGate(name);
     const supplied = requireEnv(envName, env).toLowerCase();
-    if (!SHA256_PATTERN.test(supplied)) {
+    if (!SHA256_PATTERN.test(supplied) || supplied === ZERO_SHA256) {
       throw new Error(`${envName}_INVALID`);
     }
     if (supplied !== gate.evidenceSha256.toLowerCase()) {
       throw new Error(`V44_GATE_EVIDENCE_MISMATCH:${name}`);
     }
     approved[name] = supplied;
-  }
-  if (Object.keys(approved).length < 6) {
-    throw new Error("V44_GATE_SET_INCOMPLETE");
+    evidencePaths[name] = evidencePath;
   }
   return {
     gates,
     gatesPath: resolvedPath,
     gatesSha256: sha256File(resolvedPath),
     approved,
+    evidencePaths,
   };
+}
+
+export function bootstrapIdentitySha256(releaseInputs) {
+  return sha256Json({
+    proposer: releaseInputs.bootstrap.proposer,
+    issueId: releaseInputs.bootstrap.issueId,
+    validators: releaseInputs.bootstrap.validators.map((entry) => ({
+      address: entry.address,
+      group: entry.group,
+    })),
+  });
+}
+
+export function assertManifestEvidenceClaims({
+  manifest,
+  gateEvidence,
+  sourceEvidence,
+  releaseInputs,
+  artifacts = artifactBytecodeEvidence(),
+}) {
+  if (
+    sha256Json(manifest.approvedGateEvidence) !==
+    sha256Json(gateEvidence.approved)
+  ) {
+    throw new Error("V44_MANIFEST_GATE_EVIDENCE_MISMATCH");
+  }
+  if (
+    manifest.sourceEvidenceFileSha256 !==
+      gateEvidence.approved.finalSourceReproducibility ||
+    manifest.sourceEvidenceBodySha256 !== sourceEvidence.evidenceSha256
+  ) {
+    throw new Error("V44_MANIFEST_SOURCE_EVIDENCE_MISMATCH");
+  }
+  if (
+    manifest.bootstrapIdentitySha256 !==
+    bootstrapIdentitySha256(releaseInputs)
+  ) {
+    throw new Error("V44_MANIFEST_BOOTSTRAP_IDENTITY_MISMATCH");
+  }
+  if (sha256Json(manifest.artifactBytecode) !== sha256Json(artifacts)) {
+    throw new Error("V44_MANIFEST_ARTIFACT_EVIDENCE_MISMATCH");
+  }
+  return true;
 }
 
 export function currentGitCommit() {

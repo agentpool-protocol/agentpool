@@ -22,6 +22,7 @@ import {
   ZERO_ADDRESS,
   artifact,
   artifactBytecodeEvidence,
+  bootstrapIdentitySha256,
   assertConfigurationProvenance,
   assertDeploymentProvenance,
   assertTrackedTreeClean,
@@ -36,6 +37,7 @@ import {
   serializeIssue,
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
+import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
 
 const manifestPath = path.join(ROOT, "deployments", "8453.v44.json");
 const partialPath = path.join(ROOT, "deployments", "8453.v44.partial.json");
@@ -44,6 +46,9 @@ if (fs.existsSync(manifestPath)) throw new Error("V44_ALREADY_DEPLOYED");
 assertTrackedTreeClean();
 const configEvidence = loadAndValidateConfig();
 const gateEvidence = loadAndValidateGates();
+const sourceEvidence = verifyV44ReleaseEvidenceFile(
+  gateEvidence.evidencePaths.finalSourceReproducibility,
+);
 const config = configEvidence.config;
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
 const releaseInputs = collectReleaseInputs({
@@ -80,9 +85,10 @@ const deploymentIdentity = {
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
   bootstrapObjectivesSha256: releaseInputs.bootstrap.objectivesSha256,
+  bootstrapIdentitySha256: bootstrapIdentitySha256(releaseInputs),
 };
 if (existingPartial) {
-  if (existingPartial.schemaVersion !== 2) {
+  if (existingPartial.schemaVersion !== 3) {
     throw new Error("V44_PARTIAL_SCHEMA_UNSUPPORTED");
   }
   for (const [key, expected] of Object.entries(deploymentIdentity)) {
@@ -96,7 +102,7 @@ if (existingPartial) {
 }
 
 const state = existingPartial ?? {
-  schemaVersion: 2,
+  schemaVersion: 3,
   ...deploymentIdentity,
   network: NETWORK,
   contracts: {},
@@ -334,6 +340,9 @@ const dynamicCandidateBudgetCap = parseEther(
 const dynamicIssueBudgetCap = parseEther(
   config.dynamicIssues.issueBudgetCapApool,
 );
+const dynamicCandidateBond = parseEther(
+  config.dynamicIssues.candidateAdmissionBondApool,
+);
 
 const token = await deploy("AgentPoolV44Token", [account.address], "token");
 const settlementRouter = await deploy(
@@ -435,6 +444,7 @@ const systemIssueGate = await deploy(
   "AgentPoolV435SystemIssueGate",
   [
     bootstrap.issueRoot,
+    token,
     contributionLedger,
     account.address,
     verifierCodehash,
@@ -443,6 +453,7 @@ const systemIssueGate = await deploy(
     dynamicIssueBudgetCap,
     config.dynamicIssues.maxCandidates,
     config.dynamicIssues.maxLifetimeSeconds,
+    dynamicCandidateBond,
   ],
   "systemIssueGate",
 );
@@ -696,7 +707,7 @@ for (const [key, address] of Object.entries(state.contracts)) {
 }
 const artifacts = artifactBytecodeEvidence();
 const manifest = {
-  schema: "agentpool.mainnet.v44.deployment/v2",
+  schema: "agentpool.mainnet.v44.deployment/v3",
   version: VERSION,
   chainId: CHAIN_ID,
   network: NETWORK,
@@ -705,6 +716,9 @@ const manifest = {
   configSha256: configEvidence.configSha256,
   gatesSha256: gateEvidence.gatesSha256,
   approvedGateEvidence: gateEvidence.approved,
+  sourceEvidenceFileSha256: sourceEvidence.fileSha256,
+  sourceEvidenceBodySha256: sourceEvidence.evidence.evidenceSha256,
+  bootstrapIdentitySha256: deploymentIdentity.bootstrapIdentitySha256,
   deployer: account.address,
   deployerHasRuntimeAuthority: false,
   features: {

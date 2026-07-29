@@ -18,7 +18,7 @@ const SOLC = process.env.SOLC_BIN?.trim() || "solc";
 const PRINT_BASELINE = process.argv.includes("--print-baseline");
 const SOLC_ARGS =
   "--base-path . --include-path node_modules --allow-paths . " +
-  "--optimize --optimize-runs 500 --via-ir";
+  "--optimize --optimize-runs 1 --via-ir";
 
 function run(command, args) {
   return spawnSync(command, args, {
@@ -116,7 +116,7 @@ try {
     solcVersion,
     compilerSettings: {
       optimizer: true,
-      optimizerRuns: 500,
+      optimizerRuns: 1,
       viaIR: true,
       excludeDependencies: true,
     },

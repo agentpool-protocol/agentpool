@@ -61,7 +61,7 @@ export function buildV44ReleaseEvidence({ requireClean = true } = {}) {
     nodeVersion: process.version,
     solcVersion: solc.version(),
     compilerSettings: {
-      optimizer: { enabled: true, runs: 500 },
+      optimizer: { enabled: true, runs: 1 },
       viaIR: true,
       evmVersion: "cancun",
     },
@@ -90,6 +90,20 @@ export function verifyV44ReleaseEvidence(
   const expected = buildV44ReleaseEvidence({ requireClean });
   assert.deepEqual(evidence, expected, "V44_SOURCE_EVIDENCE_MISMATCH");
   return expected;
+}
+
+export function verifyV44ReleaseEvidenceFile(
+  filePath,
+  { requireClean = true } = {},
+) {
+  const resolvedPath = path.resolve(filePath);
+  const evidence = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
+  const verified = verifyV44ReleaseEvidence(evidence, { requireClean });
+  return {
+    evidence: verified,
+    filePath: resolvedPath,
+    fileSha256: sha256File(resolvedPath),
+  };
 }
 
 function argument(name) {

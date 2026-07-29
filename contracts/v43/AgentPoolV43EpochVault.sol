@@ -88,7 +88,7 @@ contract AgentPoolV43EpochVault is IAgentPoolV43EpochVault {
     }
 
     function available(uint64 epoch) external view returns (uint256) {
-        uint256 used = epochEmitted[epoch] + epochReserved[epoch];
+        uint256 used = epochEmitted[epoch] + totalReserved;
         return used >= weeklyCap ? 0 : weeklyCap - used;
     }
 
@@ -102,8 +102,7 @@ contract AgentPoolV43EpochVault is IAgentPoolV43EpochVault {
         ) revert InvalidTerms();
         uint64 epoch = currentEpoch();
         if (
-            epochEmitted[epoch] + epochReserved[epoch] + amount >
-                weeklyCap ||
+            epochEmitted[epoch] + totalReserved + amount > weeklyCap ||
             totalEmitted + totalReserved + amount > lifetimeCap
         ) revert BudgetExceeded();
         reservations[reservationId] = Reservation({
@@ -140,10 +139,14 @@ contract AgentPoolV43EpochVault is IAgentPoolV43EpochVault {
         uint256 remaining =
             uint256(reservation.reserved) - reservation.spent;
         if (paid > remaining) revert BudgetExceeded();
+        uint64 settlementEpoch = currentEpoch();
+        if (epochEmitted[settlementEpoch] + paid > weeklyCap) {
+            revert BudgetExceeded();
+        }
         reservation.spent += uint128(paid);
         epochReserved[reservation.epoch] -= paid;
         totalReserved -= paid;
-        epochEmitted[reservation.epoch] += paid;
+        epochEmitted[settlementEpoch] += paid;
         totalEmitted += paid;
         for (uint256 index = 0; index < recipients.length; index++) {
             token.mint(recipients[index], amounts[index]);

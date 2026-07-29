@@ -516,6 +516,7 @@ const verifierRuntimeCode = await vm.stateManager.getCode(
 const dynamicVerifierCodehash = keccak256(bytesToHex(verifierRuntimeCode));
 const systemIssueGate = await deploy("AgentPoolV435SystemIssueGate", [
   bootstrapCatalog.root,
+  token,
   ledger,
   deployer,
   dynamicVerifierCodehash,
@@ -524,6 +525,7 @@ const systemIssueGate = await deploy("AgentPoolV435SystemIssueGate", [
   parseEther("30"),
   3,
   60 * 86_400,
+  proposalBond,
 ]);
 const transitionIssueConsensus = await deploy(
   "AgentPoolV435TransitionIssueConsensus",
@@ -845,7 +847,7 @@ async function settleDynamicIssue({
   validatorCatalog = dynamicValidatorCatalog,
   validatorStart = 1,
 }) {
-  const creator = agents[5];
+  const creator = agents[0];
   const worker = agents[4];
   const planHash = keccak256(toBytes(`${label}-plan`));
   const evidence = evidenceFor(label, issue.specificationHash);
@@ -883,6 +885,19 @@ async function settleDynamicIssue({
     "nextJobNonce",
   );
   const jobId = jobIdFor(creator.address, nonce, planHash);
+  const creatorBalanceBefore = await read(
+    "AgentPoolV43Token",
+    token,
+    "balanceOf",
+    [creator.address],
+  );
+  await write(
+    "AgentPoolV43Token",
+    token,
+    "approve",
+    [systemIssueGate, proposalBond],
+    creator.key,
+  );
   await write(
     "AgentPoolV432TaskMarket",
     market,
@@ -984,6 +999,11 @@ async function settleDynamicIssue({
     recipients,
     amounts,
   ]);
+  check(
+    `${label} returns the dynamic candidate admission bond`,
+    await read("AgentPoolV43Token", token, "balanceOf", [creator.address]),
+    creatorBalanceBefore,
+  );
   return { jobId, worker, budget, allocation };
 }
 
@@ -1934,87 +1954,136 @@ const replacementEvidence = evidenceFor(
   `${dagLabel}-replacement`,
   replacementSpecificationHash,
 );
-const replannedTerms = [
-  dagTerms[0],
-  dagTerms[1],
-  {
-    ...dagTerms[2],
-    worker: replacementWorker.address,
-    specificationHash: replacementSpecificationHash,
-    expectedEvidenceHash: replacementEvidence.expectedEvidenceHash,
-    payoutRoot: payoutRoot(
-      [replacementWorker.address],
-      [parseEther("1")],
-    ),
-    allocation: parseEther("1"),
-    deadline: Number(blockTimestamp + 14_400n),
-  },
-];
+const replacementTerm = {
+  ...dagTerms[2],
+  worker: replacementWorker.address,
+  specificationHash: replacementSpecificationHash,
+  expectedEvidenceHash: replacementEvidence.expectedEvidenceHash,
+  payoutRoot: payoutRoot(
+    [replacementWorker.address],
+    [parseEther("1")],
+  ),
+  allocation: parseEther("1"),
+  deadline: Number(blockTimestamp + 14_400n),
+};
 const replacementPlanHash = keccak256(
   toBytes(`${dagLabel}-replacement-plan`),
 );
-await write(
-  "AgentPoolV432TaskMarket",
-  market,
-  "replanRemainingV2",
-  [
-    dagJobId,
-    replacementPlanHash,
-    replannedTerms,
-    dagPolicies,
-    dagDependencies,
-    [],
-  ],
-  firstSystem.worker.key,
+await expectRevert(
+  "an existing job cannot mutate its pinned plan or payout policy",
+  () =>
+    write(
+      "AgentPoolV432TaskMarket",
+      market,
+      "replanRemainingV2",
+      [
+        dagJobId,
+        replacementPlanHash,
+        [replacementTerm],
+        [dagPolicies[2]],
+        [0],
+        [],
+      ],
+      firstSystem.worker.key,
+    ),
 );
-const preservedFirst = await read(
+const immutableFirst = await read(
   "AgentPoolV432TaskMarket",
   market,
   "milestones",
   [dagJobId, 0],
 );
-const preservedSecond = await read(
+const immutableSecond = await read(
   "AgentPoolV432TaskMarket",
   market,
   "milestones",
   [dagJobId, 1],
 );
-check("partial replan preserves the first completed leaf", preservedFirst[16], 4);
+check("continuation preserves the first completed leaf", immutableFirst[16], 4);
 check(
-  "partial replan preserves the second completed leaf",
-  preservedSecond[16],
+  "continuation preserves the second completed leaf",
+  immutableSecond[16],
   4,
+);
+
+blockTimestamp = BigInt(dagTerms[2].deadline) + 86_401n;
+await write(
+  "AgentPoolV432TaskMarket",
+  market,
+  "refundExpired",
+  [dagJobId, 2],
+);
+const expiredDagJob = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "jobs",
+  [dagJobId],
+);
+check("unfinished immutable plan expires and refunds", expiredDagJob[2], 7);
+
+replacementTerm.deadline = Number(blockTimestamp + 14_400n);
+const continuationBudget = parseEther("2");
+const continuationNonce = await read(
+  "AgentPoolV432TaskMarket",
+  market,
+  "nextJobNonce",
+);
+const continuationJobId = jobIdFor(
+  firstSystem.worker.address,
+  continuationNonce,
+  replacementPlanHash,
+);
+await write(
+  "AgentPoolV43Token",
+  token,
+  "approve",
+  [userEscrow, continuationBudget],
+  firstSystem.worker.key,
+);
+await write(
+  "AgentPoolV432TaskMarket",
+  market,
+  "createExternalJobV2",
+  [
+    continuationBudget,
+    replacementPlanHash,
+    genesisRelease,
+    [replacementTerm],
+    [dagPolicies[2]],
+    [0],
+  ],
+  firstSystem.worker.key,
 );
 await write(
   "AgentPoolV432TaskMarket",
   market,
   "acceptMilestone",
-  [dagJobId, 2],
+  [continuationJobId, 0],
   replacementWorker.key,
 );
 await write(
   "AgentPoolV432TaskMarket",
   market,
   "deliver",
-  [dagJobId, 2, replacementEvidence.deliveryHash],
+  [continuationJobId, 0, replacementEvidence.deliveryHash],
   replacementWorker.key,
 );
 await write("AgentPoolV432TaskMarket", market, "resolve", [
-  dagJobId,
-  2,
+  continuationJobId,
+  0,
   replacementEvidence.proof,
   [replacementWorker.address],
   [parseEther("1")],
 ]);
-const dagJob = await read(
+const continuationJob = await read(
   "AgentPoolV432TaskMarket",
   market,
   "jobs",
-  [dagJobId],
+  [continuationJobId],
 );
 check(
-  "parallel DAG closes only after the replanned dependent leaf settles",
-  dagJob[2],
+  "replacement work settles only in a new immutable continuation job",
+  continuationJob[2],
   4,
 );
 
@@ -2084,12 +2153,16 @@ check(
 const replacementRuntimeHash = keccak256(
   toBytes("runtime-0-replacement"),
 );
-await write(
-  "AgentPoolV43ContributionLedger",
-  ledger,
-  "updateRuntime",
-  [replacementRuntimeHash],
-  agents[0].key,
+await expectRevert(
+  "an accepted execution identity cannot mutate its runtime",
+  () =>
+    write(
+      "AgentPoolV43ContributionLedger",
+      ledger,
+      "updateRuntime",
+      [replacementRuntimeHash],
+      agents[0].key,
+    ),
 );
 const replacementRuntimeBeforeWork = await read(
   "AgentPoolV43ContributionLedger",
@@ -2098,7 +2171,7 @@ const replacementRuntimeBeforeWork = await read(
   [agents[0].address, replacementRuntimeHash, capability, 0, 8],
 );
 check(
-  "a replacement runtime cannot inherit prior model performance",
+  "an unregistered replacement runtime cannot inherit prior model performance",
   replacementRuntimeBeforeWork[0] === 0n &&
     replacementRuntimeBeforeWork[1] === 0n,
   true,
@@ -2117,12 +2190,12 @@ const replacementRuntimeAfterWork = await read(
   "AgentPoolV43ContributionLedger",
   ledger,
   "runtimeCapabilityPerformanceAt",
-  [agents[0].address, replacementRuntimeHash, capability, 1, 8],
+  [agents[0].address, originalRuntimeHash, capability, 1, 8],
 );
 check(
-  "replacement runtime starts earning performance from its own result",
-  replacementRuntimeAfterWork[0] === 1n &&
-    replacementRuntimeAfterWork[1] === 1n,
+  "the immutable registered runtime retains attribution for its own result",
+  replacementRuntimeAfterWork[0] > originalCapabilityPerformance[0] &&
+    replacementRuntimeAfterWork[1] > originalCapabilityPerformance[1],
   true,
 );
 check(
@@ -2144,6 +2217,7 @@ const transitionIssue = dynamicIssueFor(
   "transition-dynamic-improvement",
   3,
 );
+const transitionProposer = agents[4];
 const transitionNeedEvidence = keccak256(
   toBytes("transition-dynamic-improvement-need-evidence"),
 );
@@ -2152,7 +2226,7 @@ await write(
   token,
   "approve",
   [transitionIssueConsensus, proposalBond],
-  agents[0].key,
+  transitionProposer.key,
 );
 const transitionCommitDeadline = Number(blockTimestamp + 86_500n);
 const transitionRevealDeadline = transitionCommitDeadline + 86_500;
@@ -2169,7 +2243,7 @@ const proposerBalanceBeforeUnsafeIssue = await read(
   "AgentPoolV43Token",
   token,
   "balanceOf",
-  [agents[0].address],
+  [transitionProposer.address],
 );
 await expectRevert(
   "unsafe TRANSITION Issue is rejected before its bond can be locked",
@@ -2185,7 +2259,7 @@ await expectRevert(
         transitionCommitDeadline,
         transitionRevealDeadline,
       ],
-      agents[0].key,
+      transitionProposer.key,
     ),
 );
 await expectRevert(
@@ -2202,13 +2276,13 @@ await expectRevert(
         transitionCommitDeadline,
         transitionRevealDeadline,
       ],
-      agents[0].key,
+      transitionProposer.key,
     ),
 );
 check(
   "rejected unsafe TRANSITION Issue leaves proposer funds untouched",
   await read("AgentPoolV43Token", token, "balanceOf", [
-    agents[0].address,
+    transitionProposer.address,
   ]),
   proposerBalanceBeforeUnsafeIssue,
 );
@@ -2223,9 +2297,9 @@ await write(
     transitionCommitDeadline,
     transitionRevealDeadline,
   ],
-  agents[0].key,
+  transitionProposer.key,
 );
-const transitionVoters = agents.slice(1, 3);
+const transitionVoters = agents.slice(0, 4);
 const transitionSalts = transitionVoters.map((_, index) =>
   keccak256(toBytes(`transition-issue-vote-${index}`)),
 );
@@ -2238,7 +2312,7 @@ const proposerCommitment = await read(
   "voteCommitment",
   [
     1n,
-    agents[0].address,
+    transitionProposer.address,
     true,
     transitionNeedEvidence,
     keccak256(toBytes("proposer-self-vote")),
@@ -2252,7 +2326,7 @@ await expectRevert(
       transitionIssueConsensus,
       "commitVote",
       [1n, proposerCommitment],
-      agents[0].key,
+      transitionProposer.key,
     ),
 );
 for (let index = 0; index < transitionVoters.length; index++) {
@@ -2300,7 +2374,7 @@ await write(
   [1n],
 );
 check(
-  "two non-proposer voters across multiple groups approve capped TRANSITION Issue",
+  "verified Work Power reaches the 30% quorum and two-thirds total approval threshold",
   await read(
     "AgentPoolV435SystemIssueGate",
     systemIssueGate,
