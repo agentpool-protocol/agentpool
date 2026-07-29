@@ -1,4 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { keccak256, parseUnits, toBytes } from "viem";
 import {
   AUTONOMY_EVENT_TYPES,
@@ -94,7 +96,31 @@ function validRepositoryPath(value) {
   );
 }
 
-export function validateIdleImprovementAudit(audit) {
+function hasExactKeys(value, expected) {
+  return (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).sort().join("\0") ===
+      [...expected].sort().join("\0")
+  );
+}
+
+function pathInside(parent, candidate) {
+  const relative = path.relative(
+    path.resolve(parent),
+    path.resolve(candidate),
+  );
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  );
+}
+
+export function validateIdleImprovementAudit(
+  audit,
+  { workspaceRoot } = {},
+) {
   const content = String(audit?.content ?? "").trim();
   if (content === "NO_ACTIONABLE_ISSUE") {
     return { status: "no-actionable-issue" };
@@ -108,10 +134,17 @@ export function validateIdleImprovementAudit(audit) {
       reason: "AUDIT_CONTENT_MUST_BE_JSON",
     };
   }
+  const exactIssueFields = [
+    "status",
+    "title",
+    "affectedFiles",
+    "reproductionSteps",
+    "impact",
+    "proposedFix",
+    "acceptanceTest",
+  ];
   if (
-    !issue ||
-    typeof issue !== "object" ||
-    Array.isArray(issue) ||
+    !hasExactKeys(issue, exactIssueFields) ||
     issue.status !== "ISSUE" ||
     !validAuditText(issue.title, 10, 200) ||
     !validAuditText(issue.impact, 20, 2_000) ||
@@ -129,7 +162,9 @@ export function validateIdleImprovementAudit(audit) {
     ) ||
     !validAuditText(audit?.evidence?.summary, 10, 1_000) ||
     !validAuditText(audit?.evidence?.digest, 8, 200) ||
-    !/^[A-Za-z0-9._:-]+$/.test(audit.evidence.digest)
+    !/^[A-Za-z0-9._:-]+$/.test(audit.evidence.digest) ||
+    !validAuditText(audit?.evidence?.testCommand, 3, 1_000) ||
+    audit?.evidence?.testPassed !== true
   ) {
     return {
       status: "invalid-audit-evidence",
@@ -147,10 +182,35 @@ export function validateIdleImprovementAudit(audit) {
     proposedFix: issue.proposedFix.trim(),
     acceptanceTest: issue.acceptanceTest.trim(),
   };
+  if (workspaceRoot) {
+    const missingOrEscaped = canonicalIssue.affectedFiles.some((file) => {
+      const absolute = path.resolve(workspaceRoot, file);
+      return (
+        !pathInside(workspaceRoot, absolute) ||
+        !fs.existsSync(absolute) ||
+        !fs.statSync(absolute).isFile()
+      );
+    });
+    if (missingOrEscaped) {
+      return {
+        status: "invalid-audit-evidence",
+        reason: "AUDIT_AFFECTED_FILE_NOT_FOUND",
+      };
+    }
+  }
+  const canonicalContent = JSON.stringify(canonicalIssue);
+  const evidenceDigest = `sha256:${createHash("sha256")
+    .update(canonicalContent)
+    .update("\n")
+    .update(audit.evidence.summary.trim())
+    .update("\n")
+    .update(audit.evidence.testCommand.trim())
+    .digest("hex")}`;
   return {
     status: "issue",
     issue: canonicalIssue,
-    canonicalContent: JSON.stringify(canonicalIssue),
+    canonicalContent,
+    evidenceDigest,
   };
 }
 
@@ -167,6 +227,7 @@ export function validateImprovementCandidateExecution(execution) {
     !validAuditText(evidence.testCommand, 3, 1_000) ||
     !validAuditText(evidence.patchDigest, 8, 200) ||
     !/^[A-Za-z0-9._:-]+$/.test(evidence.patchDigest) ||
+    evidence.hostVerified !== true ||
     !validAuditText(execution?.content, 20, 20_000)
   ) {
     return {
@@ -185,8 +246,92 @@ export function validateImprovementCandidateExecution(execution) {
       testCommand: evidence.testCommand.trim(),
       testPassed: true,
       patchDigest: evidence.patchDigest.trim(),
+      hostVerified: true,
     },
   };
+}
+
+async function executeImprovementCandidate({
+  payload,
+  provider,
+  executorRegistry,
+}) {
+  const execution = await executorRegistry.execute({
+    kind: "AGENT_EXECUTE",
+    provider,
+    instruction: [
+      payload.instruction,
+      "The current source snapshot is disposable and writable.",
+      "Implement the fix now by editing only that isolated workspace.",
+      "Run the focused regression test before returning.",
+      "Do not merely propose a patch or repeat the issue report.",
+      "A reward-eligible candidate requires evidence.changedFiles,",
+      "evidence.testCommand, evidence.testPassed=true, and",
+      "evidence.patchDigest. If writing or testing is blocked, report",
+      "the blocker and do not claim successful implementation.",
+    ].join("\n"),
+    acceptanceCriteria: payload.acceptanceCriteria,
+    networkAccess: false,
+    workspaceMode: "ISOLATED_CANARY",
+  });
+  return {
+    execution,
+    validation: validateImprovementCandidateExecution(execution),
+  };
+}
+
+function improvementSourceStatus(payload, config) {
+  if (config.requirePinnedImprovementIssues !== true) {
+    return { valid: true };
+  }
+  if (
+    typeof payload.sourceSnapshotDigest !== "string" ||
+    !/^sha256:[0-9a-f]{64}$/.test(payload.sourceSnapshotDigest)
+  ) {
+    return {
+      valid: false,
+      reason: "ISSUE_SOURCE_SNAPSHOT_UNPINNED",
+    };
+  }
+  if (
+    typeof config.sourceSnapshotDigest !== "string" ||
+    payload.sourceSnapshotDigest !== config.sourceSnapshotDigest
+  ) {
+    return {
+      valid: false,
+      reason: "ISSUE_SOURCE_SNAPSHOT_SUPERSEDED",
+    };
+  }
+  return { valid: true };
+}
+
+async function publishImprovementCandidate({
+  mcp,
+  event,
+  payload,
+  wallet,
+  provider,
+  execution,
+  validation,
+  now,
+}) {
+  return publish(
+    mcp,
+    RUNNER_EVENT_TYPES.improvementCandidate,
+    event,
+    {
+      schema: "agentpool.improvement.candidate/v1",
+      issueId: payload.issueId,
+      authorAddress: wallet.address,
+      provider,
+      content: execution.content,
+      evidence: validation.evidence,
+      sourceSnapshotDigest: payload.sourceSnapshotDigest,
+      directCoreMutation: false,
+      expiresAt: payload.expiresAt,
+    },
+    now,
+  );
 }
 
 export async function executeRunnerTaskWithAdapters(
@@ -509,6 +654,7 @@ export async function runAutonomyRoleCycle({
                 noSecurityRegression: true,
               },
               provider: config.improvementProvider,
+              sourceSnapshotDigest: config.sourceSnapshotDigest,
               expiresAt: Math.min(
                 Number(event.expiresAt),
                 now + 7 * 24 * 60 * 60 * 1_000,
@@ -531,28 +677,49 @@ export async function runAutonomyRoleCycle({
         executorRegistry
       ) {
         const provider = payload.provider ?? config.improvementProvider;
-        const execution = await executorRegistry.execute({
-          kind: "AGENT_EXECUTE",
+        const sourceStatus = improvementSourceStatus(payload, config);
+        if (!sourceStatus.valid) {
+          outcomes.push({
+            role: "IMPROVER",
+            status: "candidate-superseded",
+            reason: sourceStatus.reason,
+            issueId: payload.issueId,
+          });
+          if (
+            local.idleImprovement?.activeOpportunityId ===
+            event.opportunityId
+          ) {
+            local.idleImprovement.activeOpportunityId = null;
+            local.idleImprovement.activeIssueEventId = null;
+            local.idleImprovement.candidateAttemptCount = 0;
+          }
+          local.processed[key] = now;
+          local.cursor = Math.max(
+            local.cursor,
+            Number(event.createdAt) + 1,
+          );
+          continue;
+        }
+        const attempt = await executeImprovementCandidate({
+          payload,
           provider,
-          instruction: [
-            payload.instruction,
-            "Work only in the isolated candidate workspace.",
-            "A reward-eligible candidate requires evidence.changedFiles,",
-            "evidence.testCommand, evidence.testPassed=true, and",
-            "evidence.patchDigest. If writing or testing is blocked, report",
-            "the blocker and do not claim successful implementation.",
-          ].join("\n"),
-          acceptanceCriteria: payload.acceptanceCriteria,
-          networkAccess: false,
-          workspaceMode: "ISOLATED_CANARY",
+          executorRegistry,
         });
-        const candidateValidation =
-          validateImprovementCandidateExecution(execution);
-        if (!candidateValidation.valid) {
+        if (
+          local.idleImprovement?.activeOpportunityId ===
+          event.opportunityId
+        ) {
+          local.idleImprovement.lastCandidateAttemptAt = now;
+          local.idleImprovement.candidateAttemptCount =
+            Number(
+              local.idleImprovement.candidateAttemptCount ?? 0,
+            ) + 1;
+        }
+        if (!attempt.validation.valid) {
           outcomes.push({
             role: "IMPROVER",
             status: "candidate-rejected",
-            reason: candidateValidation.reason,
+            reason: attempt.validation.reason,
             issueId: payload.issueId,
           });
           local.processed[key] = now;
@@ -562,22 +729,16 @@ export async function runAutonomyRoleCycle({
           );
           continue;
         }
-        const published = await publish(
+        const published = await publishImprovementCandidate({
           mcp,
-          RUNNER_EVENT_TYPES.improvementCandidate,
           event,
-          {
-            schema: "agentpool.improvement.candidate/v1",
-            issueId: payload.issueId,
-            authorAddress: wallet.address,
-            provider,
-            content: execution.content,
-            evidence: candidateValidation.evidence,
-            directCoreMutation: false,
-            expiresAt: payload.expiresAt,
-          },
+          payload,
+          wallet,
+          provider,
+          execution: attempt.execution,
+          validation: attempt.validation,
           now,
-        );
+        });
         outcomes.push({
           role: "IMPROVER",
           status: "candidate-published",
@@ -666,6 +827,7 @@ export async function runAutonomyRoleCycle({
         eventId: event.id,
         error: error instanceof Error ? error.message : String(error),
       });
+      break;
     }
     local.cursor = Math.max(local.cursor, Number(event.createdAt) + 1);
   }
@@ -696,6 +858,8 @@ export async function runIdleImprovementCycle({
     activeOpportunityId: null,
     activeIssueEventId: null,
     activeCandidateEventId: null,
+    candidateAttemptCount: 0,
+    lastCandidateAttemptAt: 0,
   };
   const idle = local.idleImprovement;
   const outcomes = [];
@@ -715,6 +879,135 @@ export async function runIdleImprovementCycle({
         RUNNER_EVENT_TYPES.improvementCandidate,
     );
     if (!candidate) {
+      const maximumCandidateAttempts = Number(
+        config.idleImprovement?.maximumCandidateAttempts ?? 3,
+      );
+      if (
+        Number(idle.candidateAttemptCount ?? 0) >=
+        maximumCandidateAttempts
+      ) {
+        const abandoned = idle.activeIssueEventId;
+        idle.activeOpportunityId = null;
+        idle.activeIssueEventId = null;
+        idle.activeCandidateEventId = null;
+        idle.candidateAttemptCount = 0;
+        return {
+          outcomes: [
+            {
+              role: "IDLE_IMPROVEMENT",
+              status: "candidate-abandoned",
+              issueEventId: abandoned,
+              reason: "MAXIMUM_CANDIDATE_ATTEMPTS_REACHED",
+            },
+          ],
+          state,
+        };
+      }
+      const candidateRetryInterval = Number(
+        config.idleImprovement?.candidateRetryIntervalMs ??
+          10 * 60 * 1_000,
+      );
+      const issueEvent = (related.events ?? []).find(
+        (event) =>
+          event.eventType === AUTONOMY_EVENT_TYPES.issue &&
+          event.id === idle.activeIssueEventId,
+      );
+      if (issueEvent) {
+        const issuePayload = unwrapCoordinationEvent(issueEvent);
+        const sourceStatus = improvementSourceStatus(
+          issuePayload,
+          config,
+        );
+        if (!sourceStatus.valid) {
+          const superseded = idle.activeIssueEventId;
+          idle.activeOpportunityId = null;
+          idle.activeIssueEventId = null;
+          idle.activeCandidateEventId = null;
+          idle.candidateAttemptCount = 0;
+          return {
+            outcomes: [
+              {
+                role: "IDLE_IMPROVEMENT",
+                status: "candidate-superseded",
+                issueEventId: superseded,
+                reason: sourceStatus.reason,
+              },
+            ],
+            state,
+          };
+        }
+      }
+      if (
+        issueEvent &&
+        now - Number(idle.lastCandidateAttemptAt ?? 0) >=
+          candidateRetryInterval
+      ) {
+        const payload = unwrapCoordinationEvent(issueEvent);
+        const provider =
+          payload.provider ?? config.improvementProvider ?? "codex";
+        idle.lastCandidateAttemptAt = now;
+        idle.candidateAttemptCount =
+          Number(idle.candidateAttemptCount ?? 0) + 1;
+        try {
+          const attempt = await executeImprovementCandidate({
+            payload,
+            provider,
+            executorRegistry,
+          });
+          if (!attempt.validation.valid) {
+            return {
+              outcomes: [
+                {
+                  role: "IDLE_IMPROVEMENT",
+                  status: "candidate-rejected",
+                  reason: attempt.validation.reason,
+                  issueId: payload.issueId,
+                },
+              ],
+              state,
+            };
+          }
+          const published = await publishImprovementCandidate({
+            mcp,
+            event: issueEvent,
+            payload,
+            wallet,
+            provider,
+            execution: attempt.execution,
+            validation: attempt.validation,
+            now,
+          });
+          idle.activeCandidateEventId = published.id;
+          idle.activeOpportunityId = null;
+          idle.activeIssueEventId = null;
+          idle.candidateAttemptCount = 0;
+          return {
+            outcomes: [
+              {
+                role: "IDLE_IMPROVEMENT",
+                status: "candidate-published",
+                eventId: published.id,
+                issueId: payload.issueId,
+              },
+            ],
+            state,
+          };
+        } catch (error) {
+          return {
+            outcomes: [
+              {
+                role: "IDLE_IMPROVEMENT",
+                status: "candidate-error",
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : String(error),
+              },
+            ],
+            state,
+          };
+        }
+      }
       return {
         outcomes: [
           {
@@ -868,7 +1161,10 @@ export async function runIdleImprovementCycle({
     return { outcomes, state };
   }
   idle.lastAuditAt = now;
-  const validation = validateIdleImprovementAudit(audit);
+  const validation = validateIdleImprovementAudit(audit, {
+    workspaceRoot:
+      config.executors?.[audit.provider]?.workspace ?? null,
+  });
   if (validation.status !== "issue") {
     outcomes.push({
       role: "IDLE_IMPROVEMENT",
@@ -883,7 +1179,7 @@ export async function runIdleImprovementCycle({
   const issueId = autonomyDigest({
     schema: "agentpool.idle-improvement/v1",
     content,
-    evidenceDigest: audit.evidence?.digest ?? null,
+    evidenceDigest: validation.evidenceDigest,
   });
   const opportunityId = `improvement:${issueId.slice(2, 34)}`;
   const expiresAt = now + 7 * 24 * 60 * 60 * 1_000;
@@ -899,6 +1195,7 @@ export async function runIdleImprovementCycle({
         sourceEventId: null,
         evidence: {
           ...audit.evidence,
+          digest: validation.evidenceDigest,
           structuredIssue: validation.issue,
           auditContent: content,
           expectedNetProfitApool:
@@ -919,8 +1216,10 @@ export async function runIdleImprovementCycle({
           config.idleImprovement?.provider ??
           config.improvementProvider ??
           "codex",
-        funding: "SELF_BOOTSTRAP_EXISTING_TAPOOL",
-        rewardCapApool: String(improvementReward),
+        sourceSnapshotDigest: config.sourceSnapshotDigest,
+        funding: "UNFUNDED_ADVISORY_UNTIL_CANDIDATE_VERIFIED",
+        rewardCapApool: "0",
+        candidateRewardCapApool: String(improvementReward),
         createsWorkPower: false,
         canRecommendRelease: false,
         expiresAt,
@@ -930,6 +1229,8 @@ export async function runIdleImprovementCycle({
   );
   idle.activeOpportunityId = opportunityId;
   idle.activeIssueEventId = published.id;
+  idle.candidateAttemptCount = 0;
+  idle.lastCandidateAttemptAt = 0;
   outcomes.push({
     role: "IDLE_IMPROVEMENT",
     status: "issue-published",

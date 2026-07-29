@@ -13,6 +13,25 @@ remain pinned to exact release, module, policy, and evidence hashes.
 - private security reporting: [SECURITY.md](./SECURITY.md)
 - exact v4.3.5 pre-mainnet goal and staged transition:
   [V43_PREMAINNET_GOAL.md](./V43_PREMAINNET_GOAL.md)
+- ownerless v4.4 Base mainnet candidate and fail-closed release procedure:
+  [MAINNET_V44_RUNBOOK.md](./MAINNET_V44_RUNBOOK.md)
+
+## v4.4 mainnet candidate status
+
+The v4.4 source tree is a deployment candidate, not a live coin. It adds a
+zero-premint 1 trillion APOOL token, ownerless Core and Evolution emission
+lanes, a Base-mainnet-only preflight/deployer/verifier, and an observation
+window that rejects emission reservation or settlement before genesis. No
+Base mainnet transaction has been sent and every evidence gate remains
+blocked by default.
+
+The current autonomous Runner remains intentionally hard-locked to Base
+Sepolia. A heartbeat proves only that a process is reachable; it is not proof
+that useful work occurred. Productive Runner outcomes are separately recorded
+as plans, bids, deliveries, validation, settlement, or host-verified
+improvement candidates. External work has no priority merely because it is
+external: available work and idle system-improvement audits use the same
+expected-net-profit ranking, and a losing opportunity is skipped.
 
 ## v4.3.5 goal and current public result
 

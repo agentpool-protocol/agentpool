@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -15,6 +20,7 @@ import {
   validateExecutionResult,
 } from "../runner/agentpool-autonomy-core.mjs";
 import {
+  buildExecutorResultSchema,
   createExecutionAdapter,
   createExecutorRegistry,
   resolveProviderLaunch,
@@ -34,6 +40,26 @@ import {
 import { newRunnerState } from "../runner/agentpool-runner-core.mjs";
 
 const address = (value) => `0x${String(value).padStart(40, "0")}`;
+
+test("executor schema satisfies strict nested required-property rules", () => {
+  const schema = buildExecutorResultSchema();
+  const assertStrictObject = (node) => {
+    if (!node || typeof node !== "object") return;
+    const types = Array.isArray(node.type) ? node.type : [node.type];
+    if (types.includes("object")) {
+      assert.deepEqual(
+        [...node.required].sort(),
+        Object.keys(node.properties).sort(),
+      );
+      assert.equal(node.additionalProperties, false);
+      for (const property of Object.values(node.properties)) {
+        assertStrictObject(property);
+      }
+    }
+    if (node.items) assertStrictObject(node.items);
+  };
+  assertStrictObject(schema);
+});
 
 function opportunity() {
   return {
@@ -173,6 +199,61 @@ test("process adapters use shell=false and normalize all provider outputs", asyn
         usage: { units: 1 },
       });
     }
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("candidate evidence comes from actual workspace changes and host tests", async () => {
+  const workspace = await mkdtemp(
+    path.join(os.tmpdir(), "agentpool-candidate-evidence-"),
+  );
+  try {
+    await mkdir(path.join(workspace, "tests"), { recursive: true });
+    await writeFile(
+      path.join(workspace, "tests", "candidate.test.mjs"),
+      [
+        'import assert from "node:assert/strict";',
+        'import test from "node:test";',
+        'test("candidate", () => assert.equal(2 + 2, 4));',
+      ].join("\n"),
+    );
+    const output = JSON.stringify({
+      content: "Implemented and tested an isolated candidate change.",
+      evidence: {
+        summary: "self-reported summary",
+        digest: "self-reported-digest",
+        changedFiles: ["fabricated.txt"],
+        testCommand: "fabricated-command",
+        testPassed: false,
+        patchDigest: "fabricated-digest",
+      },
+      usage: { mode: "test", units: 1 },
+    });
+    const adapter = createExecutionAdapter({
+      provider: "codex",
+      enabled: true,
+      command: process.execPath,
+      args: [
+        "-e",
+        [
+          'require("node:fs").writeFileSync("candidate.txt", "real change");',
+          `process.stdout.write(${JSON.stringify(output)});`,
+        ].join(""),
+      ],
+      workspace,
+      allowedWorkspaceRoots: [workspace],
+      verifyCandidateWorkspace: true,
+    });
+    const result = await adapter.execute({
+      instruction: "implement candidate",
+      workspaceMode: "ISOLATED_CANARY",
+    });
+    assert.deepEqual(result.evidence.changedFiles, ["candidate.txt"]);
+    assert.equal(result.evidence.testPassed, true);
+    assert.equal(result.evidence.hostVerified, true);
+    assert.match(result.evidence.patchDigest, /^sha256:[0-9a-f]{64}$/);
+    assert.equal(result.evidence.testCommand, "node --test tests/*.test.mjs");
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
@@ -419,6 +500,9 @@ test("idle capacity audits a real system issue only when it beats market work", 
         evidence: {
           summary: "reproducible ranking gap",
           digest: "ranking-gap-v1",
+          testCommand:
+            "node --test tests/v43-autonomy-runner.test.mjs",
+          testPassed: true,
         },
       };
     },
@@ -453,9 +537,10 @@ test("idle capacity audits a real system issue only when it beats market work", 
   );
   assert.equal(
     issue.body.payload.funding,
-    "SELF_BOOTSTRAP_EXISTING_TAPOOL",
+    "UNFUNDED_ADVISORY_UNTIL_CANDIDATE_VERIFIED",
   );
-  assert.equal(issue.body.payload.rewardCapApool, "2");
+  assert.equal(issue.body.payload.rewardCapApool, "0");
+  assert.equal(issue.body.payload.candidateRewardCapApool, "2");
 
   const higherMarket = await runIdleImprovementCycle({
     config: {
@@ -593,10 +678,227 @@ test("an improvement candidate needs changed-file and passing-test evidence", as
       testCommand: "node --test tests/v43-autonomy-runner.test.mjs",
       testPassed: true,
       patchDigest: "sha256:strict-evidence-gate",
+      hostVerified: true,
     },
   });
   assert.equal(valid.valid, true);
   assert.equal(valid.evidence.changedFiles.length, 2);
+});
+
+test("idle improvement retries an unfulfilled issue with host-verified evidence", async () => {
+  const opportunityId = "improvement:retry-candidate";
+  const issueEvent = {
+    id: "evt:retry-candidate-issue",
+    eventType: "IMPROVEMENT_ISSUE",
+    opportunityId,
+    actorAddress: address(9),
+    body: {
+      payload: {
+        issueId: "issue:retry-candidate",
+        provider: "codex",
+        instruction: "Implement the isolated retry candidate.",
+        acceptanceCriteria: { focusedTestRequired: true },
+        expiresAt: 10_000,
+      },
+    },
+    createdAt: 10,
+    expiresAt: 10_000,
+  };
+  const mcp = relayMcp([issueEvent]);
+  const state = newRunnerState();
+  state.autonomy = {
+    cursor: 11,
+    processed: {
+      "evt:retry-candidate-issue:WATCHER,IMPROVER": 20,
+    },
+    validations: {},
+    idleImprovement: {
+      lastAttemptAt: 10,
+      lastAuditAt: 10,
+      lastCandidateAttemptAt: 20,
+      activeOpportunityId: opportunityId,
+      activeIssueEventId: issueEvent.id,
+      activeCandidateEventId: null,
+    },
+  };
+  const result = await runIdleImprovementCycle({
+    config: {
+      roles: ["WATCHER", "IMPROVER"],
+      idleImprovement: {
+        enabled: true,
+        candidateRetryIntervalMs: 1,
+      },
+    },
+    mcp,
+    state,
+    wallet: { address: address(9) },
+    executorRegistry: {
+      async execute() {
+        return {
+          provider: "codex",
+          content:
+            "Implemented the isolated retry candidate and verified it.",
+          evidence: {
+            summary: "host verified retry",
+            digest: "retry-candidate-v1",
+            changedFiles: ["runner/retry-candidate.mjs"],
+            testCommand: "node --test tests/*.test.mjs",
+            testPassed: true,
+            patchDigest: `sha256:${"ab".repeat(32)}`,
+            hostVerified: true,
+          },
+        };
+      },
+    },
+    now: 100,
+  });
+  assert.equal(result.outcomes[0].status, "candidate-published");
+  assert.equal(
+    mcp.events.filter(
+      (event) => event.eventType === "IMPROVEMENT_CANDIDATE",
+    ).length,
+    1,
+  );
+  assert.equal(state.autonomy.idleImprovement.activeOpportunityId, null);
+});
+
+test("idle improvement stops retrying after the bounded candidate limit", async () => {
+  const opportunityId = "improvement:bounded-retry";
+  const issueEvent = {
+    id: "evt:bounded-retry-issue",
+    eventType: "IMPROVEMENT_ISSUE",
+    opportunityId,
+    actorAddress: address(9),
+    body: {
+      payload: {
+        issueId: "issue:bounded-retry",
+        provider: "codex",
+        instruction: "Implement safely.",
+        expiresAt: 10_000,
+      },
+    },
+    createdAt: 10,
+    expiresAt: 10_000,
+  };
+  const state = newRunnerState();
+  state.autonomy = {
+    cursor: 11,
+    processed: {},
+    validations: {},
+    idleImprovement: {
+      activeOpportunityId: opportunityId,
+      activeIssueEventId: issueEvent.id,
+      activeCandidateEventId: null,
+      candidateAttemptCount: 3,
+    },
+  };
+  const result = await runIdleImprovementCycle({
+    config: {
+      roles: ["WATCHER", "IMPROVER"],
+      idleImprovement: {
+        enabled: true,
+        maximumCandidateAttempts: 3,
+      },
+    },
+    mcp: relayMcp([issueEvent]),
+    state,
+    wallet: { address: address(9) },
+    executorRegistry: {
+      async execute() {
+        throw new Error("SHOULD_NOT_RETRY");
+      },
+    },
+    now: 100,
+  });
+  assert.equal(result.outcomes[0].status, "candidate-abandoned");
+  assert.equal(state.autonomy.idleImprovement.activeOpportunityId, null);
+});
+
+test("transient autonomy execution errors do not advance the relay cursor", async () => {
+  const issueEvent = {
+    id: "evt:transient-executor-error",
+    eventType: "IMPROVEMENT_ISSUE",
+    opportunityId: "improvement:transient-error",
+    actorAddress: address(8),
+    body: {
+      payload: {
+        issueId: "issue:transient-error",
+        provider: "codex",
+        instruction: "Implement safely.",
+        acceptanceCriteria: {},
+        expiresAt: 10_000,
+      },
+    },
+    createdAt: 50,
+    expiresAt: 10_000,
+  };
+  const state = newRunnerState();
+  const result = await runAutonomyRoleCycle({
+    config: { roles: ["IMPROVER"], improvementProvider: "codex" },
+    mcp: relayMcp([issueEvent]),
+    state,
+    wallet: { address: address(9) },
+    executorRegistry: {
+      async execute() {
+        throw new Error("TRANSIENT_EXECUTOR_FAILURE");
+      },
+    },
+    now: 100,
+  });
+  assert.equal(result.outcomes[0].status, "error");
+  assert.equal(state.autonomy.cursor, 0);
+  assert.equal(
+    state.autonomy.processed[
+      "evt:transient-executor-error:IMPROVER"
+    ],
+    undefined,
+  );
+});
+
+test("pinned improvement issues cannot execute against another source snapshot", async () => {
+  const issueEvent = {
+    id: "evt:pinned-source-mismatch",
+    eventType: "IMPROVEMENT_ISSUE",
+    opportunityId: "improvement:pinned-source-mismatch",
+    actorAddress: address(8),
+    body: {
+      payload: {
+        issueId: "issue:pinned-source-mismatch",
+        provider: "codex",
+        instruction: "Implement safely.",
+        sourceSnapshotDigest: `sha256:${"11".repeat(32)}`,
+        expiresAt: 10_000,
+      },
+    },
+    createdAt: 50,
+    expiresAt: 10_000,
+  };
+  let executions = 0;
+  const state = newRunnerState();
+  const result = await runAutonomyRoleCycle({
+    config: {
+      roles: ["IMPROVER"],
+      improvementProvider: "codex",
+      requirePinnedImprovementIssues: true,
+      sourceSnapshotDigest: `sha256:${"22".repeat(32)}`,
+    },
+    mcp: relayMcp([issueEvent]),
+    state,
+    wallet: { address: address(9) },
+    executorRegistry: {
+      async execute() {
+        executions += 1;
+      },
+    },
+    now: 100,
+  });
+  assert.equal(result.outcomes[0].status, "candidate-superseded");
+  assert.equal(
+    result.outcomes[0].reason,
+    "ISSUE_SOURCE_SNAPSHOT_SUPERSEDED",
+  );
+  assert.equal(executions, 0);
+  assert.equal(state.autonomy.cursor, 51);
 });
 
 test("planner, bidder and coordinator roles exchange signed market events", async () => {

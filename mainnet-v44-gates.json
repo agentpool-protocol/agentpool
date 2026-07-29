@@ -1,0 +1,44 @@
+{
+  "schema": "agentpool.mainnet.v44.gates/v1",
+  "network": "base-mainnet",
+  "chainId": 8453,
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "policy": "Every gate is evidence-addressed and deployment fails closed. These records create no runtime administrator.",
+  "gates": {
+    "finalSourceReproducibility": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "evidenceOwner": "release-reproducibility"
+    },
+    "independentSecurityReview": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "evidenceOwner": "independent-security-reviewers"
+    },
+    "publicTestnetReliability": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "evidenceOwner": "public-testnet-observers"
+    },
+    "validatorIndependence": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "evidenceOwner": "validator-groups"
+    },
+    "economicInvariantReview": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "evidenceOwner": "protocol-economics-reviewers"
+    },
+    "deployerLegalAssessment": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "evidenceOwner": "actual-mainnet-deployer"
+    },
+    "nameAndSymbolClearance": {
+      "status": "blocked",
+      "evidenceSha256": null,
+      "evidenceOwner": "release-community"
+    }
+  }
+}

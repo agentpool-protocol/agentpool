@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,6 +13,13 @@ import {
 const PROVIDERS = new Set(["codex", "claude", "qwen"]);
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
+const WORKSPACE_EVIDENCE_IGNORES = new Set([
+  ".git",
+  ".next",
+  "dist",
+  "node_modules",
+  "outputs",
+]);
 const projectRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -197,6 +205,108 @@ function runProcess(command, args, options) {
   });
 }
 
+async function workspaceFileHashes(workspace) {
+  const hashes = new Map();
+  const visit = async (directory) => {
+    const entries = await fs.promises.readdir(directory, {
+      withFileTypes: true,
+    });
+    entries.sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      if (WORKSPACE_EVIDENCE_IGNORES.has(entry.name)) continue;
+      const absolute = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        await visit(absolute);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const relative = path
+        .relative(workspace, absolute)
+        .replaceAll("\\", "/");
+      const content = await fs.promises.readFile(absolute);
+      hashes.set(
+        relative,
+        createHash("sha256").update(content).digest("hex"),
+      );
+    }
+  };
+  await visit(workspace);
+  return hashes;
+}
+
+function changedWorkspaceFiles(before, after) {
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .filter((file) => before.get(file) !== after.get(file))
+    .sort();
+}
+
+function workspacePatchDigest(changedFiles, after) {
+  const digest = createHash("sha256");
+  for (const file of changedFiles) {
+    digest.update(file);
+    digest.update("\0");
+    digest.update(after.get(file) ?? "DELETED");
+    digest.update("\0");
+  }
+  return `sha256:${digest.digest("hex")}`;
+}
+
+export async function computeWorkspaceDigest(workspace) {
+  const hashes = await workspaceFileHashes(workspace);
+  const digest = createHash("sha256");
+  for (const [file, hash] of [...hashes.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    digest.update(file);
+    digest.update("\0");
+    digest.update(hash);
+    digest.update("\0");
+  }
+  return `sha256:${digest.digest("hex")}`;
+}
+
+async function verifyCandidateWorkspace(workspace, config) {
+  const testsDirectory = path.join(workspace, "tests");
+  const testFiles = fs.existsSync(testsDirectory)
+    ? (await fs.promises.readdir(testsDirectory))
+        .filter((name) => name.endsWith(".test.mjs"))
+        .sort()
+        .map((name) => `tests/${name}`)
+    : [];
+  const testCommand = "node --test tests/*.test.mjs";
+  if (testFiles.length === 0) {
+    return { testCommand, testPassed: false };
+  }
+  try {
+    await runProcess(process.execPath, ["--test", ...testFiles], {
+      cwd: workspace,
+      env: {
+        PATH: process.env.PATH,
+        SystemRoot: process.env.SystemRoot,
+        TEMP: process.env.TEMP,
+        TMP: process.env.TMP,
+        HOME: process.env.HOME,
+        USERPROFILE: process.env.USERPROFILE,
+        APPDATA: process.env.APPDATA,
+        LOCALAPPDATA: process.env.LOCALAPPDATA,
+        HOMEDRIVE: process.env.HOMEDRIVE,
+        HOMEPATH: process.env.HOMEPATH,
+      },
+      timeoutMs: Number(
+        config.candidateVerificationTimeoutMs ?? 180_000,
+      ),
+      maxOutputBytes: Number(
+        config.candidateVerificationMaxOutputBytes ??
+          DEFAULT_MAX_OUTPUT_BYTES,
+      ),
+    });
+    return { testCommand, testPassed: true };
+  } catch {
+    return { testCommand, testPassed: false };
+  }
+}
+
 export function normalizeExecutionResult(value, provider) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("EXECUTOR_RESULT_OBJECT_REQUIRED");
@@ -228,6 +338,49 @@ export function buildExecutorPrompt(task) {
     "Complete the requested task and place the deliverable in content.",
     `Task JSON: ${JSON.stringify(task)}`,
   ].join("\n");
+}
+
+export function buildExecutorResultSchema() {
+  return {
+    type: "object",
+    properties: {
+      content: { type: "string" },
+      evidence: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          digest: { type: "string" },
+          changedFiles: {
+            type: ["array", "null"],
+            items: { type: "string" },
+          },
+          testCommand: { type: ["string", "null"] },
+          testPassed: { type: ["boolean", "null"] },
+          patchDigest: { type: ["string", "null"] },
+        },
+        required: [
+          "summary",
+          "digest",
+          "changedFiles",
+          "testCommand",
+          "testPassed",
+          "patchDigest",
+        ],
+        additionalProperties: false,
+      },
+      usage: {
+        type: "object",
+        properties: {
+          mode: { type: "string" },
+          units: { type: "number" },
+        },
+        required: ["mode", "units"],
+        additionalProperties: false,
+      },
+    },
+    required: ["content", "evidence", "usage"],
+    additionalProperties: false,
+  };
 }
 
 export function createExecutionAdapter(config = {}) {
@@ -275,39 +428,13 @@ export function createExecutionAdapter(config = {}) {
       );
       const schemaPath = path.join(temporary, "result.schema.json");
       const outputPath = path.join(temporary, "result.json");
-      const schema = {
-        type: "object",
-        properties: {
-          content: { type: "string" },
-          evidence: {
-            type: "object",
-            properties: {
-              summary: { type: "string" },
-              digest: { type: "string" },
-              changedFiles: {
-                type: "array",
-                items: { type: "string" },
-              },
-              testCommand: { type: "string" },
-              testPassed: { type: "boolean" },
-              patchDigest: { type: "string" },
-            },
-            required: ["summary", "digest"],
-            additionalProperties: false,
-          },
-          usage: {
-            type: "object",
-            properties: {
-              mode: { type: "string" },
-              units: { type: "number" },
-            },
-            required: ["mode", "units"],
-            additionalProperties: false,
-          },
-        },
-        required: ["content", "evidence", "usage"],
-        additionalProperties: false,
-      };
+      const verifyCandidate =
+        task.workspaceMode === "ISOLATED_CANARY" &&
+        config.verifyCandidateWorkspace !== false;
+      const workspaceBefore = verifyCandidate
+        ? await workspaceFileHashes(workspace)
+        : null;
+      const schema = buildExecutorResultSchema();
       await mkdir(temporary, { recursive: true });
       await writeFile(schemaPath, JSON.stringify(schema), "utf8");
       const prompt = buildExecutorPrompt(task);
@@ -341,10 +468,33 @@ export function createExecutionAdapter(config = {}) {
             config.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
           ),
         });
-        return normalizeExecutionResult(
+        const normalized = normalizeExecutionResult(
           parseProviderOutput(provider, result.stdout, outputPath),
           provider,
         );
+        if (verifyCandidate) {
+          const workspaceAfter = await workspaceFileHashes(workspace);
+          const changedFiles = changedWorkspaceFiles(
+            workspaceBefore,
+            workspaceAfter,
+          );
+          const verification = await verifyCandidateWorkspace(
+            workspace,
+            config,
+          );
+          normalized.evidence = {
+            ...normalized.evidence,
+            changedFiles,
+            testCommand: verification.testCommand,
+            testPassed: verification.testPassed,
+            patchDigest: workspacePatchDigest(
+              changedFiles,
+              workspaceAfter,
+            ),
+            hostVerified: true,
+          };
+        }
+        return normalized;
       } finally {
         await rm(temporary, { recursive: true, force: true });
       }

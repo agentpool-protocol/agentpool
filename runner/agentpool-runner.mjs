@@ -18,7 +18,10 @@ import {
   parseMcpToolResult,
   runRunnerCycle,
 } from "./agentpool-runner-core.mjs";
-import { createExecutorRegistry } from "./execution-adapters.mjs";
+import {
+  computeWorkspaceDigest,
+  createExecutorRegistry,
+} from "./execution-adapters.mjs";
 import {
   executeRunnerTaskWithAdapters,
   runAutonomyRoleCycle,
@@ -83,6 +86,7 @@ async function loadConfig() {
       estimatedGasApool: "0",
       failureLossApool: "0",
     },
+    requirePinnedImprovementIssues: true,
     operatorGroup: "codex-single-device",
     runtime: "agentpool-codex-runner-v1",
     maximumConsecutiveFailures: 20,
@@ -216,12 +220,15 @@ async function main() {
   );
   await mkdir(workspaceRoot, { recursive: true });
   const codexWorkspace = await prepareSourceSnapshot(workspaceRoot);
+  config.sourceSnapshotDigest =
+    await computeWorkspaceDigest(codexWorkspace);
   config.executors ??= {};
   config.executors.codex = {
     enabled: "auto",
     workspace: codexWorkspace,
     allowedWorkspaceRoots: [workspaceRoot],
     allowWorkspaceWrite: true,
+    verifyCandidateWorkspace: true,
     skipGitRepoCheck: true,
     ignoreUserConfig: true,
     ignoreRules: true,

@@ -44,6 +44,7 @@ contract AgentPoolV43EpochVault is IAgentPoolV43EpochVault {
     error InvalidTerms();
     error AlreadyConfigured();
     error BudgetExceeded();
+    error EmissionNotStarted();
 
     constructor(
         IAgentPoolV43Token token_,
@@ -93,6 +94,7 @@ contract AgentPoolV43EpochVault is IAgentPoolV43EpochVault {
 
     function reserve(bytes32 reservationId, uint128 amount) external override {
         if (msg.sender != market) revert Unauthorized();
+        if (block.timestamp < genesisStart) revert EmissionNotStarted();
         if (
             reservationId == bytes32(0) ||
             amount == 0 ||
@@ -121,6 +123,7 @@ contract AgentPoolV43EpochVault is IAgentPoolV43EpochVault {
         uint256[] calldata amounts
     ) external override returns (uint256 paid) {
         if (msg.sender != market) revert Unauthorized();
+        if (block.timestamp < genesisStart) revert EmissionNotStarted();
         Reservation storage reservation = reservations[reservationId];
         if (
             reservation.reserved == 0 ||

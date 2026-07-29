@@ -25,6 +25,11 @@ import {
 } from "viem";
 
 const root = process.cwd();
+const tokenArtifactName =
+  process.env.AGENTPOOL_REHEARSAL_TOKEN_ARTIFACT ?? "AgentPoolV43Token";
+const rehearsalOutputName =
+  process.env.AGENTPOOL_REHEARSAL_OUTPUT ??
+  "v43-public-testnet-rehearsal.json";
 const common = createCustomCommon(
   { chainId: 31337, name: "AgentPool v4.3 Public Testnet Rehearsal" },
   Mainnet,
@@ -55,15 +60,20 @@ for (const key of [deployerKey, ...agents.map((agent) => agent.key)]) {
 
 const artifactCache = new Map();
 function artifact(name) {
-  if (!artifactCache.has(name)) {
+  const resolvedName =
+    name === "AgentPoolV43Token" ? tokenArtifactName : name;
+  if (!artifactCache.has(resolvedName)) {
     artifactCache.set(
-      name,
+      resolvedName,
       JSON.parse(
-        fs.readFileSync(path.join(root, "artifacts", `${name}.json`), "utf8"),
+        fs.readFileSync(
+          path.join(root, "artifacts", `${resolvedName}.json`),
+          "utf8",
+        ),
       ),
     );
   }
-  return artifactCache.get(name);
+  return artifactCache.get(resolvedName);
 }
 
 let blockNumber = 1n;
@@ -2001,6 +2011,7 @@ const output = {
   network: "in-memory-cancun",
   chainId: 31337,
   phase: "MATURE_REHEARSAL",
+  tokenArtifactName,
   contracts: {
     token,
     userEscrow,
@@ -2028,7 +2039,7 @@ const output = {
 };
 fs.mkdirSync(path.join(root, "outputs"), { recursive: true });
 fs.writeFileSync(
-  path.join(root, "outputs", "v43-public-testnet-rehearsal.json"),
+  path.join(root, "outputs", rehearsalOutputName),
   `${JSON.stringify(output, null, 2)}\n`,
 );
 process.stdout.write(`${JSON.stringify(output)}\n`);

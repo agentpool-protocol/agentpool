@@ -32,6 +32,7 @@ yarn-error.log*
 .env*
 !.env.example
 !.env.wallets.example
+!.env.v44.mainnet.example
 
 # vercel
 .vercel
