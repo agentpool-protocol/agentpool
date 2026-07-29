@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import {
   createPublicClient,
   createWalletClient,
+  fallback,
   formatEther,
   http,
 } from "viem";
@@ -59,12 +60,33 @@ function sponsorAccount() {
 }
 
 function chainClient() {
+  const urls = [
+    env.AGENTPOOL_RPC_URL ?? "https://sepolia.base.org",
+    "https://sepolia-preconf.base.org",
+  ].filter((url, index, all) => all.indexOf(url) === index);
   return createPublicClient({
     chain: baseSepolia,
-    transport: http(env.AGENTPOOL_RPC_URL ?? "https://sepolia.base.org", {
-      retryCount: 3,
-      timeout: 30_000,
-    }),
+    transport: fallback(
+      urls.map((url) =>
+        http(url, { retryCount: 1, timeout: 15_000 }),
+      ),
+    ),
+  });
+}
+
+function chainWallet(account: ReturnType<typeof privateKeyToAccount>) {
+  const urls = [
+    env.AGENTPOOL_RPC_URL ?? "https://sepolia.base.org",
+    "https://sepolia-preconf.base.org",
+  ].filter((url, index, all) => all.indexOf(url) === index);
+  return createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: fallback(
+      urls.map((url) =>
+        http(url, { retryCount: 1, timeout: 15_000 }),
+      ),
+    ),
   });
 }
 
@@ -122,10 +144,15 @@ export async function GET(): Promise<Response> {
       dayBucket,
     );
     let sponsorBalanceWei: bigint | null = null;
+    let rpcAvailable = true;
     if (account) {
-      sponsorBalanceWei = await chainClient().getBalance({
-        address: account.address,
-      });
+      try {
+        sponsorBalanceWei = await chainClient().getBalance({
+          address: account.address,
+        });
+      } catch {
+        rpcAvailable = false;
+      }
     }
     return apiResponse({
       protocol: "AgentPool",
@@ -133,6 +160,7 @@ export async function GET(): Promise<Response> {
       chainId: V43_GAS_GRANT_CHAIN_ID,
       testnetOnly: true,
       configured: account !== null,
+      rpcAvailable,
       sponsorAddress: account?.address ?? null,
       sponsorBalanceWei:
         sponsorBalanceWei === null ? null : sponsorBalanceWei.toString(),
@@ -218,9 +246,23 @@ export async function POST(request: Request): Promise<Response> {
       }
 
       const client = chainClient();
-      const currentBalanceWei = await client.getBalance({
-        address: auth.address,
-      });
+      let currentBalanceWei: bigint;
+      try {
+        currentBalanceWei = await client.getBalance({
+          address: auth.address,
+        });
+      } catch {
+        return {
+          status: 202,
+          body: {
+            ok: false,
+            state: "PENDING_CHAIN",
+            recoverable: true,
+            reason: "BASE_SEPOLIA_RPC_UNAVAILABLE",
+            requestEventId,
+          },
+        };
+      }
       const amountWei = gasGrantAmountWei(currentBalanceWei);
       if (amountWei === 0n) {
         return {
@@ -234,9 +276,23 @@ export async function POST(request: Request): Promise<Response> {
           },
         };
       }
-      const sponsorBalanceWei = await client.getBalance({
-        address: account.address,
-      });
+      let sponsorBalanceWei: bigint;
+      try {
+        sponsorBalanceWei = await client.getBalance({
+          address: account.address,
+        });
+      } catch {
+        return {
+          status: 202,
+          body: {
+            ok: false,
+            state: "PENDING_CHAIN",
+            recoverable: true,
+            reason: "BASE_SEPOLIA_RPC_UNAVAILABLE",
+            requestEventId,
+          },
+        };
+      }
       if (
         sponsorBalanceWei <
         amountWei + V43_GAS_GRANT_SPONSOR_RESERVE_WEI
@@ -329,14 +385,7 @@ export async function POST(request: Request): Promise<Response> {
         };
       }
 
-      const wallet = createWalletClient({
-        account,
-        chain: baseSepolia,
-        transport: http(
-          env.AGENTPOOL_RPC_URL ?? "https://sepolia.base.org",
-          { retryCount: 3, timeout: 30_000 },
-        ),
-      });
+      const wallet = chainWallet(account);
       let transactionHash: `0x${string}`;
       try {
         transactionHash = await wallet.sendTransaction({
