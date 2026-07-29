@@ -31,7 +31,10 @@ import {
   verifyV44ReleaseEvidence,
   verifyV44ReleaseEvidenceFile,
 } from "../scripts/generate-v44-release-evidence.mjs";
-import { resolveV44ChainProfile } from "../scripts/lib/v44-chain-profile.mjs";
+import {
+  requireProfileEnvironment,
+  resolveV44ChainProfile,
+} from "../scripts/lib/v44-chain-profile.mjs";
 
 function source(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), "utf8");
@@ -709,6 +712,12 @@ test("v4.4 deployment engine defaults to Base mainnet and testnet requires an ex
   assert.equal(testnetProfile.chainId, 84532);
   assert.equal(testnetProfile.requireReleaseGates, false);
   assert.equal(testnetProfile.testnetOnly, true);
+  assert.equal(
+    requireProfileEnvironment(testnetProfile, {
+      AGENTPOOL_V44_TESTNET_RPC_URL: "https://sepolia.base.org",
+    }).minimumBalance,
+    1_000_000_000_000_000n,
+  );
   assert.match(profileHelper, /AGENTPOOL_MAINNET_RPC_URL/);
   assert.match(profileHelper, /AGENTPOOL_V44_TESTNET_RPC_URL/);
   assert.doesNotMatch(

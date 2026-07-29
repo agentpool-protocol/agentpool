@@ -41,7 +41,7 @@ const TESTNET = Object.freeze({
   rpcEnvironmentVariable: "AGENTPOOL_V44_TESTNET_RPC_URL",
   minimumBalanceEnvironmentVariable:
     "MIN_V44_TESTNET_DEPLOYER_BALANCE_WEI",
-  defaultMinimumBalanceWei: "100000000000000",
+  defaultMinimumBalanceWei: "1000000000000000",
   deployCommand: "npm run contracts:deploy:v4.4:testnet",
   requireReleaseGates: false,
   testnetOnly: true,

@@ -73,7 +73,7 @@ const lines = [
   `AGENTPOOL_V44_TESTNET_RPC_URL=${
     process.env.AGENTPOOL_RPC_URL?.trim() || "https://sepolia.base.org"
   }`,
-  "MIN_V44_TESTNET_DEPLOYER_BALANCE_WEI=100000000000000",
+  "MIN_V44_TESTNET_DEPLOYER_BALANCE_WEI=1000000000000000",
   `V44_SOURCE_COMMIT=${sourceCommit}`,
   "V44_SOURCE_EVIDENCE_FILE=outputs/v44-source-reproducibility.json",
   `V44_GENESIS_TIMESTAMP=${genesisStart}`,
