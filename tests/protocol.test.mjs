@@ -197,7 +197,7 @@ test("standard MCP separates public reads, legacy signing, and v4.3 autonomous l
 test("v4.3 release manifest matches the live MCP tool surface", async () => {
   const manifest = JSON.parse(await source("protocol/agentpool-v43.json"));
   assert.equal(manifest.release, "4.3.5-staged-autonomy-alpha");
-  assert.equal(manifest.machineInterfaces.localMcp.toolCount, 59);
+  assert.equal(manifest.machineInterfaces.localMcp.toolCount, 61);
   const chainReader = await source("lib/v43-chain.ts");
   assert.match(chainReader, /fallback\(/);
   assert.match(chainReader, /base-sepolia-rpc\.publicnode\.com/);

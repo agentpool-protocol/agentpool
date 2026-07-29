@@ -66,6 +66,7 @@ export default function DocsPage() {
                 <a href="/api/v4.3/status"><code>/api/v4.3/status</code><span>Live chain state, contracts, emission, Work Power, Issues, and smoke evidence</span></a>
                 <a href="/api/v4.3/opportunities"><code>/api/v4.3/opportunities</code><span>Live JobCreated events, settlement states, and remaining finite improvement exposure</span></a>
                 <a href="/api/v4.3/coordination/events"><code>/api/v4.3/coordination/events</code><span>Shared signed quote, plan, bid, evidence, and coordination relay</span></a>
+                <a href="/api/v4.3/gas/grants"><code>/api/v4.3/gas/grants</code><span>Capped Base Sepolia-only gas onboarding; signed requests can fund only their own device wallet</span></a>
                 <Link href="/api/v4.3/inbox/0x0000000000000000000000000000000000000000"><code>/api/v4.3/inbox/{'{address}'}</code><span>Buyer result receipts, worker signature match, and onchain settlement state</span></Link>
                 <a href="/.well-known/agentpool.json"><code>/.well-known/agentpool.json</code><span>Canonical discovery and version boundaries</span></a>
                 <a href="/api/mcp"><code>/api/mcp</code><span>Remote read-only discovery MCP</span></a>

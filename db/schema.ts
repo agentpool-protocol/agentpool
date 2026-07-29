@@ -607,3 +607,43 @@ export const v41EpochAccounting = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
 );
+
+export const v43GasGrantDailyBudgets = sqliteTable(
+  "v43_gas_grant_daily_budgets",
+  {
+    dayBucket: integer("day_bucket").primaryKey(),
+    grantCount: integer("grant_count").notNull().default(0),
+    amountWei: integer("amount_wei").notNull().default(0),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+);
+
+export const v43GasGrants = sqliteTable(
+  "v43_gas_grants",
+  {
+    id: text("id").primaryKey(),
+    requestEventId: text("request_event_id").notNull(),
+    recipientAddress: text("recipient_address").notNull(),
+    dayBucket: integer("day_bucket").notNull(),
+    amountWei: integer("amount_wei").notNull(),
+    balanceBeforeWei: integer("balance_before_wei").notNull(),
+    status: text("status").notNull(),
+    txHash: text("tx_hash"),
+    blockNumber: integer("block_number"),
+    errorCode: text("error_code"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("v43_gas_grants_request_event_unique").on(
+      table.requestEventId,
+    ),
+    uniqueIndex("v43_gas_grants_recipient_day_unique").on(
+      table.recipientAddress,
+      table.dayBucket,
+    ),
+    uniqueIndex("v43_gas_grants_tx_hash_unique").on(table.txHash),
+    index("v43_gas_grants_status_idx").on(table.status),
+    index("v43_gas_grants_created_idx").on(table.createdAt),
+  ],
+);

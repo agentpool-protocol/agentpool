@@ -248,6 +248,13 @@ test("a new zero-gas wallet requests test gas before onchain registration", asyn
       if (name === "agentpool_v43_publish_coordination") {
         return { id: "evt:gas-request" };
       }
+      if (name === "agentpool_v43_request_test_gas") {
+        return {
+          ok: false,
+          state: "PENDING_SPONSOR",
+          requestEventId: args.requestEventId,
+        };
+      }
       throw new Error(`UNEXPECTED_TOOL:${name}`);
     },
   };
@@ -267,9 +274,11 @@ test("a new zero-gas wallet requests test gas before onchain registration", asyn
       "agentpool_v43_create_test_wallet",
       "agentpool_v43_wallet_status",
       "agentpool_v43_publish_coordination",
+      "agentpool_v43_request_test_gas",
     ],
   );
   assert.equal(result.outcomes[0].status, "gas-hold");
+  assert.equal(result.outcomes[0].gasGrant.state, "PENDING_SPONSOR");
   assert.equal(
     result.onboarding.walletCreated.address,
     worker,
@@ -279,6 +288,110 @@ test("a new zero-gas wallet requests test gas before onchain registration", asyn
       (call) => call.name === "agentpool_v43_register_onchain",
     ),
     false,
+  );
+});
+
+test("a confirmed automatic grant resumes registration in the same cycle", async () => {
+  const calls = [];
+  let walletReads = 0;
+  const mcp = {
+    calls,
+    async call(name, args) {
+      calls.push({ name, args });
+      if (name === "agentpool_v43_wallet_status") {
+        walletReads += 1;
+        return {
+          configured: true,
+          address: worker,
+          testnetOnly: true,
+          registered: false,
+          baseSepoliaEth: walletReads === 1 ? "0" : "0.000003",
+        };
+      }
+      if (name === "agentpool_v43_publish_coordination") {
+        return { id: "evt:gas-request" };
+      }
+      if (name === "agentpool_v43_request_test_gas") {
+        return {
+          ok: true,
+          grant: {
+            status: "CONFIRMED",
+            transactionHash: `0x${"12".repeat(32)}`,
+          },
+        };
+      }
+      if (name === "agentpool_v43_register_onchain") {
+        return {
+          registered: true,
+          transactionHash: `0x${"34".repeat(32)}`,
+        };
+      }
+      if (name === "agentpool_v43_shared_coordination") {
+        return { events: [] };
+      }
+      throw new Error(`UNEXPECTED_TOOL:${name}`);
+    },
+  };
+  const result = await runRunnerCycle({
+    config: {
+      operatorGroup: "external-device-group",
+      runtime: "external-runner-v1",
+      minimumGasEth: "0.000001",
+    },
+    mcp,
+    state: newRunnerState(),
+    fetchChainSnapshot: async () => ({ activity: [] }),
+  });
+  assert.deepEqual(
+    calls.map((call) => call.name),
+    [
+      "agentpool_v43_wallet_status",
+      "agentpool_v43_publish_coordination",
+      "agentpool_v43_request_test_gas",
+      "agentpool_v43_wallet_status",
+      "agentpool_v43_register_onchain",
+      "agentpool_v43_shared_coordination",
+    ],
+  );
+  assert.equal(result.wallet.registered, true);
+  assert.equal(result.wallet.baseSepoliaEth, "0.000003");
+  assert.equal(result.state.gasRequest, null);
+  assert.equal(result.state.gasGrant, null);
+});
+
+test("a sponsor outage keeps a zero-gas runner safely held and retryable", async () => {
+  const mcp = {
+    async call(name) {
+      if (name === "agentpool_v43_wallet_status") {
+        return {
+          configured: true,
+          address: worker,
+          testnetOnly: true,
+          registered: false,
+          baseSepoliaEth: "0",
+        };
+      }
+      if (name === "agentpool_v43_publish_coordination") {
+        return { id: "evt:gas-request" };
+      }
+      if (name === "agentpool_v43_request_test_gas") {
+        throw new Error("V43_GAS_SPONSOR_STATUS_FAILED:503");
+      }
+      throw new Error(`UNEXPECTED_TOOL:${name}`);
+    },
+  };
+  const result = await runRunnerCycle({
+    config: { minimumGasEth: "0.000001" },
+    mcp,
+    state: newRunnerState(),
+    fetchChainSnapshot: async () => ({ activity: [] }),
+  });
+  assert.equal(result.outcomes[0].status, "gas-hold");
+  assert.equal(result.outcomes[0].gasGrant.state, "PENDING_SPONSOR");
+  assert.equal(result.outcomes[0].gasGrant.recoverable, true);
+  assert.match(
+    result.outcomes[0].gasGrant.reason,
+    /V43_GAS_SPONSOR_STATUS_FAILED/,
   );
 });
 

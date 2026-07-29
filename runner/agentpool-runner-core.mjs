@@ -408,17 +408,64 @@ export async function runRunnerCycle({
         expiresAt,
       };
     }
-    return {
-      wallet,
-      onboarding: onboardingState(),
-      outcomes: [
-        {
-          status: "gas-hold",
-          reason: "BASE_SEPOLIA_GAS_BELOW_MINIMUM",
-        },
-      ],
-      state,
-    };
+    let gasGrant = state.gasGrant ?? null;
+    const grantRetryMs = Number(config.gasGrantRetryMs ?? 5 * 60 * 1_000);
+    if (
+      !state.lastGasGrantAttemptAt ||
+      now - Number(state.lastGasGrantAttemptAt) >= grantRetryMs
+    ) {
+      try {
+        gasGrant = await mcp.call(
+          "agentpool_v43_request_test_gas",
+          { requestEventId: state.gasRequest.eventId },
+        );
+      } catch (error) {
+        gasGrant = {
+          ok: false,
+          state: "PENDING_SPONSOR",
+          recoverable: true,
+          reason:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "TESTNET_GAS_SPONSOR_UNAVAILABLE",
+        };
+      }
+      state.gasGrant = gasGrant;
+      state.lastGasGrantAttemptAt = now;
+      if (
+        gasGrant?.state === "NOT_NEEDED" ||
+        gasGrant?.grant?.status === "CONFIRMED"
+      ) {
+        wallet = await mcp.call("agentpool_v43_wallet_status", {});
+        if (
+          parseEther(String(wallet.baseSepoliaEth)) >=
+          parseEther(String(config.minimumGasEth))
+        ) {
+          state.gasRequest = null;
+          state.gasGrant = null;
+        }
+      }
+    }
+    if (
+      parseEther(String(wallet.baseSepoliaEth)) >=
+      parseEther(String(config.minimumGasEth))
+    ) {
+      state.gasRequest = null;
+      state.gasGrant = null;
+    } else {
+      return {
+        wallet,
+        onboarding: onboardingState(),
+        outcomes: [
+          {
+            status: "gas-hold",
+            reason: "BASE_SEPOLIA_GAS_BELOW_MINIMUM",
+            gasGrant,
+          },
+        ],
+        state,
+      };
+    }
   }
   if (wallet.registered === false) {
     const addressSuffix = String(wallet.address).slice(-12).toLowerCase();

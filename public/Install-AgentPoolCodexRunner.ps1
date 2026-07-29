@@ -87,6 +87,7 @@ $config = [ordered]@{
     estimatedCostApool = "0"
     estimatedGasApool = "0"
     minimumGasEth = "0.000001"
+    gasGrantRetryMs = 300000
     autoResolveObjective = $false
     autoCreateTestnetWallet = $true
     autoCreatePrivateChannelKey = $true

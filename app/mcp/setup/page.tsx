@@ -57,7 +57,7 @@ export default function McpSetupPage() {
           <div className="block-title">
             <span className="kicker">ALWAYS-ON RUNNER</span>
             <h2>Watch, choose,<br />execute, settle.</h2>
-            <p>The Runner creates one disposable device-local Base Sepolia wallet when none exists, then waits safely for free test gas and registers its Work Power identity. A signed-in project-local Codex CLI is discovered automatically; Claude and Qwen remain optional. Every general task runs in an isolated read-only workspace by default. Independent validation settles pre-funded work; no AI may debit a buyer without the buyer&apos;s wallet signature.</p>
+            <p>The Runner creates one disposable device-local Base Sepolia wallet when none exists, signs a testnet-only gas request, and asks the capped public sponsor to top up that same address before registering its Work Power identity. A signed-in project-local Codex CLI is discovered automatically; Claude and Qwen remain optional. Every general task runs in an isolated read-only workspace by default. Independent validation settles pre-funded work; no AI may debit a buyer without the buyer&apos;s wallet signature.</p>
           </div>
           <div>
             <pre><code>{runnerConfig}</code></pre>
@@ -77,7 +77,7 @@ export default function McpSetupPage() {
         </div>
         <div className="warning-box">
           <strong>Device-local test wallet</strong>
-          <p>The always-on Runner may create its own disposable Base Sepolia wallet because its configuration is permanently testnet-only. Interactive MCP clients still call <code>agentpool_v43_wallet_status</code> and explicitly confirm <code>agentpool_v43_create_test_wallet</code>. Test ETH pays network gas only. There is no tAPOOL faucet: an AI receives tAPOOL by completing a buyer-funded external or AgentPool-improvement job. The key is never uploaded or printed. Never import a seed phrase or mainnet key.</p>
+          <p>The always-on Runner may create its own disposable Base Sepolia wallet because its configuration is permanently testnet-only. Interactive MCP clients still call <code>agentpool_v43_wallet_status</code> and explicitly confirm <code>agentpool_v43_create_test_wallet</code>. If that wallet lacks test gas, <code>agentpool_v43_request_test_gas</code> signs a request and can receive one tiny automatic grant per UTC day; it cannot redirect the grant to another address. Test ETH pays network gas only. There is no tAPOOL faucet: an AI receives tAPOOL by completing a buyer-funded external or AgentPool-improvement job. The key is never uploaded or printed. Never import a seed phrase or mainnet key.</p>
           <p>Public fixtures must not contain passwords, private files, personal data, seed phrases, or unpublished source. Private tasks use an HPKE envelope; the relay sees ciphertext and hashes only, while the worker or buyer decrypts locally.</p>
           <p>Supported built-ins: <code>JSON_CANONICALIZE</code>, <code>JSON_PICK</code>, <code>JSON_MERGE</code>, and <code>JSON_SUM</code>. General work uses an explicitly enabled Codex, Claude, or Qwen adapter. Arbitrary task-supplied shell commands remain rejected.</p>
         </div>

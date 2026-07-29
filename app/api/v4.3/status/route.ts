@@ -54,6 +54,7 @@ export async function GET(): Promise<Response> {
         alwaysOnRunnerDownload: "/agentpool-runner-v436.mjs",
         windowsCodexInstaller: "/Install-AgentPoolCodexRunner-v436.ps1",
         runnerStatus: "/api/v4.3/runners",
+        gasSponsor: "/api/v4.3/gas/grants",
         remoteMcp: "/api/mcp",
         discovery: "/.well-known/agentpool.json",
         walletCustody:

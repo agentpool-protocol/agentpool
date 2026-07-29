@@ -27,6 +27,7 @@
     "runner:pilot:codex": "node scripts/run-v43-codex-executor-smoke.mjs",
     "runner:pilot:codex:onchain": "node --env-file-if-exists=.env.local scripts/run-v43-codex-onchain-e2e.mjs",
     "runner:doctor": "node scripts/check-v43-pre-mainnet-readiness.mjs",
+    "testnet:setup:gas-sponsor": "node scripts/setup-v43-gas-sponsor.mjs",
     "testnet:fund:codex-runner": "node --env-file-if-exists=.env.local scripts/fund-v43-codex-runner.mjs",
     "runner:launcher:smoke": "runner\\start-agentpool-runner.bat -LauncherSmoke",
     "contracts:compile": "node scripts/compile-contracts.mjs",

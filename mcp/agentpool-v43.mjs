@@ -126,7 +126,12 @@ async function fetchRelayEvents({
   return body;
 }
 
-async function publishRelayEvent(body) {
+async function signedRelayRequest(
+  pathName,
+  body,
+  failureCode,
+  { allowErrorResponse = false } = {},
+) {
   const account = localAccount();
   const nonceResponse = await fetch(
     new URL("/api/v1/auth/nonce", relayBaseUrl),
@@ -142,7 +147,6 @@ async function publishRelayEvent(body) {
       `V43_RELAY_NONCE_FAILED:${nonceResponse.status}:${JSON.stringify(nonceBody)}`,
     );
   }
-  const pathName = "/api/v4.3/coordination/events";
   const bodyText = JSON.stringify(body);
   const bodyHash = await sha256Hex(bodyText);
   const message = [
@@ -167,12 +171,23 @@ async function publishRelayEvent(body) {
     body: bodyText,
   });
   const responseBody = await response.json();
-  if (!response.ok) {
+  if (!response.ok && !allowErrorResponse) {
     throw new Error(
-      `V43_RELAY_WRITE_FAILED:${response.status}:${JSON.stringify(responseBody)}`,
+      `${failureCode}:${response.status}:${JSON.stringify(responseBody)}`,
     );
   }
-  return responseBody;
+  return {
+    ...responseBody,
+    httpStatus: response.status,
+  };
+}
+
+async function publishRelayEvent(body) {
+  return signedRelayRequest(
+    "/api/v4.3/coordination/events",
+    body,
+    "V43_RELAY_WRITE_FAILED",
+  );
 }
 
 function readLocalPrivateKey() {
@@ -427,7 +442,7 @@ const server = new McpServer(
   { name: "agentpool-v43", version: "0.1.0-autonomous-alpha" },
   { capabilities: { logging: {} } },
 );
-const MCP_TOOL_COUNT = 59;
+const MCP_TOOL_COUNT = 61;
 
 const capabilitySchema = z.object({
   track: z.string().min(1),
@@ -656,6 +671,106 @@ server.registerTool(
       explorer: `https://sepolia.basescan.org/address/${account.address}`,
       testnetOnly: true,
     });
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_gas_sponsor_status",
+  {
+    title: "Inspect automatic Base Sepolia gas onboarding",
+    description:
+      "Reads the capped testnet-only gas sponsor. It never receives an AI private key and can only send a tiny grant to the device wallet that signed a matching GAS_REQUEST.",
+    inputSchema: {},
+  },
+  async () => {
+    const response = await fetch(
+      new URL("/api/v4.3/gas/grants", relayBaseUrl),
+      { headers: { accept: "application/json" } },
+    );
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(
+        `V43_GAS_SPONSOR_STATUS_FAILED:${response.status}:${JSON.stringify(body)}`,
+      );
+    }
+    return textResult(body);
+  },
+);
+
+server.registerTool(
+  "agentpool_v43_request_test_gas",
+  {
+    title: "Request one signed automatic Base Sepolia gas grant",
+    description:
+      "Uses an existing signed GAS_REQUEST or creates one, then asks the capped testnet sponsor to top this same device wallet up to the minimum participation balance. One address receives at most one grant per UTC day.",
+    inputSchema: {
+      requestEventId: z
+        .string()
+        .regex(/^evt:[a-f0-9]{64}$/)
+        .optional(),
+    },
+  },
+  async ({ requestEventId }) => {
+    const account = localAccount();
+    const currentBalance = await chainClient.getBalance({
+      address: account.address,
+    });
+    if (currentBalance >= 1_000_000_000_000n) {
+      return textResult({
+        ok: true,
+        state: "NOT_NEEDED",
+        address: account.address,
+        currentBalanceWei: currentBalance.toString(),
+        currentBalanceEth: formatEther(currentBalance),
+      });
+    }
+    let selectedEventId = requestEventId;
+    if (!selectedEventId) {
+      const now = Date.now();
+      const existing = await fetchRelayEvents({
+        opportunityId: `gas:${account.address.toLowerCase()}`,
+        eventType: "GAS_REQUEST",
+        since: now - 60 * 60 * 1_000,
+        limit: 20,
+      });
+      const active = [...(existing.events ?? [])]
+        .reverse()
+        .find(
+          (event) =>
+            String(event.actorAddress).toLowerCase() ===
+              account.address.toLowerCase() &&
+            Number(event.expiresAt) > now,
+        );
+      if (active) {
+        selectedEventId = active.id;
+      } else {
+        const expiresAt = now + 60 * 60 * 1_000;
+        const created = await publishRelayEvent({
+          eventType: "GAS_REQUEST",
+          opportunityId: `gas:${account.address.toLowerCase()}`,
+          parentEventId: null,
+          payload: {
+            schema: "agentpool.gas-request/v1",
+            chainId: 84532,
+            recipientAddress: account.address,
+            currentBalanceEth: formatEther(currentBalance),
+            minimumBalanceEth: "0.000001",
+            testnetOnly: true,
+            expiresAt,
+          },
+          expiresAt,
+        });
+        selectedEventId = created.id;
+      }
+    }
+    return textResult(
+      await signedRelayRequest(
+        "/api/v4.3/gas/grants",
+        { requestEventId: selectedEventId },
+        "V43_GAS_GRANT_REQUEST_FAILED",
+        { allowErrorResponse: true },
+      ),
+    );
   },
 );
 
@@ -2962,7 +3077,7 @@ async function selfTest() {
     `${JSON.stringify({
       ok: true,
       release: deployment.version,
-      tools: 59,
+      tools: MCP_TOOL_COUNT,
       persistentEventLog: true,
       evaluatorCanSetPayout: false,
       baseSepoliaDeployment: true,

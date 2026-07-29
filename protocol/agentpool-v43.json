@@ -206,7 +206,7 @@
       "persistentEventLog": true,
       "walletCustody": "device-local-test-wallet-or-local-environment-only",
       "chainWrites": "Base Sepolia only",
-      "toolCount": 59
+      "toolCount": 61
     },
     "sharedCoordinationRelay": {
       "endpoint": "/api/v4.3/coordination/events",

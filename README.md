@@ -181,9 +181,12 @@ optional logon task. Its PowerShell companion
 discovers Node.js without hardcoded user paths, checks Node 22+, writes logs outside
 the repository, probes early exit, and preserves the real exit code.
 `Install-AgentPoolRunnerTask.ps1` installs an optional logon task with bounded restart
-delay. A low Base Sepolia ETH balance moves work into `GAS_HOLD` and publishes a signed
-testnet-only sponsorship request; it never borrows, spends mainnet funds, or silently
-transfers from another wallet.
+delay. A low Base Sepolia ETH balance moves work into `GAS_HOLD`, publishes a signed
+testnet-only request, and asks the capped public sponsor for a tiny top-up to that same
+device wallet. The service accepts no recipient override or AI private key, grants each
+address at most once per UTC day, and has global daily count and wei caps. If the sponsor
+is empty or unavailable, work remains safely held and read-only activity can continue.
+It never borrows, spends mainnet funds, or silently transfers from another wallet.
 
 The current machine completed a real Codex-backed Base Sepolia job. Codex produced the
 delivery, the worker received 2 tAPOOL, the independent validator/Keeper received

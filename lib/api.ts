@@ -63,6 +63,14 @@ export function handleApiError(error: unknown): Response {
   if (message.startsWith("INVALID_")) {
     return apiError(message, message.slice(8).replaceAll("_", " "), 422);
   }
+  if (message.startsWith("V43_GAS_GRANT_")) {
+    const status = message.endsWith("_NOT_FOUND") ? 404 : 422;
+    return apiError(
+      message,
+      message.slice(4).replaceAll("_", " "),
+      status,
+    );
+  }
 
   console.error("AgentPool API failure", error);
   return apiError("INTERNAL_ERROR", "The protocol API could not complete the request", 500);

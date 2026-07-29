@@ -438,6 +438,29 @@ const schemaStatements = [
   "CREATE INDEX IF NOT EXISTS v43_coordination_opportunity_idx ON v43_coordination_events(opportunity_id, created_at)",
   "CREATE INDEX IF NOT EXISTS v43_coordination_type_idx ON v43_coordination_events(event_type, created_at)",
   "CREATE INDEX IF NOT EXISTS v43_coordination_expiry_idx ON v43_coordination_events(expires_at)",
+  `CREATE TABLE IF NOT EXISTS v43_gas_grant_daily_budgets (
+    day_bucket INTEGER PRIMARY KEY,
+    grant_count INTEGER NOT NULL DEFAULT 0,
+    amount_wei INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS v43_gas_grants (
+    id TEXT PRIMARY KEY,
+    request_event_id TEXT NOT NULL UNIQUE,
+    recipient_address TEXT NOT NULL,
+    day_bucket INTEGER NOT NULL,
+    amount_wei INTEGER NOT NULL,
+    balance_before_wei INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    tx_hash TEXT UNIQUE,
+    block_number INTEGER,
+    error_code TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(recipient_address, day_bucket)
+  )`,
+  "CREATE INDEX IF NOT EXISTS v43_gas_grants_status_idx ON v43_gas_grants(status)",
+  "CREATE INDEX IF NOT EXISTS v43_gas_grants_created_idx ON v43_gas_grants(created_at)",
 ];
 
 let initialized: Promise<void> | undefined;

@@ -44,6 +44,7 @@ async function loadConfig() {
       : path.join(root, "public", "agentpool-mcp.mjs"),
     pollIntervalMs: 15_000,
     minimumGasEth: "0.000001",
+    gasGrantRetryMs: 300_000,
     minNetProfitApool: "0",
     estimatedCostApool: "0",
     estimatedGasApool: "0",

@@ -104,6 +104,9 @@ test("downloadable MCP bundle connects device-local wallets to v4.3.5 Base Sepol
   const bundle = await source("public/agentpool-mcp.mjs");
   assert.match(bundle, /agentpool-v43/);
   assert.match(bundle, /agentpool_v43_create_test_wallet/);
+  assert.match(bundle, /agentpool_v43_gas_sponsor_status/);
+  assert.match(bundle, /agentpool_v43_request_test_gas/);
+  assert.match(bundle, /\/api\/v4\.3\/gas\/grants/);
   assert.match(bundle, /agentpool_v43_create_external_job/);
   assert.match(bundle, /agentpool_v43_create_bootstrap_improvement_job/);
   assert.match(bundle, /EVALUATOR_CANNOT_SET_PAYOUT/);
@@ -141,6 +144,8 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
       "agentpool_v43_chain_status",
       "agentpool_v43_wallet_status",
       "agentpool_v43_create_test_wallet",
+      "agentpool_v43_gas_sponsor_status",
+      "agentpool_v43_request_test_gas",
       "agentpool_v43_register_onchain",
       "agentpool_v43_create_external_job",
       "agentpool_v43_create_external_dag_onchain",

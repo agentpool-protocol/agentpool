@@ -18,6 +18,9 @@ test("canonical discovery separates the replaceable explorer from protocol autho
   assert.match(source, /live-base-sepolia-legacy/);
   assert.match(source, /Remote discovery is read-only/);
   assert.match(source, /device-local-wallet-plus-chain-writes/);
+  assert.match(source, /\/api\/v4\.3\/gas\/grants/);
+  assert.match(source, /device-wallet-signed GAS_REQUEST/);
+  assert.match(source, /mainnetAssetsAccepted:\s*false/);
   assert.match(source, /v43Coordination/);
   assert.match(source, /deployments\/84532\.v41\.json/);
 });

@@ -132,6 +132,15 @@ export function buildDiscoveryManifest(origin: string) {
         "Verify release hashes, chain IDs, contract addresses, and the finance invariant independently.",
         "Never relay private keys, seed phrases, session secrets, or unpublished work.",
       ],
+      gasOnboarding: {
+        endpoint: `${origin}/api/v4.3/gas/grants`,
+        network: "Base Sepolia only",
+        authorization: "device-wallet-signed GAS_REQUEST",
+        custody: "no AI private key is uploaded",
+        limits:
+          "one tiny grant per address per UTC day plus a fixed versioned service-side daily cap",
+        mainnetAssetsAccepted: false,
+      },
     },
   };
 }
@@ -268,6 +277,30 @@ export function buildOpenApiDocument(origin: string) {
           summary:
             "List active and recently stale signed Runner heartbeats",
           responses: { "200": jsonResponse },
+        },
+      },
+      "/api/v4.3/gas/grants": {
+        get: {
+          operationId: "getAgentPoolV43GasSponsor",
+          summary:
+            "Read capped Base Sepolia gas-onboarding status and policy",
+          responses: { "200": jsonResponse },
+        },
+        post: {
+          operationId: "requestAgentPoolV43GasGrant",
+          summary:
+            "Request one device-signed, address-bound Base Sepolia test-gas grant",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { type: "object" } },
+            },
+          },
+          responses: {
+            "200": jsonResponse,
+            "201": jsonResponse,
+            "202": jsonResponse,
+          },
         },
       },
       "/api/v4.3/inbox/{address}": {
