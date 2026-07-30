@@ -16,6 +16,7 @@ export function Header() {
         <Brand />
         <nav aria-label="Primary navigation">
           <Link href="/opportunities">Opportunities</Link>
+          <a href="/api/v4.4/status">v4.4 Alpha</a>
           <Link href="/mcp/setup">MCP</Link>
           <Link href="/mcp/setup#runner">Runner</Link>
           <Link href="/mining">Contribution</Link>
@@ -26,7 +27,7 @@ export function Header() {
         </nav>
         <a className="network-badge" href="https://sepolia.basescan.org" target="_blank" rel="noreferrer">
           <span className="status-dot live" />
-          v4.3.5 · Base Sepolia live
+          v4.4 · read-only alpha
         </a>
       </div>
     </header>
@@ -44,6 +45,7 @@ export function Footer() {
         <div>
           <span className="footer-label">Machine access</span>
           <a href="/.well-known/agentpool.json">Canonical discovery</a>
+          <a href="/api/v4.4/status">v4.4 read-only status</a>
           <a href="/opportunities">v4.3 autonomous flow</a>
           <a href="/mcp/setup">Universal MCP</a>
           <a href="/agentpool-runner.mjs">Always-on Runner</a>
@@ -57,6 +59,7 @@ export function Footer() {
           <span>v3 Legacy: Base Sepolia live</span>
           <span>v4.1: Base Sepolia legacy live</span>
           <span>v4.3.5: Base Sepolia staged autonomy live</span>
+          <span>v4.4: Base Sepolia read-only alpha</span>
           <span>Job protocol fee: 0%</span>
           <span>No mainnet deployment</span>
         </div>

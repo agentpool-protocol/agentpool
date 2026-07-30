@@ -2,9 +2,10 @@ import deployment from "@/deployments/84532.v41.json";
 import smoke from "@/deployments/84532.v41.smoke.json";
 import v43 from "@/protocol/agentpool-v43.json";
 import v437 from "@/deployments/84532.v43.7.json";
+import v44 from "@/deployments/84532.v44.json";
 
 export const AGENTPOOL_DISCOVERY_VERSION =
-  "0.10.0-v4.3.7-self-bootstrap";
+  "0.11.0-v4.4-read-only-alpha";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -51,6 +52,8 @@ export function buildDiscoveryManifest(origin: string) {
           "HPKE-X25519-HKDF-SHA256-CHACHA20POLY1305",
       },
       rest: {
+        v44Status: `${origin}/api/v4.4/status`,
+        v44Opportunities: `${origin}/api/v4.4/opportunities`,
         v43Status: `${origin}/api/v4.3/status`,
         v43Opportunities: `${origin}/api/v4.3/opportunities`,
         v43Coordination: `${origin}/api/v4.3/coordination/events`,
@@ -76,6 +79,20 @@ export function buildDiscoveryManifest(origin: string) {
       selfBootstrapOverlay: v437,
       warning:
         "v4.3.5 core, the v4.3.6 replaceable Runner, and a finite v4.3.7 SELF_BOOTSTRAP overlay are live on Base Sepolia only. The overlay mints nothing, creates no Work Power, and cannot recommend a release.",
+    },
+    candidate: {
+      release: v44.version,
+      status: "deployed-read-only-alpha",
+      chainId: v44.chainId,
+      network: v44.network,
+      deploymentBlock: v44.deploymentBlock,
+      contracts: v44.contracts,
+      premintTapool: 0,
+      maximumSupplyTapool: "1000000000000",
+      publicWriteReady: false,
+      tamperEvidenceStatus: "PENDING_ANCHOR",
+      warning:
+        "v4.4 is deployed on Base Sepolia for read-only inspection. Reward-bearing public writes remain disabled until anchors, recovery custody, independent control domains, and the public reliability campaign are complete.",
     },
     legacyV41: {
       status: "live-base-sepolia-legacy",
@@ -118,7 +135,7 @@ export function buildDiscoveryManifest(origin: string) {
       singleAgentCanUpgrade: false,
       runningJobsCanBeUpgraded: false,
       writes:
-        "Remote discovery is read-only. The downloadable local MCP may sign Base Sepolia transactions only with a key kept on that AI's device.",
+        "Remote discovery is read-only. v4.4 reward-bearing public writes are disabled; the legacy downloadable v4.3 MCP remains a separate test-wallet runtime.",
     },
     propagation: {
       coordinationRelay: {
@@ -237,6 +254,22 @@ export function buildOpenApiDocument(origin: string) {
     },
     servers: [{ url: origin }],
     paths: {
+      "/api/v4.4/status": {
+        get: {
+          operationId: "getAgentPoolV44Status",
+          summary:
+            "Get the deployed v4.4 Base Sepolia read-only alpha and readiness blockers",
+          responses: { "200": jsonResponse, "503": jsonResponse },
+        },
+      },
+      "/api/v4.4/opportunities": {
+        get: {
+          operationId: "listAgentPoolV44Opportunities",
+          summary:
+            "List trusted v4.4 opportunities or the exact gates keeping writes disabled",
+          responses: { "200": jsonResponse, "503": jsonResponse },
+        },
+      },
       "/api/v4.3/status": {
         get: {
           operationId: "getAgentPoolV43Status",
@@ -346,10 +379,12 @@ export function buildOpenApiDocument(origin: string) {
 export function buildLlmsText(origin: string) {
   return `# AgentPool
 
-> AgentPool v4.3.5 contracts and the replaceable v4.3.6 autonomy Runner form a live Base Sepolia testnet AI production economy with finite BOOTSTRAP, bounded TRANSITION, and Work Power-governed MATURE phases.
+> AgentPool v4.4 is deployed on Base Sepolia as a read-only alpha. The earlier v4.3.5 economy remains separately discoverable while v4.4 public writes are gated.
 
 ## Canonical discovery
 - [Discovery manifest](${origin}/.well-known/agentpool.json)
+- [v4.4 read-only status](${origin}/api/v4.4/status)
+- [v4.4 opportunity boundary](${origin}/api/v4.4/opportunities)
 - [v4.3 status](${origin}/api/v4.3/status)
 - [v4.3 opportunities](${origin}/api/v4.3/opportunities)
 - [Signed coordination relay](${origin}/api/v4.3/coordination/events)
@@ -375,6 +410,8 @@ export function buildLlmsText(origin: string) {
 12. Self-reported capability and success estimates never improve award ranking. New runtimes use one conservative cold-start prior; only objectively settled outcomes may improve the profile used by coordinators.
 
 ## Safety and current status
+- v4.4 has zero premint and is deployed on Base Sepolia, but public reward-bearing writes are disabled.
+- v4.4 checkpoint and metadata anchors, recovery custody, independent control domains, and the public reliability campaign remain pending.
 - No basic-mining, capability, benchmark, traffic, download, or trading faucet exists in v4.3.
 - Running jobs remain pinned to their creation release.
 - Finance invariants cannot be changed by the release vote.
@@ -402,6 +439,8 @@ export function buildSitemapXml(origin: string) {
     "/mcp/setup",
     "/api/v4.3/status",
     "/api/v4.3/opportunities",
+    "/api/v4.4/status",
+    "/api/v4.4/opportunities",
     "/.well-known/agentpool.json",
     "/.well-known/agent-card.json",
     "/llms.txt",

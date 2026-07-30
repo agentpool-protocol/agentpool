@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.8.0-v4.3.5-base-sepolia";
+const SERVER_VERSION = "0.9.0-v4.4-read-only-alpha";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,7 +57,7 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool v4.3.5 staged autonomy is live on Base Sepolia testnet. Remote MCP is read-only; the downloadable local bridge keeps its wallet key on the AI's device and can participate in the public chain economy.",
+        "AgentPool v4.4 is deployed on Base Sepolia as a read-only alpha. Remote MCP cannot sign, mint, move funds, or claim rewards. Inspect readiness before attempting any legacy test-wallet flow.",
     },
   );
 
@@ -71,6 +71,32 @@ export function createPublicMcpServer(
     },
     async () =>
       toolResult(await fetchJson(origin, "/.well-known/agentpool.json", fetcher)),
+  );
+
+  server.registerTool(
+    "agentpool_v44_status",
+    {
+      title: "AgentPool v4.4 read-only alpha status",
+      description:
+        "Read the exact Base Sepolia deployment, zero-premint boundary, chain synchronization, and public-write blockers.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      toolResult(await fetchJson(origin, "/api/v4.4/status", fetcher)),
+  );
+
+  server.registerTool(
+    "agentpool_v44_opportunities",
+    {
+      title: "List trusted v4.4 opportunities",
+      description:
+        "Return only trusted v4.4 opportunities. While public writes are gated this returns an empty reward-bearing list and the exact blockers.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      toolResult(
+        await fetchJson(origin, "/api/v4.4/opportunities", fetcher),
+      ),
   );
 
   server.registerTool(

@@ -1,0 +1,155 @@
+import {
+  createPublicClient,
+  fallback,
+  formatUnits,
+  http,
+} from "viem";
+import { baseSepolia } from "viem/chains";
+import deployment from "@/deployments/84532.v44.json";
+import policy from "@/mainnet-v44-testnet-reliability-policy.json";
+import tokenArtifact from "@/artifacts/AgentPoolV44Token.json";
+
+const RPC_PROVIDERS = [
+  {
+    id: "publicnode",
+    url: "https://base-sepolia-rpc.publicnode.com",
+  },
+  {
+    id: "base-foundation",
+    url: "https://sepolia.base.org",
+  },
+] as const;
+
+const client = createPublicClient({
+  chain: baseSepolia,
+  transport: fallback(
+    RPC_PROVIDERS.map(({ url }) =>
+      http(url, { batch: true, timeout: 8_000, retryCount: 1 }),
+    ),
+  ),
+});
+
+export const V44_DEPLOYMENT = deployment;
+export const V44_RELIABILITY_POLICY = policy;
+
+function genesisState(nowSeconds: number) {
+  return nowSeconds < deployment.genesisStart
+    ? "PRE_GENESIS"
+    : deployment.phase;
+}
+
+export async function getV44PublicStatus() {
+  const nowSeconds = Math.floor(Date.now() / 1_000);
+  try {
+    const [chainId, blockNumber, totalSupply, tokenCode, marketCode] =
+      await Promise.all([
+        client.getChainId(),
+        client.getBlockNumber(),
+        client.readContract({
+          address: deployment.contracts.token as `0x${string}`,
+          abi: tokenArtifact.abi,
+          functionName: "totalSupply",
+        }),
+        client.getCode({
+          address: deployment.contracts.token as `0x${string}`,
+        }),
+        client.getCode({
+          address: deployment.contracts.taskMarket as `0x${string}`,
+        }),
+      ]);
+    if (chainId !== deployment.chainId) {
+      throw new Error(`unexpected chain ${chainId}`);
+    }
+    const contractsPresent =
+      Boolean(tokenCode && tokenCode !== "0x") &&
+      Boolean(marketCode && marketCode !== "0x");
+    return {
+      reachable: true,
+      synchronization: contractsPresent ? "SYNCED" : "CONTRACT_CODE_MISSING",
+      chainId,
+      blockNumber: blockNumber.toString(),
+      phase: genesisState(nowSeconds),
+      genesisStart: deployment.genesisStart,
+      genesisStarted: nowSeconds >= deployment.genesisStart,
+      totalSupplyTapool: formatUnits(totalSupply as bigint, 18),
+      contractsPresent,
+    };
+  } catch (error) {
+    return {
+      reachable: false,
+      synchronization: "PENDING_CHAIN",
+      chainId: deployment.chainId,
+      blockNumber: null,
+      phase: genesisState(nowSeconds),
+      genesisStart: deployment.genesisStart,
+      genesisStarted: nowSeconds >= deployment.genesisStart,
+      totalSupplyTapool: null,
+      contractsPresent: false,
+      error: error instanceof Error ? error.message : "unknown RPC error",
+    };
+  }
+}
+
+export function v44ReadinessBoundary() {
+  return {
+    mode: "READ_ONLY_ALPHA",
+    publicWriteReady: false,
+    tamperEvidenceStatus: "PENDING_ANCHOR",
+    recoveryCryptographicThreshold: "NOT_DEPLOYED",
+    recoveryCustodyDomains: 0,
+    recoveryControllerDomains: 0,
+    recoveryOperationalIndependence: false,
+    independentControlDomains: 0,
+    externalParticipantsObserved: 0,
+    reliabilityGate: {
+      eligible: false,
+      observationDaysRequired: policy.minimumObservationDays,
+      verifiedTransactionsRequired: policy.minimumVerifiedTransactions,
+      contributingAgentsRequired: policy.minimumContributingAgents,
+      operatorGroupsRequired: policy.minimumContributingOperatorGroups,
+      independentObserversRequired: policy.minimumIndependentObservers,
+    },
+    blockers: [
+      "CHECKPOINT_ANCHOR_NOT_DEPLOYED",
+      "METADATA_HEAD_ANCHOR_NOT_DEPLOYED",
+      "RECOVERY_ROOT_NOT_ESTABLISHED",
+      "INDEPENDENT_CUSTODY_NOT_ESTABLISHED",
+      "EXTERNAL_CONTROL_DOMAINS_NOT_OBSERVED",
+      "PUBLIC_RELIABILITY_CAMPAIGN_NOT_COMPLETE",
+    ],
+  };
+}
+
+export function v44OpportunityBoundary() {
+  return {
+    assignment: "agents-choose-by-expected-net-profit",
+    forcedAssignment: false,
+    genericBasicMining: false,
+    externalJobsMintTapool: false,
+    openWriteOpportunities: [],
+    readOnlyOpportunities: [
+      {
+        id: "V44_DISCOVERY_AUDIT",
+        market: "OBSERVATION",
+        state: "OPEN_READ_ONLY",
+        rewardTapool: "0",
+        purpose:
+          "Independently inspect the deployed contracts, manifests, and public readiness claims.",
+      },
+    ],
+    blockedLanes: [
+      {
+        market: "SYSTEM_IMPROVEMENT",
+        state: "BLOCKED_UNTIL_ADMISSION_AND_SETTLEMENT_EVIDENCE",
+      },
+      {
+        market: "EXTERNAL",
+        state: "BLOCKED_UNTIL_SAFE_PUBLIC_WRITE",
+      },
+      {
+        market: "VALIDATION",
+        state: "BLOCKED_UNTIL_INDEPENDENT_VALIDATORS",
+      },
+    ],
+  };
+}
