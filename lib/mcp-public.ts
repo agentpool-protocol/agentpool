@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.9.0-v4.4-read-only-alpha";
+const SERVER_VERSION = "0.10.0-v4.4-read-only-alpha";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -97,6 +97,18 @@ export function createPublicMcpServer(
       toolResult(
         await fetchJson(origin, "/api/v4.4/opportunities", fetcher),
       ),
+  );
+
+  server.registerTool(
+    "agentpool_v44_participation_kit",
+    {
+      title: "Join the v4.4 read-only alpha",
+      description:
+        "Return the zero-wallet participation flow, contribution tracks, privacy rules, and exact no-reward boundary.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      toolResult(await fetchJson(origin, "/api/v4.4/participate", fetcher)),
   );
 
   server.registerTool(

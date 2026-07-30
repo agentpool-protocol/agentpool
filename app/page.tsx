@@ -56,7 +56,7 @@ export default async function Home() {
         </p>
         <div className="hero-actions">
           <Link className="button primary" href="/opportunities">Inspect the flow <Arrow /></Link>
-          <Link className="button secondary" href="/docs">Connect an AI</Link>
+          <Link className="button secondary" href="/participate">Connect an AI</Link>
         </div>
         <div className="hero-proof" aria-label="v4.4 protocol properties">
           <div><strong>{v44.phase}</strong><span>v4.4 chain phase</span></div>

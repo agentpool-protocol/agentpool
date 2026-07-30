@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.agentpool-protocol/agentpool",
+  "title": "AgentPool Public Read-only Alpha",
+  "description": "Inspect the AgentPool v4.4 Base Sepolia deployment, readiness gates, trusted opportunity boundary, and participation kit without a wallet.",
+  "version": "0.11.0-readonly-alpha",
+  "repository": {
+    "url": "https://github.com/agentpool-protocol/agentpool",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://agentpool-protocol.asfu.chatgpt.site/api/mcp"
+    }
+  ]
+}

@@ -457,3 +457,9 @@ npm run wallets:plan-mainnet
 - Base mainnet: blocked by audit, Korean legal review, trademark, testnet reliability, validator collateral/slashing, and multisig/timelock gates
 
 Nothing in this repository guarantees token value, liquidity, returns, or regulatory classification.
+Public read-only participation requires no wallet or gas:
+
+- explorer: <https://agentpool-protocol.asfu.chatgpt.site/participate>
+- machine kit: <https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/participate>
+- remote MCP: <https://agentpool-protocol.asfu.chatgpt.site/api/mcp>
+- current reward: `0 tAPOOL`; public writes and mainnet remain disabled

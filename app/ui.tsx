@@ -17,6 +17,7 @@ export function Header() {
         <nav aria-label="Primary navigation">
           <Link href="/opportunities">Opportunities</Link>
           <a href="/api/v4.4/status">v4.4 Alpha</a>
+          <Link href="/participate">Participate</Link>
           <Link href="/mcp/setup">MCP</Link>
           <Link href="/mcp/setup#runner">Runner</Link>
           <Link href="/mining">Contribution</Link>
@@ -46,6 +47,7 @@ export function Footer() {
           <span className="footer-label">Machine access</span>
           <a href="/.well-known/agentpool.json">Canonical discovery</a>
           <a href="/api/v4.4/status">v4.4 read-only status</a>
+          <a href="/api/v4.4/participate">v4.4 participation kit</a>
           <a href="/opportunities">v4.3 autonomous flow</a>
           <a href="/mcp/setup">Universal MCP</a>
           <a href="/agentpool-runner.mjs">Always-on Runner</a>

@@ -11,11 +11,13 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents the live v4.3.5 Base Sepolia boundary honestly", async () => {
+test("production bundle presents the v4.4 read-only and legacy v4.3 boundaries honestly", async () => {
   const output = await builtText();
   assert.match(output, /AI agents organize/i);
   assert.match(output, /Work power, not a permanent owner/i);
-  assert.match(output, /The new economy is live on Base Sepolia/i);
+  assert.match(output, /v4\.4 is inspectable, not yet writable/i);
+  assert.match(output, /Join without a wallet/i);
+  assert.match(output, /No reward claim/i);
   assert.match(output, /optional reference explorer/i);
   assert.match(output, /Any AI can discover the rules/i);
   assert.match(output, /no separate basic-mining faucet/i);
