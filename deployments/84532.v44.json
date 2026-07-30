@@ -1,0 +1,886 @@
+{
+  "schema": "agentpool.testnet.v44.deployment/v1",
+  "version": "4.4.0-ownerless-mainnet-candidate",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "phase": "BOOTSTRAP",
+  "sourceCommit": "b535be69d179d39c2f118a80e8927961fbb20a4e",
+  "configSha256": "796bb66d98f53cde811116836c1d3dbfa2eb5e260d8dcd611f1cf33e51ad6b70",
+  "gatesSha256": null,
+  "approvedGateEvidence": null,
+  "sourceEvidenceFileSha256": "831f3b64b76dbdcbd91982bc6c2eda12521e6967027c7e3f0544a51a59eb8156",
+  "sourceEvidenceBodySha256": "4b603929771bcac1162eea4817485ece0d1d6546d708bccab41c1dc106fd0ff1",
+  "bootstrapIdentitySha256": "70c5839e6e504004e394f33abaabe99c4d612455cbc39355ff3f1d3499ce2866",
+  "deployer": "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+  "deployerHasRuntimeAuthority": false,
+  "features": {
+    "runtimeCapabilityPerformance": true,
+    "selfReportedPerformanceRanking": false
+  },
+  "genesisStart": 1785699663,
+  "genesisRelease": "0xb5303362a13cfada23da5e3c36f51eebb171df5891cb644c842b8b34278d4a10",
+  "genesisModuleHash": "0x55ca9a393496253b3e1df95966bc78c94d500f5eb166be243adde7b45a420ba6",
+  "genesisManifestHash": "0xc6281140b05301a4990f24892547c543e94edeb47e62cb7894542824aa413728",
+  "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
+  "bootstrapVerifierCodehash": "0xc477333eca94cec141227e48960398c211bd65c87ed8b643794bd836d9c7e8a1",
+  "bootstrap": {
+    "issue": {
+      "issueId": "0x2caa418c8730a1b38b0da1573ee78c1eb8204928be27a8fd3e5f137b05e3b7c4",
+      "bootstrapProposer": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+      "specificationHash": "0x203e47a3b9572ef96c8a980c0998578742e3c0ab6eb02cc93b15374d3b7e703f",
+      "verifier": "0x2493C755F350fcE4f0df9a5764a15091e0085341",
+      "expectedEvidenceHash": "0xafd3e3f18ac28c514e94c98c2f61dc026cebcf90b31758e0ed83270b979d89a5",
+      "objectiveRoot": "0x139f8b75941893ab0645c8a9922169b90e33dfd439e8429bad3183e3a9755908",
+      "validatorRoot": "0xf5dfb40e8f24ff70c48a6a642f37a2f60f628b2e64c1923e966ede003cf5c79a",
+      "candidateBudgetCap": "120000000000000000000",
+      "totalBudgetCap": "120000000000000000000",
+      "maxCandidates": 1,
+      "minimumReveals": 3,
+      "passScoreBps": 8000,
+      "minimumValidatorGroups": 3,
+      "funding": 3,
+      "expiresAt": 1788291663
+    },
+    "issueRoot": "0x056335b3f3652c6f8d2ed8e6f9fcec0cb71fc7684ee1521da5aea45a9e3135a0",
+    "objectiveRoot": "0x139f8b75941893ab0645c8a9922169b90e33dfd439e8429bad3183e3a9755908",
+    "expectedEvidenceHash": "0xafd3e3f18ac28c514e94c98c2f61dc026cebcf90b31758e0ed83270b979d89a5",
+    "validatorRoot": "0xf5dfb40e8f24ff70c48a6a642f37a2f60f628b2e64c1923e966ede003cf5c79a",
+    "validators": [
+      {
+        "address": "0x43C4eBA160622834440928d20FC7202a644BAcbd",
+        "group": "0x056010c2a0c31995878712502bb82b4ea262c89362de5128bab92f8ff8017f95",
+        "proof": [
+          "0x26c76a2bb87080133f4d8bd0a804e2f870d422d57cccc26b093e4a6b4de89b33",
+          "0xfc2d0bcfdcf4ca6592dc27bfb16a178bfbc6d952b943f56c5af45b32d298ab7f"
+        ]
+      },
+      {
+        "address": "0x21106dC9965c2Be9d1aBEAD8A77BCa9531835D12",
+        "group": "0x10a52c1e4b3fa8ad1bbcd4fb2f3a04020d5ebc8b5baf7f885f6a13591b8f9fe1",
+        "proof": [
+          "0xfdf0b11183592cd706e992161138390f66c2d6d6a7eb8d70bd2de6c19e8c6fbe",
+          "0xfc2d0bcfdcf4ca6592dc27bfb16a178bfbc6d952b943f56c5af45b32d298ab7f"
+        ]
+      },
+      {
+        "address": "0xEE48E52d5bab5F48c16cE10d5123d2D3f4Ba7057",
+        "group": "0xd2d64feb9f7e8d14521334c265c02311dc55f66ccb3658af9bcbbb7e1d909a4c",
+        "proof": [
+          "0x2d5bd95b68d0c70a719e96e0386d7d64ce5c54f5e910aa7748c09d185a3b46a9",
+          "0x12d260cfc9f41c6e98a3ef526128620dc9574d95a25f70b0d88a10286c97861f"
+        ]
+      }
+    ],
+    "objectives": [
+      {
+        "capabilityHash": "0xdb7c84b1ed63a0a52a8af2ce27443abe48487d0c86355c04832ec477b1804445",
+        "specificationHash": "0x3b4fc847fe1876e1fd6fcbf3621805cb90166d418624e6b71b8bb568c5760d78",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x90f52bcc10b40de853aacfed68f5d309878e6f3177d613d05bd733b6a3b5d020",
+        "leaf": "0x6277b13aa6cd62b5eb918bf11cd5cadbf24a09f865c80df918c8b405e2e94bb8",
+        "proof": [
+          "0x97ad790e18387f0307df701818d8c7abdb3f3bc8584128693fd6e10be407ac58",
+          "0xfde8e12e96638ca9a89231124044698ae4d03d2dc29192607584132d19b1952a",
+          "0x51e5ed5156a28de88049a6ea5d6990a92b97ccfd4921e4cbe87244ef39d88c60",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x7e0f78b3126f167bb4b17be0d489595f4d1dedf6cf654a714f0219d256ea6ed7",
+        "specificationHash": "0xe08f7ca9398e2f5e3df6e4a0ac341e3faf0320d14369f58415bab5c3628882d0",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x5439d8b27a03f3876f4e928b4c13f2fc0dd95a3b712db66321b8345ff178893a",
+        "leaf": "0x97ad790e18387f0307df701818d8c7abdb3f3bc8584128693fd6e10be407ac58",
+        "proof": [
+          "0x6277b13aa6cd62b5eb918bf11cd5cadbf24a09f865c80df918c8b405e2e94bb8",
+          "0xfde8e12e96638ca9a89231124044698ae4d03d2dc29192607584132d19b1952a",
+          "0x51e5ed5156a28de88049a6ea5d6990a92b97ccfd4921e4cbe87244ef39d88c60",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x4c46e79840ddf309f89d9ab416992620f3a4a273a164b9fe828160e999d23565",
+        "specificationHash": "0xb7ab5e72feb8c9870938bb5202882db589b26c5ec9383973953e9ae60a7a646d",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x3872b7c6ca31725f04a1f3ba9ace716101562688b6a9dda60a4df811f749654a",
+        "leaf": "0x38d3b37d55636b0ca1c2fc78de4fa83c4375649eb92066110b117eeef057597a",
+        "proof": [
+          "0xaab31fdbc379f762d21ad45e9c2138bc4f9ae05cc29635c621b1ffff69f7d3e8",
+          "0x1ef8e246edf434d68fa4fd7871bc27885d2445e050922f9546ee75a2e8368d11",
+          "0x51e5ed5156a28de88049a6ea5d6990a92b97ccfd4921e4cbe87244ef39d88c60",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x86e42cb9baeb470aa4b56963705d3866a70cb9f758b57c1be5a5e9baf738f927",
+        "specificationHash": "0x342cbb53a3ab8ebdfd797a40849ac68925df613e8ec90606a45f649edcea5b57",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0xc4c5ceab59ea2a0058e601045acdacdeb58c44420416df43ef3fcc68ad6cb382",
+        "leaf": "0xaab31fdbc379f762d21ad45e9c2138bc4f9ae05cc29635c621b1ffff69f7d3e8",
+        "proof": [
+          "0x38d3b37d55636b0ca1c2fc78de4fa83c4375649eb92066110b117eeef057597a",
+          "0x1ef8e246edf434d68fa4fd7871bc27885d2445e050922f9546ee75a2e8368d11",
+          "0x51e5ed5156a28de88049a6ea5d6990a92b97ccfd4921e4cbe87244ef39d88c60",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0xf71c54e5a35bd57e1d313df4e4c7e60569510cd85ed8593b644685a3f41b80d7",
+        "specificationHash": "0x75e66c41256f67e449687014aab572b7d1efbb4b2c89d861cb2df20996f1ea4f",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x5451020dcfb371f89e18a947ae1830c7ef06bdf5507f355ba5d212d46eee622d",
+        "leaf": "0xc13bc5b552270da64ae64cc0110f65ce28b7548390bd1d092d4e8b5364957b9a",
+        "proof": [
+          "0xc1e0b4a3cfe05e2c3b679ad90a6a23fbd53ec8a8ca406982ab62005342f94704",
+          "0xae6f961786603fc0a5b62fb3fee7f0779234418541b90bbb30b6b3e0b0b17e48",
+          "0x3e9f882a24bfb7d4fb6c9f3ba6972405f59cb99fbe69dcadb16908721407346a",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x5f1fc7dec48eb9d0f722d97d9869c7c233b4474e7c69ceb1d243c441d3797bbe",
+        "specificationHash": "0xdc3c1275a58a5fd5276cdf625d9c8233f5fc0a5ef2f30cbb2263f537d5707634",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x6960c4148a5771bb4c3e15f3939dc2749185daa3f856074598f8d88f41fdc676",
+        "leaf": "0xc1e0b4a3cfe05e2c3b679ad90a6a23fbd53ec8a8ca406982ab62005342f94704",
+        "proof": [
+          "0xc13bc5b552270da64ae64cc0110f65ce28b7548390bd1d092d4e8b5364957b9a",
+          "0xae6f961786603fc0a5b62fb3fee7f0779234418541b90bbb30b6b3e0b0b17e48",
+          "0x3e9f882a24bfb7d4fb6c9f3ba6972405f59cb99fbe69dcadb16908721407346a",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x0b6947f7b218805934ef83b917e0dc2008ebf40bdcafb28988a7559e8ee2d96d",
+        "specificationHash": "0x1d87414bf4e8afb5e5e44a695a61fbd911b8cb4101dab2cc3f1f4a7e2bacac1a",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x471063de5655743fa0ea73f86f7b043829749789e0ed3c54b8fd3d7537c5a153",
+        "leaf": "0xbd6a3caed2f43df91fe75c74e520df282275bc29fea08e2d8dad2fb6778d58b0",
+        "proof": [
+          "0x743619660c9be32d647dad1187e0cabc3ecd33cc0d3e381ed7777c35ec1f32e1",
+          "0x42f88badafbbd21cd698c19fe47b3cfe879a5ea2b8d4c947a3297c818a837eb4",
+          "0x3e9f882a24bfb7d4fb6c9f3ba6972405f59cb99fbe69dcadb16908721407346a",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0xaf275e8fcb81c4b61e70670fcec2fe3844c8d5b6841a55968fc88b9b595392d1",
+        "specificationHash": "0xd33a0bf7f9327894efee267c4ffdfdf3a3c3c5f440a0ea221b6fbec3b73ce091",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x9a2de1fa3d2e0506796e64591f8ae24a74790169629976c4b08c34bdcaae9fd4",
+        "leaf": "0x743619660c9be32d647dad1187e0cabc3ecd33cc0d3e381ed7777c35ec1f32e1",
+        "proof": [
+          "0xbd6a3caed2f43df91fe75c74e520df282275bc29fea08e2d8dad2fb6778d58b0",
+          "0x42f88badafbbd21cd698c19fe47b3cfe879a5ea2b8d4c947a3297c818a837eb4",
+          "0x3e9f882a24bfb7d4fb6c9f3ba6972405f59cb99fbe69dcadb16908721407346a",
+          "0xc45dfdbe47509ee8978188972ea84addb15437aac83b6b43258860e0f047d3c3",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x7ddb1560826c903e62f4c81b42921cda9a7ccd0db0dfca09d710a6ac1dcaa79f",
+        "specificationHash": "0x99b8d130af8ccffeb925075a6c5a11a9cb23d73deee74e758f690fd4eda4b3ac",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x88359c32f199ee277e306875f80b156b748062a6dbdc81b79e36c99967e075e0",
+        "leaf": "0xf59029b460b9c3a9a974eb983f9c25c475242fc687dce122b4f0caa2b0fe9230",
+        "proof": [
+          "0x575092bba4691b3b155287a99d53d3bd36d9cf60eed33243faa8fcfd71449143",
+          "0x473b5485715dff7a8541ad6a13d1ee5ee6a05ed36daa16fa4a56de13f90c6fc7",
+          "0x51454f369c276f97ada4cb3fe211ddd1e3f22f5d945dbb4c2fbc41c2dc9dc87a",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0xe4e39109a605d9a4210339647ea77c4eae86ddd8dc8da65e7dbe6e60eede3f3d",
+        "specificationHash": "0xd10da89dfff3c189e190fb5130abf5fb9e3d5cf07e6521f3b6a235d46ceb12ce",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0xe94ad94bde7a16e5e5b716733ce15b69ba7eca93ec568f9b1200a9b6a0bbaa95",
+        "leaf": "0x575092bba4691b3b155287a99d53d3bd36d9cf60eed33243faa8fcfd71449143",
+        "proof": [
+          "0xf59029b460b9c3a9a974eb983f9c25c475242fc687dce122b4f0caa2b0fe9230",
+          "0x473b5485715dff7a8541ad6a13d1ee5ee6a05ed36daa16fa4a56de13f90c6fc7",
+          "0x51454f369c276f97ada4cb3fe211ddd1e3f22f5d945dbb4c2fbc41c2dc9dc87a",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x9b4f29324abf77194e49c416652365e947ef302d42d14e1fdd4b7b4277ce4d19",
+        "specificationHash": "0xe6b137fc380fd4450e1ab3521aca3112ba2d71d9fd382ccf7a247a922fa64a15",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x0fa82c3d6780724eb0b80097e2d4e396477cd4f2167e350ef4d0aff530a53813",
+        "leaf": "0x4187ea362ee21efcba6fe08953dee8418a7923f2595d2aa924435f114822ed6e",
+        "proof": [
+          "0x03f6ba3601755690b3674e2748d72b7c27dcbcd17431effa66fa06fc12c57afc",
+          "0x91e0cb59b01d05b307fe47fd7d8708b9db74e3145fc5d90737f2d623ddee91a7",
+          "0x51454f369c276f97ada4cb3fe211ddd1e3f22f5d945dbb4c2fbc41c2dc9dc87a",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0xa6891dfb03233e59337e75773316a448a62dbbfa50a6b64b098d0d7c59757f78",
+        "specificationHash": "0x03e7e031499371ed7e70b6d4afa91595b4fd50d42a46f10ce020c3daad25aace",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0xb5b5e4390131d5f87ecb3fbb0190b02fc345969f752011f005cd49bd5cd27fca",
+        "leaf": "0x03f6ba3601755690b3674e2748d72b7c27dcbcd17431effa66fa06fc12c57afc",
+        "proof": [
+          "0x4187ea362ee21efcba6fe08953dee8418a7923f2595d2aa924435f114822ed6e",
+          "0x91e0cb59b01d05b307fe47fd7d8708b9db74e3145fc5d90737f2d623ddee91a7",
+          "0x51454f369c276f97ada4cb3fe211ddd1e3f22f5d945dbb4c2fbc41c2dc9dc87a",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x5a4b4d22f6ff6f98fdc5b36a35c643b5e00d82048d8d8cf932870c722163b36c",
+        "specificationHash": "0xd1f2589f3b161126ea63a895d256464b0597d90a5a2dbd52c1d080ce97dc3afd",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x2a58eb0b8ec54e2f73fed0944c53d1826d635502a3ec97b5703712586686bbc9",
+        "leaf": "0x961a93eb0b42073aba576dfd244643a8c8a52494f3a6c30857bbb7185ec813cf",
+        "proof": [
+          "0xc3b6727697d122576267d0988a0c14537eec8dd7f7667f6838053d988af56c01",
+          "0xc96c4e0c2a147ba7bcd550c6a1f538a5c776a3c01576a4a645c404003347e0ad",
+          "0xcb60cba777c2fc0fa68fdf743b9cc48b877c2a80b529e8a9faaf04f6bdb0a322",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0xbc4423f15a2a8c782cca162db114e1dabaa82f508894e42d29fb9ea3ecb7fd32",
+        "specificationHash": "0xa68751eac2eb0e2892ce6770931ba85ceea980092b6d26db6c8a51dac33f5c2b",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0xc3ddf0d6c97912a96ec9d2c5d8c41ad2a933699c25c8cb6a23c6a1eec1b60b73",
+        "leaf": "0xc3b6727697d122576267d0988a0c14537eec8dd7f7667f6838053d988af56c01",
+        "proof": [
+          "0x961a93eb0b42073aba576dfd244643a8c8a52494f3a6c30857bbb7185ec813cf",
+          "0xc96c4e0c2a147ba7bcd550c6a1f538a5c776a3c01576a4a645c404003347e0ad",
+          "0xcb60cba777c2fc0fa68fdf743b9cc48b877c2a80b529e8a9faaf04f6bdb0a322",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x676d7ae5af4d1b24b4d064564dd360e88e40ca8f91a3749005e7e40ef9283ec5",
+        "specificationHash": "0x61a37c0fb67930cfe86324c443e6a18c5b75f02639679770a2a8a70c3d480316",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x73499f9db6c78870542e7c0e3d8ac885deac8072aaae01e556f8b44d88915f99",
+        "leaf": "0x6320ad88093a2d9a2f4b84a3599852827aba98c573d640b3aeb1d12565a6dad3",
+        "proof": [
+          "0xe6b750a5c23350df4fff06c461a8967870b0bd281fca857b6b6e27d57649d67e",
+          "0x139de460e913bcdba0aaa358d65a002c59a47b76cf6f0af7f57ea705182332c6",
+          "0xcb60cba777c2fc0fa68fdf743b9cc48b877c2a80b529e8a9faaf04f6bdb0a322",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0x664d821e078781fb955c6547c0da41f7155d6d1631ca33789f429b9edf5c8efc",
+        "specificationHash": "0x2418ca8cbcadddc2aa15d82036858c706c844e7614f97a865f86cee44c4c46f8",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x3ec1ac6bec50b52d5f2395f175806a57d027c5b5048ef59c2cb5cc2a893fa3b3",
+        "leaf": "0xe6b750a5c23350df4fff06c461a8967870b0bd281fca857b6b6e27d57649d67e",
+        "proof": [
+          "0x6320ad88093a2d9a2f4b84a3599852827aba98c573d640b3aeb1d12565a6dad3",
+          "0x139de460e913bcdba0aaa358d65a002c59a47b76cf6f0af7f57ea705182332c6",
+          "0xcb60cba777c2fc0fa68fdf743b9cc48b877c2a80b529e8a9faaf04f6bdb0a322",
+          "0x6e3e2fb16feeea77c69360e6a7ca159b1cc62b82b38d09498ae0200da23dbf18",
+          "0x8b7cf60103ba7014d6d4848ad19c7e100a0e39e649ed82a8ad5ebd8f7b08eed3"
+        ]
+      },
+      {
+        "capabilityHash": "0xdbfa18d0bc2abe3d04c8902c47cb950206fc8caeefc488bc9bbbe72702f115a9",
+        "specificationHash": "0x8b6a8226f04d3ff0f4f1cb97ad9f03f68ce1b92d93717d4cb44f5ce4452a3cf3",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0xc9fe07f5f06de22fdc106918196e1e6f8d984963f6b2808c33fb03af8a88cca4",
+        "leaf": "0xc7f47660d77a173cc7dadf83f6da55fb77d29f867c529d1df988ceb3338361ca",
+        "proof": [
+          "0x033ef76ac866b1694bf56dbd322d7e32523cf43b2f89caca648992ce8106213f",
+          "0x886904d40ac1dce5ec48ce5807c5e4ec2e6073adb41c976288677b566feb9b11",
+          "0xdf7bde7ef7122e99372ad094c7822cc31e149502181ecf7717b54101cec68194",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      },
+      {
+        "capabilityHash": "0xe1928a8997916b1f5e5b3e92a539e2631111f383d365b7c952f5d4758b75decd",
+        "specificationHash": "0x9215b77f0b1b0fd6dc2799eeebf47425e6ec0d1b553059661665dc10c41bab25",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0xb63d2339f027b0b5adf4b2410eddf87df462739e6793dfbb22dbf37d2b566f9c",
+        "leaf": "0x033ef76ac866b1694bf56dbd322d7e32523cf43b2f89caca648992ce8106213f",
+        "proof": [
+          "0xc7f47660d77a173cc7dadf83f6da55fb77d29f867c529d1df988ceb3338361ca",
+          "0x886904d40ac1dce5ec48ce5807c5e4ec2e6073adb41c976288677b566feb9b11",
+          "0xdf7bde7ef7122e99372ad094c7822cc31e149502181ecf7717b54101cec68194",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      },
+      {
+        "capabilityHash": "0x0370b1efea7c2e5102e0ba699484d8a59d553fdda7591162a304974f9cd3e1a1",
+        "specificationHash": "0xd4dc7a1e33fae3067a3586036167403b87c34b8890da20c51acfff108a30a3d3",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x8be2a81dba2f90069fcba0bb8abf2a0a33a9acb71bc6c4d4635944a2f5c16d23",
+        "leaf": "0xd6a1ec0890f78d1efe6dd89749abaf47003f0e4b3d3dc5679cced77e9b3b10b7",
+        "proof": [
+          "0x5987b5f54df11f1d8c2cb2dcf4f304aaadef115f8ab3ffb83f06486ddc326809",
+          "0xacebada1e7f56008adcc0cfe2ebdf4ce2a2157ccd272026508764af6c48e6e40",
+          "0xdf7bde7ef7122e99372ad094c7822cc31e149502181ecf7717b54101cec68194",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      },
+      {
+        "capabilityHash": "0x3a81a570798f13e850274dc227ac3674dd9041ffa07ffaa1423fcc6986bd38a7",
+        "specificationHash": "0x5c4501f2a137aa16e748d91858a8ffa7a3ff58f2e0097509766e426b9cfac50d",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x19ac58766c51c579ca27c55a1557ab20ab949bf67572240eb77662bc02f02610",
+        "leaf": "0x5987b5f54df11f1d8c2cb2dcf4f304aaadef115f8ab3ffb83f06486ddc326809",
+        "proof": [
+          "0xd6a1ec0890f78d1efe6dd89749abaf47003f0e4b3d3dc5679cced77e9b3b10b7",
+          "0xacebada1e7f56008adcc0cfe2ebdf4ce2a2157ccd272026508764af6c48e6e40",
+          "0xdf7bde7ef7122e99372ad094c7822cc31e149502181ecf7717b54101cec68194",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      },
+      {
+        "capabilityHash": "0x4c77b1348f79211f4c8c47e55a905d2a25b7a9c393b7751c202f347db436c8e3",
+        "specificationHash": "0x98204c5f0753a002051565e9fcde621dfa681664a6bc75f9a031bab30d38f04e",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x1f69331d0ffa6aad4751964758720508b54874eec5fc9474815fdfec8fe6655a",
+        "leaf": "0xbafe51ff8a98d74bccab2e696d779c1f69b528c0188104bcc83b50c470322a0b",
+        "proof": [
+          "0xaafcac3e1b31cefb71a22d5ab09c7b803820e89e765c7173150b3168507c92a2",
+          "0x9d87eb77f535a7c21f88a5fe7f6365aa7a648f7393cbb2136a6a6c615d67cc61",
+          "0xec8d661e17ff96c6d1d424413fe6ef32edbc1d663d2a52b4fc357bd03d2a02b7",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      },
+      {
+        "capabilityHash": "0xad183210ec3f0051720f218b074415929fac39e0316a8f31e3612d786dec224b",
+        "specificationHash": "0xceb267fc6d7352d7412ab28ac9624f97bd018a983d0bf0736d14fd255c8ff9ee",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x46ec174acd47b1fb6a195095adb7378d61bef7dfb2bd9d109d201129b8831173",
+        "leaf": "0xaafcac3e1b31cefb71a22d5ab09c7b803820e89e765c7173150b3168507c92a2",
+        "proof": [
+          "0xbafe51ff8a98d74bccab2e696d779c1f69b528c0188104bcc83b50c470322a0b",
+          "0x9d87eb77f535a7c21f88a5fe7f6365aa7a648f7393cbb2136a6a6c615d67cc61",
+          "0xec8d661e17ff96c6d1d424413fe6ef32edbc1d663d2a52b4fc357bd03d2a02b7",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      },
+      {
+        "capabilityHash": "0x3e39e1b7c7423439c5eb4c8117e1ed95f12e312fe2bf281c0521b1e4255422c4",
+        "specificationHash": "0x7f96a244ca39cfe2775e639e7aaacdb6acf774df67248eb8ba691b6e1248b7dc",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0x97f84ab5005b3e1a0ea5d4d053d739062ffea5037f9cdd3deaa973a98f884869",
+        "leaf": "0x792bc16bce32935f8f3d9e24999ad13a65c6397964887d582570b9bc84f21797",
+        "proof": [
+          "0x1647069ab13e22dd013eec189883d65b83c04803255c4b19233c80a4655134bc",
+          "0x3b4b30597a63c37ceb89aff6cfea7fb2a133c5f5a7eff40d05416b897b6411df",
+          "0xec8d661e17ff96c6d1d424413fe6ef32edbc1d663d2a52b4fc357bd03d2a02b7",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      },
+      {
+        "capabilityHash": "0x0de2e4dbb711d28cfd59b1595ebac18500f5d962ca354846be10fb35eef845ca",
+        "specificationHash": "0x475b13317034584f40c48967fda69de827ec174954f9edd7a14e669e7c6b144a",
+        "capacityUnits": 100,
+        "expectedEvidenceHash": "0xb687fe72abc25717c720a83c285e24970260b49585a96e3cbaf6ed6fdb7c109f",
+        "leaf": "0x1647069ab13e22dd013eec189883d65b83c04803255c4b19233c80a4655134bc",
+        "proof": [
+          "0x792bc16bce32935f8f3d9e24999ad13a65c6397964887d582570b9bc84f21797",
+          "0x3b4b30597a63c37ceb89aff6cfea7fb2a133c5f5a7eff40d05416b897b6411df",
+          "0xec8d661e17ff96c6d1d424413fe6ef32edbc1d663d2a52b4fc357bd03d2a02b7",
+          "0x6873b53c2c6733d299cb5a66c9fdea4a94d0d24658c440cb66e8c2db624ece50",
+          "0x4d7d7147cbdc93e04444f612c34e6744d17c57072aec9d74b82408015dc4ac92"
+        ]
+      }
+    ],
+    "objectivesSha256": "203e47a3b9572ef96c8a980c0998578742e3c0ab6eb02cc93b15374d3b7e703f"
+  },
+  "token": {
+    "name": "AgentPool",
+    "symbol": "APOOL",
+    "decimals": 18,
+    "maxSupplyApool": "1000000000000",
+    "premintApool": "0"
+  },
+  "emission": {
+    "epochSeconds": 604800,
+    "coreWeeklyCapApool": "63000",
+    "evolutionWeeklyCapApool": "7000",
+    "coreLifetimeCapApool": "900000000000",
+    "evolutionLifetimeCapApool": "100000000000"
+  },
+  "dynamicIssues": {
+    "candidateBudgetCapApool": "10",
+    "issueBudgetCapApool": "30",
+    "candidateAdmissionBondApool": "10",
+    "maxCandidates": 3,
+    "maxLifetimeSeconds": 604800
+  },
+  "consensus": {
+    "proposalBondApool": "10"
+  },
+  "contracts": {
+    "token": "0x4BAc1AC4Db28558562C3cFa3f56B4858956388Dc",
+    "settlementRouter": "0x37C879B6F90b00d9004245f9ADCD75D864C411d5",
+    "releaseRegistry": "0x6Bf17C8ac7a2A0401B1c9b2d81699b85fa2e3f98",
+    "capacityRegistry": "0xe09CD0351d591ea5c93960ef887329f76ec72007",
+    "userEscrow": "0x121eB258FAcB78D7FAC7a79740bDA93d56Fbf0F3",
+    "coreEpochVault": "0xAAFeb99CC4d6717C1429718Ce3843Dd42d2E6F2C",
+    "evolutionEpochVault": "0x5CC137c959c2D447DF2a513c32A4779e907d734D",
+    "contributionLedger": "0xB005695aC24C897B3eb33f69276D2928f514DFB5",
+    "proofRegistry": "0xC9d6ddb4823A43621870aa68C33f83d2dcD3291d",
+    "evolutionConsensus": "0xF559c2F10bbd4691F99083BFE9aA273E511c0822",
+    "objectiveVerifier": "0x2493C755F350fcE4f0df9a5764a15091e0085341",
+    "systemIssueGate": "0x12F50CaD5F0EDcD0e5A63135150A925be33e3521",
+    "transitionIssueConsensus": "0xA3a0Ac3a6BE162A8966E8a0F8a0CCb629c7D235a",
+    "issueConsensus": "0x83786aEa97B1e34dB0aA4dEedd9c0eD137898A95",
+    "taskMarket": "0x40d1529cFfbF1d2ae8F4C2cC05F94684f38ae097"
+  },
+  "artifactBytecode": {
+    "AgentPoolV44Token": {
+      "sourceName": "contracts/v44/AgentPoolV44Token.sol",
+      "creationBytecodeHash": "0x9a339d42b2924233e5b8953ee6835df87c1ffa5649aadd7c0524abe40186b739",
+      "runtimeBytecodeHash": "0x2d69b3d66d3a8e0429035ce2d319a1346fabe3b7b5424379ed041d1c84c6d191",
+      "runtimeBytes": 2332
+    },
+    "AgentPoolV43SettlementRouter": {
+      "sourceName": "contracts/v43/AgentPoolV43SettlementRouter.sol",
+      "creationBytecodeHash": "0xaf43b3ec88832696c9000294e12f407ae5b3e713e7346c04f5c1750ad33aa17b",
+      "runtimeBytecodeHash": "0xeb65f8a8b3d4a657f2b091ef53301ca9028d0dc6245bcd70d39209af64bc7f1b",
+      "runtimeBytes": 1968
+    },
+    "AgentPoolV43ReleaseRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV43ReleaseRegistry.sol",
+      "creationBytecodeHash": "0xfe29e9f4604d20597536a87482a82b332ac3bdd7725f5f2c023e44d08f1bc8e9",
+      "runtimeBytecodeHash": "0x45f4923c309120c9b33ecbb81caf25169bd7ec94eb0ce1ba00a276bfa9b1c36c",
+      "runtimeBytes": 1434
+    },
+    "AgentPoolV43CapacityRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
+      "creationBytecodeHash": "0x38c07f4077efe56867e0c0a004980dd8cd6f7e90c376344527d3cafa29400a50",
+      "runtimeBytecodeHash": "0x6cc363d32315c5f74c390f61b489e9cc642f128814e8095e9630bf4f28806765",
+      "runtimeBytes": 1691
+    },
+    "AgentPoolV43UserEscrowKernel": {
+      "sourceName": "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
+      "creationBytecodeHash": "0x6837a7537730a14ce899e116f0e3250befb95b3f96517f22d818edda78328b68",
+      "runtimeBytecodeHash": "0x9eaca37570eb80cc89f054c69c7264df69a2a0cdb5cdaeaf96184a57376e866e",
+      "runtimeBytes": 2098
+    },
+    "AgentPoolV43EpochVault": {
+      "sourceName": "contracts/v43/AgentPoolV43EpochVault.sol",
+      "creationBytecodeHash": "0x9f0c9084028766a6af6bc7be44e95153d425932bf6f88273a6d0f80d38b1fbb6",
+      "runtimeBytecodeHash": "0x3dc53a2c6e7182043adbdb9326484d5ee975fb60d9a0179bc938864feb0bc1f3",
+      "runtimeBytes": 3351
+    },
+    "AgentPoolV43ContributionLedger": {
+      "sourceName": "contracts/v43/AgentPoolV43ContributionLedger.sol",
+      "creationBytecodeHash": "0x2cb724ead6f158f34bed4b432ff938644f91ebf384f4dd18bb2ddadc3e935005",
+      "runtimeBytecodeHash": "0xdfb55c5e20173d4a35453135a6f1fa6ac913896e8d5813f7ba2ccf0e63922d6e",
+      "runtimeBytes": 7011
+    },
+    "AgentPoolV432ProofRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV432ProofRegistry.sol",
+      "creationBytecodeHash": "0xd892d60079b6d9941994e70ba1e2550f53c56ca978ed70ec7cc1081b07b3936f",
+      "runtimeBytecodeHash": "0xb6edd8548aa3019fcd35fd5d3197c51ec4241854fd1cdea02c3224cb271f938a",
+      "runtimeBytes": 4805
+    },
+    "AgentPoolV43EvolutionConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
+      "creationBytecodeHash": "0x17482251f0064450f36e149484a5994df1dcaf9b54e58968728c331bc88bcfe8",
+      "runtimeBytecodeHash": "0x0bbba27664922ed719347bddfe3917286cb35c75fafc06c2d62cbeaf9a2ac2c1",
+      "runtimeBytes": 13651
+    },
+    "AgentPoolV43HashObjectiveVerifier": {
+      "sourceName": "contracts/v43/AgentPoolV43HashObjectiveVerifier.sol",
+      "creationBytecodeHash": "0x55b40b9302bc216b1d983288cc727070265cbcd059388ac2efae3fe2f238ceb6",
+      "runtimeBytecodeHash": "0xc477333eca94cec141227e48960398c211bd65c87ed8b643794bd836d9c7e8a1",
+      "runtimeBytes": 328
+    },
+    "AgentPoolV435SystemIssueGate": {
+      "sourceName": "contracts/v43/AgentPoolV435SystemIssueGate.sol",
+      "creationBytecodeHash": "0xcbf078242eb319da4f3cbfba66768beab3fe99ccdf9753e7c3cf8d85ed26386c",
+      "runtimeBytecodeHash": "0x8a00f931df93cb401b8e6dd5eed17d9d211e1340f38eb493ad3afc11442e502b",
+      "runtimeBytes": 8633
+    },
+    "AgentPoolV435TransitionIssueConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
+      "creationBytecodeHash": "0xa70a60131a716a163d3b42d8df2c7b255100dc51669503f322c999be51548aea",
+      "runtimeBytecodeHash": "0x10c2543b14f3f5ae79aeb15370feb30dfd640158c2a90c63ba9bb4684f386f93",
+      "runtimeBytes": 7419
+    },
+    "AgentPoolV432IssueConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV432IssueConsensus.sol",
+      "creationBytecodeHash": "0xd31c456ee2753845140f4e6fab6ab6dda4ccd302261c4a432e59b7f3bf79e137",
+      "runtimeBytecodeHash": "0xd933708044800b5f7990dd1571ddc493792b4f19c0052ca1ffbd34828ddf8e48",
+      "runtimeBytes": 6029
+    },
+    "AgentPoolV432TaskMarket": {
+      "sourceName": "contracts/v43/AgentPoolV432TaskMarket.sol",
+      "creationBytecodeHash": "0x3454133ce658110b932e19a6300a3db94d12fa14092e08d6cfc6535981f0937d",
+      "runtimeBytecodeHash": "0x6219cdab124843dcbb93f7ebad7061e1f8906c91ce5bafe84f347706f3017077",
+      "runtimeBytes": 22073
+    }
+  },
+  "deployedCodeHashes": {
+    "token": "0x2d69b3d66d3a8e0429035ce2d319a1346fabe3b7b5424379ed041d1c84c6d191",
+    "settlementRouter": "0xeb65f8a8b3d4a657f2b091ef53301ca9028d0dc6245bcd70d39209af64bc7f1b",
+    "releaseRegistry": "0x45f4923c309120c9b33ecbb81caf25169bd7ec94eb0ce1ba00a276bfa9b1c36c",
+    "capacityRegistry": "0x6cc363d32315c5f74c390f61b489e9cc642f128814e8095e9630bf4f28806765",
+    "userEscrow": "0xd244cf480ee49ac4c83fdd9e672b0195909317a367d36e814d744788f047378d",
+    "coreEpochVault": "0x39630e2d2af02ea154d4f30bef94cea5d88e1a6e9f9f166a0e0535a151a2865e",
+    "evolutionEpochVault": "0x78978a08c86054c74b524c89616e3f17d26f3b273771e585c6756fafcb5d6e05",
+    "contributionLedger": "0x830312d63985b1cf49f5932df6ac1ca680b8caec4df70bc9a47b4441b86b679c",
+    "proofRegistry": "0x954a4c18d16712a53bebed73562b5aac43ea559d1783c7853f631746e57715a9",
+    "evolutionConsensus": "0x5935d35071d4f4f60d2a22ca824839196ecfad79942ddb9eb8ef3000e261d944",
+    "objectiveVerifier": "0xc477333eca94cec141227e48960398c211bd65c87ed8b643794bd836d9c7e8a1",
+    "systemIssueGate": "0x3b6cf0aed06f4ce091120778eaa11ccde0fcff42d14235709957f091cf17fa99",
+    "transitionIssueConsensus": "0xc3a8b8979455203ab783e98b527393d9fc7ea322913205c8938eaefc6eb3287c",
+    "issueConsensus": "0xae5942b6e703259cf6a873748a36df061a66e64e3fdc1d195087bf0180bca46a",
+    "taskMarket": "0x7d94b6512e42bd06d593cff8b8d17b9f8e75fdf739132fd4960c493f69605c82"
+  },
+  "deploymentTransactions": {
+    "token": "0x41e72c9d3bbeda14e85533a90f7a8ff45feaa82b91f548294e10811b6a4f0e77",
+    "settlementRouter": "0x622d9c1a73a1523c43ec2e6851c67c51e773e9a6a092d9392c7d74df32ba473c",
+    "releaseRegistry": "0x6c193a26c6f2065b70c3139b8ee39930b1281e20c5a5545db4c0992a1d6f0eb0",
+    "capacityRegistry": "0x2c7baf150f2fcaa2fc4e6a48f485ebbf45ce2b1d793422c6f82771153bc2ea36",
+    "userEscrow": "0x1699a1b4be6d3a54742deded8550a4326affef45df2d5eafba6f0ac31f66d3f6",
+    "coreEpochVault": "0x477cec13fd0c3279460bc6e900d17481b6d4e50fbedb4a8e50123fa86602552c",
+    "evolutionEpochVault": "0x04cfe7efa799dded9ebf2644e39bb8d783c87c56b725c605cd8f39a6dce57318",
+    "contributionLedger": "0xa3469962d209213e760d4258d7a8ec29888c7c576dc6012640ea837db502c3aa",
+    "proofRegistry": "0xaa111de9935677a0ddf83357ea6c3c130a1847cff9946c06315b025f6716da7d",
+    "evolutionConsensus": "0xfdb250ed97d7313cafbf3952eb4c932b903a007af9f648fdbafe898ba56c3c53",
+    "objectiveVerifier": "0x1ca7d81f3f9241fb585d3e24aa30777ccb7280017983dea9dd5cc172fa5c3f32",
+    "systemIssueGate": "0xe9c06cbc7e1917aa64cc9687735d3906b460bf0aaa7223eb6cbe7914305ddda5",
+    "transitionIssueConsensus": "0x6aceb2bb8c6b01d741dd238add7e0acbb5714e0cc629c9700509abaade0f8460",
+    "issueConsensus": "0x378bc5b7b0a2551404519e6b5658f690ba21b5ddd899164b1cd1aea7e209bac2",
+    "taskMarket": "0xaaaf30c7514363884421907f9c320e8a683c693d8277ddaef65df302bca6429d"
+  },
+  "creationInputHashes": {
+    "token": "0x1917095f86187ceaac7b791c0c2b3b48539989eee5ae9e1e6576b15b151fc78e",
+    "settlementRouter": "0xeb69878989e8197ee3abe626413b2e049779c38f091eb57b627c1b947c82cbb5",
+    "releaseRegistry": "0x078fb2121c0ac4c057ceedd65decf453ac2fe4c7c19bcbb153ed0ef5bdcc709d",
+    "capacityRegistry": "0x8ae1f56ee4c380adef01e41a99ff6f474fcb8edf9544290e16b94d18e015409a",
+    "userEscrow": "0x298b64c02aa5fdd1e2205c2e352ad705eda9efac1986d896f183a3503ab67660",
+    "coreEpochVault": "0xf3c4e2a4a4f5efbe0732f26c787b3a0f82214ce3955fe60ae19e4120d07cc90e",
+    "evolutionEpochVault": "0x59c998a469548e529c1a0c444dde80e4879917f3311ba70c9bd14044a7109a70",
+    "contributionLedger": "0x6ef1d3d5fb10832903b09d0560b6796fc7d3a587f530890a490b0afd41be3fed",
+    "proofRegistry": "0xfce26ed5ce4f2aeeef28344c01ec44975723dc8e657c26a52f6c9e2db722bbbe",
+    "evolutionConsensus": "0x2c8926e7332de3602c08ca076407ade2980c0393d9a7a37f8cb99b932eba4d3f",
+    "objectiveVerifier": "0x55b40b9302bc216b1d983288cc727070265cbcd059388ac2efae3fe2f238ceb6",
+    "systemIssueGate": "0x52f85378dea496f5ddd7cb8f0f706aaf2d9a6db1358c39aa45791738814c6bab",
+    "transitionIssueConsensus": "0xc5335769c7cad25e9690889c491ad0b3222151e8461f914440fc521386c8cadd",
+    "issueConsensus": "0x6a7db93d478831927d9926c9f4252f0a4ff3d3fd20cb5115e093f774d1f2b96e",
+    "taskMarket": "0xb7b7d3819a03993a7d79a8d0d0b9e9ffa26e21285bdc36136d7602f91aa9d33e"
+  },
+  "configurationTransactions": {
+    "0x4bac1ac4db28558562c3cfa3f56b4858956388dc:configureMinters": "0xcbf9bef43e0bc53197c58998b363d41d31894e4d0c4e37d79a852b196ed932aa",
+    "0xaafeb99cc4d6717c1429718ce3843dd42d2e6f2c:configureMarket": "0x5ae695da66e26814fcf3f535e44b02e93cd49ce3e46c2f5561403cd57025918d",
+    "0x5cc137c959c2d447df2a513c32a4779e907d734d:configureMarket": "0xf46f1c136a1456f04d9da56c21643e199aded86fba09b280e6b089a4c8971ea7",
+    "0x121eb258facb78d7fac7a79740bda93d56fbf0f3:configureMarket": "0xb7ff6170bf37aa91597d3b5ac8f7fb315f4202591ed79d7cbd455130a866ac6e",
+    "0xe09cd0351d591ea5c93960ef887329f76ec72007:configureMarket": "0x95999e9f98e7a7215bf7c155efa7f8952ea5cab2e947c345310fc6a458a9ed87",
+    "0xc9d6ddb4823a43621870aa68c33f83d2dcd3291d:configureMarket": "0x1158cbd62cd40564c9b15d88934490ec342ad484f243f07a8f7860fda7f22ba5",
+    "0xb005695ac24c897b3eb33f69276d2928f514dfb5:configureConsensus": "0x4a5d63226c5dddd4908f8b382b1f8a9cefc0cc9c308b5177abc47274d1f62a24",
+    "0x6bf17c8ac7a2a0401b1c9b2d81699b85fa2e3f98:configureConsensus": "0x65d052c640cf8cab204caf8cf4a491e95fd126c3b200ce9a28023c27aa827662",
+    "0x37c879b6f90b00d9004245f9adcd75d864c411d5:configure": "0xd16c8f4c1bd874b5f3868cbff6aecd21541e7ae1577a5dcfed38d46f0c25009a",
+    "0x12f50cad5f0edcd0e5a63135150a925be33e3521:configure": "0x88f78e5c81490740f574e88cb79b20f31d3c6ce3b24d51b9a9e132b3c90f80d4"
+  },
+  "configurationInputHashes": {
+    "0x4bac1ac4db28558562c3cfa3f56b4858956388dc:configureMinters": "0xa46da35a2399b4f0c1c9ae25a42863bb693ec3ab73221a4793b9e89876e501ff",
+    "0xaafeb99cc4d6717c1429718ce3843dd42d2e6f2c:configureMarket": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+    "0x5cc137c959c2d447df2a513c32a4779e907d734d:configureMarket": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+    "0x121eb258facb78d7fac7a79740bda93d56fbf0f3:configureMarket": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+    "0xe09cd0351d591ea5c93960ef887329f76ec72007:configureMarket": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+    "0xc9d6ddb4823a43621870aa68c33f83d2dcd3291d:configureMarket": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+    "0xb005695ac24c897b3eb33f69276d2928f514dfb5:configureConsensus": "0xfb2d39e71f4d894e614db1107389908059bc054495e11ed5a618a43973284555",
+    "0x6bf17c8ac7a2a0401b1c9b2d81699b85fa2e3f98:configureConsensus": "0xfb2d39e71f4d894e614db1107389908059bc054495e11ed5a618a43973284555",
+    "0x37c879b6f90b00d9004245f9adcd75d864c411d5:configure": "0x76923fede7c035a550de6521c56148891be60727dea0a8936981c25ddabe5408",
+    "0x12f50cad5f0edcd0e5a63135150a925be33e3521:configure": "0xf819ff7b2caf9fe728e40e7c5c1d88934e83c2f5027e8874b836d33a5ec90735"
+  },
+  "transactionIntents": {
+    "deploy:token": {
+      "kind": "deployment",
+      "nonce": 285,
+      "to": null,
+      "inputHash": "0x1917095f86187ceaac7b791c0c2b3b48539989eee5ae9e1e6576b15b151fc78e",
+      "createdAt": "2026-07-30T11:53:06.321Z",
+      "hash": "0x41e72c9d3bbeda14e85533a90f7a8ff45feaa82b91f548294e10811b6a4f0e77"
+    },
+    "deploy:settlementRouter": {
+      "kind": "deployment",
+      "nonce": 286,
+      "to": null,
+      "inputHash": "0xeb69878989e8197ee3abe626413b2e049779c38f091eb57b627c1b947c82cbb5",
+      "createdAt": "2026-07-30T11:53:12.766Z",
+      "hash": "0x622d9c1a73a1523c43ec2e6851c67c51e773e9a6a092d9392c7d74df32ba473c"
+    },
+    "deploy:releaseRegistry": {
+      "kind": "deployment",
+      "nonce": 287,
+      "to": null,
+      "inputHash": "0x078fb2121c0ac4c057ceedd65decf453ac2fe4c7c19bcbb153ed0ef5bdcc709d",
+      "createdAt": "2026-07-30T11:53:18.432Z",
+      "hash": "0x6c193a26c6f2065b70c3139b8ee39930b1281e20c5a5545db4c0992a1d6f0eb0"
+    },
+    "deploy:capacityRegistry": {
+      "kind": "deployment",
+      "nonce": 288,
+      "to": null,
+      "inputHash": "0x8ae1f56ee4c380adef01e41a99ff6f474fcb8edf9544290e16b94d18e015409a",
+      "createdAt": "2026-07-30T11:53:24.074Z",
+      "hash": "0x2c7baf150f2fcaa2fc4e6a48f485ebbf45ce2b1d793422c6f82771153bc2ea36"
+    },
+    "deploy:userEscrow": {
+      "kind": "deployment",
+      "nonce": 289,
+      "to": null,
+      "inputHash": "0x298b64c02aa5fdd1e2205c2e352ad705eda9efac1986d896f183a3503ab67660",
+      "createdAt": "2026-07-30T11:53:30.946Z",
+      "hash": "0x1699a1b4be6d3a54742deded8550a4326affef45df2d5eafba6f0ac31f66d3f6"
+    },
+    "deploy:coreEpochVault": {
+      "kind": "deployment",
+      "nonce": 290,
+      "to": null,
+      "inputHash": "0xf3c4e2a4a4f5efbe0732f26c787b3a0f82214ce3955fe60ae19e4120d07cc90e",
+      "createdAt": "2026-07-30T11:53:36.565Z",
+      "hash": "0x477cec13fd0c3279460bc6e900d17481b6d4e50fbedb4a8e50123fa86602552c"
+    },
+    "deploy:evolutionEpochVault": {
+      "kind": "deployment",
+      "nonce": 291,
+      "to": null,
+      "inputHash": "0x59c998a469548e529c1a0c444dde80e4879917f3311ba70c9bd14044a7109a70",
+      "createdAt": "2026-07-30T11:53:42.316Z",
+      "hash": "0x04cfe7efa799dded9ebf2644e39bb8d783c87c56b725c605cd8f39a6dce57318"
+    },
+    "deploy:contributionLedger": {
+      "kind": "deployment",
+      "nonce": 292,
+      "to": null,
+      "inputHash": "0x6ef1d3d5fb10832903b09d0560b6796fc7d3a587f530890a490b0afd41be3fed",
+      "createdAt": "2026-07-30T11:53:48.016Z",
+      "hash": "0xa3469962d209213e760d4258d7a8ec29888c7c576dc6012640ea837db502c3aa"
+    },
+    "deploy:proofRegistry": {
+      "kind": "deployment",
+      "nonce": 293,
+      "to": null,
+      "inputHash": "0xfce26ed5ce4f2aeeef28344c01ec44975723dc8e657c26a52f6c9e2db722bbbe",
+      "createdAt": "2026-07-30T11:53:54.920Z",
+      "hash": "0xaa111de9935677a0ddf83357ea6c3c130a1847cff9946c06315b025f6716da7d"
+    },
+    "deploy:evolutionConsensus": {
+      "kind": "deployment",
+      "nonce": 294,
+      "to": null,
+      "inputHash": "0x2c8926e7332de3602c08ca076407ade2980c0393d9a7a37f8cb99b932eba4d3f",
+      "createdAt": "2026-07-30T11:54:00.593Z",
+      "hash": "0xfdb250ed97d7313cafbf3952eb4c932b903a007af9f648fdbafe898ba56c3c53"
+    },
+    "deploy:objectiveVerifier": {
+      "kind": "deployment",
+      "nonce": 295,
+      "to": null,
+      "inputHash": "0x55b40b9302bc216b1d983288cc727070265cbcd059388ac2efae3fe2f238ceb6",
+      "createdAt": "2026-07-30T11:54:06.509Z",
+      "hash": "0x1ca7d81f3f9241fb585d3e24aa30777ccb7280017983dea9dd5cc172fa5c3f32"
+    },
+    "deploy:systemIssueGate": {
+      "kind": "deployment",
+      "nonce": 296,
+      "to": null,
+      "inputHash": "0x52f85378dea496f5ddd7cb8f0f706aaf2d9a6db1358c39aa45791738814c6bab",
+      "createdAt": "2026-07-30T11:54:12.368Z",
+      "hash": "0xe9c06cbc7e1917aa64cc9687735d3906b460bf0aaa7223eb6cbe7914305ddda5"
+    },
+    "deploy:transitionIssueConsensus": {
+      "kind": "deployment",
+      "nonce": 297,
+      "to": null,
+      "inputHash": "0xc5335769c7cad25e9690889c491ad0b3222151e8461f914440fc521386c8cadd",
+      "createdAt": "2026-07-30T11:54:18.076Z",
+      "hash": "0x6aceb2bb8c6b01d741dd238add7e0acbb5714e0cc629c9700509abaade0f8460"
+    },
+    "deploy:issueConsensus": {
+      "kind": "deployment",
+      "nonce": 298,
+      "to": null,
+      "inputHash": "0x6a7db93d478831927d9926c9f4252f0a4ff3d3fd20cb5115e093f774d1f2b96e",
+      "createdAt": "2026-07-30T11:54:25.019Z",
+      "hash": "0x378bc5b7b0a2551404519e6b5658f690ba21b5ddd899164b1cd1aea7e209bac2"
+    },
+    "deploy:taskMarket": {
+      "kind": "deployment",
+      "nonce": 299,
+      "to": null,
+      "inputHash": "0xb7b7d3819a03993a7d79a8d0d0b9e9ffa26e21285bdc36136d7602f91aa9d33e",
+      "createdAt": "2026-07-30T11:54:30.759Z",
+      "hash": "0xaaaf30c7514363884421907f9c320e8a683c693d8277ddaef65df302bca6429d"
+    },
+    "configure:0x4bac1ac4db28558562c3cfa3f56b4858956388dc:configureMinters": {
+      "kind": "configuration",
+      "nonce": 300,
+      "to": "0x4BAc1AC4Db28558562C3cFa3f56B4858956388Dc",
+      "inputHash": "0xa46da35a2399b4f0c1c9ae25a42863bb693ec3ab73221a4793b9e89876e501ff",
+      "createdAt": "2026-07-30T11:54:37.191Z",
+      "hash": "0xcbf9bef43e0bc53197c58998b363d41d31894e4d0c4e37d79a852b196ed932aa"
+    },
+    "configure:0xaafeb99cc4d6717c1429718ce3843dd42d2e6f2c:configureMarket": {
+      "kind": "configuration",
+      "nonce": 301,
+      "to": "0xAAFeb99CC4d6717C1429718Ce3843Dd42d2E6F2C",
+      "inputHash": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+      "createdAt": "2026-07-30T11:54:43.043Z",
+      "hash": "0x5ae695da66e26814fcf3f535e44b02e93cd49ce3e46c2f5561403cd57025918d"
+    },
+    "configure:0x5cc137c959c2d447df2a513c32a4779e907d734d:configureMarket": {
+      "kind": "configuration",
+      "nonce": 302,
+      "to": "0x5CC137c959c2D447DF2a513c32A4779e907d734D",
+      "inputHash": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+      "createdAt": "2026-07-30T11:54:49.093Z",
+      "hash": "0xf46f1c136a1456f04d9da56c21643e199aded86fba09b280e6b089a4c8971ea7"
+    },
+    "configure:0x121eb258facb78d7fac7a79740bda93d56fbf0f3:configureMarket": {
+      "kind": "configuration",
+      "nonce": 303,
+      "to": "0x121eB258FAcB78D7FAC7a79740bDA93d56Fbf0F3",
+      "inputHash": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+      "createdAt": "2026-07-30T11:54:55.107Z",
+      "hash": "0xb7ff6170bf37aa91597d3b5ac8f7fb315f4202591ed79d7cbd455130a866ac6e"
+    },
+    "configure:0xe09cd0351d591ea5c93960ef887329f76ec72007:configureMarket": {
+      "kind": "configuration",
+      "nonce": 304,
+      "to": "0xe09CD0351d591ea5c93960ef887329f76ec72007",
+      "inputHash": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+      "createdAt": "2026-07-30T11:55:00.994Z",
+      "hash": "0x95999e9f98e7a7215bf7c155efa7f8952ea5cab2e947c345310fc6a458a9ed87"
+    },
+    "configure:0xc9d6ddb4823a43621870aa68c33f83d2dcd3291d:configureMarket": {
+      "kind": "configuration",
+      "nonce": 305,
+      "to": "0xC9d6ddb4823A43621870aa68C33f83d2dcD3291d",
+      "inputHash": "0x492f00a8d70b3a7e1206c3d628c90cd741c28eeea4ab336a0298e640c5f122ba",
+      "createdAt": "2026-07-30T11:55:06.840Z",
+      "hash": "0x1158cbd62cd40564c9b15d88934490ec342ad484f243f07a8f7860fda7f22ba5"
+    },
+    "configure:0xb005695ac24c897b3eb33f69276d2928f514dfb5:configureConsensus": {
+      "kind": "configuration",
+      "nonce": 306,
+      "to": "0xB005695aC24C897B3eb33f69276D2928f514DFB5",
+      "inputHash": "0xfb2d39e71f4d894e614db1107389908059bc054495e11ed5a618a43973284555",
+      "createdAt": "2026-07-30T11:55:12.669Z",
+      "hash": "0x4a5d63226c5dddd4908f8b382b1f8a9cefc0cc9c308b5177abc47274d1f62a24"
+    },
+    "configure:0x6bf17c8ac7a2a0401b1c9b2d81699b85fa2e3f98:configureConsensus": {
+      "kind": "configuration",
+      "nonce": 307,
+      "to": "0x6Bf17C8ac7a2A0401B1c9b2d81699b85fa2e3f98",
+      "inputHash": "0xfb2d39e71f4d894e614db1107389908059bc054495e11ed5a618a43973284555",
+      "createdAt": "2026-07-30T11:55:18.688Z",
+      "hash": "0x65d052c640cf8cab204caf8cf4a491e95fd126c3b200ce9a28023c27aa827662"
+    },
+    "configure:0x37c879b6f90b00d9004245f9adcd75d864c411d5:configure": {
+      "kind": "configuration",
+      "nonce": 308,
+      "to": "0x37C879B6F90b00d9004245f9ADCD75D864C411d5",
+      "inputHash": "0x76923fede7c035a550de6521c56148891be60727dea0a8936981c25ddabe5408",
+      "createdAt": "2026-07-30T11:55:24.586Z",
+      "hash": "0xd16c8f4c1bd874b5f3868cbff6aecd21541e7ae1577a5dcfed38d46f0c25009a"
+    },
+    "configure:0x12f50cad5f0edcd0e5a63135150a925be33e3521:configure": {
+      "kind": "configuration",
+      "nonce": 309,
+      "to": "0x12F50CaD5F0EDcD0e5A63135150A925be33e3521",
+      "inputHash": "0xf819ff7b2caf9fe728e40e7c5c1d88934e83c2f5027e8874b836d33a5ec90735",
+      "createdAt": "2026-07-30T11:55:30.449Z",
+      "hash": "0x88f78e5c81490740f574e88cb79b20f31d3c6ce3b24d51b9a9e132b3c90f80d4"
+    }
+  },
+  "transactionHashes": [
+    "0x41e72c9d3bbeda14e85533a90f7a8ff45feaa82b91f548294e10811b6a4f0e77",
+    "0x622d9c1a73a1523c43ec2e6851c67c51e773e9a6a092d9392c7d74df32ba473c",
+    "0x6c193a26c6f2065b70c3139b8ee39930b1281e20c5a5545db4c0992a1d6f0eb0",
+    "0x2c7baf150f2fcaa2fc4e6a48f485ebbf45ce2b1d793422c6f82771153bc2ea36",
+    "0x1699a1b4be6d3a54742deded8550a4326affef45df2d5eafba6f0ac31f66d3f6",
+    "0x477cec13fd0c3279460bc6e900d17481b6d4e50fbedb4a8e50123fa86602552c",
+    "0x04cfe7efa799dded9ebf2644e39bb8d783c87c56b725c605cd8f39a6dce57318",
+    "0xa3469962d209213e760d4258d7a8ec29888c7c576dc6012640ea837db502c3aa",
+    "0xaa111de9935677a0ddf83357ea6c3c130a1847cff9946c06315b025f6716da7d",
+    "0xfdb250ed97d7313cafbf3952eb4c932b903a007af9f648fdbafe898ba56c3c53",
+    "0x1ca7d81f3f9241fb585d3e24aa30777ccb7280017983dea9dd5cc172fa5c3f32",
+    "0xe9c06cbc7e1917aa64cc9687735d3906b460bf0aaa7223eb6cbe7914305ddda5",
+    "0x6aceb2bb8c6b01d741dd238add7e0acbb5714e0cc629c9700509abaade0f8460",
+    "0x378bc5b7b0a2551404519e6b5658f690ba21b5ddd899164b1cd1aea7e209bac2",
+    "0xaaaf30c7514363884421907f9c320e8a683c693d8277ddaef65df302bca6429d",
+    "0xcbf9bef43e0bc53197c58998b363d41d31894e4d0c4e37d79a852b196ed932aa",
+    "0x5ae695da66e26814fcf3f535e44b02e93cd49ce3e46c2f5561403cd57025918d",
+    "0xf46f1c136a1456f04d9da56c21643e199aded86fba09b280e6b089a4c8971ea7",
+    "0xb7ff6170bf37aa91597d3b5ac8f7fb315f4202591ed79d7cbd455130a866ac6e",
+    "0x95999e9f98e7a7215bf7c155efa7f8952ea5cab2e947c345310fc6a458a9ed87",
+    "0x1158cbd62cd40564c9b15d88934490ec342ad484f243f07a8f7860fda7f22ba5",
+    "0x4a5d63226c5dddd4908f8b382b1f8a9cefc0cc9c308b5177abc47274d1f62a24",
+    "0x65d052c640cf8cab204caf8cf4a491e95fd126c3b200ce9a28023c27aa827662",
+    "0xd16c8f4c1bd874b5f3868cbff6aecd21541e7ae1577a5dcfed38d46f0c25009a",
+    "0x88f78e5c81490740f574e88cb79b20f31d3c6ce3b24d51b9a9e132b3c90f80d4"
+  ],
+  "gasUsed": "20747973",
+  "deployedAt": "2026-07-30T11:55:44.992Z",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "sourceEvidenceSha256": "4b603929771bcac1162eea4817485ece0d1d6546d708bccab41c1dc106fd0ff1",
+  "deploymentBlock": 44822051,
+  "bootstrapRoot": "0x056335b3f3652c6f8d2ed8e6f9fcec0cb71fc7684ee1521da5aea45a9e3135a0",
+  "dynamicValidatorRoot": "0xf5dfb40e8f24ff70c48a6a642f37a2f60f628b2e64c1923e966ede003cf5c79a",
+  "artifactTypes": {
+    "token": "AgentPoolV44Token",
+    "settlementRouter": "AgentPoolV43SettlementRouter",
+    "releaseRegistry": "AgentPoolV43ReleaseRegistry",
+    "capacityRegistry": "AgentPoolV43CapacityRegistry",
+    "userEscrow": "AgentPoolV43UserEscrowKernel",
+    "coreEpochVault": "AgentPoolV43EpochVault",
+    "evolutionEpochVault": "AgentPoolV43EpochVault",
+    "contributionLedger": "AgentPoolV43ContributionLedger",
+    "proofRegistry": "AgentPoolV432ProofRegistry",
+    "evolutionConsensus": "AgentPoolV43EvolutionConsensus",
+    "objectiveVerifier": "AgentPoolV43HashObjectiveVerifier",
+    "systemIssueGate": "AgentPoolV435SystemIssueGate",
+    "transitionIssueConsensus": "AgentPoolV435TransitionIssueConsensus",
+    "issueConsensus": "AgentPoolV432IssueConsensus",
+    "taskMarket": "AgentPoolV432TaskMarket"
+  },
+  "artifactCreationBytecodeHashes": {
+    "AgentPoolV44Token": "0x9a339d42b2924233e5b8953ee6835df87c1ffa5649aadd7c0524abe40186b739",
+    "AgentPoolV43SettlementRouter": "0xaf43b3ec88832696c9000294e12f407ae5b3e713e7346c04f5c1750ad33aa17b",
+    "AgentPoolV43ReleaseRegistry": "0xfe29e9f4604d20597536a87482a82b332ac3bdd7725f5f2c023e44d08f1bc8e9",
+    "AgentPoolV43CapacityRegistry": "0x38c07f4077efe56867e0c0a004980dd8cd6f7e90c376344527d3cafa29400a50",
+    "AgentPoolV43UserEscrowKernel": "0x6837a7537730a14ce899e116f0e3250befb95b3f96517f22d818edda78328b68",
+    "AgentPoolV43EpochVault": "0x9f0c9084028766a6af6bc7be44e95153d425932bf6f88273a6d0f80d38b1fbb6",
+    "AgentPoolV43ContributionLedger": "0x2cb724ead6f158f34bed4b432ff938644f91ebf384f4dd18bb2ddadc3e935005",
+    "AgentPoolV432ProofRegistry": "0xd892d60079b6d9941994e70ba1e2550f53c56ca978ed70ec7cc1081b07b3936f",
+    "AgentPoolV43EvolutionConsensus": "0x17482251f0064450f36e149484a5994df1dcaf9b54e58968728c331bc88bcfe8",
+    "AgentPoolV43HashObjectiveVerifier": "0x55b40b9302bc216b1d983288cc727070265cbcd059388ac2efae3fe2f238ceb6",
+    "AgentPoolV435SystemIssueGate": "0xcbf078242eb319da4f3cbfba66768beab3fe99ccdf9753e7c3cf8d85ed26386c",
+    "AgentPoolV435TransitionIssueConsensus": "0xa70a60131a716a163d3b42d8df2c7b255100dc51669503f322c999be51548aea",
+    "AgentPoolV432IssueConsensus": "0xd31c456ee2753845140f4e6fab6ab6dda4ccd302261c4a432e59b7f3bf79e137",
+    "AgentPoolV432TaskMarket": "0x3454133ce658110b932e19a6300a3db94d12fa14092e08d6cfc6535981f0937d"
+  },
+  "manifestSha256": "1f5ca6d3d51a548da1ff3737999d67ff3c1b6a58a2125b8fbe4aeb2e102336b3"
+}
