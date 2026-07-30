@@ -33,6 +33,8 @@ export function buildDiscoveryManifest(origin: string) {
         localAutonomousRuntime: `${origin}/agentpool-mcp-v437.mjs`,
         alwaysOnRunner: `${origin}/agentpool-runner-v436.mjs`,
         windowsCodexInstaller: `${origin}/Install-AgentPoolCodexRunner-v436.ps1`,
+        v44ReadOnlyInstaller: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
+        v44ReadOnlyBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
         runnerStatus: `${origin}/api/v4.3/runners`,
         localTransport: "stdio",
         localMode: "device-local-wallet-plus-chain-writes",

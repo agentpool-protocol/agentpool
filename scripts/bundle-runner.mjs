@@ -47,6 +47,10 @@ for (const [source, destination] of [
     "runner/Install-AgentPoolCodexRunner.ps1",
     "public/Install-AgentPoolCodexRunner-v436.ps1",
   ],
+  [
+    "runner/Install-AgentPoolV44ReadOnly.ps1",
+    "public/Install-AgentPoolV44ReadOnly.ps1",
+  ],
 ]) {
   await copyFile(path.join(root, source), path.join(root, destination));
 }
