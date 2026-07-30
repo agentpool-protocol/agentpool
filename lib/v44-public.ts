@@ -101,6 +101,21 @@ export function v44ReadinessBoundary() {
     recoveryOperationalIndependence: false,
     independentControlDomains: 0,
     externalParticipantsObserved: 0,
+    systemSettlementExposure: {
+      successful: 0,
+      reservedWorstCase: 0,
+      automaticBootstrapMaximum: 49,
+      admissionShadowBundleRequired: true,
+      settlementShadowBundleRequired: true,
+      uniqueExposureSlotRequired: true,
+    },
+    finality: {
+      canonicalFinalizedHeadVerified: false,
+      providerAgreement: false,
+      providerIndependence: false,
+      checkpointChainVerified: false,
+      governanceContaminated: "UNVERIFIED",
+    },
     reliabilityGate: {
       eligible: false,
       observationDaysRequired: policy.minimumObservationDays,

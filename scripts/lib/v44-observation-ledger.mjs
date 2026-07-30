@@ -9,6 +9,10 @@ import {
   validateObservations,
   validateTestnetDeployment,
 } from "./v44-testnet-reliability.mjs";
+import {
+  newExposureLedger,
+  validateAutonomyEvidence,
+} from "./v44-autonomy-safety.mjs";
 
 export const DEFAULT_V44_TESTNET_DEPLOYMENT_PATH = path.join(
   ROOT,
@@ -92,6 +96,15 @@ export function newObservationLedger({
     observations: [],
     incidents: [],
     attestations: [],
+    autonomyEvidence: {
+      schema: "agentpool.v44.autonomy-evidence/v1",
+      exposureLedger: newExposureLedger(),
+      admissionBundles: [],
+      settlementBundles: [],
+      governanceEvents: [],
+      checkpoints: [],
+      anchorStatus: "PENDING_ANCHOR",
+    },
   };
 }
 
@@ -108,5 +121,8 @@ export function writeJsonAtomic(filePath, value) {
 
 export function validateLedger(ledger, { policy, deployment }) {
   validateObservations(ledger, { policy, deployment });
+  if (ledger.autonomyEvidence) {
+    validateAutonomyEvidence(ledger.autonomyEvidence);
+  }
   return ledger;
 }

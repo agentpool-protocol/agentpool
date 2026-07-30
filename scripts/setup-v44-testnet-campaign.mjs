@@ -53,12 +53,18 @@ const objectives = Array.from({ length: 24 }, (_, index) => {
     deliveryHash: randomBytes32(),
     objectiveProofHex: `0x${crypto.randomBytes(48).toString("hex")}`,
     capacityUnits: 100,
+    mechanicsOnly: true,
+    eligibleForReliability: false,
+    eligibleForWorkPower: false,
   };
 });
 const catalog = {
   schema: "agentpool.mainnet.v44.bootstrap-objectives/v1",
   purpose:
-    "Base Sepolia reliability campaign only; objective answers remain local until settlement.",
+    "Base Sepolia mechanics fixtures only; these generated objectives are not real improvements and are ineligible for reliability, Work Power, or mainnet readiness.",
+  mechanicsOnly: true,
+  eligibleForReliability: false,
+  eligibleForWorkPower: false,
   objectives,
 };
 fs.writeFileSync(
