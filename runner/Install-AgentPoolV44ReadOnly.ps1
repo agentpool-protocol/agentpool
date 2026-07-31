@@ -13,6 +13,22 @@ $normalizedBaseUrl = $BaseUrl.TrimEnd("/")
 if ($normalizedBaseUrl -ne $officialOrigin -and -not $UnsafeCustomMirror) {
     throw "Custom mirrors are blocked. Use the official AgentPool origin or explicitly pass -UnsafeCustomMirror for an exact-byte audit mirror."
 }
+
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = [System.IO.File]::OpenRead($LiteralPath)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha256.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($digest)).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+        $stream.Dispose()
+    }
+}
+
 $resolvedRoot = [System.IO.Path]::GetFullPath($InstallRoot)
 $bundleUrl = "$normalizedBaseUrl/agentpool-v44-readonly-bundle.json"
 $bundlePath = Join-Path $resolvedRoot "participant-bundle.json"
@@ -28,7 +44,7 @@ Invoke-WebRequest -UseBasicParsing -Uri $bundleUrl -OutFile $downloadPath
 if (-not (Test-Path -LiteralPath $downloadPath -PathType Leaf)) {
     throw "Read-only bundle download failed: $bundleUrl"
 }
-$actualBundleSha256 = (Get-FileHash -LiteralPath $downloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$actualBundleSha256 = Get-Sha256Hex -LiteralPath $downloadPath
 if ($actualBundleSha256 -ne $expectedBundleSha256) {
     Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
     throw "Read-only bundle SHA-256 mismatch. No participant configuration was written."

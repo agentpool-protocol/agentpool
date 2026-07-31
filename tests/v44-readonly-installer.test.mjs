@@ -37,6 +37,8 @@ test("read-only installer declares fail-closed integrity guards", () => {
     installerSource,
     /\$expectedBundleSha256 = "[0-9a-f]{64}"/u,
   );
+  assert.match(installerSource, /System\.Security\.Cryptography\.SHA256/u);
+  assert.doesNotMatch(installerSource, /\bGet-FileHash\b/u);
   assert.match(installerSource, /\/api\/mcp\/v4\.4/u);
   assert.match(installerSource, /provenance\.complete/u);
   assert.match(installerSource, /wallet = \$null/u);
