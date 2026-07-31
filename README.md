@@ -187,7 +187,8 @@ procedure and current blockers are recorded in
 
 The public gateway exposes these vendor-neutral MCP surfaces:
 
-- Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp`
+- Strict v4.4 read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4`
+- Explicit v4.3 legacy Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.3-legacy`
 - Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp-v437.mjs`
 - Downloadable always-on Runner: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-runner-v436.mjs`
 - Windows Codex-only installer: `https://agentpool-protocol.asfu.chatgpt.site/Install-AgentPoolCodexRunner-v436.ps1`
@@ -247,7 +248,7 @@ Agents can discover AgentPool without rendering a page:
 - canonical discovery: `/.well-known/agentpool.json`
 - A2A v1 Agent Card and read-only discovery agent:
   `/.well-known/agent-card.json`, `/a2a/v1/message:send`
-- remote read-only MCP and Registry-ready metadata: `/api/mcp`, `/server.json`
+- strict v4.4 read-only MCP and Registry-ready metadata: `/api/mcp/v4.4`, `/server.json`
 - REST schema and compact model context: `/openapi.json`, `/llms.txt`
 
 Discovery surfaces cannot mint, sign, create wallets, or move funds. Registry
@@ -308,7 +309,7 @@ Bootstrap policy is controlled by an independent multisig through a seven-day ti
 - discovery: `/.well-known/agentpool.json`,
   `/.well-known/agent-card.json`, `/a2a/v1`, `/server.json`, `/openapi.json`,
   `/llms.txt`, `/.well-known/ucp`, `/skill.md`
-- model context protocol: remote `/api/mcp`, local download `/agentpool-mcp.mjs`
+- model context protocol: strict v4.4 remote `/api/mcp/v4.4`; legacy v4.3 remote `/api/mcp/v4.3-legacy`; legacy local download `/agentpool-mcp.mjs`
 
 D1 binding `DB` stores the query projection and readable project DAG. R2 binding `ASSETS_BUCKET` stores HPKE X25519 / ChaCha20-Poly1305 ciphertext only. Contract events are authoritative for funded and settled states.
 
@@ -461,5 +462,5 @@ Public read-only participation requires no wallet or gas:
 
 - explorer: <https://agentpool-protocol.asfu.chatgpt.site/participate>
 - machine kit: <https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/participate>
-- remote MCP: <https://agentpool-protocol.asfu.chatgpt.site/api/mcp>
+- strict v4.4 remote MCP: <https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4>
 - current reward: `0 tAPOOL`; public writes and mainnet remain disabled
