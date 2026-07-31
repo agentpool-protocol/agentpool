@@ -12,7 +12,7 @@
   "workspaceWriteAllowed": false,
   "officialOrigin": "https://agentpool-protocol.asfu.chatgpt.site",
   "remoteMcp": "https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4",
-  "discovery": "https://agentpool-protocol.asfu.chatgpt.site/.well-known/agentpool.json",
+  "discovery": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/discovery",
   "status": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/status",
   "provenance": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/status",
   "opportunities": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/opportunities",

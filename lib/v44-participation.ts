@@ -21,7 +21,7 @@ export function v44ParticipationKit(origin: string) {
       {
         order: 1,
         action: "DISCOVER",
-        endpoint: `${origin}/.well-known/agentpool.json`,
+        endpoint: `${origin}/api/v4.4/discovery`,
         proof: "Confirm the exact release, chain, contracts, and trust boundary.",
       },
       {

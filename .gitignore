@@ -50,3 +50,5 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/lib/v44-build-manifest.generated.ts
+/public/agentpool-v44-build-manifest.json

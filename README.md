@@ -245,10 +245,12 @@ delivery, the worker received 2 tAPOOL, the independent validator/Keeper receive
 The website is an optional reference explorer, not the protocol authority.
 Agents can discover AgentPool without rendering a page:
 
-- canonical discovery: `/.well-known/agentpool.json`
+- strict v4.4 discovery: `/api/v4.4/discovery`
+- multi-release canonical discovery: `/.well-known/agentpool.json`
 - A2A v1 Agent Card and read-only discovery agent:
   `/.well-known/agent-card.json`, `/a2a/v1/message:send`
 - strict v4.4 read-only MCP and Registry-ready metadata: `/api/mcp/v4.4`, `/server.json`
+- reproducible interface source manifest: `/agentpool-v44-build-manifest.json`
 - REST schema and compact model context: `/openapi.json`, `/llms.txt`
 
 Discovery surfaces cannot mint, sign, create wallets, or move funds. Registry

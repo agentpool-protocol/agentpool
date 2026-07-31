@@ -31,7 +31,10 @@ import {
 import {
   verifyV44ReleaseEvidenceFile,
 } from "../generate-v44-release-evidence.mjs";
-import { validateAutonomyEvidence } from "./v44-autonomy-safety.mjs";
+import {
+  collectGovernanceEventSnapshot,
+  validateAutonomyEvidence,
+} from "./v44-autonomy-safety.mjs";
 
 export const TESTNET_CHAIN_ID = 84532;
 export const TARGET_CHAIN_ID = 8453;
@@ -1719,7 +1722,7 @@ export async function buildReliabilityReport({
     policy: policyEvidence.policy,
     deployment,
   });
-  const autonomyV2 = validateAutonomyEvidence(
+  const autonomyEvidence =
     observations.autonomyEvidence ?? {
       schema: "agentpool.v44.autonomy-evidence/v1",
       exposureLedger: {
@@ -1731,23 +1734,51 @@ export async function buildReliabilityReport({
       },
       admissionBundles: [],
       settlementBundles: [],
-      governanceEvents: [],
+      governanceEventIds: [],
       governanceEventProviders: [],
       checkpoints: [],
       checkpointPolicy: { authorizedPublicKeys: [], threshold: 2 },
-    },
-  );
+    };
   const attestationEvidence = await verifyObservationAttestations(
     observations,
     policyEvidence.policy,
     deployment,
   );
+  const trustedAutonomyPolicy =
+    policyEvidence.policy.autonomyV2 ?? {};
+  const governancePolicy =
+    trustedAutonomyPolicy.governanceEventPolicy;
+  let governanceEventProviders = [];
+  let canonicalVerificationBlock = verificationBlockNumber;
+  if (
+    Number.isSafeInteger(governancePolicy?.fromBlock) &&
+    Array.isArray(governancePolicy?.allowedEmitters) &&
+    governancePolicy.allowedEmitters.length > 0
+  ) {
+    const primaryGovernance = await collectGovernanceEventSnapshot({
+      rpcUrl,
+      fromBlock: governancePolicy.fromBlock,
+      allowedEmitters: governancePolicy.allowedEmitters,
+    });
+    const secondaryGovernance = await collectGovernanceEventSnapshot({
+      rpcUrl: secondaryRpcUrl,
+      fromBlock: governancePolicy.fromBlock,
+      allowedEmitters: governancePolicy.allowedEmitters,
+      finalizedBlockNumber: primaryGovernance.finalizedBlockNumber,
+    });
+    governanceEventProviders = [
+      primaryGovernance,
+      secondaryGovernance,
+    ];
+    canonicalVerificationBlock =
+      primaryGovernance.finalizedBlockNumber;
+  }
   const primaryRpcEvidence = await collectLiveRpcEvidence({
     rpcUrl,
     deployment,
     observations,
     policy: policyEvidence.policy,
-    verificationBlockNumber,
+    verificationBlockNumber: canonicalVerificationBlock,
   });
   const secondaryRpcEvidence = await collectLiveRpcEvidence({
     rpcUrl: secondaryRpcUrl,
@@ -1762,6 +1793,22 @@ export async function buildReliabilityReport({
     primary: primaryRpcEvidence,
     secondary: secondaryRpcEvidence,
   });
+  const autonomyV2 = validateAutonomyEvidence(
+    {
+      ...autonomyEvidence,
+      governanceEventProviders,
+    },
+    {
+      controlDomainPolicy:
+        trustedAutonomyPolicy.controlDomainPolicy ?? null,
+      checkpointPolicy:
+        trustedAutonomyPolicy.checkpointPolicy ?? null,
+      governanceEventPolicy: governancePolicy ?? null,
+      generatedCodeCommit:
+        trustedAutonomyPolicy.generatedCodeCommit ?? null,
+      evaluationTimeMs: Date.now(),
+    },
+  );
   return evaluateReliability({
     policy: policyEvidence.policy,
     deployment,

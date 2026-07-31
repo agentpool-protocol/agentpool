@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { keccak256, toBytes } from "viem";
 
 export const SLOT_STATES = Object.freeze({
   RESERVED_FOR_ISSUE: "RESERVED_FOR_ISSUE",
@@ -31,6 +32,13 @@ const ALLOWED_SLOT_TRANSITIONS = Object.freeze({
 });
 
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/u;
+const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/u;
+const ZERO_HASH = `0x${"00".repeat(32)}`;
+export const V44_SYSTEM_SETTLED_EVENT_SIGNATURE =
+  "V44SystemSettled(bytes32,bytes32,uint256,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32)";
+export const V44_SYSTEM_SETTLED_TOPIC0 = keccak256(
+  toBytes(V44_SYSTEM_SETTLED_EVENT_SIGNATURE),
+).toLowerCase();
 const TERMINAL_OUTCOMES = new Set([
   "REJECTED",
   "REFUNDED",
@@ -260,6 +268,132 @@ export function observerKeyId(publicKeyPem) {
   });
 }
 
+function controlDomainRegistryBody(registry) {
+  const body = structuredClone(registry);
+  delete body.registryHash;
+  delete body.signatures;
+  return body;
+}
+
+export function createControlDomainRegistry({
+  entries,
+  issuedAtMs,
+  expiresAtMs,
+}) {
+  const registry = {
+    schema: "agentpool.v44.control-domain-registry/v1",
+    registryVersion: 1,
+    issuedAtMs,
+    expiresAtMs,
+    entries: [...entries].sort((left, right) =>
+      left.observerKeyId.localeCompare(right.observerKeyId),
+    ),
+  };
+  return {
+    ...registry,
+    registryHash: sha256Json(registry),
+    signatures: [],
+  };
+}
+
+export function signControlDomainRegistry(
+  registry,
+  { privateKeyPem, publicKeyPem, controllerDomain },
+) {
+  const body = controlDomainRegistryBody(registry);
+  return {
+    ...registry,
+    registryHash: sha256Json(body),
+    signatures: [
+      ...(registry.signatures ?? []),
+      {
+        signerKeyId: observerKeyId(publicKeyPem),
+        publicKeyPem,
+        controllerDomain,
+        signature: crypto
+          .sign(null, Buffer.from(canonicalJson(body)), privateKeyPem)
+          .toString("base64"),
+      },
+    ],
+  };
+}
+
+export function validateControlDomainRegistry(
+  registry,
+  {
+    authorizedPublicKeys = [],
+    threshold = 2,
+    atMs = Date.now(),
+  } = {},
+) {
+  if (
+    registry?.schema !== "agentpool.v44.control-domain-registry/v1" ||
+    registry.registryVersion !== 1 ||
+    !Number.isSafeInteger(registry.issuedAtMs) ||
+    !Number.isSafeInteger(registry.expiresAtMs) ||
+    registry.issuedAtMs > atMs ||
+    registry.expiresAtMs < atMs ||
+    !Array.isArray(registry.entries)
+  ) {
+    throw new Error("V44_CONTROL_DOMAIN_REGISTRY_INVALID");
+  }
+  const entriesByKey = new Map();
+  for (const entry of registry.entries) {
+    if (
+      !HASH_PATTERN.test(entry.observerKeyId ?? "") ||
+      !["CORROBORATED", "INDEPENDENT_REVIEWED"].includes(entry.status) ||
+      !HASH_PATTERN.test(entry.anchorEvidenceHash ?? "") ||
+      typeof entry.hostDomainId !== "string" ||
+      entry.hostDomainId.length < 3 ||
+      typeof entry.controllerDomainId !== "string" ||
+      entry.controllerDomainId.length < 3 ||
+      entriesByKey.has(entry.observerKeyId)
+    ) {
+      throw new Error("V44_CONTROL_DOMAIN_REGISTRY_ENTRY_INVALID");
+    }
+    entriesByKey.set(entry.observerKeyId, entry);
+  }
+  const body = controlDomainRegistryBody(registry);
+  if (registry.registryHash !== sha256Json(body)) {
+    throw new Error("V44_CONTROL_DOMAIN_REGISTRY_HASH_INVALID");
+  }
+  if (
+    !Number.isSafeInteger(threshold) ||
+    threshold < 1 ||
+    authorizedPublicKeys.length < threshold
+  ) {
+    throw new Error("V44_CONTROL_DOMAIN_REGISTRY_POLICY_INVALID");
+  }
+  const authorizedIds = new Set(
+    authorizedPublicKeys.map((publicKeyPem) => observerKeyId(publicKeyPem)),
+  );
+  const validSignatures = (registry.signatures ?? []).filter(
+    (signature) =>
+      authorizedIds.has(signature.signerKeyId) &&
+      signature.signerKeyId === observerKeyId(signature.publicKeyPem) &&
+      typeof signature.controllerDomain === "string" &&
+      crypto.verify(
+        null,
+        Buffer.from(canonicalJson(body)),
+        signature.publicKeyPem,
+        Buffer.from(signature.signature ?? "", "base64"),
+      ),
+  );
+  if (
+    new Set(validSignatures.map((signature) => signature.signerKeyId)).size <
+      threshold ||
+    new Set(validSignatures.map((signature) => signature.controllerDomain))
+      .size < threshold
+  ) {
+    throw new Error("V44_CONTROL_DOMAIN_REGISTRY_SIGNATURE_THRESHOLD");
+  }
+  return {
+    valid: true,
+    registryHash: registry.registryHash,
+    entriesByKey,
+  };
+}
+
 export function signObserverReport(report, privateKeyPem) {
   const body = observerReportBody(report);
   const reportHash = sha256Json(body);
@@ -272,11 +406,17 @@ export function signObserverReport(report, privateKeyPem) {
 export function validateObserverReport(report, bundle) {
   const requiredHashes = [
     "evidenceHash",
+    "issueHash",
+    "sourceSnapshotDigest",
+    "specificationHash",
+    "testCommitment",
+    "revealHash",
     "artifactDigest",
     "environmentImageDigest",
     "roundId",
     "jobId",
     "replayDomain",
+    "exposureSlotId",
   ];
   if (report?.schema !== "agentpool.v44.shadow-report/v1") {
     throw new Error("V44_OBSERVER_REPORT_SCHEMA_INVALID");
@@ -298,7 +438,12 @@ export function validateObserverReport(report, bundle) {
     report.scoreBps > 10_000 ||
     !Number.isSafeInteger(report.observedAtMs) ||
     !Number.isSafeInteger(report.milestone) ||
-    report.milestone < 0
+    report.milestone < 0 ||
+    !["ADMISSION", "SETTLEMENT"].includes(report.bundleKind) ||
+    !["EXACT_V1", "MEDIAN_V1"].includes(
+      report.canonicalScorePolicyVersion,
+    ) ||
+    !Number.isSafeInteger(report.commitTimeMs)
   ) {
     throw new Error("V44_OBSERVER_REPORT_FIELDS_INVALID");
   }
@@ -315,12 +460,20 @@ export function validateObserverReport(report, bundle) {
     throw new Error("V44_OBSERVER_REPORT_SIGNATURE_INVALID");
   }
   for (const field of [
+    "issueHash",
+    "sourceSnapshotDigest",
+    "specificationHash",
+    "testCommitment",
+    "revealHash",
     "artifactDigest",
     "environmentImageDigest",
     "roundId",
     "jobId",
     "milestone",
     "replayDomain",
+    "exposureSlotId",
+    "canonicalScorePolicyVersion",
+    "commitTimeMs",
   ]) {
     if (report[field] !== bundle[field]) {
       throw new Error(`V44_OBSERVER_REPORT_${field.toUpperCase()}_MISMATCH`);
@@ -329,17 +482,19 @@ export function validateObserverReport(report, bundle) {
   if (report.observedAtMs > bundle.commitTimeMs) {
     throw new Error("V44_OBSERVER_REPORT_AFTER_COMMIT");
   }
-  if (
-    report.controlEvidence?.status !== "VERIFIED" ||
-    typeof report.controlEvidence?.hostFingerprint !== "string" ||
-    typeof report.controlEvidence?.controllerFingerprint !== "string"
-  ) {
-    throw new Error("V44_OBSERVER_CONTROL_EVIDENCE_INVALID");
+  const expectedKind = bundle.schema.includes("admission")
+    ? "ADMISSION"
+    : "SETTLEMENT";
+  if (report.bundleKind !== expectedKind) {
+    throw new Error("V44_OBSERVER_REPORT_BUNDLE_KIND_MISMATCH");
   }
   return report;
 }
 
-export function validateShadowBundle(bundle, { kind }) {
+export function validateShadowBundle(
+  bundle,
+  { kind, controlDomainRegistry },
+) {
   const expectedSchema =
     kind === "ADMISSION"
       ? "agentpool.v44.shadow-admission/v1"
@@ -358,6 +513,7 @@ export function validateShadowBundle(bundle, { kind }) {
     "roundId",
     "jobId",
     "replayDomain",
+    "exposureSlotId",
     "reportRoot",
   ]) {
     if (!HASH_PATTERN.test(bundle[field] ?? "")) {
@@ -381,7 +537,25 @@ export function validateShadowBundle(bundle, { kind }) {
     throw new Error(`V44_SHADOW_${kind}_REPORTS_MISSING`);
   }
   for (const report of bundle.reports) validateObserverReport(report, bundle);
-  const controlGrade = gradeControlDomains(bundle.reports);
+  if (
+    new Set(bundle.reports.map((report) => report.observerKeyId)).size !==
+    bundle.reports.length
+  ) {
+    throw new Error(`V44_SHADOW_${kind}_OBSERVER_KEY_REUSED`);
+  }
+  const controlGrade = gradeControlDomains(
+    bundle.reports,
+    controlDomainRegistry,
+  );
+  if (
+    bundle.reports.some(
+      (report) =>
+        controlDomainRegistry?.entriesByKey?.get(report.observerKeyId)
+          ?.controllerDomainId !== report.controlDomain,
+    )
+  ) {
+    throw new Error(`V44_SHADOW_${kind}_CONTROL_DOMAIN_MISMATCH`);
+  }
   if (
     controlGrade.verifiedReports !== bundle.reports.length ||
     controlGrade.hostDomains < 2 ||
@@ -440,20 +614,26 @@ export function deterministicValidatorScore(
   return scores[Math.floor(scores.length / 2)];
 }
 
-export function gradeControlDomains(reports) {
-  const verified = reports.filter(
-    (report) =>
-      report.controlEvidence?.status === "VERIFIED" &&
-      typeof report.controlEvidence?.hostFingerprint === "string" &&
-      typeof report.controlEvidence?.controllerFingerprint === "string",
-  );
+export function gradeControlDomains(reports, controlDomainRegistry) {
+  const registryEntries =
+    controlDomainRegistry?.entriesByKey instanceof Map
+      ? controlDomainRegistry.entriesByKey
+      : new Map();
+  const verified = reports
+    .map((report) => ({
+      report,
+      registry: registryEntries.get(report.observerKeyId),
+    }))
+    .filter(
+      ({ registry }) =>
+        registry &&
+        ["CORROBORATED", "INDEPENDENT_REVIEWED"].includes(registry.status),
+    );
   const hosts = new Set(
-    verified.map((report) => report.controlEvidence.hostFingerprint),
+    verified.map(({ registry }) => registry.hostDomainId),
   );
   const controllers = new Set(
-    verified.map(
-      (report) => report.controlEvidence.controllerFingerprint,
-    ),
+    verified.map(({ registry }) => registry.controllerDomainId),
   );
   if (verified.length !== reports.length) {
     return {
@@ -530,16 +710,247 @@ export function reconcileFinalizedProviders(
   };
 }
 
-function governanceEventBody(event) {
-  const body = structuredClone(event);
-  delete body.providerIdentity;
-  delete body.providerOrigin;
-  return body;
+function hexWord(value) {
+  return value.toString(16).padStart(64, "0");
+}
+
+export function encodeV44SystemSettledRawLog({
+  transactionHash,
+  blockHash,
+  blockNumber,
+  logIndex,
+  address,
+  transactionInput = "0x",
+  issueHash,
+  jobId,
+  milestone,
+  roundId,
+  artifactDigest,
+  sourceSnapshotDigest,
+  specificationHash,
+  admissionBundleHash,
+  settlementBundleHash,
+  exposureSlotId: slotId,
+  outcomeEventId,
+}) {
+  const dataWords = [
+    roundId,
+    artifactDigest,
+    sourceSnapshotDigest,
+    specificationHash,
+    admissionBundleHash,
+    settlementBundleHash,
+    slotId,
+    outcomeEventId,
+  ];
+  return {
+    transactionHash,
+    blockHash,
+    blockNumber,
+    logIndex,
+    address,
+    receiptStatus: "success",
+    transactionInput,
+    topics: [
+      V44_SYSTEM_SETTLED_TOPIC0,
+      issueHash,
+      jobId,
+      `0x${hexWord(BigInt(milestone))}`,
+    ],
+    data: `0x${dataWords.map((value) => value.slice(2)).join("")}`,
+  };
+}
+
+function decodeV44SystemSettledRawLog(rawEvent, allowedEmitters) {
+  if (
+    !HASH_PATTERN.test(rawEvent?.transactionHash ?? "") ||
+    !HASH_PATTERN.test(rawEvent?.blockHash ?? "") ||
+    !Number.isSafeInteger(rawEvent?.blockNumber) ||
+    rawEvent.blockNumber < 0 ||
+    !Number.isSafeInteger(rawEvent?.logIndex) ||
+    rawEvent.logIndex < 0 ||
+    !ADDRESS_PATTERN.test(rawEvent?.address?.toLowerCase?.() ?? "") ||
+    rawEvent.receiptStatus !== "success" ||
+    typeof rawEvent.transactionInput !== "string" ||
+    !/^0x[0-9a-f]*$/u.test(rawEvent.transactionInput.toLowerCase()) ||
+    !Array.isArray(rawEvent.topics) ||
+    rawEvent.topics.length !== 4 ||
+    rawEvent.topics[0]?.toLowerCase() !== V44_SYSTEM_SETTLED_TOPIC0 ||
+    !HASH_PATTERN.test(rawEvent.topics[1] ?? "") ||
+    !HASH_PATTERN.test(rawEvent.topics[2] ?? "") ||
+    !HASH_PATTERN.test(rawEvent.topics[3] ?? "") ||
+    typeof rawEvent.data !== "string" ||
+    !/^0x[0-9a-f]{512}$/u.test(rawEvent.data.toLowerCase())
+  ) {
+    throw new Error("V44_GOVERNANCE_RAW_LOG_INVALID");
+  }
+  if (!allowedEmitters.has(rawEvent.address.toLowerCase())) {
+    throw new Error("V44_GOVERNANCE_EVENT_EMITTER_UNAUTHORIZED");
+  }
+  const dataWords = rawEvent.data
+    .slice(2)
+    .match(/.{64}/gu)
+    .map((word) => `0x${word.toLowerCase()}`);
+  const milestoneBigInt = BigInt(rawEvent.topics[3]);
+  if (milestoneBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("V44_GOVERNANCE_MILESTONE_INVALID");
+  }
+  return {
+    eventId: `${rawEvent.transactionHash.toLowerCase()}:${rawEvent.logIndex}`,
+    type: "SYSTEM_SETTLED",
+    transactionHash: rawEvent.transactionHash.toLowerCase(),
+    blockHash: rawEvent.blockHash.toLowerCase(),
+    blockNumber: rawEvent.blockNumber,
+    logIndex: rawEvent.logIndex,
+    emitter: rawEvent.address.toLowerCase(),
+    transactionInputHash: sha256Json({
+      transactionInput: rawEvent.transactionInput.toLowerCase(),
+    }),
+    issueHash: rawEvent.topics[1].toLowerCase(),
+    jobId: rawEvent.topics[2].toLowerCase(),
+    milestone: Number(milestoneBigInt),
+    roundId: dataWords[0],
+    artifactDigest: dataWords[1],
+    sourceSnapshotDigest: dataWords[2],
+    specificationHash: dataWords[3],
+    admissionBundleHash: dataWords[4],
+    settlementBundleHash: dataWords[5],
+    exposureSlotId: dataWords[6],
+    outcomeEventId: dataWords[7],
+    finalized: true,
+    canonical: true,
+  };
+}
+
+async function rpcRequest(rpcUrl, method, params, fetcher) {
+  const response = await fetcher(rpcUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method,
+      params,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.error || payload.result === undefined) {
+    throw new Error(`V44_GOVERNANCE_RPC_${method}_FAILED`);
+  }
+  return payload.result;
+}
+
+function rpcQuantity(value) {
+  return `0x${BigInt(value).toString(16)}`;
+}
+
+export async function collectGovernanceEventSnapshot({
+  rpcUrl,
+  fromBlock,
+  allowedEmitters,
+  finalizedBlockNumber,
+  fetcher = fetch,
+}) {
+  if (
+    typeof rpcUrl !== "string" ||
+    !Number.isSafeInteger(fromBlock) ||
+    fromBlock < 0 ||
+    !Array.isArray(allowedEmitters) ||
+    allowedEmitters.length === 0 ||
+    allowedEmitters.some(
+      (address) => !ADDRESS_PATTERN.test(address.toLowerCase()),
+    )
+  ) {
+    throw new Error("V44_GOVERNANCE_RPC_POLICY_INVALID");
+  }
+  const chainId = Number(
+    BigInt(await rpcRequest(rpcUrl, "eth_chainId", [], fetcher)),
+  );
+  if (chainId !== 84532) {
+    throw new Error("V44_GOVERNANCE_RPC_CHAIN_INVALID");
+  }
+  const blockTag =
+    finalizedBlockNumber === undefined
+      ? "finalized"
+      : rpcQuantity(finalizedBlockNumber);
+  const finalizedBlock = await rpcRequest(
+    rpcUrl,
+    "eth_getBlockByNumber",
+    [blockTag, false],
+    fetcher,
+  );
+  if (
+    !finalizedBlock ||
+    !HASH_PATTERN.test(finalizedBlock.hash ?? "") ||
+    !finalizedBlock.number
+  ) {
+    throw new Error("V44_GOVERNANCE_FINALIZED_BLOCK_INVALID");
+  }
+  const resolvedFinalizedBlockNumber = Number(BigInt(finalizedBlock.number));
+  if (
+    finalizedBlockNumber !== undefined &&
+    resolvedFinalizedBlockNumber !== finalizedBlockNumber
+  ) {
+    throw new Error("V44_GOVERNANCE_FINALIZED_BLOCK_NUMBER_MISMATCH");
+  }
+  const logs = await rpcRequest(
+    rpcUrl,
+    "eth_getLogs",
+    [
+      {
+        address: allowedEmitters,
+        fromBlock: rpcQuantity(fromBlock),
+        toBlock: rpcQuantity(resolvedFinalizedBlockNumber),
+        topics: [V44_SYSTEM_SETTLED_TOPIC0],
+      },
+    ],
+    fetcher,
+  );
+  const rawEvents = [];
+  for (const log of logs) {
+    const [receipt, transaction] = await Promise.all([
+      rpcRequest(
+        rpcUrl,
+        "eth_getTransactionReceipt",
+        [log.transactionHash],
+        fetcher,
+      ),
+      rpcRequest(
+        rpcUrl,
+        "eth_getTransactionByHash",
+        [log.transactionHash],
+        fetcher,
+      ),
+    ]);
+    rawEvents.push({
+      transactionHash: log.transactionHash?.toLowerCase(),
+      blockHash: log.blockHash?.toLowerCase(),
+      blockNumber: Number(BigInt(log.blockNumber)),
+      logIndex: Number(BigInt(log.logIndex)),
+      address: log.address?.toLowerCase(),
+      receiptStatus: receipt?.status === "0x1" ? "success" : "reverted",
+      transactionInput: transaction?.input?.toLowerCase() ?? null,
+      topics: (log.topics ?? []).map((topic) => topic.toLowerCase()),
+      data: log.data?.toLowerCase(),
+    });
+  }
+  const origin = new URL(rpcUrl).origin;
+  return {
+    identity: sha256Json({
+      domain: "AGENTPOOL_V44_RPC_PROVIDER_V1",
+      origin,
+    }),
+    origin,
+    finalizedBlockNumber: resolvedFinalizedBlockNumber,
+    finalizedBlockHash: finalizedBlock.hash.toLowerCase(),
+    rawEvents,
+  };
 }
 
 export function reconcileGovernanceEventSets({
   providers,
-  localEvents,
+  localEventIds,
+  allowedEmitters = [],
 }) {
   if (!Array.isArray(providers) || providers.length < 2) {
     return { eligible: false, reason: "TWO_EVENT_PROVIDERS_REQUIRED" };
@@ -550,12 +961,33 @@ export function reconcileGovernanceEventSets({
   ) {
     return { eligible: false, reason: "EVENT_PROVIDER_INDEPENDENCE_UNPROVEN" };
   }
+  const first = providers[0];
+  if (
+    !Number.isSafeInteger(first.finalizedBlockNumber) ||
+    !HASH_PATTERN.test(first.finalizedBlockHash ?? "") ||
+    providers.some(
+      (provider) =>
+        provider.finalizedBlockNumber !== first.finalizedBlockNumber ||
+        provider.finalizedBlockHash?.toLowerCase() !==
+          first.finalizedBlockHash.toLowerCase(),
+    )
+  ) {
+    return { eligible: false, reason: "EVENT_PROVIDER_FINALIZED_HEAD_CONFLICT" };
+  }
+  const emitterSet = new Set(
+    allowedEmitters.map((address) => address.toLowerCase()),
+  );
+  if (
+    emitterSet.size === 0 ||
+    [...emitterSet].some((address) => !ADDRESS_PATTERN.test(address))
+  ) {
+    return { eligible: false, reason: "EVENT_EMITTER_POLICY_MISSING" };
+  }
   const normalizedSets = providers.map((provider) =>
-    [...(provider.events ?? [])]
-      .map((event) => ({
-        ...governanceEventBody(event),
-        eventHash: sha256Json(governanceEventBody(event)),
-      }))
+    [...(provider.rawEvents ?? [])]
+      .map((rawEvent) => decodeV44SystemSettledRawLog(rawEvent, emitterSet))
+      .filter((event) => event.blockNumber <= provider.finalizedBlockNumber)
+      .map((event) => ({ ...event, eventHash: sha256Json(event) }))
       .sort((left, right) => left.eventId.localeCompare(right.eventId)),
   );
   const canonicalRoot = sha256Json(normalizedSets[0]);
@@ -563,9 +995,7 @@ export function reconcileGovernanceEventSets({
     return { eligible: false, reason: "EVENT_SET_CONFLICT" };
   }
   const canonicalIds = normalizedSets[0].map((event) => event.eventId);
-  const localIds = [...(localEvents ?? [])]
-    .map((event) => event.eventId)
-    .sort();
+  const localIds = [...(localEventIds ?? [])].sort();
   if (
     canonicalIds.length !== localIds.length ||
     canonicalIds.some((eventId, index) => eventId !== localIds[index])
@@ -582,6 +1012,134 @@ export function reconcileGovernanceEventSets({
     canonicalRoot,
     events: normalizedSets[0],
     providerCount: providers.length,
+    finalizedBlockNumber: first.finalizedBlockNumber,
+    finalizedBlockHash: first.finalizedBlockHash.toLowerCase(),
+  };
+}
+
+function bundleRoot(bundles) {
+  return sha256Json(
+    [...bundles]
+      .map((bundle) => bundle.bundleHash)
+      .sort((left, right) => left.localeCompare(right)),
+  );
+}
+
+function incidentRoot(incidents) {
+  return sha256Json(
+    [...incidents]
+      .map((incident) => sha256Json(incident))
+      .sort((left, right) => left.localeCompare(right)),
+  );
+}
+
+function eventJoinKey(value) {
+  return canonicalJson({
+    issueHash: value.issueHash,
+    jobId: value.jobId,
+    milestone: value.milestone,
+    roundId: value.roundId,
+    artifactDigest: value.artifactDigest,
+    sourceSnapshotDigest: value.sourceSnapshotDigest,
+    specificationHash: value.specificationHash,
+  });
+}
+
+export function deriveSystemSettlementEvidence({
+  events,
+  admissionBundles,
+  settlementBundles,
+  exposureLedger,
+}) {
+  const allBundles = [...admissionBundles, ...settlementBundles];
+  if (
+    new Set(allBundles.map((bundle) => bundle.bundleHash)).size !==
+      allBundles.length ||
+    new Set(allBundles.map((bundle) => bundle.replayDomain)).size !==
+      allBundles.length
+  ) {
+    throw new Error("V44_AUTONOMY_BUNDLE_REPLAY_OR_HASH_REUSED");
+  }
+  const admissions = new Map(
+    admissionBundles.map((bundle) => [eventJoinKey(bundle), bundle]),
+  );
+  const settlements = new Map(
+    settlementBundles.map((bundle) => [eventJoinKey(bundle), bundle]),
+  );
+  if (
+    admissions.size !== admissionBundles.length ||
+    settlements.size !== settlementBundles.length
+  ) {
+    throw new Error("V44_AUTONOMY_BUNDLE_JOIN_DUPLICATE");
+  }
+  const usedAdmissions = new Set();
+  const usedSettlements = new Set();
+  const usedSlots = new Set();
+  const usedOutcomes = new Set();
+  const derivedEvents = events.map((event) => {
+    const key = eventJoinKey(event);
+    const admission = admissions.get(key);
+    const settlement = settlements.get(key);
+    const slot = exposureLedger.slots?.[event.exposureSlotId];
+    const admissionBundleValid =
+      admission?.bundleHash === event.admissionBundleHash;
+    const settlementBundleValid =
+      settlement?.bundleHash === event.settlementBundleHash;
+    const canonicalScoreValid =
+      admission?.canonicalScorePolicyVersion ===
+        settlement?.canonicalScorePolicyVersion &&
+      admission?.reports?.[0]?.pass === settlement?.reports?.[0]?.pass &&
+      admission !== undefined &&
+      settlement !== undefined &&
+      deterministicValidatorScore(admission.reports, {
+        policyVersion: admission.canonicalScorePolicyVersion,
+      }) ===
+        deterministicValidatorScore(settlement.reports, {
+          policyVersion: settlement.canonicalScorePolicyVersion,
+        });
+    const uniqueExposureSlotValid =
+      slot?.issueHash === event.issueHash &&
+      slot?.jobId === event.jobId &&
+      slot?.milestone === event.milestone &&
+      slot?.state === SLOT_STATES.SUCCESSFULLY_CONSUMED &&
+      !usedSlots.has(event.exposureSlotId);
+    const outcomeRecorded =
+      HASH_PATTERN.test(event.outcomeEventId ?? "") &&
+      event.outcomeEventId !== ZERO_HASH &&
+      !usedOutcomes.has(event.outcomeEventId);
+    if (admissionBundleValid) usedAdmissions.add(admission.bundleHash);
+    if (settlementBundleValid) usedSettlements.add(settlement.bundleHash);
+    if (uniqueExposureSlotValid) usedSlots.add(event.exposureSlotId);
+    if (outcomeRecorded) usedOutcomes.add(event.outcomeEventId);
+    return {
+      ...event,
+      admissionBundleValid,
+      settlementBundleValid,
+      canonicalScoreValid,
+      uniqueExposureSlotValid,
+      outcomeRecorded,
+    };
+  });
+  const complete =
+    derivedEvents.length === admissionBundles.length &&
+    derivedEvents.length === settlementBundles.length &&
+    usedAdmissions.size === admissionBundles.length &&
+    usedSettlements.size === settlementBundles.length &&
+    derivedEvents.every(
+      (event) =>
+        event.admissionBundleValid &&
+        event.settlementBundleValid &&
+        event.canonicalScoreValid &&
+        event.uniqueExposureSlotValid &&
+        event.outcomeRecorded,
+    );
+  return {
+    complete,
+    events: derivedEvents,
+    admissionCount: usedAdmissions.size,
+    settlementCount: usedSettlements.size,
+    exposureCount: usedSlots.size,
+    outcomeCount: usedOutcomes.size,
   };
 }
 
@@ -671,7 +1229,11 @@ export function signCheckpoint(
 
 export function validateCheckpointChain(
   checkpoints,
-  { authorizedPublicKeys = [], threshold = 2 } = {},
+  {
+    authorizedPublicKeys = [],
+    threshold = 2,
+    expectedFinalState = null,
+  } = {},
 ) {
   if (!Array.isArray(checkpoints) || checkpoints.length === 0) {
     return {
@@ -728,6 +1290,15 @@ export function validateCheckpointChain(
     }
     previous = checkpoint.checkpointHash;
   }
+  const finalCheckpoint = checkpoints.at(-1);
+  if (
+    expectedFinalState &&
+    Object.entries(expectedFinalState).some(
+      ([field, value]) => finalCheckpoint[field] !== value,
+    )
+  ) {
+    throw new Error("V44_CHECKPOINT_FINAL_STATE_MISMATCH");
+  }
   return {
     valid: true,
     status: "VERIFIED",
@@ -736,9 +1307,21 @@ export function validateCheckpointChain(
   };
 }
 
-export function validateAutonomyEvidence(evidence) {
+export function validateAutonomyEvidence(
+  evidence,
+  {
+    controlDomainPolicy = null,
+    checkpointPolicy = null,
+    governanceEventPolicy = null,
+    generatedCodeCommit = null,
+    evaluationTimeMs = Date.now(),
+  } = {},
+) {
   if (evidence?.schema !== "agentpool.v44.autonomy-evidence/v1") {
     throw new Error("V44_AUTONOMY_EVIDENCE_SCHEMA_INVALID");
+  }
+  if (!Number.isSafeInteger(evaluationTimeMs) || evaluationTimeMs < 0) {
+    throw new Error("V44_AUTONOMY_EVALUATION_TIME_INVALID");
   }
   const summary = exposureSummary(evidence.exposureLedger);
   const exposureJournal = validateExposureJournal(evidence.exposureLedger);
@@ -748,28 +1331,47 @@ export function validateAutonomyEvidence(evidence) {
   ) {
     throw new Error("V44_AUTONOMY_EXPOSURE_LIMIT_EXCEEDED");
   }
-  for (const bundle of evidence.admissionBundles ?? []) {
-    validateShadowBundle(bundle, { kind: "ADMISSION" });
-  }
-  for (const bundle of evidence.settlementBundles ?? []) {
-    validateShadowBundle(bundle, { kind: "SETTLEMENT" });
-  }
   const admissionBundles = evidence.admissionBundles ?? [];
   const settlementBundles = evidence.settlementBundles ?? [];
+  let controlDomainRegistry = null;
+  if (admissionBundles.length > 0 || settlementBundles.length > 0) {
+    controlDomainRegistry = validateControlDomainRegistry(
+      evidence.controlDomainRegistry,
+      {
+        authorizedPublicKeys:
+          controlDomainPolicy?.authorizedPublicKeys ?? [],
+        threshold: controlDomainPolicy?.threshold ?? 2,
+        atMs: evaluationTimeMs,
+      },
+    );
+  }
+  for (const bundle of admissionBundles) {
+    validateShadowBundle(bundle, {
+      kind: "ADMISSION",
+      controlDomainRegistry,
+    });
+  }
+  for (const bundle of settlementBundles) {
+    validateShadowBundle(bundle, {
+      kind: "SETTLEMENT",
+      controlDomainRegistry,
+    });
+  }
   const eventReconciliation = reconcileGovernanceEventSets({
     providers: evidence.governanceEventProviders ?? [],
-    localEvents: evidence.governanceEvents ?? [],
-  });
-  const checkpoint = validateCheckpointChain(evidence.checkpoints ?? [], {
-    authorizedPublicKeys: evidence.checkpointPolicy?.authorizedPublicKeys ?? [],
-    threshold: evidence.checkpointPolicy?.threshold ?? 2,
+    localEventIds: evidence.governanceEventIds ?? [],
+    allowedEmitters: governanceEventPolicy?.allowedEmitters ?? [],
   });
   if (
     admissionBundles.length === 0 ||
     settlementBundles.length === 0 ||
-    checkpoint.valid !== true ||
     eventReconciliation.eligible !== true
   ) {
+    const checkpoint = validateCheckpointChain(evidence.checkpoints ?? [], {
+      authorizedPublicKeys:
+        checkpointPolicy?.authorizedPublicKeys ?? [],
+      threshold: checkpointPolicy?.threshold ?? 2,
+    });
     return {
       valid: false,
       status: "PENDING_NO_EVIDENCE",
@@ -784,19 +1386,64 @@ export function validateAutonomyEvidence(evidence) {
       },
     };
   }
+  const settlementEvidence = deriveSystemSettlementEvidence({
+    events: eventReconciliation.events,
+    admissionBundles,
+    settlementBundles,
+    exposureLedger: evidence.exposureLedger,
+  });
   const contamination = reduceGovernanceContamination(
-    eventReconciliation.events,
+    settlementEvidence.events,
   );
+  const expectedFinalState = {
+    finalizedBlockNumber: eventReconciliation.finalizedBlockNumber,
+    finalizedBlockHash: eventReconciliation.finalizedBlockHash,
+    exposureLedgerRoot: sha256Json(evidence.exposureLedger),
+    admissionBundleRoot: bundleRoot(admissionBundles),
+    settlementBundleRoot: bundleRoot(settlementBundles),
+    contaminationLatch:
+      contamination.governanceContaminated || !settlementEvidence.complete,
+    incidentRoot: incidentRoot(evidence.incidents ?? []),
+  };
+  if (generatedCodeCommit) {
+    expectedFinalState.generatedCodeCommit = generatedCodeCommit;
+  }
+  const checkpoint = validateCheckpointChain(evidence.checkpoints ?? [], {
+    authorizedPublicKeys:
+      checkpointPolicy?.authorizedPublicKeys ?? [],
+    threshold: checkpointPolicy?.threshold ?? 2,
+    expectedFinalState,
+  });
+  if (checkpoint.valid !== true) {
+    return {
+      valid: false,
+      status: "PENDING_NO_EVIDENCE",
+      exposure: summary,
+      exposureJournal,
+      checkpoint,
+      eventReconciliation,
+      settlementEvidence,
+      contamination: {
+        governanceContaminated: "UNVERIFIED",
+        violationEventIds: [],
+        finalizedEventCount: 0,
+      },
+    };
+  }
+  const verified =
+    settlementEvidence.complete &&
+    contamination.governanceContaminated === false;
   return {
-    valid: contamination.governanceContaminated === false,
+    valid: verified,
     status:
-      contamination.governanceContaminated === false
+      verified
         ? "VERIFIED"
         : "GOVERNANCE_CONTAMINATED",
     exposure: summary,
     exposureJournal,
     checkpoint,
     eventReconciliation,
+    settlementEvidence,
     contamination,
   };
 }

@@ -17,14 +17,17 @@ const forbiddenActionableGuidance =
   /\b(wallet|gas request|sign(?:ing)?|mining|reward|claim|accept(?:ance)?|settle(?:ment)?|legacy writer)\b/iu;
 
 test("zero-context v4.4 MCP enumerates only the strict read-only profile", async () => {
+  const requestedPaths = [];
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = createV44PublicMcpServer(
     "https://agentpool-protocol.asfu.chatgpt.site",
-    async () =>
-      new Response(JSON.stringify({ mode: "PUBLIC_READ_ONLY_PREVIEW" }), {
+    async (input) => {
+      requestedPaths.push(new URL(input).pathname);
+      return new Response(JSON.stringify({ mode: "PUBLIC_READ_ONLY_ALPHA" }), {
         status: 200,
         headers: { "content-type": "application/json" },
-      }),
+      });
+    },
   );
   const client = new Client({
     name: "zero-context-v44-auditor",
@@ -58,6 +61,33 @@ test("zero-context v4.4 MCP enumerates only the strict read-only profile", async
       prompts: prompts.prompts,
     });
     assert.doesNotMatch(enumeratedMetadata, forbiddenActionableGuidance);
+    const invoked = [];
+    for (const tool of expectedTools) {
+      invoked.push(
+        await client.callTool({
+          name: tool,
+          arguments: {},
+        }),
+      );
+    }
+    invoked.push(
+      await client.readResource({
+        uri: "agentpool://v4.4/read-only-profile",
+      }),
+    );
+    invoked.push(
+      await client.getPrompt({
+        name: "inspect_agentpool_v44_readonly",
+        arguments: {},
+      }),
+    );
+    const invokedPayload = JSON.stringify(invoked);
+    assert.doesNotMatch(
+      invokedPayload,
+      /(?:\/api\/v4\.3|agentpool_v43|wallet-creation|gas-request|transaction-signing|mining|reward-claim|task-acceptance|settlement|legacy writer)/iu,
+    );
+    assert.ok(requestedPaths.includes("/api/v4.4/discovery"));
+    assert.ok(!requestedPaths.includes("/.well-known/agentpool.json"));
   } finally {
     await client.close();
     await server.close();

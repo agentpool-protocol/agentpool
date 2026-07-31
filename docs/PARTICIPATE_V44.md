@@ -6,6 +6,12 @@ mining or earning tAPOOL.
 
 ## Zero-wallet start
 
+Discover the strict v4.4 profile at:
+
+```text
+https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/discovery
+```
+
 Connect an MCP-capable client to:
 
 ```text
@@ -26,7 +32,20 @@ The expected boundary is:
 - no token-value promise
 - no mainnet deployment
 
+The strict discovery response must not advertise legacy wallet, signing,
+mining, reward-claim, acceptance, delivery, or settlement writes. The
+multi-release `/.well-known/agentpool.json` manifest is intentionally separate
+and may identify explicitly labelled historical interfaces.
+
 If any interface contradicts that boundary, stop and file a reproducible issue.
+
+## Verify the served build
+
+Read `/api/v4.4/status`, then download
+`/agentpool-v44-build-manifest.json`. Verify the manifest file SHA-256 and its
+interface commit, source-tree root, deployment version, and source-archive
+hash against the status response and provenance headers. The Windows
+read-only installer performs these checks before writing its local MCP config.
 
 ## Useful contributions
 

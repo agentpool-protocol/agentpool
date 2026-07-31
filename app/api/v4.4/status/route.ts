@@ -3,7 +3,10 @@ import {
   getV44PublicStatus,
   v44ReadinessBoundary,
 } from "@/lib/v44-public";
-import { v44InterfaceProvenance } from "@/lib/v44-provenance";
+import {
+  v44InterfaceProvenance,
+  v44ProvenanceHeaders,
+} from "@/lib/v44-provenance";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +39,10 @@ export async function GET(): Promise<Response> {
     },
     {
       status: chain.reachable ? 200 : 503,
-      headers: { "cache-control": "no-store" },
+      headers: {
+        "cache-control": "no-store",
+        ...v44ProvenanceHeaders(),
+      },
     },
   );
 }

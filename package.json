@@ -16,7 +16,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "node scripts/generate-v44-build-manifest.mjs && vinext build",
     "start": "vinext start",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:installer:windows": "node --test tests/v44-readonly-installer.test.mjs",

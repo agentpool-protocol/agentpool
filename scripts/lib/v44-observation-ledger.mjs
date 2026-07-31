@@ -101,7 +101,7 @@ export function newObservationLedger({
       exposureLedger: newExposureLedger(),
       admissionBundles: [],
       settlementBundles: [],
-      governanceEvents: [],
+      governanceEventIds: [],
       governanceEventProviders: [],
       checkpoints: [],
       checkpointPolicy: {

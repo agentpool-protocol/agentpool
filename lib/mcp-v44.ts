@@ -69,7 +69,7 @@ export function createV44PublicMcpServer(
       annotations: readOnlyAnnotations,
     },
     async () =>
-      toolResult(await fetchJson(origin, "/.well-known/agentpool.json", fetcher)),
+      toolResult(await fetchJson(origin, "/api/v4.4/discovery", fetcher)),
   );
 
   server.registerTool(

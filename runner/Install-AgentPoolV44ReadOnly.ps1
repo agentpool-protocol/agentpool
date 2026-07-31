@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $officialOrigin = "https://agentpool-protocol.asfu.chatgpt.site"
-$expectedBundleSha256 = "3b00865cf83167cdbd4c96ffaaa95093c216a9c566a47ed8777fba1f149f01e2"
+$expectedBundleSha256 = "70185ce624ef00ea238ca0927b9f560f9adba128becbb20d943c59cf6bd605b9"
 $normalizedBaseUrl = $BaseUrl.TrimEnd("/")
 if ($normalizedBaseUrl -ne $officialOrigin -and -not $UnsafeCustomMirror) {
     throw "Custom mirrors are blocked. Use the official AgentPool origin or explicitly pass -UnsafeCustomMirror for an exact-byte audit mirror."
@@ -34,6 +34,7 @@ $bundleUrl = "$normalizedBaseUrl/agentpool-v44-readonly-bundle.json"
 $bundlePath = Join-Path $resolvedRoot "participant-bundle.json"
 $downloadPath = Join-Path $resolvedRoot "participant-bundle.download"
 $configPath = Join-Path $resolvedRoot "mcp-readonly.json"
+$buildManifestPath = Join-Path $resolvedRoot "interface-build-manifest.json"
 
 if ($EnableWrite) {
     throw "AgentPool v4.4 public writes are not ready. Recovery targets, finalized anchors, independent custody, and reliability gates are still pending."
@@ -59,6 +60,7 @@ if (
     [int]$bundle.chainId -ne 84532 -or
     $bundle.mode -ne "read-only" -or
     $bundle.remoteMcp -ne $expectedRemoteMcp -or
+    $bundle.discovery -ne "$officialOrigin/api/v4.4/discovery" -or
     [bool]$bundle.publicWriteReady -ne $false -or
     [bool]$bundle.walletCreated -ne $false -or
     [bool]$bundle.scheduledTaskCreated -ne $false -or
@@ -67,14 +69,35 @@ if (
     throw "The downloaded bundle does not satisfy the v4.4 read-only safety boundary."
 }
 
-$status = Invoke-RestMethod -Method Get -Uri "$normalizedBaseUrl/api/v4.4/status"
+$statusResponse = Invoke-WebRequest -UseBasicParsing -Method Get -Uri "$normalizedBaseUrl/api/v4.4/status"
+$status = $statusResponse.Content | ConvertFrom-Json
 if (
     $status.release -ne $bundle.release -or
     [int]$status.chainId -ne 84532 -or
     [bool]$status.readiness.publicWriteReady -ne $false -or
-    [bool]$status.provenance.complete -ne $true
+    [bool]$status.provenance.complete -ne $true -or
+    $statusResponse.Headers["x-agentpool-provenance-status"] -ne $status.provenance.status -or
+    $statusResponse.Headers["x-agentpool-interface-commit"] -ne $status.provenance.interfaceSourceCommit -or
+    $statusResponse.Headers["x-agentpool-site-deployment-version"] -ne $status.provenance.siteDeploymentVersion -or
+    $statusResponse.Headers["x-agentpool-build-manifest-sha256"] -ne $status.provenance.buildManifestSha256 -or
+    $statusResponse.Headers["x-agentpool-build-manifest-file-sha256"] -ne $status.provenance.buildManifestFileSha256 -or
+    $statusResponse.Headers["x-agentpool-source-tree-root"] -ne $status.provenance.sourceTreeManifestRoot
 ) {
     throw "The v4.4 status endpoint does not provide complete read-only build provenance."
+}
+
+Invoke-WebRequest -UseBasicParsing -Uri "$normalizedBaseUrl/agentpool-v44-build-manifest.json" -OutFile $buildManifestPath
+$actualBuildManifestFileSha256 = Get-Sha256Hex -LiteralPath $buildManifestPath
+$buildManifest = Get-Content -LiteralPath $buildManifestPath -Raw | ConvertFrom-Json
+if (
+    $actualBuildManifestFileSha256 -ne $status.provenance.buildManifestFileSha256 -or
+    $buildManifest.buildManifestSha256 -ne $status.provenance.buildManifestSha256 -or
+    $buildManifest.interfaceSourceCommit -ne $status.provenance.interfaceSourceCommit -or
+    $buildManifest.siteBuildCommit -ne $status.provenance.siteBuildCommit -or
+    $buildManifest.sourceTreeManifestRoot -ne $status.provenance.sourceTreeManifestRoot
+) {
+    Remove-Item -LiteralPath $buildManifestPath -Force -ErrorAction SilentlyContinue
+    throw "The deployed interface build manifest does not match the signed runtime provenance fields."
 }
 
 $config = [ordered]@{
@@ -91,6 +114,9 @@ $config = [ordered]@{
     contractSourceCommit = $status.provenance.contractSourceCommit
     interfaceSourceCommit = $status.provenance.interfaceSourceCommit
     sourceTreeArchiveSha256 = $status.provenance.sourceTreeArchiveSha256
+    sourceTreeManifestRoot = $status.provenance.sourceTreeManifestRoot
+    buildManifestSha256 = $status.provenance.buildManifestSha256
+    buildManifestFileSha256 = $actualBuildManifestFileSha256
     siteDeploymentVersion = $status.provenance.siteDeploymentVersion
 }
 $config | ConvertTo-Json -Depth 5 |

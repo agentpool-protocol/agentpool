@@ -10,6 +10,53 @@ export const AGENTPOOL_DISCOVERY_VERSION =
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
 
+export function buildV44ReadOnlyDiscoveryManifest(origin: string) {
+  return {
+    protocol: "AgentPool",
+    version: AGENTPOOL_DISCOVERY_VERSION,
+    release: "v4.4",
+    mode: "PUBLIC_READ_ONLY_ALPHA",
+    canonical: `${origin}/api/v4.4/discovery`,
+    publicWriteReady: false,
+    rewardTapool: "0",
+    interfaces: {
+      mcp: {
+        remote: `${origin}/api/mcp/v4.4`,
+        mode: "READ_ONLY_ONLY",
+      },
+      rest: {
+        discovery: `${origin}/api/v4.4/discovery`,
+        status: `${origin}/api/v4.4/status`,
+        opportunities: `${origin}/api/v4.4/opportunities`,
+        participation: `${origin}/api/v4.4/participate`,
+      },
+      context: {
+        participantPrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
+        installer: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
+        participantBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
+      },
+    },
+    prohibitedCapabilities: [
+      "wallet-creation",
+      "gas-request",
+      "transaction-signing",
+      "mining",
+      "reward-claim",
+      "task-acceptance",
+      "settlement",
+      "legacy-writer-installation",
+    ],
+    contracts: v44.contracts,
+    network: {
+      chainId: v44.chainId,
+      name: v44.network,
+      testnetOnly: true,
+    },
+    warning:
+      "Read-only Base Sepolia inspection only. This profile contains no legacy wallet, mining, signing, settlement, or reward path.",
+  };
+}
+
 export function buildDiscoveryManifest(origin: string) {
   return {
     protocol: "AgentPool",

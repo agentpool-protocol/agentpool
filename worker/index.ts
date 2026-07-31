@@ -15,6 +15,7 @@ import {
   buildRobotsText,
   buildSitemapXml,
 } from "@/lib/discovery";
+import { v44ProvenanceHeaders } from "@/lib/v44-provenance";
 
 interface Env {
   ASSETS: Fetcher;
@@ -49,7 +50,10 @@ function discoveryResponse(request: Request): Response | null {
   }
   if (url.pathname === "/.well-known/agentpool.json") {
     return Response.json(buildDiscoveryManifest(origin), {
-      headers: { "cache-control": "public, max-age=300" },
+      headers: {
+        "cache-control": "public, max-age=300",
+        ...v44ProvenanceHeaders(),
+      },
     });
   }
   if (url.pathname === "/server.json") {
@@ -165,7 +169,17 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    const response = await handler.fetch(request, env, ctx);
+    if (url.pathname !== "/") return response;
+    const headers = new Headers(response.headers);
+    for (const [name, value] of Object.entries(v44ProvenanceHeaders())) {
+      headers.set(name, value);
+    }
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   },
 };
 

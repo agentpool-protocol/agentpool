@@ -867,6 +867,21 @@ test("public-testnet evidence intake verifies the live receipt before an atomic 
   assert.doesNotMatch(setup, /DEPLOYER_PRIVATE_KEY=.*join/);
 });
 
+test("autonomy policy is loaded from the verified campaign policy", () => {
+  const reliability = source(
+    "scripts/lib/v44-testnet-reliability.mjs",
+  );
+  assert.match(
+    reliability,
+    /policyEvidence\.policy\.autonomyV2/u,
+  );
+  assert.doesNotMatch(
+    reliability,
+    /const trustedAutonomyPolicy = policy\.autonomyV2/u,
+  );
+  assert.match(reliability, /evaluationTimeMs: Date\.now\(\)/u);
+});
+
 test("an unresolved high-severity invariant incident blocks approval", () => {
   const policyEvidence = loadReliabilityPolicy();
   const manifest = deployment();

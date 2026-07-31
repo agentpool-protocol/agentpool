@@ -1,6 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createPublicMcpServer } from "@/lib/mcp-public";
 import { createV44PublicMcpServer } from "@/lib/mcp-v44";
+import { v44ProvenanceHeaders } from "@/lib/v44-provenance";
 
 type ServerFactory = (
   origin: string,
@@ -32,6 +33,7 @@ export async function handlePublicMcpRequest(
   request: Request,
   fetcher: typeof fetch = fetch,
   createServer: ServerFactory = createV44PublicMcpServer,
+  includeV44Provenance = true,
 ): Promise<Response> {
   const rejected = originError(request);
   if (rejected) return rejected;
@@ -43,14 +45,29 @@ export async function handlePublicMcpRequest(
     enableJsonResponse: true,
   });
   await server.connect(transport);
-  return transport.handleRequest(request);
+  const response = await transport.handleRequest(request);
+  if (!includeV44Provenance) return response;
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(v44ProvenanceHeaders())) {
+    headers.set(name, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 export async function handleLegacyPublicMcpRequest(
   request: Request,
   fetcher: typeof fetch = fetch,
 ): Promise<Response> {
-  return handlePublicMcpRequest(request, fetcher, createPublicMcpServer);
+  return handlePublicMcpRequest(
+    request,
+    fetcher,
+    createPublicMcpServer,
+    false,
+  );
 }
 
 export function publicMcpOptions(): Response {
