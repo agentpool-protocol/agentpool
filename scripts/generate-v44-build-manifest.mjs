@@ -54,6 +54,7 @@ function gitBytes(args) {
     cwd: root,
     encoding: "buffer",
     stdio: ["ignore", "pipe", "ignore"],
+    maxBuffer: 64 * 1024 * 1024,
   });
 }
 
