@@ -47,3 +47,15 @@ jobs:
       - run: solc-select install 0.8.36
       - run: solc-select use 0.8.36
       - run: npm run security:slither:v4.4
+
+  installer-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.13.0"
+          cache: npm
+      - run: npm ci
+      - run: npm run test:installer:windows

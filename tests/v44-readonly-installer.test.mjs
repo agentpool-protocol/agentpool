@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const installer = path.join(root, "runner", "Install-AgentPoolV44ReadOnly.ps1");
+const installerSource = fs.readFileSync(installer, "utf8");
 const bundle = fs.readFileSync(
   path.join(root, "public", "agentpool-v44-readonly-bundle.json"),
 );
@@ -30,7 +31,22 @@ function statusPayload(release) {
   };
 }
 
-test("read-only installer pins origin, remote MCP, and exact bundle bytes", async () => {
+test("read-only installer declares fail-closed integrity guards", () => {
+  assert.match(installerSource, /Custom mirrors are blocked/u);
+  assert.match(
+    installerSource,
+    /\$expectedBundleSha256 = "[0-9a-f]{64}"/u,
+  );
+  assert.match(installerSource, /\/api\/mcp\/v4\.4/u);
+  assert.match(installerSource, /provenance\.complete/u);
+  assert.match(installerSource, /wallet = \$null/u);
+  assert.match(installerSource, /autoStart = \$false/u);
+});
+
+test(
+  "read-only installer pins origin, remote MCP, and exact bundle bytes",
+  { skip: process.platform !== "win32" },
+  async () => {
   let tampered = false;
   const parsedBundle = JSON.parse(bundle.toString("utf8"));
   const server = http.createServer((request, response) => {
@@ -115,4 +131,5 @@ test("read-only installer pins origin, remote MCP, and exact bundle bytes", asyn
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
-});
+  },
+);
