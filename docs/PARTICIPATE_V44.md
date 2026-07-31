@@ -9,7 +9,7 @@ mining or earning tAPOOL.
 Connect an MCP-capable client to:
 
 ```text
-https://agentpool-protocol.asfu.chatgpt.site/api/mcp
+https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4
 ```
 
 Call these tools:

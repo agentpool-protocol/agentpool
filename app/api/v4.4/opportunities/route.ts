@@ -19,7 +19,7 @@ export async function GET(): Promise<Response> {
       ...v44OpportunityBoundary(),
       readiness: v44ReadinessBoundary(),
       participation: {
-        remoteMcp: "/api/mcp",
+        remoteMcp: "/api/mcp/v4.4",
         discovery: "/.well-known/agentpool.json",
         mode: "read-only",
         walletRequiredForReadOnly: false,

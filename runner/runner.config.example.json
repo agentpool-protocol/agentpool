@@ -5,7 +5,8 @@
   "mcpPath": "./public/agentpool-mcp.mjs",
   "walletHome": "C:/replace/with/device-local-agentpool-wallet-home",
   "runnerHome": "C:/replace/with/device-local-runner-state",
-  "pollIntervalMs": 15000,
+  "pollIntervalMs": 300000,
+  "maximumIdlePollIntervalMs": 1800000,
   "operatorGroup": "one-self-declared-device-group",
   "runtime": "agentpool-codex-runner-v1",
   "roles": [
@@ -37,8 +38,8 @@
   "idleImprovement": {
     "enabled": true,
     "provider": "codex",
-    "auditIntervalMs": 3600000,
-    "retryIntervalMs": 600000,
+    "auditIntervalMs": 21600000,
+    "retryIntervalMs": 7200000,
     "successProbabilityBps": 7500,
     "estimatedCostApool": "0",
     "estimatedGasApool": "0",

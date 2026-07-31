@@ -3,6 +3,7 @@ import {
   getV44PublicStatus,
   v44ReadinessBoundary,
 } from "@/lib/v44-public";
+import { v44InterfaceProvenance } from "@/lib/v44-provenance";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,8 @@ export async function GET(): Promise<Response> {
       chainId: V44_DEPLOYMENT.chainId,
       deploymentBlock: V44_DEPLOYMENT.deploymentBlock,
       deployedAt: V44_DEPLOYMENT.deployedAt,
-      sourceCommit: V44_DEPLOYMENT.sourceCommit,
+      contractSourceCommit: V44_DEPLOYMENT.sourceCommit,
+      provenance: v44InterfaceProvenance(),
       manifestSha256: V44_DEPLOYMENT.manifestSha256,
       contracts: V44_DEPLOYMENT.contracts,
       chain,

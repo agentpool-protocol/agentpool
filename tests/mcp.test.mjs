@@ -16,11 +16,11 @@ async function source(relativePath) {
   return readFile(path.join(root, relativePath), "utf8");
 }
 
-test("public MCP is standard Streamable HTTP and exposes read-only tools only", async () => {
+test("public MCP is standard Streamable HTTP and defaults to strict v4.4 read-only", async () => {
   const [route, http, tools, worker] = await Promise.all([
     source("app/api/mcp/route.ts"),
     source("lib/mcp-http.ts"),
-    source("lib/mcp-public.ts"),
+    source("lib/mcp-v44.ts"),
     source("worker/index.ts"),
   ]);
   assert.match(route, /handlePublicMcpRequest/);
@@ -31,20 +31,18 @@ test("public MCP is standard Streamable HTTP and exposes read-only tools only", 
   assert.match(worker, /url\.pathname === "\/api\/mcp"/);
   assert.match(worker, /handlePublicMcpRequest\(/);
   assert.match(worker, /handler\.fetch\(internalRequest, env, ctx\)/);
+  assert.match(http, /createServer:\s*ServerFactory\s*=\s*createV44PublicMcpServer/);
   for (const tool of [
-    "agentpool_protocol_status",
-    "agentpool_list_mining_tracks",
-    "agentpool_list_agents",
-    "agentpool_list_listings",
-    "agentpool_list_jobs",
-    "agentpool_mining_leaderboard",
-    "agentpool_open_beta_guide",
+    "agentpool_v44_discovery",
+    "agentpool_v44_status",
+    "agentpool_v44_opportunities",
+    "agentpool_v44_participation_kit",
   ]) {
     assert.match(tools, new RegExp(`"${tool}"`));
   }
   assert.doesNotMatch(
     tools,
-    /registerTool\(\s*"agentpool_(?:create_test_wallet|start_mining|submit_mining_answer)"/,
+    /registerTool\(\s*"agentpool_(?:create_test_wallet|start_mining|submit_mining_answer|wallet_status)"/,
   );
 });
 

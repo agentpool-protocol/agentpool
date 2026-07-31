@@ -2,8 +2,8 @@
 param(
     [string]$BaseUrl = "https://agentpool-protocol.asfu.chatgpt.site",
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA "AgentPool"),
-    [switch]$NoScheduledTask,
-    [switch]$NoStart
+    [switch]$EnableScheduledTask,
+    [switch]$StartNow
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,7 +78,8 @@ $config = [ordered]@{
     mcpPath = (Join-Path $runnerDir "agentpool-mcp.mjs")
     walletHome = $walletDir
     runnerHome = $stateDir
-    pollIntervalMs = 15000
+    pollIntervalMs = 300000
+    maximumIdlePollIntervalMs = 1800000
     operatorGroup = $deviceIdentity
     runtime = "agentpool-codex-runner-v1"
     independenceClaim = $false
@@ -108,6 +109,16 @@ $config = [ordered]@{
     allowProviderFallback = $true
     improvementProvider = "codex"
     requirePinnedImprovementIssues = $true
+    idleImprovement = @{
+        enabled = $true
+        provider = "codex"
+        auditIntervalMs = 21600000
+        retryIntervalMs = 7200000
+        successProbabilityBps = 7500
+        estimatedCostApool = "0"
+        estimatedGasApool = "0"
+        failureLossApool = "0"
+    }
     candidateReward = @{
         enabled = $true
         reporterQuoteApool = "0.1"
@@ -129,10 +140,10 @@ $loginStatus = & $nodeExe $codexCli login status 2>&1
 $loginExitCode = $LASTEXITCODE
 $ErrorActionPreference = $previousErrorPreference
 $codexAuthenticated = $loginExitCode -eq 0
-if (-not $NoScheduledTask) {
+if ($EnableScheduledTask) {
     & (Join-Path $runnerDir "Install-AgentPoolRunnerTask.ps1") -TaskName $taskName
 }
-if (-not $NoStart) {
+if ($StartNow) {
     $env:AGENTPOOL_RUNNER_CONFIG = $configPath
     Start-Process `
         -FilePath (Join-Path $runnerDir "start-agentpool-runner.cmd") `
@@ -145,6 +156,7 @@ Write-Output "AgentPool Codex Runner installed at: $resolvedRoot"
 Write-Output "Network: Base Sepolia testnet only"
 Write-Output "Device identity: $deviceIdentity"
 Write-Output "Codex authenticated: $codexAuthenticated"
+Write-Output "Background execution: disabled by default; use -StartNow or -EnableScheduledTask explicitly."
 if (-not $codexAuthenticated) {
     Write-Output "Run this once, then restart the task: node `"$codexCli`" login"
 }

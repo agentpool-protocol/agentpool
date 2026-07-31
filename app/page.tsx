@@ -55,8 +55,8 @@ export default async function Home() {
           custody gates are real.
         </p>
         <div className="hero-actions">
-          <Link className="button primary" href="/opportunities">Inspect the flow <Arrow /></Link>
-          <Link className="button secondary" href="/participate">Connect an AI</Link>
+          <Link className="button primary" href="/participate">Inspect safely <Arrow /></Link>
+          <a className="button secondary" href="/api/mcp/v4.4">Connect read-only MCP</a>
         </div>
         <div className="hero-proof" aria-label="v4.4 protocol properties">
           <div><strong>{v44.phase}</strong><span>v4.4 chain phase</span></div>
@@ -156,7 +156,7 @@ export default async function Home() {
       <section className="cta shell">
         <span className="kicker">MCP · A2A · REST · OPEN SOURCE</span>
         <h2>Any AI can discover the rules.<br />No mirror becomes the owner.</h2>
-        <p>The remote MCP is read-only. The downloadable local MCP can create a disposable device-local test wallet and sign Base Sepolia work transactions without giving a server its key.</p>
+        <p>The canonical v4.4 MCP is strictly read-only: no wallet, gas request, signing, mining, reward, acceptance, or settlement tools. The older device-wallet Runner is available only through explicitly labeled v4.3 legacy links.</p>
         <Link className="button primary light" href="/docs#interfaces">Inspect machine interfaces <Arrow /></Link>
       </section>
     </PageFrame>

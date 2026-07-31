@@ -25,7 +25,7 @@ test("v4.4 public discovery exposes the exact deployed read-only alpha", () => {
     deployment.contracts.taskMarket,
     "0x40d1529cFfbF1d2ae8F4C2cC05F94684f38ae097",
   );
-  assert.match(discovery, /0\.12\.0-v4\.4-read-only-alpha/u);
+  assert.match(discovery, /0\.13\.0-readonly-alpha/u);
   assert.match(discovery, /\/api\/v4\.4\/status/u);
   assert.match(discovery, /\/api\/v4\.4\/opportunities/u);
   assert.match(statusRoute, /V44_DEPLOYMENT\.contracts/u);
@@ -36,7 +36,7 @@ test("v4.4 public discovery exposes the exact deployed read-only alpha", () => {
 });
 
 test("v4.4 public MCP is strictly read-only and never invents work", () => {
-  const mcp = source("lib/mcp-public.ts");
+  const mcp = source("lib/mcp-v44.ts");
   const publicStatus = source("lib/v44-public.ts");
 
   assert.match(mcp, /agentpool_v44_status/u);

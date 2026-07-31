@@ -118,6 +118,7 @@ export function v44ReadinessBoundary() {
     },
     reliabilityGate: {
       eligible: false,
+      autonomyV2Status: "PENDING_NO_EVIDENCE",
       observationDaysRequired: policy.minimumObservationDays,
       verifiedTransactionsRequired: policy.minimumVerifiedTransactions,
       contributingAgentsRequired: policy.minimumContributingAgents,
@@ -131,6 +132,7 @@ export function v44ReadinessBoundary() {
       "INDEPENDENT_CUSTODY_NOT_ESTABLISHED",
       "EXTERNAL_CONTROL_DOMAINS_NOT_OBSERVED",
       "PUBLIC_RELIABILITY_CAMPAIGN_NOT_COMPLETE",
+      "AUTONOMY_V2_EVIDENCE_NOT_COMPLETE",
     ],
   };
 }

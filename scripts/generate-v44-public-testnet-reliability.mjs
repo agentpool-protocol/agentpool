@@ -44,6 +44,10 @@ export async function generatePublicTestnetReliability({
     process.env.AGENTPOOL_RPC_URL?.trim() ??
     process.env.BASE_SEPOLIA_RPC_URL?.trim() ??
     null,
+  secondaryRpcUrl =
+    argument("--secondary-rpc-url") ??
+    process.env.AGENTPOOL_V44_TESTNET_RPC_URL_2?.trim() ??
+    null,
   generatedAt,
 } = {}) {
   return buildReliabilityReport({
@@ -52,6 +56,7 @@ export async function generatePublicTestnetReliability({
     observationsPath,
     sourceEvidencePath,
     rpcUrl,
+    secondaryRpcUrl,
     generatedAt,
   });
 }

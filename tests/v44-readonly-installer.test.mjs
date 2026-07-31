@@ -1,0 +1,118 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+
+const execFileAsync = promisify(execFile);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const installer = path.join(root, "runner", "Install-AgentPoolV44ReadOnly.ps1");
+const bundle = fs.readFileSync(
+  path.join(root, "public", "agentpool-v44-readonly-bundle.json"),
+);
+
+function statusPayload(release) {
+  return {
+    release,
+    chainId: 84532,
+    readiness: { publicWriteReady: false },
+    provenance: {
+      complete: true,
+      contractSourceCommit: "b535be69d179d39c2f118a80e8927961fbb20a4e",
+      interfaceSourceCommit: "1".repeat(40),
+      sourceTreeArchiveSha256: "2".repeat(64),
+      siteDeploymentVersion: "test-version",
+    },
+  };
+}
+
+test("read-only installer pins origin, remote MCP, and exact bundle bytes", async () => {
+  let tampered = false;
+  const parsedBundle = JSON.parse(bundle.toString("utf8"));
+  const server = http.createServer((request, response) => {
+    if (request.url === "/agentpool-v44-readonly-bundle.json") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(tampered ? Buffer.concat([bundle, Buffer.from(" ")]) : bundle);
+      return;
+    }
+    if (request.url === "/api/v4.4/status") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify(statusPayload(parsedBundle.release)));
+      return;
+    }
+    response.writeHead(404).end();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agentpool-v44-installer-"));
+  try {
+    await assert.rejects(
+      execFileAsync("powershell.exe", [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        installer,
+        "-BaseUrl",
+        baseUrl,
+        "-InstallRoot",
+        path.join(tempRoot, "custom-origin"),
+      ]),
+      /Custom mirrors are blocked/u,
+    );
+
+    const successfulRoot = path.join(tempRoot, "verified");
+    await execFileAsync("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      installer,
+      "-BaseUrl",
+      baseUrl,
+      "-UnsafeCustomMirror",
+      "-InstallRoot",
+      successfulRoot,
+    ]);
+    const config = JSON.parse(
+      fs
+        .readFileSync(path.join(successfulRoot, "mcp-readonly.json"), "utf8")
+        .replace(/^\uFEFF/u, ""),
+    );
+    assert.equal(config.url, parsedBundle.remoteMcp);
+    assert.equal(config.mode, "read-only");
+    assert.equal(config.interfaceSourceCommit, "1".repeat(40));
+
+    tampered = true;
+    await assert.rejects(
+      execFileAsync("powershell.exe", [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        installer,
+        "-BaseUrl",
+        baseUrl,
+        "-UnsafeCustomMirror",
+        "-InstallRoot",
+        path.join(tempRoot, "tampered"),
+      ]),
+      /SHA-256 mismatch/u,
+    );
+    assert.equal(
+      fs.existsSync(path.join(tempRoot, "tampered", "mcp-readonly.json")),
+      false,
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

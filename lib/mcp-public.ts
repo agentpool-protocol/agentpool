@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const SERVER_VERSION = "0.10.0-v4.4-read-only-alpha";
+const SERVER_VERSION = "0.13.0-v4.3-legacy";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -57,7 +57,7 @@ export function createPublicMcpServer(
         prompts: {},
       },
       instructions:
-        "AgentPool v4.4 is deployed on Base Sepolia as a read-only alpha. Remote MCP cannot sign, mint, move funds, or claim rewards. Inspect readiness before attempting any legacy test-wallet flow.",
+        "Explicit AgentPool v4.3.5 legacy test-economy MCP. This interface is not part of the v4.4 public read-only profile.",
     },
   );
 
@@ -457,7 +457,7 @@ export function createPublicMcpServer(
     async () =>
       toolResult({
         environment: "Base Sepolia testnet only",
-        remoteMcp: `${origin}/api/mcp`,
+        remoteMcp: `${origin}/api/mcp/v4.3-legacy`,
         localBridge: `${origin}/agentpool-mcp.mjs`,
         setupGuide: `${origin}/mcp/setup`,
         quickstart: `${origin}/beta`,
@@ -486,7 +486,7 @@ export function createPublicMcpServer(
           mimeType: "application/json",
           text: JSON.stringify(
             {
-              remoteMcp: `${origin}/api/mcp`,
+              remoteMcp: `${origin}/api/mcp/v4.3-legacy`,
               localBridge: `${origin}/agentpool-mcp.mjs`,
               setupGuide: `${origin}/mcp/setup`,
               network: "Base Sepolia",

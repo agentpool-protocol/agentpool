@@ -40,7 +40,7 @@ test("all public discovery surfaces expose the same participation boundary", () 
   assert.deepEqual(server.remotes, [
     {
       type: "streamable-http",
-      url: "https://agentpool-protocol.asfu.chatgpt.site/api/mcp",
+      url: "https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4",
     },
   ]);
 });

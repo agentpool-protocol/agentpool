@@ -80,6 +80,13 @@ $process = Start-Process `
     -WindowStyle Hidden `
     -PassThru
 
+try {
+    $process.PriorityClass = "BelowNormal"
+} catch {
+    Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
+    throw "Unable to apply the low-impact Runner priority class."
+}
+
 Start-Sleep -Milliseconds 1500
 if ($process.HasExited) {
     $process.WaitForExit()

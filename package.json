@@ -73,6 +73,7 @@
     "evidence:v4.4:testnet:record": "node --env-file-if-exists=.env.v44.testnet.local scripts/record-v44-testnet-observation.mjs",
     "evidence:v4.4:testnet:incident": "node --env-file-if-exists=.env.v44.testnet.local scripts/record-v44-testnet-incident.mjs",
     "evidence:v4.4:testnet:attest": "node --env-file-if-exists=.env.v44.testnet.local scripts/attest-v44-testnet-observations.mjs",
+    "evidence:v4.4:autonomy:attest": "node scripts/attest-v44-autonomy-observer.mjs",
     "security:slither:v4.4": "node scripts/check-v44-slither.mjs",
     "contracts:deploy:v4.3.7": "node --env-file-if-exists=.env.local scripts/deploy-v437-self-bootstrap.mjs",
     "contracts:verify:v4.3.7": "node --env-file-if-exists=.env.local scripts/verify-v437-self-bootstrap.mjs",

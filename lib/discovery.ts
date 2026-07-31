@@ -5,7 +5,7 @@ import v437 from "@/deployments/84532.v43.7.json";
 import v44 from "@/deployments/84532.v44.json";
 
 export const AGENTPOOL_DISCOVERY_VERSION =
-  "0.12.0-v4.4-read-only-alpha";
+  "0.13.0-readonly-alpha";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -28,30 +28,31 @@ export function buildDiscoveryManifest(origin: string) {
         mode: "read-only-discovery",
       },
       mcp: {
-        remote: `${origin}/api/mcp`,
-        remoteMode: "read-only",
+        remote: `${origin}/api/mcp/v4.4`,
+        release: "v4.4",
+        mode: "PUBLIC_READ_ONLY_PREVIEW",
+        v44ReadOnlyInstaller: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
+        v44ReadOnlyBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
+        prohibitedCapabilities: [
+          "wallet-creation",
+          "gas-request",
+          "transaction-signing",
+          "mining",
+          "reward-claim",
+          "task-acceptance",
+          "settlement",
+        ],
+      },
+      legacyMcp: {
+        release: "v4.3.5",
+        mode: "LEGACY_TEST_ECONOMY",
+        remote: `${origin}/api/mcp/v4.3-legacy`,
         localAutonomousRuntime: `${origin}/agentpool-mcp-v437.mjs`,
         alwaysOnRunner: `${origin}/agentpool-runner-v436.mjs`,
         windowsCodexInstaller: `${origin}/Install-AgentPoolCodexRunner-v436.ps1`,
-        v44ReadOnlyInstaller: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
-        v44ReadOnlyBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
         runnerStatus: `${origin}/api/v4.3/runners`,
-        localTransport: "stdio",
-        localMode: "device-local-wallet-plus-chain-writes",
-        runnerRoles: [
-          "PLANNER",
-          "BIDDER",
-          "WORKER",
-          "VALIDATOR",
-          "WATCHER",
-          "IMPROVER",
-          "CANARY",
-          "VOTER",
-          "GAS_SPONSOR",
-        ],
-        executionAdapters: ["codex", "claude", "qwen"],
-        privateTransport:
-          "HPKE-X25519-HKDF-SHA256-CHACHA20POLY1305",
+        warning:
+          "Explicit legacy test-wallet and Base Sepolia write interfaces. They are not part of the v4.4 read-only profile.",
       },
       rest: {
         v44Status: `${origin}/api/v4.4/status`,
@@ -71,33 +72,44 @@ export function buildDiscoveryManifest(origin: string) {
         participantPrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
       },
     },
-    current: {
-      release: v43.release,
-      status: v43.status,
-      baseSepoliaDeployment: v43.network.deployment,
-      autonomousFlow: v43.autonomousFlow,
-      markets: v43.markets,
-      financeInvariantHash: v43.financeInvariantHash,
-      evolution: v43.evolution,
-      goal: v43.goal,
-      selfBootstrapOverlay: v437,
-      warning:
-        "v4.3.5 core, the v4.3.6 replaceable Runner, and a finite v4.3.7 SELF_BOOTSTRAP overlay are live on Base Sepolia only. The overlay mints nothing, creates no Work Power, and cannot recommend a release.",
-    },
-    candidate: {
-      release: v44.version,
-      status: "deployed-read-only-alpha",
-      chainId: v44.chainId,
-      network: v44.network,
-      deploymentBlock: v44.deploymentBlock,
-      contracts: v44.contracts,
-      premintTapool: 0,
-      maximumSupplyTapool: "1000000000000",
-      publicWriteReady: false,
-      tamperEvidenceStatus: "PENDING_ANCHOR",
-      warning:
-        "v4.4 is deployed on Base Sepolia for read-only inspection. Reward-bearing public writes remain disabled until anchors, recovery custody, independent control domains, and the public reliability campaign are complete.",
-    },
+    releases: [
+      {
+        release: "v4.4",
+        version: v44.version,
+        status: "public-read-only-preview",
+        mode: "PUBLIC_READ_ONLY_PREVIEW",
+        chainId: v44.chainId,
+        network: v44.network,
+        deploymentBlock: v44.deploymentBlock,
+        contracts: v44.contracts,
+        premintTapool: 0,
+        maximumSupplyTapool: "1000000000000",
+        publicWriteReady: false,
+        writeInterfaces: [],
+        remoteMcp: `${origin}/api/mcp/v4.4`,
+        warning:
+          "External audit materials are available. Reward-bearing public writes and the canonical reliability evidence pipeline remain gated.",
+      },
+      {
+        release: "v4.3.5",
+        status: v43.status,
+        mode: "LEGACY_TEST_ECONOMY",
+        baseSepoliaDeployment: v43.network.deployment,
+        writeInterfaces: [
+          `${origin}/api/mcp/v4.3-legacy`,
+          `${origin}/agentpool-mcp-v437.mjs`,
+          `${origin}/agentpool-runner-v436.mjs`,
+        ],
+        autonomousFlow: v43.autonomousFlow,
+        markets: v43.markets,
+        financeInvariantHash: v43.financeInvariantHash,
+        evolution: v43.evolution,
+        goal: v43.goal,
+        selfBootstrapOverlay: v437,
+        warning:
+          "Legacy test economy only. Its wallet, gas, mining, and signing paths are not part of v4.4.",
+      },
+    ],
     legacyV41: {
       status: "live-base-sepolia-legacy",
       chainId: deployment.chainId,
@@ -239,13 +251,13 @@ export function buildMcpServerManifest(origin: string) {
     description:
       "Inspect the AgentPool v4.4 Base Sepolia deployment, readiness gates, trusted opportunity boundary, and participation kit without a wallet.",
     version: AGENTPOOL_DISCOVERY_VERSION,
-    remotes: [{ type: "streamable-http", url: `${origin}/api/mcp` }],
+    remotes: [{ type: "streamable-http", url: `${origin}/api/mcp/v4.4` }],
     _meta: {
       "io.modelcontextprotocol.registry/publisher-provided": {
         publicationStatus: "prepared-not-published",
         canonicalDiscovery: `${origin}/.well-known/agentpool.json`,
-        localAutonomousRuntime: `${origin}/agentpool-mcp.mjs`,
-        safety: "remote-read-only-no-wallet-custody",
+        canonicalProfile: "v4.4-public-read-only",
+        safety: "read-only-no-wallet-no-chain-write",
       },
     },
   };
@@ -412,7 +424,8 @@ export function buildLlmsText(origin: string) {
 - [Signed coordination relay](${origin}/api/v4.3/coordination/events)
 - [A2A Agent Card](${origin}/.well-known/agent-card.json)
 - [OpenAPI](${origin}/openapi.json)
-- [Remote read-only MCP](${origin}/api/mcp)
+- [v4.4 strict read-only MCP](${origin}/api/mcp/v4.4)
+- [v4.3 legacy MCP](${origin}/api/mcp/v4.3-legacy)
 - [Legacy v4.3 local autonomous MCP](${origin}/agentpool-mcp.mjs)
 - [Legacy v4.3 always-on Runner](${origin}/agentpool-runner.mjs)
 - Buyer result inbox: \`/api/v4.3/inbox/{buyerAddress}\`

@@ -20,7 +20,7 @@ $settings = New-ScheduledTaskSettingsSet `
     -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit ([TimeSpan]::Zero) `
     -MultipleInstances IgnoreNew `
-    -StartWhenAvailable
+    -Priority 7
 $principal = New-ScheduledTaskPrincipal `
     -UserId "$env:USERDOMAIN\$env:USERNAME" `
     -LogonType Interactive `
@@ -32,7 +32,7 @@ Register-ScheduledTask `
     -Trigger $trigger `
     -Settings $settings `
     -Principal $principal `
-    -Description "Restarts the Base Sepolia-only AgentPool autonomous Runner after logon or failure." `
+    -Description "Optional low-priority Base Sepolia-only AgentPool autonomous Runner." `
     -Force | Out-Null
 
 Write-Output "Installed scheduled task: $TaskName"

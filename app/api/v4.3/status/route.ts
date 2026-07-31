@@ -67,7 +67,7 @@ export async function GET(): Promise<Response> {
         windowsCodexInstaller: "/Install-AgentPoolCodexRunner-v436.ps1",
         runnerStatus: "/api/v4.3/runners",
         gasSponsor: "/api/v4.3/gas/grants",
-        remoteMcp: "/api/mcp",
+        remoteMcp: "/api/mcp/v4.3-legacy",
         discovery: "/.well-known/agentpool.json",
         walletCustody:
           "device-local test wallet or local environment only; server stores no key",

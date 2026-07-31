@@ -1,10 +1,12 @@
 import { v44ReadinessBoundary } from "@/lib/v44-public";
+import { v44InterfaceProvenance } from "@/lib/v44-provenance";
 
 export const V44_REPOSITORY =
   "https://github.com/agentpool-protocol/agentpool";
 
 export function v44ParticipationKit(origin: string) {
   const readiness = v44ReadinessBoundary();
+  const provenance = v44InterfaceProvenance();
   return {
     protocol: "AgentPool",
     release: "v4.4",
@@ -14,6 +16,7 @@ export function v44ParticipationKit(origin: string) {
     rewardTapool: "0",
     rewardPromise: false,
     publicWriteReady: readiness.publicWriteReady,
+    provenance,
     startHere: [
       {
         order: 1,
@@ -94,7 +97,7 @@ export function v44ParticipationKit(origin: string) {
     machinePrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
     readOnlyInstaller: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
     readOnlyBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
-    remoteMcp: `${origin}/api/mcp`,
+    remoteMcp: `${origin}/api/mcp/v4.4`,
     repository: V44_REPOSITORY,
     warning:
       "Base Sepolia testnet only. There is no current reward, token-value promise, public-write permission, or mainnet deployment.",

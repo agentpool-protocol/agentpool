@@ -31,6 +31,7 @@ import {
 import {
   verifyV44ReleaseEvidenceFile,
 } from "../generate-v44-release-evidence.mjs";
+import { validateAutonomyEvidence } from "./v44-autonomy-safety.mjs";
 
 export const TESTNET_CHAIN_ID = 84532;
 export const TARGET_CHAIN_ID = 8453;
@@ -1433,6 +1434,41 @@ function blocker(blockers, condition, code) {
   if (!condition) blockers.push(code);
 }
 
+export function reconcileRpcEvidenceSnapshots({
+  primaryUrl,
+  secondaryUrl,
+  primary,
+  secondary,
+}) {
+  const primaryOrigin = new URL(primaryUrl).origin;
+  const secondaryOrigin = new URL(secondaryUrl).origin;
+  if (primaryOrigin === secondaryOrigin) {
+    throw new Error("V44_TESTNET_RPC_PROVIDER_INDEPENDENCE_REQUIRED");
+  }
+  const comparable = (value) => ({
+    liveRpcVerified: value.liveRpcVerified,
+    verifiedTransactionCount: value.verifiedTransactionCount,
+    contributingAgents: value.contributingAgents,
+    contributingOperatorGroups: value.contributingOperatorGroups,
+    latestObservedBlock: value.latestObservedBlock,
+    earliestObservedTimestamp: value.earliestObservedTimestamp,
+    latestObservedTimestamp: value.latestObservedTimestamp,
+    latestBlock: value.latestBlock,
+    indexerLagBlocks: value.indexerLagBlocks,
+  });
+  const primaryComparable = comparable(primary);
+  const secondaryComparable = comparable(secondary);
+  if (sha256Json(primaryComparable) !== sha256Json(secondaryComparable)) {
+    throw new Error("V44_TESTNET_RPC_EVIDENCE_CONFLICT");
+  }
+  return {
+    ...primary,
+    providerCount: 2,
+    providerOrigins: [primaryOrigin, secondaryOrigin].sort(),
+    reconciliationRoot: sha256Json(primaryComparable),
+  };
+}
+
 export function evaluateReliability({
   policy,
   deployment,
@@ -1440,6 +1476,7 @@ export function evaluateReliability({
   sourceEvidence,
   attestationEvidence,
   rpcEvidence,
+  autonomyV2,
   generatedAt = new Date().toISOString(),
   policySha256,
   deploymentFileSha256,
@@ -1478,7 +1515,8 @@ export function evaluateReliability({
   );
   blocker(
     blockers,
-    rpcEvidence?.liveRpcVerified === true,
+    rpcEvidence?.liveRpcVerified === true &&
+      rpcEvidence?.providerCount >= 2,
     "LIVE_RPC_VERIFICATION_REQUIRED",
   );
   blocker(
@@ -1486,6 +1524,11 @@ export function evaluateReliability({
     attestationEvidence?.verified === true &&
       attestationEvidence.meetsIndependence === true,
     "INDEPENDENT_OBSERVER_ATTESTATIONS_INSUFFICIENT",
+  );
+  blocker(
+    blockers,
+    autonomyV2?.valid === true && autonomyV2?.status === "VERIFIED",
+    `AUTONOMY_V2_${autonomyV2?.status ?? "MISSING"}`,
   );
   blocker(
     blockers,
@@ -1557,6 +1600,7 @@ export function evaluateReliability({
     observationsFileSha256,
     sourceEvidenceFileSha256,
     liveRpcVerified: rpcEvidence?.liveRpcVerified === true,
+    autonomyV2,
     observationWindow: {
       startedAt: observations.startedAt,
       endedAt: observations.endedAt,
@@ -1638,6 +1682,7 @@ export async function buildReliabilityReport({
   observationsPath,
   sourceEvidencePath,
   rpcUrl,
+  secondaryRpcUrl,
   generatedAt = new Date().toISOString(),
   verificationBlockNumber,
 }) {
@@ -1651,6 +1696,9 @@ export async function buildReliabilityReport({
     if (!filePath || !fs.existsSync(filePath)) missing.push(label);
   }
   if (!rpcUrl) missing.push("V44_TESTNET_RPC_URL_MISSING");
+  if (!secondaryRpcUrl) {
+    missing.push("V44_TESTNET_SECONDARY_RPC_URL_MISSING");
+  }
   if (missing.length > 0) {
     return blockedReliabilityReport({
       policyEvidence,
@@ -1671,20 +1719,49 @@ export async function buildReliabilityReport({
     policy: policyEvidence.policy,
     deployment,
   });
-  const [attestationEvidence, rpcEvidence] = await Promise.all([
-    verifyObservationAttestations(
-      observations,
-      policyEvidence.policy,
-      deployment,
-    ),
-    collectLiveRpcEvidence({
-      rpcUrl,
-      deployment,
-      observations,
-      policy: policyEvidence.policy,
-      verificationBlockNumber,
-    }),
-  ]);
+  const autonomyV2 = validateAutonomyEvidence(
+    observations.autonomyEvidence ?? {
+      schema: "agentpool.v44.autonomy-evidence/v1",
+      exposureLedger: {
+        schema: "agentpool.v44.exposure-ledger/v1",
+        maximumSuccessfulSystemSettlements: 0,
+        successfulSystemSettlements: 0,
+        slots: {},
+        journal: [],
+      },
+      admissionBundles: [],
+      settlementBundles: [],
+      governanceEvents: [],
+      governanceEventProviders: [],
+      checkpoints: [],
+      checkpointPolicy: { authorizedPublicKeys: [], threshold: 2 },
+    },
+  );
+  const attestationEvidence = await verifyObservationAttestations(
+    observations,
+    policyEvidence.policy,
+    deployment,
+  );
+  const primaryRpcEvidence = await collectLiveRpcEvidence({
+    rpcUrl,
+    deployment,
+    observations,
+    policy: policyEvidence.policy,
+    verificationBlockNumber,
+  });
+  const secondaryRpcEvidence = await collectLiveRpcEvidence({
+    rpcUrl: secondaryRpcUrl,
+    deployment,
+    observations,
+    policy: policyEvidence.policy,
+    verificationBlockNumber: primaryRpcEvidence.latestBlock,
+  });
+  const rpcEvidence = reconcileRpcEvidenceSnapshots({
+    primaryUrl: rpcUrl,
+    secondaryUrl: secondaryRpcUrl,
+    primary: primaryRpcEvidence,
+    secondary: secondaryRpcEvidence,
+  });
   return evaluateReliability({
     policy: policyEvidence.policy,
     deployment,
@@ -1692,6 +1769,7 @@ export async function buildReliabilityReport({
     sourceEvidence,
     attestationEvidence,
     rpcEvidence,
+    autonomyV2,
     generatedAt,
     policySha256: policyEvidence.policySha256,
     deploymentFileSha256: sha256File(deploymentPath),
@@ -1746,12 +1824,15 @@ export async function verifyPublicTestnetReliabilityGate({
   const sourceEvidencePath =
     gateEvidence.evidencePaths.finalSourceReproducibility;
   const rpcUrl = env.AGENTPOOL_V44_TESTNET_RPC_URL?.trim();
+  const secondaryRpcUrl =
+    env.AGENTPOOL_V44_TESTNET_RPC_URL_2?.trim();
   const recomputed = await buildReliabilityReport({
     policyPath,
     deploymentPath,
     observationsPath,
     sourceEvidencePath,
     rpcUrl,
+    secondaryRpcUrl,
     generatedAt: report.generatedAt,
     verificationBlockNumber: report.chainCursor?.latestBlock,
   });

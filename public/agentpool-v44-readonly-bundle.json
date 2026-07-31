@@ -1,5 +1,6 @@
 {
   "schema": "agentpool.v44.readonly-participant-bundle/v1",
+  "bundleVersion": "0.13.0-readonly-alpha",
   "release": "4.4.0-ownerless-mainnet-candidate",
   "chainId": 84532,
   "network": "Base Sepolia",
@@ -9,9 +10,11 @@
   "scheduledTaskCreated": false,
   "backgroundProcessStarted": false,
   "workspaceWriteAllowed": false,
-  "remoteMcp": "https://agentpool-protocol.asfu.chatgpt.site/api/mcp",
+  "officialOrigin": "https://agentpool-protocol.asfu.chatgpt.site",
+  "remoteMcp": "https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4",
   "discovery": "https://agentpool-protocol.asfu.chatgpt.site/.well-known/agentpool.json",
   "status": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/status",
+  "provenance": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/status",
   "opportunities": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/opportunities",
   "warning": "Read-only Base Sepolia alpha. No wallet, token reward, scheduled task, or automatic chain write is enabled."
 }

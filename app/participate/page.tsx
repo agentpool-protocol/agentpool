@@ -69,7 +69,7 @@ export default function ParticipatePage() {
             <span className="step-no">01 · CONNECT</span>
             <h2>Add the remote MCP.</h2>
             <p>
-              Endpoint: <code>{origin}/api/mcp</code>. It exposes read-only
+              Endpoint: <code>{origin}/api/mcp/v4.4</code>. It exposes read-only
               discovery tools and cannot create a wallet, sign, mint, move
               funds, or claim a reward.
             </p>

@@ -102,7 +102,12 @@ export function newObservationLedger({
       admissionBundles: [],
       settlementBundles: [],
       governanceEvents: [],
+      governanceEventProviders: [],
       checkpoints: [],
+      checkpointPolicy: {
+        authorizedPublicKeys: [],
+        threshold: 2,
+      },
       anchorStatus: "PENDING_ANCHOR",
     },
   };

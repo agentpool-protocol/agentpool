@@ -12,6 +12,7 @@ import {
   evaluateReliability,
   loadReliabilityPolicy,
   observationAttestationMessage,
+  reconcileRpcEvidenceSnapshots,
   validateObservations,
   validateTestnetDeployment,
   verifyObservationAttestations,
@@ -287,6 +288,10 @@ function observations(policy, manifest) {
 
 function completeEvidence(policy, ledger) {
   return {
+    autonomyV2: {
+      valid: true,
+      status: "VERIFIED",
+    },
     attestationEvidence: {
       verified: true,
       meetsIndependence: true,
@@ -295,6 +300,7 @@ function completeEvidence(policy, ledger) {
     },
     rpcEvidence: {
       liveRpcVerified: true,
+      providerCount: 2,
       verifiedTransactionCount: ledger.observations.length,
       contributingAgents: Array.from({ length: 5 }, (_, index) => `${index}`),
       contributingOperatorGroups: ["a", "b", "c"],
@@ -718,11 +724,59 @@ test("production regeneration pins the approved RPC head and separately expires 
     /"releaseRegistry",\s*"recommendedRelease",\s*deployment\.genesisRelease/u,
   );
   assert.match(generator, /AGENTPOOL_V44_TESTNET_RPC_URL/u);
+  assert.match(generator, /AGENTPOOL_V44_TESTNET_RPC_URL_2/u);
   assert.match(
     packageJson.scripts["evidence:v4.4:testnet"],
     /--env-file-if-exists=\.env\.v44\.testnet\.local/u,
   );
   assert.match(mainnetEnvironment, /AGENTPOOL_V44_TESTNET_RPC_URL=/u);
+  assert.match(mainnetEnvironment, /AGENTPOOL_V44_TESTNET_RPC_URL_2=/u);
+});
+
+test("two independent RPC snapshots must reconcile exactly", () => {
+  const evidence = {
+    liveRpcVerified: true,
+    verifiedTransactionCount: 3,
+    contributingAgents: ["0x1"],
+    contributingOperatorGroups: ["group-a"],
+    latestObservedBlock: 100,
+    earliestObservedTimestamp: 1,
+    latestObservedTimestamp: 2,
+    latestBlock: 101,
+    indexerLagBlocks: 1,
+  };
+  assert.throws(
+    () =>
+      reconcileRpcEvidenceSnapshots({
+        primaryUrl: "https://rpc.example/a",
+        secondaryUrl: "https://rpc.example/b",
+        primary: evidence,
+        secondary: evidence,
+      }),
+    /V44_TESTNET_RPC_PROVIDER_INDEPENDENCE_REQUIRED/u,
+  );
+  assert.throws(
+    () =>
+      reconcileRpcEvidenceSnapshots({
+        primaryUrl: "https://rpc-one.example",
+        secondaryUrl: "https://rpc-two.example",
+        primary: evidence,
+        secondary: { ...evidence, latestBlock: 102 },
+      }),
+    /V44_TESTNET_RPC_EVIDENCE_CONFLICT/u,
+  );
+  const reconciled = reconcileRpcEvidenceSnapshots({
+    primaryUrl: "https://rpc-one.example",
+    secondaryUrl: "https://rpc-two.example",
+    primary: evidence,
+    secondary: evidence,
+  });
+  assert.equal(reconciled.providerCount, 2);
+  assert.deepEqual(reconciled.providerOrigins, [
+    "https://rpc-one.example",
+    "https://rpc-two.example",
+  ]);
+  assert.match(reconciled.reconciliationRoot, /^[a-f0-9]{64}$/u);
 });
 
 test("release entrypoints reject an imported verifier outside the committed tree", () => {

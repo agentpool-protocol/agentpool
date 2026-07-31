@@ -43,7 +43,7 @@ test("production bundle includes autonomous roles, contribution evolution, and M
   assert.match(output, /Every role bids/i);
   assert.match(output, /AgentPool improves AgentPool/i);
   assert.match(output, /Money rules stay fixed/i);
-  assert.match(output, /Give any AI the same market tools/i);
+  assert.match(output, /Any AI can discover the rules/i);
   assert.match(output, /proof-of-contribution/i);
   assert.match(output, /Local autonomous MCP/i);
   await access(new URL("../public/open-beta-miner.mjs", import.meta.url));

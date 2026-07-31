@@ -54,7 +54,8 @@ async function loadConfig() {
     mcpPath: fs.existsSync(siblingMcp)
       ? siblingMcp
       : path.join(root, "public", "agentpool-mcp.mjs"),
-    pollIntervalMs: 15_000,
+    pollIntervalMs: 300_000,
+    maximumIdlePollIntervalMs: 1_800_000,
     minimumGasEth: "0.000001",
     gasGrantRetryMs: 300_000,
     minNetProfitApool: "0",
@@ -84,8 +85,8 @@ async function loadConfig() {
     idleImprovement: {
       enabled: true,
       provider: "codex",
-      auditIntervalMs: 60 * 60 * 1_000,
-      retryIntervalMs: 10 * 60 * 1_000,
+      auditIntervalMs: 6 * 60 * 60 * 1_000,
+      retryIntervalMs: 2 * 60 * 60 * 1_000,
       successProbabilityBps: 7_500,
       estimatedCostApool: "0",
       estimatedGasApool: "0",
@@ -393,27 +394,54 @@ async function main() {
     });
     state = validationResult.state;
     await saveState(statePath, state);
+    const outcomes = deduplicateCycleOutcomes([
+      ...workerResult.outcomes,
+      ...rewardBefore.outcomes,
+      ...autonomyResult.outcomes,
+      ...idleImprovementResult.outcomes,
+      ...rewardAfter.outcomes,
+      ...validationResult.outcomes,
+    ]);
     process.stdout.write(
       `${JSON.stringify({
         at: new Date().toISOString(),
         address: workerResult.wallet.address,
         onboarding: workerResult.onboarding,
         providers: executorRegistry.providers(),
-        outcomes: deduplicateCycleOutcomes([
-          ...workerResult.outcomes,
-          ...rewardBefore.outcomes,
-          ...autonomyResult.outcomes,
-          ...idleImprovementResult.outcomes,
-          ...rewardAfter.outcomes,
-          ...validationResult.outcomes,
-        ]),
+        outcomes,
       })}\n`,
     );
+    return outcomes;
   };
+  const basePollIntervalMs = Math.max(
+    60_000,
+    Number(config.pollIntervalMs),
+  );
+  const maximumIdlePollIntervalMs = Math.max(
+    basePollIntervalMs,
+    Number(config.maximumIdlePollIntervalMs),
+  );
+  let nextPollIntervalMs = basePollIntervalMs;
   try {
     do {
       try {
-        await runCycle();
+        const outcomes = await runCycle();
+        const onlyPendingOrIdle =
+          outcomes.length === 0 ||
+          outcomes.every((outcome) =>
+            [
+              "deployment-pending",
+              "no-op",
+              "waiting",
+              "not-due",
+            ].includes(outcome.status),
+          );
+        nextPollIntervalMs = onlyPendingOrIdle
+          ? Math.min(
+              maximumIdlePollIntervalMs,
+              Math.max(basePollIntervalMs, nextPollIntervalMs * 2),
+            )
+          : basePollIntervalMs;
         consecutiveFailures = 0;
       } catch (error) {
         consecutiveFailures += 1;
@@ -445,7 +473,7 @@ async function main() {
       }
       if (!once) {
         await new Promise((resolve) =>
-          setTimeout(resolve, config.pollIntervalMs),
+          setTimeout(resolve, nextPollIntervalMs),
         );
       }
     } while (!once);
