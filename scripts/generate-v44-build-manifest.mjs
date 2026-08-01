@@ -109,6 +109,26 @@ const files = trackedFiles().map((relativePath) => {
 const sourceTreeManifestRoot = sha256Bytes(
   Buffer.from(canonicalJson(files), "utf8"),
 );
+const packageDocument = JSON.parse(
+  gitBytes(["show", `${interfaceSourceCommit}:package.json`]).toString(
+    "utf8",
+  ),
+);
+const packageLockSha256 = files.find(
+  (entry) => entry.path === "package-lock.json",
+)?.sha256;
+if (!packageLockSha256) {
+  throw new Error("V44_BUILD_MANIFEST_PACKAGE_LOCK_MISSING");
+}
+const buildToolchain = {
+  nodeRuntime: process.version,
+  nodeEngine: packageDocument.engines?.node ?? null,
+  packageManager: "npm",
+  packageLockSha256,
+  vinext: packageDocument.devDependencies?.vinext ?? null,
+  vite: packageDocument.devDependencies?.vite ?? null,
+  wrangler: packageDocument.devDependencies?.wrangler ?? null,
+};
 const body = {
   schema: "agentpool.v44.interface-build-manifest/v1",
   interfaceSourceCommit,
@@ -117,6 +137,7 @@ const body = {
   sourceTreeArchiveSha256,
   generatedFromCleanTree,
   sourceTreeManifestRoot,
+  buildToolchain,
   sourceFiles: files,
   canonicalSourceRef: `https://github.com/agentpool-protocol/agentpool/tree/${interfaceSourceCommit}`,
 };

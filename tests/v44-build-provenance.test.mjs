@@ -19,6 +19,9 @@ test("v4.4 build provenance is derived from exact Git blobs", () => {
   assert.match(generator, /gitBytes\(\["show", `\$\{interfaceSourceCommit\}:\$\{relativePath\}`\]\)/u);
   assert.match(generator, /generatedFromCleanTree/u);
   assert.match(generator, /sourceTreeManifestRoot/u);
+  assert.match(generator, /packageLockSha256/u);
+  assert.match(generator, /buildToolchain/u);
+  assert.match(generator, /nodeRuntime: process\.version/u);
   assert.match(generator, /buildManifestFileSha256/u);
   assert.match(generator, /maxBuffer:\s*64 \* 1024 \* 1024/u);
   assert.match(provenance, /V44_BUILD_MANIFEST\.generatedFromCleanTree === true/u);
