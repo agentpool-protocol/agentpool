@@ -7,7 +7,9 @@ import test from "node:test";
 import {
   assertClosedJobSemantic,
   assertCanonicalCreationInput,
+  autonomyPolicyIdentity,
   blockedReliabilityReport,
+  collectMaturityProviderSnapshot,
   DEPLOYMENT_SCHEMA,
   evaluateReliability,
   loadReliabilityPolicy,
@@ -15,6 +17,7 @@ import {
   reconcileRpcEvidenceSnapshots,
   validateObservations,
   validateTestnetDeployment,
+  verifyHistoricalContractSourceEvidenceFile,
   verifyObservationAttestations,
   verifyObservationSemantic,
   verifyPublicTestnetReliabilityGate,
@@ -41,6 +44,8 @@ const source = (relativePath) =>
   fs.readFileSync(path.join(ROOT, relativePath), "utf8");
 
 const SOURCE_COMMIT = "a".repeat(40);
+const EVIDENCE_PIPELINE_COMMIT = "d".repeat(40);
+const POLICY_HASH = "e".repeat(64);
 const CONTRACT_TYPES = {
   token: "AgentPoolV44Token",
   settlementRouter: "AgentPoolV43SettlementRouter",
@@ -254,6 +259,7 @@ function observationEntries(policy) {
         txHash: `0x${nonce.toString(16).padStart(64, "0")}`,
         contractKey: rule.contractKey,
         expectedStatus: rule.transactionStatus,
+        blockNumber: nonce,
       });
       nonce += 1;
     }
@@ -265,19 +271,33 @@ function observationEntries(policy) {
       txHash: `0x${nonce.toString(16).padStart(64, "0")}`,
       contractKey: rule.contractKey,
       expectedStatus: rule.transactionStatus,
+      blockNumber: nonce,
     });
     nonce += 1;
   }
   return entries;
 }
 
-function observations(policy, manifest) {
+function observations(
+  policy,
+  manifest,
+  {
+    policySha256 = POLICY_HASH,
+    evidencePipelineCommit = EVIDENCE_PIPELINE_COMMIT,
+  } = {},
+) {
+  const policyIdentity = autonomyPolicyIdentity(policy.autonomyV2);
   return {
     schema: "agentpool.testnet.v44.observations/v1",
     observedChainId: 84532,
     release: "4.4.0-ownerless-mainnet-candidate",
-    sourceCommit: SOURCE_COMMIT,
+    contractSourceCommit: SOURCE_COMMIT,
+    evidencePipelineCommit,
     deploymentManifestSha256: manifest.manifestSha256,
+    policySha256,
+    signerSetHash: policyIdentity.signerSetHash,
+    policyActivatedAt: policyIdentity.activatedAt,
+    policyActivatedBlock: policyIdentity.activatedBlock,
     startedAt: "2026-01-01T00:00:00.000Z",
     endedAt: "2026-04-01T00:00:00.000Z",
     observations: observationEntries(policy),
@@ -305,6 +325,7 @@ function completeEvidence(policy, ledger) {
       contributingAgents: Array.from({ length: 5 }, (_, index) => `${index}`),
       contributingOperatorGroups: ["a", "b", "c"],
       latestObservedBlock: 100,
+      earliestObservedBlock: 1,
       earliestObservedTimestamp: Date.parse(ledger.startedAt),
       latestObservedTimestamp: Date.parse(ledger.endedAt),
       latestBlock: 100,
@@ -312,6 +333,7 @@ function completeEvidence(policy, ledger) {
     },
     generatedAt: "2026-04-01T01:00:00.000Z",
     policySha256: policy.policySha256,
+    evidencePipelineCommit: EVIDENCE_PIPELINE_COMMIT,
     deploymentFileSha256: "d".repeat(64),
     observationsFileSha256: "e".repeat(64),
     sourceEvidenceFileSha256: "f".repeat(64),
@@ -342,7 +364,14 @@ test("v4.4 public-testnet policy requires a 90-day live campaign", () => {
   );
   assert.deepEqual(
     policy.autonomyV2.governanceEventPolicy.contractKeys.sort(),
-    ["contributionLedger", "taskMarket"],
+    [
+      "contributionLedger",
+      "issueConsensus",
+      "proofRegistry",
+      "systemIssueGate",
+      "taskMarket",
+      "transitionIssueConsensus",
+    ],
   );
   assert.equal(
     policy.autonomyV2.maturityAuthorizationPolicy
@@ -351,6 +380,10 @@ test("v4.4 public-testnet policy requires a 90-day live campaign", () => {
   );
   assert.equal(
     policy.autonomyV2.controlDomainPolicy.configurationStatus,
+    "PENDING_EXTERNAL_KEYS",
+  );
+  assert.equal(
+    policy.autonomyV2.policyActivation.configurationStatus,
     "PENDING_EXTERNAL_KEYS",
   );
 });
@@ -364,6 +397,28 @@ test("legacy v4.3 evidence cannot impersonate the v4.4 campaign", () => {
   assert.throws(
     () => validateTestnetDeployment(manifest, SOURCE_EVIDENCE),
     /V44_TESTNET_DEPLOYMENT_IDENTITY_INVALID/u,
+  );
+});
+
+test("historical contract provenance is verified separately from the evidence pipeline HEAD", () => {
+  const manifest = JSON.parse(
+    source("deployments/84532.v44.json"),
+  );
+  const verified = verifyHistoricalContractSourceEvidenceFile(
+    path.join(ROOT, "outputs", "v44-source-reproducibility.json"),
+    manifest,
+  );
+  assert.equal(verified.evidence.sourceCommit, manifest.sourceCommit);
+  assert.notEqual(
+    verified.evidence.sourceCommit,
+    execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    }).trim(),
+  );
+  assert.equal(
+    validateTestnetDeployment(manifest, verified.evidence).sourceCommit,
+    manifest.sourceCommit,
   );
 });
 
@@ -398,8 +453,65 @@ test("observation transaction hashes cannot be reused across claims", () => {
   const ledger = observations(policy, manifest);
   ledger.observations[1].txHash = ledger.observations[0].txHash;
   assert.throws(
-    () => validateObservations(ledger, { policy, deployment: manifest }),
+    () =>
+      validateObservations(ledger, {
+        policy,
+        policySha256: POLICY_HASH,
+        deployment: manifest,
+        evidencePipelineCommit: EVIDENCE_PIPELINE_COMMIT,
+      }),
     /V44_TESTNET_OBSERVATION_TX_REUSED/u,
+  );
+});
+
+test("changing the signer policy invalidates an existing observation window", () => {
+  const { policy } = loadReliabilityPolicy();
+  const manifest = deployment();
+  const ledger = observations(policy, manifest);
+  const changedPolicy = structuredClone(policy);
+  changedPolicy.autonomyV2.controlDomainPolicy.threshold = 3;
+  assert.throws(
+    () =>
+      validateObservations(ledger, {
+        policy: changedPolicy,
+        policySha256: POLICY_HASH,
+        deployment: manifest,
+        evidencePipelineCommit: EVIDENCE_PIPELINE_COMMIT,
+      }),
+    /V44_TESTNET_OBSERVATIONS_IDENTITY_INVALID/u,
+  );
+});
+
+test("an unfinalized maturity snapshot is rejected", async () => {
+  const manifest = deployment();
+  const blockHash = `0x${"aa".repeat(32)}`;
+  await assert.rejects(
+    collectMaturityProviderSnapshot({
+      rpcUrl: "https://rpc-a.example",
+      deployment: manifest,
+      authorization: {
+        providerSnapshots: [
+          {
+            origin: "https://rpc-a.example",
+            finalizedBlockNumber: 100,
+            finalizedBlockHash: blockHash,
+            snapshot: {
+              nonMaintainerVotingAgents: [
+                { agent: OBSERVER_ACCOUNTS[0].address },
+              ],
+            },
+          },
+        ],
+      },
+      client: {
+        getBlock: async ({ blockTag }) =>
+          blockTag === "finalized"
+            ? { number: 99n, hash: `0x${"bb".repeat(32)}` }
+            : { number: 100n, hash: blockHash },
+        readContract: async () => 0n,
+      },
+    }),
+    /V44_MATURITY_COLLECTION_BLOCK_MISMATCH/u,
   );
 });
 
@@ -854,14 +966,27 @@ test("a declared 90-day window cannot hide same-day chain transactions", () => {
 
 test("only fresh, live, independently attested evidence clears policy", () => {
   const policyEvidence = loadReliabilityPolicy();
+  const activePolicy = structuredClone(policyEvidence.policy);
+  activePolicy.autonomyV2.policyActivation = {
+    configurationStatus: "ACTIVE",
+    activatedAt: "2026-01-01T00:00:00.000Z",
+    activatedBlock: 1,
+    restartObservationWindowOnChange: true,
+  };
   const manifest = deployment();
-  const ledger = observations(policyEvidence.policy, manifest);
+  const ledger = observations(activePolicy, manifest, {
+    policySha256: POLICY_HASH,
+  });
+  const evidence = completeEvidence(
+    { policySha256: POLICY_HASH },
+    ledger,
+  );
   const report = evaluateReliability({
-    policy: policyEvidence.policy,
+    policy: activePolicy,
     deployment: manifest,
     observations: ledger,
     sourceEvidence: SOURCE_EVIDENCE,
-    ...completeEvidence(policyEvidence, ledger),
+    ...evidence,
   });
   assert.equal(report.eligible, true);
   assert.equal(report.decision, "approved");
@@ -938,7 +1063,8 @@ test("missing public evidence produces a durable blocked report", () => {
   const policyEvidence = loadReliabilityPolicy();
   const report = blockedReliabilityReport({
     policyEvidence,
-    sourceCommit: SOURCE_COMMIT,
+    contractSourceCommit: SOURCE_COMMIT,
+    evidencePipelineCommit: EVIDENCE_PIPELINE_COMMIT,
     blockers: [
       "V44_TESTNET_DEPLOYMENT_MISSING",
       "V44_TESTNET_OBSERVATIONS_MISSING",
@@ -947,6 +1073,8 @@ test("missing public evidence produces a durable blocked report", () => {
   });
   assert.equal(report.eligible, false);
   assert.equal(report.decision, "blocked");
+  assert.equal(report.contractSourceCommit, SOURCE_COMMIT);
+  assert.equal(report.evidencePipelineCommit, EVIDENCE_PIPELINE_COMMIT);
   assert.equal(
     report.criticalInvariants["bootstrap-work-creates-no-work-power"],
     false,

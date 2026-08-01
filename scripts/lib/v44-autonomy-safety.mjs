@@ -45,12 +45,103 @@ const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/u;
 const ZERO_HASH = `0x${"00".repeat(32)}`;
 export const PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS = 49;
 export const V44_CHAIN_EVENT_SIGNATURES = Object.freeze({
+  transitionIssueProposed:
+    "IssueProposed(uint256,bytes32,address,bytes32)",
+  transitionVoteCommitted: "VoteCommitted(uint256,address,uint256)",
+  transitionVoteRevealed:
+    "VoteRevealed(uint256,address,bool,bytes32,uint256)",
+  transitionProposalClosed: "ProposalClosed(uint256,uint8)",
+  matureIssueProposed: "IssueProposed(uint256,bytes32,address)",
+  matureVoteCommitted: "VoteCommitted(uint256,address,uint256)",
+  matureVoteRevealed: "VoteRevealed(uint256,address,bool,uint256)",
+  matureProposalClosed: "ProposalClosed(uint256,uint8)",
+  transitionIssueApproved: "TransitionIssueApproved(bytes32)",
+  matureIssueApproved: "MatureIssueApproved(bytes32)",
+  issueConsumed: "IssueConsumed(bytes32,bytes32,address,uint256,uint256)",
   jobCreated:
     "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)",
   milestoneDelivered: "MilestoneDelivered(bytes32,uint32,bytes32,bytes32)",
+  roundOpened: "RoundOpened(bytes32,uint64,uint64,bytes32,uint16)",
+  evaluationCommitted: "EvaluationCommitted(bytes32,address,bytes32)",
+  evaluationRevealed:
+    "EvaluationRevealed(bytes32,address,uint16,bytes32)",
   milestoneSettled: "MilestoneSettled(bytes32,uint32,uint256,address)",
   outcomeRecorded: "OutcomeRecorded(address,address,bytes32,uint256,bool)",
 });
+
+const TRANSITION_ISSUE_PROPOSED_EVENT = {
+  type: "event",
+  name: "IssueProposed",
+  inputs: [
+    { name: "proposalId", type: "uint256", indexed: true },
+    { name: "issueHash", type: "bytes32", indexed: true },
+    { name: "proposer", type: "address", indexed: true },
+    { name: "needEvidenceHash", type: "bytes32", indexed: false },
+  ],
+};
+const TRANSITION_VOTE_COMMITTED_EVENT = {
+  type: "event",
+  name: "VoteCommitted",
+  inputs: [
+    { name: "proposalId", type: "uint256", indexed: true },
+    { name: "voter", type: "address", indexed: true },
+    { name: "weight", type: "uint256", indexed: false },
+  ],
+};
+const TRANSITION_VOTE_REVEALED_EVENT = {
+  type: "event",
+  name: "VoteRevealed",
+  inputs: [
+    { name: "proposalId", type: "uint256", indexed: true },
+    { name: "voter", type: "address", indexed: true },
+    { name: "support", type: "bool", indexed: false },
+    { name: "evidenceHash", type: "bytes32", indexed: false },
+    { name: "weight", type: "uint256", indexed: false },
+  ],
+};
+const PROPOSAL_CLOSED_EVENT = {
+  type: "event",
+  name: "ProposalClosed",
+  inputs: [
+    { name: "proposalId", type: "uint256", indexed: true },
+    { name: "state", type: "uint8", indexed: false },
+  ],
+};
+const MATURE_ISSUE_PROPOSED_EVENT = {
+  type: "event",
+  name: "IssueProposed",
+  inputs: [
+    { name: "proposalId", type: "uint256", indexed: true },
+    { name: "issueHash", type: "bytes32", indexed: true },
+    { name: "proposer", type: "address", indexed: true },
+  ],
+};
+const MATURE_VOTE_REVEALED_EVENT = {
+  type: "event",
+  name: "VoteRevealed",
+  inputs: [
+    { name: "proposalId", type: "uint256", indexed: true },
+    { name: "voter", type: "address", indexed: true },
+    { name: "support", type: "bool", indexed: false },
+    { name: "weight", type: "uint256", indexed: false },
+  ],
+};
+const ISSUE_APPROVED_EVENT = (name) => ({
+  type: "event",
+  name,
+  inputs: [{ name: "issueHash", type: "bytes32", indexed: true }],
+});
+const ISSUE_CONSUMED_EVENT = {
+  type: "event",
+  name: "IssueConsumed",
+  inputs: [
+    { name: "issueId", type: "bytes32", indexed: true },
+    { name: "operatorGroup", type: "bytes32", indexed: true },
+    { name: "proposer", type: "address", indexed: true },
+    { name: "budget", type: "uint256", indexed: false },
+    { name: "candidates", type: "uint256", indexed: false },
+  ],
+};
 
 const JOB_CREATED_EVENT = {
   type: "event",
@@ -73,6 +164,36 @@ const MILESTONE_DELIVERED_EVENT = {
     { name: "milestone", type: "uint32", indexed: true },
     { name: "deliveryHash", type: "bytes32", indexed: false },
     { name: "proofRoundId", type: "bytes32", indexed: false },
+  ],
+};
+const ROUND_OPENED_EVENT = {
+  type: "event",
+  name: "RoundOpened",
+  inputs: [
+    { name: "roundId", type: "bytes32", indexed: true },
+    { name: "commitDeadline", type: "uint64", indexed: false },
+    { name: "revealDeadline", type: "uint64", indexed: false },
+    { name: "validatorRoot", type: "bytes32", indexed: false },
+    { name: "minimumGroups", type: "uint16", indexed: false },
+  ],
+};
+const EVALUATION_COMMITTED_EVENT = {
+  type: "event",
+  name: "EvaluationCommitted",
+  inputs: [
+    { name: "roundId", type: "bytes32", indexed: true },
+    { name: "validator", type: "address", indexed: true },
+    { name: "operatorGroup", type: "bytes32", indexed: true },
+  ],
+};
+const EVALUATION_REVEALED_EVENT = {
+  type: "event",
+  name: "EvaluationRevealed",
+  inputs: [
+    { name: "roundId", type: "bytes32", indexed: true },
+    { name: "validator", type: "address", indexed: true },
+    { name: "scoreBps", type: "uint16", indexed: false },
+    { name: "evidenceHash", type: "bytes32", indexed: false },
   ],
 };
 const MILESTONE_SETTLED_EVENT = {
@@ -98,6 +219,72 @@ const OUTCOME_RECORDED_EVENT = {
 };
 const CHAIN_EVENT_DEFINITIONS = Object.freeze([
   {
+    type: "TRANSITION_ISSUE_PROPOSED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.transitionIssueProposed,
+    abi: TRANSITION_ISSUE_PROPOSED_EVENT,
+    contractKey: "transitionIssueConsensus",
+  },
+  {
+    type: "TRANSITION_VOTE_COMMITTED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.transitionVoteCommitted,
+    abi: TRANSITION_VOTE_COMMITTED_EVENT,
+    contractKey: "transitionIssueConsensus",
+  },
+  {
+    type: "TRANSITION_VOTE_REVEALED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.transitionVoteRevealed,
+    abi: TRANSITION_VOTE_REVEALED_EVENT,
+    contractKey: "transitionIssueConsensus",
+  },
+  {
+    type: "TRANSITION_PROPOSAL_CLOSED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.transitionProposalClosed,
+    abi: PROPOSAL_CLOSED_EVENT,
+    contractKey: "transitionIssueConsensus",
+  },
+  {
+    type: "MATURE_ISSUE_PROPOSED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.matureIssueProposed,
+    abi: MATURE_ISSUE_PROPOSED_EVENT,
+    contractKey: "issueConsensus",
+  },
+  {
+    type: "MATURE_VOTE_COMMITTED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.matureVoteCommitted,
+    abi: TRANSITION_VOTE_COMMITTED_EVENT,
+    contractKey: "issueConsensus",
+  },
+  {
+    type: "MATURE_VOTE_REVEALED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.matureVoteRevealed,
+    abi: MATURE_VOTE_REVEALED_EVENT,
+    contractKey: "issueConsensus",
+  },
+  {
+    type: "MATURE_PROPOSAL_CLOSED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.matureProposalClosed,
+    abi: PROPOSAL_CLOSED_EVENT,
+    contractKey: "issueConsensus",
+  },
+  {
+    type: "TRANSITION_ISSUE_APPROVED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.transitionIssueApproved,
+    abi: ISSUE_APPROVED_EVENT("TransitionIssueApproved"),
+    contractKey: "systemIssueGate",
+  },
+  {
+    type: "MATURE_ISSUE_APPROVED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.matureIssueApproved,
+    abi: ISSUE_APPROVED_EVENT("MatureIssueApproved"),
+    contractKey: "systemIssueGate",
+  },
+  {
+    type: "ISSUE_CONSUMED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.issueConsumed,
+    abi: ISSUE_CONSUMED_EVENT,
+    contractKey: "systemIssueGate",
+  },
+  {
     type: "JOB_CREATED",
     signature: V44_CHAIN_EVENT_SIGNATURES.jobCreated,
     abi: JOB_CREATED_EVENT,
@@ -108,6 +295,24 @@ const CHAIN_EVENT_DEFINITIONS = Object.freeze([
     signature: V44_CHAIN_EVENT_SIGNATURES.milestoneDelivered,
     abi: MILESTONE_DELIVERED_EVENT,
     contractKey: "taskMarket",
+  },
+  {
+    type: "ROUND_OPENED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.roundOpened,
+    abi: ROUND_OPENED_EVENT,
+    contractKey: "proofRegistry",
+  },
+  {
+    type: "EVALUATION_COMMITTED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.evaluationCommitted,
+    abi: EVALUATION_COMMITTED_EVENT,
+    contractKey: "proofRegistry",
+  },
+  {
+    type: "EVALUATION_REVEALED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.evaluationRevealed,
+    abi: EVALUATION_REVEALED_EVENT,
+    contractKey: "proofRegistry",
   },
   {
     type: "MILESTONE_SETTLED",
@@ -125,9 +330,12 @@ const CHAIN_EVENT_DEFINITIONS = Object.freeze([
   ...definition,
   topic0: keccak256(toBytes(definition.signature)).toLowerCase(),
 })));
-const CHAIN_EVENT_BY_TOPIC = new Map(
-  CHAIN_EVENT_DEFINITIONS.map((definition) => [definition.topic0, definition]),
-);
+const CHAIN_EVENT_BY_TOPIC = new Map();
+for (const definition of CHAIN_EVENT_DEFINITIONS) {
+  const existing = CHAIN_EVENT_BY_TOPIC.get(definition.topic0) ?? [];
+  existing.push(definition);
+  CHAIN_EVENT_BY_TOPIC.set(definition.topic0, existing);
+}
 
 const RESOLVE_ABI = {
   type: "function",
@@ -142,6 +350,77 @@ const RESOLVE_ABI = {
   ],
   outputs: [],
 };
+const DELIVER_ABI = {
+  type: "function",
+  name: "deliver",
+  stateMutability: "nonpayable",
+  inputs: [
+    { name: "jobId", type: "bytes32" },
+    { name: "milestoneIndex", type: "uint32" },
+    { name: "deliveryHash", type: "bytes32" },
+  ],
+  outputs: [],
+};
+const FINALIZE_ABI = {
+  type: "function",
+  name: "finalize",
+  stateMutability: "nonpayable",
+  inputs: [{ name: "proposalId", type: "uint256" }],
+  outputs: [],
+};
+const PROOF_REGISTRY_READ_ABI = [
+  {
+    type: "function",
+    name: "rounds",
+    stateMutability: "view",
+    inputs: [{ name: "roundId", type: "bytes32" }],
+    outputs: [
+      { name: "commitDeadline", type: "uint64" },
+      { name: "revealDeadline", type: "uint64" },
+      { name: "committed", type: "uint16" },
+      { name: "revealed", type: "uint16" },
+      { name: "representedGroups", type: "uint16" },
+      { name: "minimumGroups", type: "uint16" },
+      { name: "validatorRoot", type: "bytes32" },
+      { name: "excludedGroup", type: "bytes32" },
+      { name: "opened", type: "bool" },
+    ],
+  },
+  {
+    type: "function",
+    name: "medianScore",
+    stateMutability: "view",
+    inputs: [{ name: "roundId", type: "bytes32" }],
+    outputs: [{ name: "scoreBps", type: "uint16" }],
+  },
+];
+const SYSTEM_ISSUE_GATE_READ_ABI = [
+  {
+    type: "function",
+    name: "usage",
+    stateMutability: "view",
+    inputs: [{ name: "issueId", type: "bytes32" }],
+    outputs: [
+      { name: "termsHash", type: "bytes32" },
+      { name: "committedBudget", type: "uint128" },
+      { name: "candidates", type: "uint16" },
+    ],
+  },
+  {
+    type: "function",
+    name: "transitionApprovedIssueHash",
+    stateMutability: "view",
+    inputs: [{ name: "issueHash", type: "bytes32" }],
+    outputs: [{ name: "approved", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "approvedIssueHash",
+    stateMutability: "view",
+    inputs: [{ name: "issueHash", type: "bytes32" }],
+    outputs: [{ name: "approved", type: "bool" }],
+  },
+];
 const TASK_MARKET_READ_ABI = [
   {
     type: "function",
@@ -271,7 +550,7 @@ export function newExposureLedger() {
   };
 }
 
-function appendExposureJournal(ledger, action, slot) {
+function appendExposureJournal(ledger, action, slot, chainAnchor = null) {
   const previousEntryHash =
     ledger.journal.at(-1)?.entryHash ?? `0x${"00".repeat(32)}`;
   const body = {
@@ -284,6 +563,7 @@ function appendExposureJournal(ledger, action, slot) {
     jobId: slot.jobId,
     milestone: slot.milestone,
     terminalOutcome: slot.terminalOutcome,
+    chainAnchor,
   };
   ledger.journal.push({ ...body, entryHash: sha256Json(body) });
 }
@@ -325,6 +605,7 @@ export function reserveExposureSlot(
     maturityAuthorization = null,
     maturityAuthorizationPolicy = null,
     evaluationTimeMs = Date.now(),
+    chainAnchor = null,
   } = {},
 ) {
   const slotId = exposureSlotId(descriptor);
@@ -359,7 +640,7 @@ export function reserveExposureSlot(
     milestone: null,
     terminalOutcome: null,
   };
-  appendExposureJournal(ledger, "RESERVE", ledger.slots[slotId]);
+  appendExposureJournal(ledger, "RESERVE", ledger.slots[slotId], chainAnchor);
   return slotId;
 }
 
@@ -373,6 +654,7 @@ export function transitionExposureSlot(
     issueExpired = false,
     descendantFinalized = false,
     terminalOutcome = null,
+    chainAnchor = null,
   } = {},
 ) {
   const slot = ledger.slots[slotId];
@@ -409,7 +691,7 @@ export function transitionExposureSlot(
   if (jobId) slot.jobId = jobId;
   if (milestone !== null) slot.milestone = milestone;
   if (terminalOutcome) slot.terminalOutcome = terminalOutcome;
-  appendExposureJournal(ledger, "TRANSITION", slot);
+  appendExposureJournal(ledger, "TRANSITION", slot, chainAnchor);
   return slot;
 }
 
@@ -512,6 +794,8 @@ export function createMaturityAuthorization({
   sourceCommit,
   deploymentManifestSha256,
   authorizedExposureSlotId,
+  admissionBundleHash,
+  precommitCheckpointHash,
   providerSnapshots,
 }) {
   const body = {
@@ -523,6 +807,8 @@ export function createMaturityAuthorization({
     sourceCommit,
     deploymentManifestSha256,
     authorizedExposureSlotId,
+    admissionBundleHash,
+    precommitCheckpointHash,
     providerSnapshots,
   };
   return { ...body, authorizationId: sha256Json(body), signatures: [] };
@@ -582,6 +868,8 @@ export function validateMaturityAuthorization(
       authorization.deploymentManifestSha256 ?? "",
     ) ||
     !HASH_PATTERN.test(authorization.authorizedExposureSlotId ?? "") ||
+    !HASH_PATTERN.test(authorization.admissionBundleHash ?? "") ||
+    !HASH_PATTERN.test(authorization.precommitCheckpointHash ?? "") ||
     authorization.authorizationId !== sha256Json(body) ||
     (expectedSourceCommit !== null &&
       authorization.sourceCommit !== expectedSourceCommit) ||
@@ -748,6 +1036,11 @@ export function validateMaturityAuthorization(
     finalizedBlockNumber: firstProvider.finalizedBlockNumber,
     finalizedBlockHash: firstProvider.finalizedBlockHash.toLowerCase(),
     snapshotRoot,
+    admissionBundleHash: authorization.admissionBundleHash,
+    precommitCheckpointHash: authorization.precommitCheckpointHash,
+    requiredJobPlanHash: maturityAuthorizationPlanHash(
+      authorization.authorizationId,
+    ),
   };
 }
 
@@ -1163,6 +1456,8 @@ function encodeRawEvent({
   blockNumber,
   logIndex,
   address,
+  transactionTo = address,
+  blockTimestampMs = blockNumber * 1_000,
   transactionInput = "0x",
 }) {
   const nonIndexed = abi.inputs.filter((input) => input.indexed !== true);
@@ -1172,6 +1467,8 @@ function encodeRawEvent({
     blockNumber,
     logIndex,
     address: address.toLowerCase(),
+    transactionTo: transactionTo.toLowerCase(),
+    blockTimestampMs,
     receiptStatus: "success",
     transactionInput: transactionInput.toLowerCase(),
     topics: encodeEventTopics({ abi: [abi], eventName, args }).map((topic) =>
@@ -1193,6 +1490,30 @@ export function systemSettlementReceiptId(jobId, milestone) {
   ).toLowerCase();
 }
 
+export function admissionBundlePlanHash(bundleHash) {
+  if (!HASH_PATTERN.test(bundleHash ?? "")) {
+    throw new Error("V44_ADMISSION_BUNDLE_HASH_INVALID");
+  }
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "string" }, { type: "bytes32" }],
+      ["AGENTPOOL_V44_ADMISSION_BUNDLE", bundleHash],
+    ),
+  ).toLowerCase();
+}
+
+export function maturityAuthorizationPlanHash(authorizationId) {
+  if (!HASH_PATTERN.test(authorizationId ?? "")) {
+    throw new Error("V44_MATURITY_AUTHORIZATION_HASH_INVALID");
+  }
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "string" }, { type: "bytes32" }],
+      ["AGENTPOOL_V44_MATURITY_AUTHORIZATION", authorizationId],
+    ),
+  ).toLowerCase();
+}
+
 export function encodeV44SettlementLifecycleRawLogs({
   transactionHash,
   jobTransactionHash = `0x${"91".repeat(32)}`,
@@ -1202,12 +1523,19 @@ export function encodeV44SettlementLifecycleRawLogs({
   taskMarket,
   contributionLedger,
   settlementRouter,
+  proofRegistry = `0x${"14".repeat(20)}`,
+  systemIssueGate = `0x${"15".repeat(20)}`,
+  transitionIssueConsensus = `0x${"16".repeat(20)}`,
   issueHash,
+  issueTermsHash = `0x${"18".repeat(32)}`,
   jobId,
   milestone,
   roundId,
   artifactDigest,
   specificationHash,
+  admissionBundleHash = `0x${"19".repeat(32)}`,
+  settlementBundleHash = `0x${"1a".repeat(32)}`,
+  validatorScoreBps = 9_000,
   worker = `0x${"44".repeat(20)}`,
   keeper = `0x${"55".repeat(20)}`,
   creator = `0x${"66".repeat(20)}`,
@@ -1218,12 +1546,141 @@ export function encodeV44SettlementLifecycleRawLogs({
   governanceEligible = true,
 }) {
   const receiptId = systemSettlementReceiptId(jobId, milestone);
+  const planHash = admissionBundlePlanHash(admissionBundleHash);
   const resolveInput = encodeFunctionData({
     abi: [RESOLVE_ABI],
     functionName: "resolve",
     args: [jobId, milestone, "0x1234", [worker], [paid]],
   });
+  const deliverInput = encodeFunctionData({
+    abi: [DELIVER_ABI],
+    functionName: "deliver",
+    args: [jobId, milestone, artifactDigest],
+  });
+  const finalizeInput = encodeFunctionData({
+    abi: [FINALIZE_ABI],
+    functionName: "finalize",
+    args: [1n],
+  });
+  const proposalTransactionHash = `0x${"81".repeat(32)}`;
+  const commitTransactionHashes = [
+    `0x${"82".repeat(32)}`,
+    `0x${"83".repeat(32)}`,
+  ];
+  const revealTransactionHashes = [
+    `0x${"84".repeat(32)}`,
+    `0x${"85".repeat(32)}`,
+  ];
+  const approvalTransactionHash = `0x${"86".repeat(32)}`;
+  const evaluationCommitHashes = [
+    `0x${"93".repeat(32)}`,
+    `0x${"94".repeat(32)}`,
+    `0x${"95".repeat(32)}`,
+  ];
+  const evaluationRevealHashes = [
+    `0x${"96".repeat(32)}`,
+    `0x${"97".repeat(32)}`,
+    `0x${"98".repeat(32)}`,
+  ];
+  const transitionVoters = [
+    `0x${"21".repeat(20)}`,
+    `0x${"22".repeat(20)}`,
+  ];
+  const validators = [
+    `0x${"31".repeat(20)}`,
+    `0x${"32".repeat(20)}`,
+    `0x${"33".repeat(20)}`,
+  ];
   const rawEvents = [
+    encodeRawEvent({
+      abi: TRANSITION_ISSUE_PROPOSED_EVENT,
+      eventName: "IssueProposed",
+      args: {
+        proposalId: 1n,
+        issueHash: issueTermsHash,
+        proposer: creator,
+        needEvidenceHash: admissionBundleHash,
+      },
+      transactionHash: proposalTransactionHash,
+      blockHash,
+      blockNumber: blockNumber - 9,
+      logIndex: 0,
+      address: transitionIssueConsensus,
+      transactionTo: transitionIssueConsensus,
+    }),
+    ...transitionVoters.map((voter, index) =>
+      encodeRawEvent({
+        abi: TRANSITION_VOTE_COMMITTED_EVENT,
+        eventName: "VoteCommitted",
+        args: { proposalId: 1n, voter, weight: 1n },
+        transactionHash: commitTransactionHashes[index],
+        blockHash,
+        blockNumber: blockNumber - 8 + index,
+        logIndex: 0,
+        address: transitionIssueConsensus,
+        transactionTo: transitionIssueConsensus,
+      }),
+    ),
+    ...transitionVoters.map((voter, index) =>
+      encodeRawEvent({
+        abi: TRANSITION_VOTE_REVEALED_EVENT,
+        eventName: "VoteRevealed",
+        args: {
+          proposalId: 1n,
+          voter,
+          support: true,
+          evidenceHash: admissionBundleHash,
+          weight: 1n,
+        },
+        transactionHash: revealTransactionHashes[index],
+        blockHash,
+        blockNumber: blockNumber - 6 + index,
+        logIndex: 0,
+        address: transitionIssueConsensus,
+        transactionTo: transitionIssueConsensus,
+      }),
+    ),
+    encodeRawEvent({
+      abi: ISSUE_APPROVED_EVENT("TransitionIssueApproved"),
+      eventName: "TransitionIssueApproved",
+      args: { issueHash: issueTermsHash },
+      transactionHash: approvalTransactionHash,
+      blockHash,
+      blockNumber: blockNumber - 4,
+      logIndex: 0,
+      address: systemIssueGate,
+      transactionTo: transitionIssueConsensus,
+      transactionInput: finalizeInput,
+    }),
+    encodeRawEvent({
+      abi: PROPOSAL_CLOSED_EVENT,
+      eventName: "ProposalClosed",
+      args: { proposalId: 1n, state: 3 },
+      transactionHash: approvalTransactionHash,
+      blockHash,
+      blockNumber: blockNumber - 4,
+      logIndex: 1,
+      address: transitionIssueConsensus,
+      transactionTo: transitionIssueConsensus,
+      transactionInput: finalizeInput,
+    }),
+    encodeRawEvent({
+      abi: ISSUE_CONSUMED_EVENT,
+      eventName: "IssueConsumed",
+      args: {
+        issueId: issueHash,
+        operatorGroup: `0x${"2a".repeat(32)}`,
+        proposer: creator,
+        budget: paid,
+        candidates: 1n,
+      },
+      transactionHash: jobTransactionHash,
+      blockHash,
+      blockNumber: blockNumber - 3,
+      logIndex: 0,
+      address: systemIssueGate,
+      transactionTo: taskMarket,
+    }),
     encodeRawEvent({
       abi: JOB_CREATED_EVENT,
       eventName: "JobCreated",
@@ -1233,14 +1690,33 @@ export function encodeV44SettlementLifecycleRawLogs({
         funding,
         budget: paid,
         releaseId: `0x${"88".repeat(32)}`,
-        planHash: `0x${"89".repeat(32)}`,
+        planHash,
         issueId: issueHash,
       },
       transactionHash: jobTransactionHash,
       blockHash,
+      blockNumber: blockNumber - 3,
+      logIndex: 1,
+      address: taskMarket,
+      transactionTo: taskMarket,
+    }),
+    encodeRawEvent({
+      abi: ROUND_OPENED_EVENT,
+      eventName: "RoundOpened",
+      args: {
+        roundId,
+        commitDeadline: 100,
+        revealDeadline: 200,
+        validatorRoot: `0x${"2b".repeat(32)}`,
+        minimumGroups: 3,
+      },
+      transactionHash: deliveryTransactionHash,
+      blockHash,
       blockNumber: blockNumber - 2,
       logIndex: 0,
-      address: taskMarket,
+      address: proofRegistry,
+      transactionTo: taskMarket,
+      transactionInput: deliverInput,
     }),
     encodeRawEvent({
       abi: MILESTONE_DELIVERED_EVENT,
@@ -1248,10 +1724,47 @@ export function encodeV44SettlementLifecycleRawLogs({
       args: { jobId, milestone, deliveryHash: artifactDigest, proofRoundId: roundId },
       transactionHash: deliveryTransactionHash,
       blockHash,
-      blockNumber: blockNumber - 1,
-      logIndex: 0,
+      blockNumber: blockNumber - 2,
+      logIndex: 1,
       address: taskMarket,
+      transactionTo: taskMarket,
+      transactionInput: deliverInput,
     }),
+    ...validators.map((validator, index) =>
+      encodeRawEvent({
+        abi: EVALUATION_COMMITTED_EVENT,
+        eventName: "EvaluationCommitted",
+        args: {
+          roundId,
+          validator,
+          operatorGroup: `0x${(index + 1).toString(16).padStart(64, "0")}`,
+        },
+        transactionHash: evaluationCommitHashes[index],
+        blockHash,
+        blockNumber: blockNumber - 1,
+        logIndex: index,
+        address: proofRegistry,
+        transactionTo: proofRegistry,
+      }),
+    ),
+    ...validators.map((validator, index) =>
+      encodeRawEvent({
+        abi: EVALUATION_REVEALED_EVENT,
+        eventName: "EvaluationRevealed",
+        args: {
+          roundId,
+          validator,
+          scoreBps: validatorScoreBps,
+          evidenceHash: settlementBundleHash,
+        },
+        transactionHash: evaluationRevealHashes[index],
+        blockHash,
+        blockNumber: blockNumber - 1,
+        logIndex: validators.length + index,
+        address: proofRegistry,
+        transactionTo: proofRegistry,
+      }),
+    ),
     encodeRawEvent({
       abi: OUTCOME_RECORDED_EVENT,
       eventName: "OutcomeRecorded",
@@ -1267,6 +1780,7 @@ export function encodeV44SettlementLifecycleRawLogs({
       blockNumber,
       logIndex: 0,
       address: contributionLedger,
+      transactionTo: taskMarket,
       transactionInput: resolveInput,
     }),
     encodeRawEvent({
@@ -1278,6 +1792,7 @@ export function encodeV44SettlementLifecycleRawLogs({
       blockNumber,
       logIndex: 1,
       address: taskMarket,
+      transactionTo: taskMarket,
       transactionInput: resolveInput,
     }),
   ];
@@ -1290,7 +1805,7 @@ export function encodeV44SettlementLifecycleRawLogs({
         creator: creator.toLowerCase(),
         funding,
         state: 4,
-        planHash: `0x${"89".repeat(32)}`,
+        planHash,
         releaseId: `0x${"88".repeat(32)}`,
         issueId: issueHash.toLowerCase(),
         budget: paid.toString(),
@@ -1321,13 +1836,40 @@ export function encodeV44SettlementLifecycleRawLogs({
         adoptionRecorded: false,
       },
       governanceEligible,
+      issueGateState: {
+        termsHash: issueTermsHash.toLowerCase(),
+        committedBudget: "0",
+        candidates: 0,
+        transitionApproved: true,
+        matureApproved: false,
+      },
+      proofRoundState: {
+        commitDeadline: "100",
+        revealDeadline: "200",
+        committed: validators.length,
+        revealed: validators.length,
+        representedGroups: validators.length,
+        minimumGroups: 3,
+        validatorRoot: `0x${"2b".repeat(32)}`,
+        excludedGroup: `0x${"2c".repeat(32)}`,
+        opened: true,
+        medianScore: validatorScoreBps,
+      },
     },
   ];
-  return { rawEvents, stateReads, receiptId };
+  return { rawEvents, stateReads, receiptId, planHash };
 }
 
 function normalizedContractPolicy(contracts) {
-  const required = ["taskMarket", "contributionLedger", "settlementRouter"];
+  const required = [
+    "taskMarket",
+    "contributionLedger",
+    "settlementRouter",
+    "proofRegistry",
+    "systemIssueGate",
+    "transitionIssueConsensus",
+    "issueConsensus",
+  ];
   const normalized = {};
   for (const key of required) {
     const value = contracts?.[key]?.toLowerCase?.();
@@ -1349,6 +1891,9 @@ function decodeActualGovernanceRawLog(rawEvent, contracts) {
     rawEvent.logIndex < 0 ||
     !ADDRESS_PATTERN.test(rawEvent?.address?.toLowerCase?.() ?? "") ||
     rawEvent.receiptStatus !== "success" ||
+    !ADDRESS_PATTERN.test(rawEvent?.transactionTo?.toLowerCase?.() ?? "") ||
+    !Number.isSafeInteger(rawEvent?.blockTimestampMs) ||
+    rawEvent.blockTimestampMs < 0 ||
     typeof rawEvent.transactionInput !== "string" ||
     !/^0x[0-9a-f]*$/u.test(rawEvent.transactionInput.toLowerCase()) ||
     !Array.isArray(rawEvent.topics) ||
@@ -1359,9 +1904,15 @@ function decodeActualGovernanceRawLog(rawEvent, contracts) {
   ) {
     throw new Error("V44_GOVERNANCE_RAW_LOG_INVALID");
   }
-  const definition = CHAIN_EVENT_BY_TOPIC.get(rawEvent.topics[0].toLowerCase());
-  if (!definition) throw new Error("V44_GOVERNANCE_EVENT_UNSUPPORTED");
-  if (rawEvent.address.toLowerCase() !== contracts[definition.contractKey]) {
+  const candidates = CHAIN_EVENT_BY_TOPIC.get(
+    rawEvent.topics[0].toLowerCase(),
+  );
+  if (!candidates) throw new Error("V44_GOVERNANCE_EVENT_UNSUPPORTED");
+  const definition = candidates.find(
+    (candidate) =>
+      rawEvent.address.toLowerCase() === contracts[candidate.contractKey],
+  );
+  if (!definition) {
     throw new Error("V44_GOVERNANCE_EVENT_EMITTER_UNAUTHORIZED");
   }
   let decoded;
@@ -1384,6 +1935,8 @@ function decodeActualGovernanceRawLog(rawEvent, contracts) {
     blockNumber: rawEvent.blockNumber,
     logIndex: rawEvent.logIndex,
     emitter: rawEvent.address.toLowerCase(),
+    transactionTo: rawEvent.transactionTo?.toLowerCase?.() ?? null,
+    blockTimestampMs: rawEvent.blockTimestampMs,
     transactionInputHash: sha256Json({
       transactionInput: rawEvent.transactionInput.toLowerCase(),
     }),
@@ -1391,6 +1944,19 @@ function decodeActualGovernanceRawLog(rawEvent, contracts) {
     finalized: true,
     canonical: true,
   };
+  const expectedTransactionTarget =
+    definition.type === "TRANSITION_ISSUE_APPROVED"
+      ? contracts.transitionIssueConsensus
+      : definition.type === "MATURE_ISSUE_APPROVED"
+        ? contracts.issueConsensus
+        : ["ISSUE_CONSUMED", "ROUND_OPENED", "OUTCOME_RECORDED"].includes(
+              definition.type,
+            )
+          ? contracts.taskMarket
+          : contracts[definition.contractKey];
+  if (event.transactionTo !== expectedTransactionTarget) {
+    throw new Error("V44_GOVERNANCE_TRANSACTION_TARGET_INVALID");
+  }
   if (definition.type === "OUTCOME_RECORDED") {
     if (event.args.source.toLowerCase() !== contracts.settlementRouter) {
       throw new Error("V44_GOVERNANCE_OUTCOME_SOURCE_UNAUTHORIZED");
@@ -1408,6 +1974,37 @@ function decodeActualGovernanceRawLog(rawEvent, contracts) {
         Number(call.args[1]) === Number(event.args.milestone);
     } catch {
       event.resolveInputValid = false;
+    }
+  }
+  if (definition.type === "MILESTONE_DELIVERED") {
+    try {
+      const call = decodeFunctionData({
+        abi: [DELIVER_ABI],
+        data: rawEvent.transactionInput,
+      });
+      event.deliverInputValid =
+        call.functionName === "deliver" &&
+        call.args[0].toLowerCase() === event.args.jobId.toLowerCase() &&
+        Number(call.args[1]) === Number(event.args.milestone) &&
+        call.args[2].toLowerCase() === event.args.deliveryHash.toLowerCase();
+    } catch {
+      event.deliverInputValid = false;
+    }
+  }
+  if (
+    definition.type === "TRANSITION_PROPOSAL_CLOSED" ||
+    definition.type === "MATURE_PROPOSAL_CLOSED"
+  ) {
+    try {
+      const call = decodeFunctionData({
+        abi: [FINALIZE_ABI],
+        data: rawEvent.transactionInput,
+      });
+      event.finalizeInputValid =
+        call.functionName === "finalize" &&
+        BigInt(call.args[0]) === BigInt(event.args.proposalId);
+    } catch {
+      event.finalizeInputValid = false;
     }
   }
   return event;
@@ -1486,16 +2083,37 @@ export async function collectGovernanceEventSnapshot({
     "eth_getLogs",
     [
       {
-        address: [contractPolicy.taskMarket, contractPolicy.contributionLedger],
+        address: [
+          contractPolicy.taskMarket,
+          contractPolicy.contributionLedger,
+          contractPolicy.proofRegistry,
+          contractPolicy.systemIssueGate,
+          contractPolicy.transitionIssueConsensus,
+          contractPolicy.issueConsensus,
+        ],
         fromBlock: rpcQuantity(fromBlock),
         toBlock: rpcQuantity(resolvedFinalizedBlockNumber),
-        topics: [CHAIN_EVENT_DEFINITIONS.map((definition) => definition.topic0)],
+        topics: [
+          [...new Set(CHAIN_EVENT_DEFINITIONS.map((definition) => definition.topic0))],
+        ],
       },
     ],
     fetcher,
   );
   const rawEvents = [];
+  const blockCache = new Map();
   for (const log of logs) {
+    const logBlockNumber = Number(BigInt(log.blockNumber));
+    let block = blockCache.get(logBlockNumber);
+    if (!block) {
+      block = await rpcRequest(
+        rpcUrl,
+        "eth_getBlockByNumber",
+        [rpcQuantity(logBlockNumber), false],
+        fetcher,
+      );
+      blockCache.set(logBlockNumber, block);
+    }
     const [receipt, transaction] = await Promise.all([
       rpcRequest(
         rpcUrl,
@@ -1513,10 +2131,12 @@ export async function collectGovernanceEventSnapshot({
     rawEvents.push({
       transactionHash: log.transactionHash?.toLowerCase(),
       blockHash: log.blockHash?.toLowerCase(),
-      blockNumber: Number(BigInt(log.blockNumber)),
+      blockNumber: logBlockNumber,
       logIndex: Number(BigInt(log.logIndex)),
       address: log.address?.toLowerCase(),
       receiptStatus: receipt?.status === "0x1" ? "success" : "reverted",
+      transactionTo: transaction?.to?.toLowerCase() ?? null,
+      blockTimestampMs: Number(BigInt(block.timestamp)) * 1_000,
       transactionInput: transaction?.input?.toLowerCase() ?? null,
       topics: (log.topics ?? []).map((topic) => topic.toLowerCase()),
       data: log.data?.toLowerCase(),
@@ -1529,15 +2149,15 @@ export async function collectGovernanceEventSnapshot({
   for (const event of decodedSettlements) {
     const jobId = event.args.jobId.toLowerCase();
     const milestone = Number(event.args.milestone);
-    const call = async (functionName, args) =>
+    const call = async (to, abi, functionName, args) =>
       rpcRequest(
         rpcUrl,
         "eth_call",
         [
           {
-            to: contractPolicy.taskMarket,
+            to,
             data: encodeFunctionData({
-              abi: TASK_MARKET_READ_ABI,
+              abi,
               functionName,
               args,
             }),
@@ -1546,11 +2166,18 @@ export async function collectGovernanceEventSnapshot({
         ],
         fetcher,
       );
+    const taskCall = (functionName, args) =>
+      call(
+        contractPolicy.taskMarket,
+        TASK_MARKET_READ_ABI,
+        functionName,
+        args,
+      );
     const [jobResult, milestoneResult, governanceEligibleResult] =
       await Promise.all([
-        call("jobs", [jobId]),
-        call("milestones", [jobId, milestone]),
-        call("jobGovernanceEligible", [jobId]),
+        taskCall("jobs", [jobId]),
+        taskCall("milestones", [jobId, milestone]),
+        taskCall("jobGovernanceEligible", [jobId]),
       ]);
     const jobOutputs = TASK_MARKET_READ_ABI.find(
       (entry) => entry.name === "jobs",
@@ -1560,23 +2187,104 @@ export async function collectGovernanceEventSnapshot({
     ).outputs;
     const jobValues = decodeAbiParameters(jobOutputs, jobResult);
     const milestoneValues = decodeAbiParameters(milestoneOutputs, milestoneResult);
+    const job = Object.fromEntries(
+      jobOutputs.map((output, index) => [output.name, jsonSafe(jobValues[index])]),
+    );
+    const milestoneState = Object.fromEntries(
+      milestoneOutputs.map((output, index) => [
+        output.name,
+        jsonSafe(milestoneValues[index]),
+      ]),
+    );
+    const delivered = rawEvents
+      .map((rawEvent) => decodeActualGovernanceRawLog(rawEvent, contractPolicy))
+      .find(
+        (candidate) =>
+          candidate.type === "MILESTONE_DELIVERED" &&
+          candidate.args.jobId.toLowerCase() === jobId &&
+          Number(candidate.args.milestone) === milestone,
+      );
+    const proofRoundId = delivered?.args?.proofRoundId?.toLowerCase() ?? ZERO_HASH;
+    const gateOutputs = SYSTEM_ISSUE_GATE_READ_ABI.find(
+      (entry) => entry.name === "usage",
+    ).outputs;
+    const roundOutputs = PROOF_REGISTRY_READ_ABI.find(
+      (entry) => entry.name === "rounds",
+    ).outputs;
+    const [usageResult, roundResult, medianScoreResult] = await Promise.all([
+      call(
+        contractPolicy.systemIssueGate,
+        SYSTEM_ISSUE_GATE_READ_ABI,
+        "usage",
+        [job.issueId],
+      ),
+      call(
+        contractPolicy.proofRegistry,
+        PROOF_REGISTRY_READ_ABI,
+        "rounds",
+        [proofRoundId],
+      ),
+      call(
+        contractPolicy.proofRegistry,
+        PROOF_REGISTRY_READ_ABI,
+        "medianScore",
+        [proofRoundId],
+      ),
+    ]);
+    const usageValues = decodeAbiParameters(gateOutputs, usageResult);
+    const issueTermsHash = usageValues[0].toLowerCase();
+    const [transitionApprovedResult, matureApprovedResult] = await Promise.all([
+      call(
+        contractPolicy.systemIssueGate,
+        SYSTEM_ISSUE_GATE_READ_ABI,
+        "transitionApprovedIssueHash",
+        [issueTermsHash],
+      ),
+      call(
+        contractPolicy.systemIssueGate,
+        SYSTEM_ISSUE_GATE_READ_ABI,
+        "approvedIssueHash",
+        [issueTermsHash],
+      ),
+    ]);
+    const roundValues = decodeAbiParameters(roundOutputs, roundResult);
     stateReads.push({
       jobId,
       milestone,
       finalizedBlockNumber: resolvedFinalizedBlockNumber,
-      job: Object.fromEntries(
-        jobOutputs.map((output, index) => [output.name, jsonSafe(jobValues[index])]),
-      ),
-      milestoneState: Object.fromEntries(
-        milestoneOutputs.map((output, index) => [
-          output.name,
-          jsonSafe(milestoneValues[index]),
-        ]),
-      ),
+      job,
+      milestoneState,
       governanceEligible: decodeAbiParameters(
         [{ type: "bool" }],
         governanceEligibleResult,
       )[0],
+      issueGateState: {
+        ...Object.fromEntries(
+          gateOutputs.map((output, index) => [
+            output.name,
+            jsonSafe(usageValues[index]),
+          ]),
+        ),
+        transitionApproved: decodeAbiParameters(
+          [{ type: "bool" }],
+          transitionApprovedResult,
+        )[0],
+        matureApproved: decodeAbiParameters(
+          [{ type: "bool" }],
+          matureApprovedResult,
+        )[0],
+      },
+      proofRoundState: {
+        ...Object.fromEntries(
+          roundOutputs.map((output, index) => [
+            output.name,
+            jsonSafe(roundValues[index]),
+          ]),
+        ),
+        medianScore: Number(
+          decodeAbiParameters([{ type: "uint16" }], medianScoreResult)[0],
+        ),
+      },
     });
   }
   const origin = new URL(rpcUrl).origin;
@@ -1607,6 +2315,116 @@ function lifecycleKey(jobId, milestone) {
   return `${jobId.toLowerCase()}:${Number(milestone)}`;
 }
 
+function orderedBefore(left, right) {
+  return (
+    left.blockNumber < right.blockNumber ||
+    (left.blockNumber === right.blockNumber && left.logIndex < right.logIndex)
+  );
+}
+
+function groupedBy(values, keyOf) {
+  const groups = new Map();
+  for (const value of values) {
+    const key = keyOf(value);
+    const current = groups.get(key) ?? [];
+    current.push(value);
+    groups.set(key, current);
+  }
+  return groups;
+}
+
+function proposalKey(value) {
+  return String(value.args.proposalId);
+}
+
+function roundKey(value) {
+  return value.args.roundId.toLowerCase();
+}
+
+function approvalEvidence(decodedEvents, issueTermsHash) {
+  const transitionProposal = decodedEvents.find(
+    (event) =>
+      event.type === "TRANSITION_ISSUE_PROPOSED" &&
+      event.args.issueHash.toLowerCase() === issueTermsHash,
+  );
+  const matureProposal = decodedEvents.find(
+    (event) =>
+      event.type === "MATURE_ISSUE_PROPOSED" &&
+      event.args.issueHash.toLowerCase() === issueTermsHash,
+  );
+  const proposal = transitionProposal ?? matureProposal;
+  if (!proposal || (transitionProposal && matureProposal)) return null;
+  const transition = proposal.type === "TRANSITION_ISSUE_PROPOSED";
+  const prefix = transition ? "TRANSITION" : "MATURE";
+  const proposalId = proposalKey(proposal);
+  const commits = decodedEvents.filter(
+    (event) =>
+      event.type === `${prefix}_VOTE_COMMITTED` &&
+      proposalKey(event) === proposalId,
+  );
+  const reveals = decodedEvents.filter(
+    (event) =>
+      event.type === `${prefix}_VOTE_REVEALED` &&
+      proposalKey(event) === proposalId,
+  );
+  const closed = decodedEvents.find(
+    (event) =>
+      event.type === `${prefix}_PROPOSAL_CLOSED` &&
+      proposalKey(event) === proposalId,
+  );
+  const approved = decodedEvents.find(
+    (event) =>
+      event.type ===
+        (transition
+          ? "TRANSITION_ISSUE_APPROVED"
+          : "MATURE_ISSUE_APPROVED") &&
+      event.args.issueHash.toLowerCase() === issueTermsHash,
+  );
+  const committedVoters = new Set(
+    commits.map((event) => event.args.voter.toLowerCase()),
+  );
+  const revealedVoters = new Set(
+    reveals.map((event) => event.args.voter.toLowerCase()),
+  );
+  const minimumVoters = transition ? 2 : 5;
+  const valid =
+    commits.length >= minimumVoters &&
+    reveals.length >= minimumVoters &&
+    committedVoters.size === commits.length &&
+    revealedVoters.size === reveals.length &&
+    [...revealedVoters].every((voter) => committedVoters.has(voter)) &&
+    reveals.every(
+      (event) => event.args.support === true && BigInt(event.args.weight) > 0n,
+    ) &&
+    closed?.args?.state === 3 &&
+    closed?.finalizeInputValid === true &&
+    approved?.transactionHash === closed?.transactionHash &&
+    approved?.blockHash === closed?.blockHash &&
+    orderedBefore(proposal, approved) &&
+    commits.every((event) => orderedBefore(proposal, event)) &&
+    reveals.every((event) => orderedBefore(event, approved));
+  return {
+    valid,
+    mode: transition ? "TRANSITION" : "MATURE",
+    proposalEventId: proposal.eventId,
+    proposalBlockNumber: proposal.blockNumber,
+    proposalNeedEvidenceHash:
+      proposal.args.needEvidenceHash?.toLowerCase?.() ?? null,
+    commitEventIds: commits.map((event) => event.eventId).sort(),
+    revealEventIds: reveals.map((event) => event.eventId).sort(),
+    revealEvidenceHashes: reveals
+      .map((event) => event.args.evidenceHash?.toLowerCase?.() ?? null)
+      .filter(Boolean),
+    approvalEventId: approved?.eventId ?? null,
+    approvalBlockNumber: approved?.blockNumber ?? null,
+    approvalBlockHash: approved?.blockHash ?? null,
+    approvalBlockTimestampMs: approved?.blockTimestampMs ?? null,
+    approvalTransactionHash: approved?.transactionHash ?? null,
+    approvalLogIndex: approved?.logIndex ?? null,
+    closeEventId: closed?.eventId ?? null,
+  };
+}
+
 function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
   const jobs = uniqueMap(
     decodedEvents.filter((event) => event.type === "JOB_CREATED"),
@@ -1617,6 +2435,24 @@ function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
     decodedEvents.filter((event) => event.type === "MILESTONE_DELIVERED"),
     (event) => lifecycleKey(event.args.jobId, event.args.milestone),
     "V44_GOVERNANCE_DELIVERY_DUPLICATE",
+  );
+  const issueConsumptions = uniqueMap(
+    decodedEvents.filter((event) => event.type === "ISSUE_CONSUMED"),
+    (event) => event.args.issueId.toLowerCase(),
+    "V44_GOVERNANCE_ISSUE_CONSUMED_DUPLICATE",
+  );
+  const roundOpenings = uniqueMap(
+    decodedEvents.filter((event) => event.type === "ROUND_OPENED"),
+    roundKey,
+    "V44_GOVERNANCE_ROUND_OPENED_DUPLICATE",
+  );
+  const evaluationCommits = groupedBy(
+    decodedEvents.filter((event) => event.type === "EVALUATION_COMMITTED"),
+    roundKey,
+  );
+  const evaluationReveals = groupedBy(
+    decodedEvents.filter((event) => event.type === "EVALUATION_REVEALED"),
+    roundKey,
   );
   const outcomes = uniqueMap(
     decodedEvents.filter((event) => event.type === "OUTCOME_RECORDED"),
@@ -1642,15 +2478,73 @@ function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
     const delivered = deliveries.get(key);
     const receiptId = systemSettlementReceiptId(jobId, milestone);
     const outcome = outcomes.get(receiptId);
+    const issueId = state?.job?.issueId?.toLowerCase() ?? ZERO_HASH;
+    const issueConsumed = issueConsumptions.get(issueId);
+    const issueTermsHash =
+      state?.issueGateState?.termsHash?.toLowerCase?.() ?? ZERO_HASH;
+    const approval = approvalEvidence(decodedEvents, issueTermsHash);
+    const roundId = delivered?.args?.proofRoundId?.toLowerCase() ?? ZERO_HASH;
+    const roundOpened = roundOpenings.get(roundId);
+    const commits = evaluationCommits.get(roundId) ?? [];
+    const reveals = evaluationReveals.get(roundId) ?? [];
+    const committedValidators = new Set(
+      commits.map((event) => event.args.validator.toLowerCase()),
+    );
+    const revealedValidators = new Set(
+      reveals.map((event) => event.args.validator.toLowerCase()),
+    );
+    const representedGroups = new Set(
+      commits.map((event) => event.args.operatorGroup.toLowerCase()),
+    );
+    const proofRoundState = state?.proofRoundState;
+    const minimumReveals = Number(state?.milestoneState?.minimumReveals ?? 0);
+    const minimumGroups = Number(proofRoundState?.minimumGroups ?? 0);
+    const proofLifecycleValid =
+      roundOpened?.transactionHash === delivered?.transactionHash &&
+      roundOpened?.blockHash === delivered?.blockHash &&
+      orderedBefore(roundOpened, delivered) &&
+      roundOpened?.args?.roundId?.toLowerCase() === roundId &&
+      roundOpened?.args?.validatorRoot?.toLowerCase() ===
+        proofRoundState?.validatorRoot?.toLowerCase?.() &&
+      Number(roundOpened?.args?.minimumGroups) === minimumGroups &&
+      proofRoundState?.opened === true &&
+      commits.length >= minimumReveals &&
+      reveals.length >= minimumReveals &&
+      committedValidators.size === commits.length &&
+      revealedValidators.size === reveals.length &&
+      representedGroups.size >= minimumGroups &&
+      [...revealedValidators].every((validator) =>
+        committedValidators.has(validator),
+      ) &&
+      Number(proofRoundState?.committed) === commits.length &&
+      Number(proofRoundState?.revealed) === reveals.length &&
+      Number(proofRoundState?.representedGroups) === representedGroups.size &&
+      Number(proofRoundState?.medianScore) >=
+        Number(state?.milestoneState?.passScoreBps ?? 10_001) &&
+      commits.every((event) => orderedBefore(delivered, event)) &&
+      reveals.every(
+        (event) => orderedBefore(delivered, event) && orderedBefore(event, settled),
+      );
     const funding = Number(state?.job?.funding);
     const chainLifecycleValid =
       [2, 3].includes(funding) &&
       Number(state?.job?.state) === 4 &&
       Number(state?.milestoneState?.state) === 4 &&
       settled.resolveInputValid === true &&
+      delivered?.deliverInputValid === true &&
       jobCreated?.args?.issueId?.toLowerCase() ===
         state?.job?.issueId?.toLowerCase() &&
       Number(jobCreated?.args?.funding) === funding &&
+      jobCreated?.transactionHash === issueConsumed?.transactionHash &&
+      issueConsumed?.args?.proposer?.toLowerCase() ===
+        jobCreated?.args?.creator?.toLowerCase() &&
+      approval?.valid === true &&
+      ((approval.mode === "TRANSITION" &&
+        state?.issueGateState?.transitionApproved === true) ||
+        (approval.mode === "MATURE" &&
+          state?.issueGateState?.matureApproved === true)) &&
+      approval.approvalBlockNumber < jobCreated?.blockNumber &&
+      proofLifecycleValid &&
       delivered?.args?.deliveryHash?.toLowerCase() ===
         state?.milestoneState?.deliveryHash?.toLowerCase() &&
       outcome?.transactionHash === settled.transactionHash &&
@@ -1670,7 +2564,8 @@ function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
       logIndex: settled.logIndex,
       emitter: settled.emitter,
       transactionInputHash: settled.transactionInputHash,
-      issueHash: state?.job?.issueId?.toLowerCase() ?? ZERO_HASH,
+      issueHash: issueId,
+      issueTermsHash,
       jobId,
       milestone,
       roundId: delivered?.args?.proofRoundId?.toLowerCase() ?? ZERO_HASH,
@@ -1678,6 +2573,43 @@ function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
         state?.milestoneState?.deliveryHash?.toLowerCase() ?? ZERO_HASH,
       specificationHash:
         state?.milestoneState?.specificationHash?.toLowerCase() ?? ZERO_HASH,
+      jobPlanHash: state?.job?.planHash?.toLowerCase() ?? ZERO_HASH,
+      issueApproval: approval,
+      jobCreated: jobCreated
+        ? {
+            eventId: jobCreated.eventId,
+            blockNumber: jobCreated.blockNumber,
+            blockHash: jobCreated.blockHash,
+            blockTimestampMs: jobCreated.blockTimestampMs,
+            transactionHash: jobCreated.transactionHash,
+            logIndex: jobCreated.logIndex,
+          }
+        : null,
+      validation: {
+        roundOpenedEventId: roundOpened?.eventId ?? null,
+        roundOpenedBlockNumber: roundOpened?.blockNumber ?? null,
+        roundOpenedBlockHash: roundOpened?.blockHash ?? null,
+        roundOpenedTransactionHash: roundOpened?.transactionHash ?? null,
+        roundOpenedLogIndex: roundOpened?.logIndex ?? null,
+        deliveryEventId: delivered?.eventId ?? null,
+        commitEventIds: commits.map((event) => event.eventId).sort(),
+        revealEventIds: reveals.map((event) => event.eventId).sort(),
+        revealEvidenceHashes: reveals.map((event) =>
+          event.args.evidenceHash.toLowerCase(),
+        ),
+        revealScoresBps: reveals.map((event) => Number(event.args.scoreBps)),
+        revealEvents: reveals
+          .map((event) => ({
+            eventId: event.eventId,
+            blockNumber: event.blockNumber,
+            blockHash: event.blockHash,
+            transactionHash: event.transactionHash,
+            logIndex: event.logIndex,
+          }))
+          .sort((left, right) => left.eventId.localeCompare(right.eventId)),
+        representedGroups: [...representedGroups].sort(),
+        valid: proofLifecycleValid,
+      },
       outcome: outcome
         ? {
             eventId: outcome.eventId,
@@ -1815,6 +2747,46 @@ function eventJoinKey(value) {
   });
 }
 
+export function exposureChainAnchorsForEvent(event) {
+  const revealRoot = sha256Json(event.validation?.revealEvents ?? []);
+  return [
+    {
+      kind: "ISSUE_APPROVED",
+      eventId: event.issueApproval?.approvalEventId ?? null,
+      blockNumber: event.issueApproval?.approvalBlockNumber ?? null,
+      blockHash: event.issueApproval?.approvalBlockHash ?? null,
+      transactionHash: event.issueApproval?.approvalTransactionHash ?? null,
+      logIndex: event.issueApproval?.approvalLogIndex ?? null,
+    },
+    {
+      kind: "JOB_CREATED",
+      ...event.jobCreated,
+    },
+    {
+      kind: "PROOF_ROUND_OPENED",
+      eventId: event.validation?.roundOpenedEventId ?? null,
+      blockNumber: event.validation?.roundOpenedBlockNumber ?? null,
+      blockHash: event.validation?.roundOpenedBlockHash ?? null,
+      transactionHash: event.validation?.roundOpenedTransactionHash ?? null,
+      logIndex: event.validation?.roundOpenedLogIndex ?? null,
+    },
+    {
+      kind: "VALIDATOR_REVEALS",
+      evidenceRoot: revealRoot,
+      eventCount: event.validation?.revealEvents?.length ?? 0,
+    },
+    {
+      kind: "SYSTEM_SETTLED",
+      eventId: event.eventId,
+      blockNumber: event.blockNumber,
+      blockHash: event.blockHash,
+      transactionHash: event.transactionHash,
+      logIndex: event.logIndex,
+      outcomeEventId: event.outcome?.eventId ?? null,
+    },
+  ];
+}
+
 export function validateExposureLifecycleAgainstEvents(ledger, events) {
   const successfulSlots = Object.values(ledger?.slots ?? {}).filter(
     (slot) => slot.state === SLOT_STATES.SUCCESSFULLY_CONSUMED,
@@ -1842,11 +2814,21 @@ export function validateExposureLifecycleAgainstEvents(ledger, events) {
     const states = (journalBySlot.get(slot.slotId) ?? []).map(
       (entry) => entry.state,
     );
+    const anchors = (journalBySlot.get(slot.slotId) ?? []).map(
+      (entry) => entry.chainAnchor,
+    );
+    const expectedAnchors = event
+      ? exposureChainAnchorsForEvent(event)
+      : [];
     if (
       event?.issueHash !== slot.issueHash ||
       event?.chainLifecycleValid !== true ||
       states.length !== expectedStates.length ||
-      states.some((state, index) => state !== expectedStates[index])
+      states.some((state, index) => state !== expectedStates[index]) ||
+      anchors.some(
+        (anchor, index) =>
+          sha256Json(anchor) !== sha256Json(expectedAnchors[index]),
+      )
     ) {
       throw new Error("V44_EXPOSURE_JOURNAL_CHAIN_LIFECYCLE_MISMATCH");
     }
@@ -1866,6 +2848,7 @@ export function deriveSystemSettlementEvidence({
   admissionBundles,
   settlementBundles,
   exposureLedger,
+  maturityAuthorization = null,
 }) {
   const allBundles = [...admissionBundles, ...settlementBundles];
   if (
@@ -1898,26 +2881,59 @@ export function deriveSystemSettlementEvidence({
     const settlement = settlements.get(key);
     const slotId = admission?.exposureSlotId;
     const slot = exposureLedger.slots?.[slotId];
+    const maturityBound =
+      maturityAuthorization !== null &&
+      maturityAuthorization.authorizedExposureSlotId === slotId &&
+      maturityAuthorization.admissionBundleHash === admission?.bundleHash &&
+      event.jobPlanHash ===
+        maturityAuthorizationPlanHash(maturityAuthorization.authorizationId);
     const admissionBundleValid =
       admission !== undefined &&
-      admission.bundleHash === shadowBundleHash(admission);
+      admission.bundleHash === shadowBundleHash(admission) &&
+      (
+        event.jobPlanHash === admissionBundlePlanHash(admission.bundleHash) ||
+        maturityBound
+      ) &&
+      (
+        event.issueApproval?.mode === "MATURE" ||
+        (
+          event.issueApproval?.mode === "TRANSITION" &&
+          event.issueApproval.proposalNeedEvidenceHash === admission.bundleHash &&
+          event.issueApproval.revealEvidenceHashes.length >= 2 &&
+          event.issueApproval.revealEvidenceHashes.every(
+            (evidenceHash) => evidenceHash === admission.bundleHash,
+          )
+        )
+      );
     const settlementBundleValid =
       settlement !== undefined &&
       settlement.bundleHash === shadowBundleHash(settlement) &&
       admission?.sourceSnapshotDigest === settlement?.sourceSnapshotDigest &&
-      admission?.exposureSlotId === settlement?.exposureSlotId;
+      admission?.exposureSlotId === settlement?.exposureSlotId &&
+      event.validation?.valid === true &&
+      event.validation.revealEvidenceHashes.length >= 3 &&
+      event.validation.revealEvidenceHashes.every(
+        (evidenceHash) => evidenceHash === settlement.bundleHash,
+      );
+    const expectedCanonicalScore =
+      admission !== undefined && settlement !== undefined
+        ? deterministicValidatorScore(admission.reports, {
+            policyVersion: admission.canonicalScorePolicyVersion,
+          })
+        : -1;
     const canonicalScoreValid =
       admission?.canonicalScorePolicyVersion ===
         settlement?.canonicalScorePolicyVersion &&
       admission?.reports?.[0]?.pass === settlement?.reports?.[0]?.pass &&
       admission !== undefined &&
       settlement !== undefined &&
-      deterministicValidatorScore(admission.reports, {
-        policyVersion: admission.canonicalScorePolicyVersion,
-      }) ===
+      expectedCanonicalScore ===
         deterministicValidatorScore(settlement.reports, {
           policyVersion: settlement.canonicalScorePolicyVersion,
-        });
+        }) &&
+      event.validation?.revealScoresBps?.every(
+        (scoreBps) => scoreBps === expectedCanonicalScore,
+      );
     const uniqueExposureSlotValid =
       slot?.issueHash === event.issueHash &&
       slot?.jobId === event.jobId &&
@@ -2276,11 +3292,58 @@ export function validateAutonomyEvidence(
       },
     };
   }
+  if (maturityAuthorization) {
+    const authorizedSlotId =
+      evidence.maturityAuthorization.authorizedExposureSlotId;
+    const authorizedSlot = evidence.exposureLedger.slots?.[authorizedSlotId];
+    const authorizedEvent = eventReconciliation.events.find(
+      (event) =>
+        event.jobId === authorizedSlot?.jobId &&
+        event.milestone === authorizedSlot?.milestone,
+    );
+    const checkpointIndex = (evidence.checkpoints ?? []).findIndex(
+      (checkpoint) =>
+        checkpoint.checkpointHash ===
+        evidence.maturityAuthorization.precommitCheckpointHash,
+    );
+    if (checkpointIndex < 0 || !authorizedEvent?.jobCreated) {
+      throw new Error("V44_AUTONOMY_MATURITY_PRECOMMIT_MISSING");
+    }
+    const precommitCheckpoint = evidence.checkpoints[checkpointIndex];
+    const precommitChain = validateCheckpointChain(
+      evidence.checkpoints.slice(0, checkpointIndex + 1),
+      {
+        authorizedPublicKeys:
+          checkpointPolicy?.authorizedPublicKeys ?? [],
+        threshold: checkpointPolicy?.threshold ?? 2,
+      },
+    );
+    if (
+      precommitChain.valid !== true ||
+      precommitCheckpoint.finalizedBlockNumber !==
+        maturityAuthorization.finalizedBlockNumber ||
+      precommitCheckpoint.finalizedBlockHash.toLowerCase() !==
+        maturityAuthorization.finalizedBlockHash ||
+      precommitCheckpoint.finalizedBlockNumber >=
+        authorizedEvent.jobCreated.blockNumber ||
+      evidence.maturityAuthorization.issuedAtMs >=
+        authorizedEvent.jobCreated.blockTimestampMs ||
+      evidence.maturityAuthorization.admissionBundleHash !==
+        admissionBundles.find(
+          (bundle) => bundle.exposureSlotId === authorizedSlotId,
+        )?.bundleHash ||
+      authorizedEvent.jobPlanHash !==
+        maturityAuthorization.requiredJobPlanHash
+    ) {
+      throw new Error("V44_AUTONOMY_MATURITY_PRECOMMIT_ORDER_INVALID");
+    }
+  }
   const settlementEvidence = deriveSystemSettlementEvidence({
     events: eventReconciliation.events,
     admissionBundles,
     settlementBundles,
     exposureLedger: evidence.exposureLedger,
+    maturityAuthorization: evidence.maturityAuthorization ?? null,
   });
   const contamination = reduceGovernanceContamination(
     settlementEvidence.events,

@@ -2,12 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ROOT,
+  currentGitCommit,
   readJson,
 } from "./v44-mainnet.mjs";
 import {
+  autonomyPolicyIdentity,
   loadReliabilityPolicy,
   validateObservations,
   validateTestnetDeployment,
+  verifyHistoricalContractSourceEvidenceFile,
 } from "./v44-testnet-reliability.mjs";
 import {
   newExposureLedger,
@@ -67,9 +70,13 @@ export function loadLedgerContext(env = process.env) {
     }
   }
   const policyEvidence = loadReliabilityPolicy();
-  const sourceEvidence = readJson(paths.sourceEvidencePath);
+  const rawDeployment = readJson(paths.deploymentPath);
+  const sourceEvidence = verifyHistoricalContractSourceEvidenceFile(
+    paths.sourceEvidencePath,
+    rawDeployment,
+  ).evidence;
   const deployment = validateTestnetDeployment(
-    readJson(paths.deploymentPath),
+    rawDeployment,
     sourceEvidence,
   );
   return {
@@ -77,20 +84,31 @@ export function loadLedgerContext(env = process.env) {
     policyEvidence,
     sourceEvidence,
     deployment,
+    evidencePipelineCommit: currentGitCommit().toLowerCase(),
   };
 }
 
 export function newObservationLedger({
   deployment,
+  policyEvidence,
+  evidencePipelineCommit,
   startedAt,
   endedAt,
 }) {
+  const policyIdentity = autonomyPolicyIdentity(
+    policyEvidence.policy.autonomyV2,
+  );
   return {
     schema: "agentpool.testnet.v44.observations/v1",
     observedChainId: 84532,
     release: deployment.release,
-    sourceCommit: deployment.sourceCommit,
+    contractSourceCommit: deployment.sourceCommit,
+    evidencePipelineCommit,
     deploymentManifestSha256: deployment.manifestSha256,
+    policySha256: policyEvidence.policySha256,
+    signerSetHash: policyIdentity.signerSetHash,
+    policyActivatedAt: policyIdentity.activatedAt,
+    policyActivatedBlock: policyIdentity.activatedBlock,
     startedAt,
     endedAt,
     observations: [],
@@ -124,8 +142,16 @@ export function writeJsonAtomic(filePath, value) {
   fs.renameSync(temporaryPath, filePath);
 }
 
-export function validateLedger(ledger, { policy, deployment }) {
-  validateObservations(ledger, { policy, deployment });
+export function validateLedger(
+  ledger,
+  { policy, policySha256, deployment, evidencePipelineCommit },
+) {
+  validateObservations(ledger, {
+    policy,
+    policySha256,
+    deployment,
+    evidencePipelineCommit,
+  });
   if (ledger.autonomyEvidence) {
     validateAutonomyEvidence(ledger.autonomyEvidence);
   }

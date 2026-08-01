@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import {
   createPublicClient,
   decodeEventLog,
@@ -28,9 +29,6 @@ import {
   sha256File,
   sha256Json,
 } from "./v44-mainnet.mjs";
-import {
-  verifyV44ReleaseEvidenceFile,
-} from "../generate-v44-release-evidence.mjs";
 import {
   PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
   V44_CHAIN_EVENT_SIGNATURES,
@@ -142,18 +140,44 @@ function validateAutonomyPolicy(autonomy) {
   const governance = autonomy?.governanceEventPolicy;
   const maturity = autonomy?.maturityAuthorizationPolicy;
   const binding = autonomy?.generatedCodeBinding;
-  const expectedSignatures = Object.values(V44_CHAIN_EVENT_SIGNATURES).sort();
+  const expectedSignatures = [
+    ...new Set(Object.values(V44_CHAIN_EVENT_SIGNATURES)),
+  ].sort();
+  const activation = autonomy?.policyActivation;
   if (
     autonomy?.schema !== "agentpool.v44.autonomy-policy/v1" ||
     exposure?.preMatureMaximumSuccessfulSystemSettlements !== 49 ||
     exposure?.maturityTransitionSettlement !== 50 ||
     governance?.fromBlock !== "deployment.deploymentBlock" ||
     JSON.stringify([...(governance?.contractKeys ?? [])].sort()) !==
-      JSON.stringify(["contributionLedger", "taskMarket"]) ||
+      JSON.stringify([
+        "contributionLedger",
+        "issueConsensus",
+        "proofRegistry",
+        "systemIssueGate",
+        "taskMarket",
+        "transitionIssueConsensus",
+      ]) ||
     JSON.stringify([...(governance?.sourceContractKeys ?? [])].sort()) !==
       JSON.stringify(["settlementRouter"]) ||
     JSON.stringify([...(governance?.eventSignatures ?? [])].sort()) !==
       JSON.stringify(expectedSignatures) ||
+    !["ACTIVE", "PENDING_EXTERNAL_KEYS"].includes(
+      activation?.configurationStatus,
+    ) ||
+    activation?.restartObservationWindowOnChange !== true ||
+    (
+      activation?.configurationStatus === "ACTIVE" &&
+      (
+        !ISO_PATTERN.test(activation.activatedAt ?? "") ||
+        !Number.isSafeInteger(activation.activatedBlock) ||
+        activation.activatedBlock < 0
+      )
+    ) ||
+    (
+      activation?.configurationStatus === "PENDING_EXTERNAL_KEYS" &&
+      (activation.activatedAt !== null || activation.activatedBlock !== null)
+    ) ||
     maturity?.minimumNonMaintainerVotingAgents !== 5 ||
     maturity?.minimumOnchainGroups !== 3 ||
     maturity?.minimumCorroboratedControlDomains !== 3 ||
@@ -165,7 +189,7 @@ function validateAutonomyPolicy(autonomy) {
     maturity?.maximumUnresolvedCriticalHigh !== 0 ||
     maturity?.governanceDryRunRequired !== true ||
     maturity?.authorizationScope !== "SINGLE_50TH_SYSTEM_SETTLEMENT" ||
-    binding?.sourceCommit !== "sourceEvidence.sourceCommit" ||
+    binding?.sourceCommit !== "evidencePipeline.sourceCommit" ||
     binding?.deploymentManifestSha256 !== "deployment.manifestSha256" ||
     binding?.configSha256 !== "deployment.configSha256"
   ) {
@@ -207,6 +231,22 @@ export function observationAttestationMessage(observations) {
     "AgentPool v4.4 public testnet observations",
     sha256Json(canonicalObservationBody(observations)),
   ].join("\n");
+}
+
+export function autonomyPolicyIdentity(autonomyPolicy) {
+  return {
+    signerSetHash: sha256Json({
+      controlDomainPolicy: autonomyPolicy?.controlDomainPolicy ?? null,
+      checkpointPolicy: autonomyPolicy?.checkpointPolicy ?? null,
+      maturityAuthorizationPolicy:
+        autonomyPolicy?.maturityAuthorizationPolicy ?? null,
+    }),
+    activatedAt: autonomyPolicy?.policyActivation?.activatedAt ?? null,
+    activatedBlock:
+      autonomyPolicy?.policyActivation?.activatedBlock ?? null,
+    activationStatus:
+      autonomyPolicy?.policyActivation?.configurationStatus ?? null,
+  };
 }
 
 export function loadReliabilityPolicy(
@@ -461,16 +501,101 @@ export function validateTestnetDeployment(deployment, sourceEvidence) {
   return deployment;
 }
 
+function historicalSolidityBlobs(sourceCommit) {
+  try {
+    execFileSync("git", ["cat-file", "-e", `${sourceCommit}^{commit}`], {
+      cwd: ROOT,
+      stdio: "ignore",
+    });
+  } catch {
+    throw new Error("V44_HISTORICAL_CONTRACT_COMMIT_MISSING");
+  }
+  const output = execFileSync(
+    "git",
+    ["ls-tree", "-r", sourceCommit, "--", "contracts"],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  return output
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(
+        /^(?<mode>[0-9]+) blob (?<blob>[0-9a-f]{40})\t(?<file>.+)$/u,
+      );
+      if (!match?.groups || !match.groups.file.endsWith(".sol")) return null;
+      return {
+        file: match.groups.file.replaceAll("\\", "/"),
+        gitBlob: match.groups.blob,
+        mode: match.groups.mode,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.file.localeCompare(right.file));
+}
+
+export function verifyHistoricalContractSourceEvidenceFile(
+  filePath,
+  deployment,
+) {
+  const resolvedPath = path.resolve(filePath);
+  const evidence = readJson(resolvedPath);
+  const body = structuredClone(evidence);
+  delete body.evidenceSha256;
+  const expectedTree = execFileSync(
+    "git",
+    ["rev-parse", `${deployment.sourceCommit}^{tree}`],
+    { cwd: ROOT, encoding: "utf8" },
+  ).trim().toLowerCase();
+  if (
+    evidence?.schema !==
+      "agentpool.mainnet.v44.source-reproducibility/v1" ||
+    evidence.release !== VERSION ||
+    evidence.chainId !== TARGET_CHAIN_ID ||
+    evidence.sourceCommit !== deployment.sourceCommit ||
+    evidence.sourceTree !== expectedTree ||
+    evidence.evidenceSha256 !== sha256Json(body) ||
+    deployment.sourceEvidenceSha256 !== evidence.evidenceSha256 ||
+    deployment.configSha256 !== evidence.configSha256 ||
+    deployment.financeInvariantHash !== evidence.financeInvariantHash ||
+    JSON.stringify(evidence.soliditySources) !==
+      JSON.stringify(historicalSolidityBlobs(deployment.sourceCommit))
+  ) {
+    throw new Error("V44_HISTORICAL_CONTRACT_SOURCE_INVALID");
+  }
+  for (const [contractKey, artifactType] of Object.entries(
+    deployment.artifactTypes ?? {},
+  )) {
+    if (
+      evidence.artifacts?.[artifactType]?.creationBytecodeHash !==
+      deployment.artifactCreationBytecodeHashes?.[artifactType] ||
+      !deployment.contracts?.[contractKey]
+    ) {
+      throw new Error("V44_HISTORICAL_CONTRACT_ARTIFACT_INVALID");
+    }
+  }
+  return {
+    evidence,
+    filePath: resolvedPath,
+    fileSha256: sha256File(resolvedPath),
+  };
+}
+
 export function validateObservations(
   observations,
-  { policy, deployment },
+  { policy, policySha256, deployment, evidencePipelineCommit },
 ) {
+  const policyIdentity = autonomyPolicyIdentity(policy?.autonomyV2);
   if (
     observations?.schema !== OBSERVATION_SCHEMA ||
     observations.observedChainId !== TESTNET_CHAIN_ID ||
     observations.release !== VERSION ||
-    observations.sourceCommit !== deployment.sourceCommit ||
-    observations.deploymentManifestSha256 !== deployment.manifestSha256
+    observations.contractSourceCommit !== deployment.sourceCommit ||
+    observations.evidencePipelineCommit !== evidencePipelineCommit ||
+    observations.deploymentManifestSha256 !== deployment.manifestSha256 ||
+    observations.policySha256 !== policySha256 ||
+    observations.signerSetHash !== policyIdentity.signerSetHash ||
+    observations.policyActivatedAt !== policyIdentity.activatedAt ||
+    observations.policyActivatedBlock !== policyIdentity.activatedBlock
   ) {
     throw new Error("V44_TESTNET_OBSERVATIONS_IDENTITY_INVALID");
   }
@@ -496,7 +621,13 @@ export function validateObservations(
       !rule ||
       !HASH_PATTERN.test(entry.txHash ?? "") ||
       entry.contractKey !== rule.contractKey ||
-      entry.expectedStatus !== rule.transactionStatus
+      entry.expectedStatus !== rule.transactionStatus ||
+      !Number.isSafeInteger(entry.blockNumber) ||
+      entry.blockNumber < deployment.deploymentBlock ||
+      (
+        policyIdentity.activatedBlock !== null &&
+        entry.blockNumber < policyIdentity.activatedBlock
+      )
     ) {
       throw new Error("V44_TESTNET_OBSERVATION_ENTRY_INVALID");
     }
@@ -1421,6 +1552,7 @@ export async function collectLiveRpcEvidence({
   const contributors = new Set();
   const blocks = new Set();
   let latestObservedBlock = 0n;
+  let earliestObservedBlock = null;
   let earliestObservedTimestamp = Number.POSITIVE_INFINITY;
   let latestObservedTimestamp = 0;
   for (const entry of observations.observations) {
@@ -1476,6 +1608,15 @@ export async function collectLiveRpcEvidence({
     if (receipt.blockNumber > latestObservedBlock) {
       latestObservedBlock = receipt.blockNumber;
     }
+    if (
+      earliestObservedBlock === null ||
+      receipt.blockNumber < earliestObservedBlock
+    ) {
+      earliestObservedBlock = receipt.blockNumber;
+    }
+    if (entry.blockNumber !== Number(receipt.blockNumber)) {
+      throw new Error(`V44_TESTNET_OBSERVATION_BLOCK_MISMATCH:${entry.txHash}`);
+    }
   }
 
   for (const blockNumber of blocks) {
@@ -1503,6 +1644,8 @@ export async function collectLiveRpcEvidence({
     contributingAgents: [...contributors].sort(),
     contributingOperatorGroups: [...operatorGroups].sort(),
     latestObservedBlock: Number(latestObservedBlock),
+    earliestObservedBlock:
+      earliestObservedBlock === null ? null : Number(earliestObservedBlock),
     earliestObservedTimestamp,
     latestObservedTimestamp,
     latestBlock: Number(verificationBlock),
@@ -1531,6 +1674,7 @@ export function reconcileRpcEvidenceSnapshots({
     contributingAgents: value.contributingAgents,
     contributingOperatorGroups: value.contributingOperatorGroups,
     latestObservedBlock: value.latestObservedBlock,
+    earliestObservedBlock: value.earliestObservedBlock,
     earliestObservedTimestamp: value.earliestObservedTimestamp,
     latestObservedTimestamp: value.latestObservedTimestamp,
     latestBlock: value.latestBlock,
@@ -1553,6 +1697,7 @@ export async function collectMaturityProviderSnapshot({
   rpcUrl,
   deployment,
   authorization,
+  client: suppliedClient = null,
 }) {
   const origin = new URL(rpcUrl).origin;
   const declaredProvider = authorization?.providerSnapshots?.find(
@@ -1570,11 +1715,16 @@ export async function collectMaturityProviderSnapshot({
     throw new Error("V44_MATURITY_COLLECTION_INPUT_INVALID");
   }
   const blockNumber = BigInt(declaredProvider.finalizedBlockNumber);
-  const client = createPublicClient({ transport: http(rpcUrl) });
-  const block = await client.getBlock({ blockNumber });
+  const client =
+    suppliedClient ?? createPublicClient({ transport: http(rpcUrl) });
+  const [block, finalizedHead] = await Promise.all([
+    client.getBlock({ blockNumber }),
+    client.getBlock({ blockTag: "finalized" }),
+  ]);
   if (
+    blockNumber > finalizedHead.number ||
     block.hash?.toLowerCase() !==
-    declaredProvider.finalizedBlockHash?.toLowerCase()
+      declaredProvider.finalizedBlockHash?.toLowerCase()
   ) {
     throw new Error("V44_MATURITY_COLLECTION_BLOCK_MISMATCH");
   }
@@ -1616,6 +1766,8 @@ export async function collectMaturityProviderSnapshot({
     origin,
     finalizedBlockNumber: Number(block.number),
     finalizedBlockHash: block.hash.toLowerCase(),
+    providerFinalizedHeadNumber: Number(finalizedHead.number),
+    providerFinalizedHeadHash: finalizedHead.hash.toLowerCase(),
     chainSnapshot: {
       successfulSystemSettlements: Number(successfulSystemSettlements),
       eligibleAgentCount: Number(eligibleAgentCount),
@@ -1630,6 +1782,7 @@ export function evaluateReliability({
   deployment,
   observations,
   sourceEvidence,
+  evidencePipelineCommit,
   attestationEvidence,
   rpcEvidence,
   autonomyV2,
@@ -1645,6 +1798,8 @@ export function evaluateReliability({
   const declaredEndedAt = Date.parse(observations.endedAt);
   const chainStartedAt = rpcEvidence?.earliestObservedTimestamp;
   const chainEndedAt = rpcEvidence?.latestObservedTimestamp;
+  const chainStartedBlock = rpcEvidence?.earliestObservedBlock;
+  const policyIdentity = autonomyPolicyIdentity(policy.autonomyV2);
   const observationDays =
     Number.isFinite(chainStartedAt) && Number.isFinite(chainEndedAt)
       ? (chainEndedAt - chainStartedAt) / DAY_MS
@@ -1667,7 +1822,35 @@ export function evaluateReliability({
   blocker(
     blockers,
     sourceEvidence.sourceCommit === deployment.sourceCommit,
-    "SOURCE_COMMIT_MISMATCH",
+    "CONTRACT_SOURCE_COMMIT_MISMATCH",
+  );
+  blocker(
+    blockers,
+    observations.evidencePipelineCommit === evidencePipelineCommit,
+    "EVIDENCE_PIPELINE_COMMIT_MISMATCH",
+  );
+  blocker(
+    blockers,
+    observations.policySha256 === policySha256,
+    "OBSERVATION_POLICY_HASH_MISMATCH",
+  );
+  blocker(
+    blockers,
+    policyIdentity.activationStatus === "ACTIVE" &&
+      observations.policyActivatedAt === policyIdentity.activatedAt &&
+      observations.policyActivatedBlock === policyIdentity.activatedBlock &&
+      observations.signerSetHash === policyIdentity.signerSetHash,
+    "AUTONOMY_POLICY_ACTIVATION_REQUIRED",
+  );
+  blocker(
+    blockers,
+    Number.isFinite(chainStartedAt) &&
+      Number.isSafeInteger(chainStartedBlock) &&
+      policyIdentity.activatedAt !== null &&
+      policyIdentity.activatedBlock !== null &&
+      chainStartedAt >= Date.parse(policyIdentity.activatedAt) &&
+      chainStartedBlock >= policyIdentity.activatedBlock,
+    "OBSERVATION_PRECEDES_POLICY_ACTIVATION",
   );
   blocker(
     blockers,
@@ -1745,7 +1928,8 @@ export function evaluateReliability({
   return {
     schema: RELIABILITY_SCHEMA,
     release: VERSION,
-    sourceCommit: sourceEvidence.sourceCommit,
+    contractSourceCommit: sourceEvidence.sourceCommit,
+    evidencePipelineCommit,
     targetChainId: TARGET_CHAIN_ID,
     decision: eligible ? "approved" : "blocked",
     observedChainId: TESTNET_CHAIN_ID,
@@ -1800,14 +1984,16 @@ export function evaluateReliability({
 
 export function blockedReliabilityReport({
   policyEvidence,
-  sourceCommit = currentGitCommit().toLowerCase(),
+  evidencePipelineCommit = currentGitCommit().toLowerCase(),
+  contractSourceCommit = null,
   blockers,
   generatedAt = new Date().toISOString(),
 }) {
   return {
     schema: RELIABILITY_SCHEMA,
     release: VERSION,
-    sourceCommit,
+    contractSourceCommit,
+    evidencePipelineCommit,
     targetChainId: TARGET_CHAIN_ID,
     decision: "blocked",
     observedChainId: TESTNET_CHAIN_ID,
@@ -1864,16 +2050,23 @@ export async function buildReliabilityReport({
   }
 
   assertTrackedTreeClean();
-  const verifiedSource = verifyV44ReleaseEvidenceFile(sourceEvidencePath);
+  const rawDeployment = readJson(deploymentPath);
+  const verifiedSource = verifyHistoricalContractSourceEvidenceFile(
+    sourceEvidencePath,
+    rawDeployment,
+  );
   const sourceEvidence = verifiedSource.evidence;
   const deployment = validateTestnetDeployment(
-    readJson(deploymentPath),
+    rawDeployment,
     sourceEvidence,
   );
+  const evidencePipelineCommit = currentGitCommit().toLowerCase();
   const observations = readJson(observationsPath);
   validateObservations(observations, {
     policy: policyEvidence.policy,
+    policySha256: policyEvidence.policySha256,
     deployment,
+    evidencePipelineCommit,
   });
   const autonomyEvidence =
     observations.autonomyEvidence ?? {
@@ -1914,6 +2107,11 @@ export async function buildReliabilityReport({
           taskMarket: deployment.contracts.taskMarket,
           contributionLedger: deployment.contracts.contributionLedger,
           settlementRouter: deployment.contracts.settlementRouter,
+          proofRegistry: deployment.contracts.proofRegistry,
+          systemIssueGate: deployment.contracts.systemIssueGate,
+          transitionIssueConsensus:
+            deployment.contracts.transitionIssueConsensus,
+          issueConsensus: deployment.contracts.issueConsensus,
         },
       }
     : null;
@@ -1992,14 +2190,14 @@ export async function buildReliabilityReport({
         .maturityAuthorizationPolicy
         ? {
             ...trustedAutonomyPolicy.maturityAuthorizationPolicy,
-            expectedSourceCommit: sourceEvidence.sourceCommit,
+            expectedSourceCommit: evidencePipelineCommit,
             expectedDeploymentManifestSha256: deployment.manifestSha256,
             trustedProviderSnapshots: trustedMaturityProviderSnapshots,
           }
         : null,
       generatedCodeCommit: sha256AutonomyJson({
         domain: "AGENTPOOL_V44_GENERATED_CODE_BINDING_V1",
-        sourceCommit: sourceEvidence.sourceCommit,
+        sourceCommit: evidencePipelineCommit,
         deploymentManifestSha256: deployment.manifestSha256,
         configSha256: deployment.configSha256,
       }),
@@ -2011,6 +2209,7 @@ export async function buildReliabilityReport({
     deployment,
     observations,
     sourceEvidence,
+    evidencePipelineCommit,
     attestationEvidence,
     rpcEvidence,
     autonomyV2,
@@ -2065,8 +2264,10 @@ export async function verifyPublicTestnetReliabilityGate({
     env.V44_TESTNET_OBSERVATIONS ??
       path.join(ROOT, "outputs", "v44-public-testnet-observations.json"),
   );
-  const sourceEvidencePath =
-    gateEvidence.evidencePaths.finalSourceReproducibility;
+  const sourceEvidencePath = path.resolve(
+    env.V44_TESTNET_CONTRACT_SOURCE_EVIDENCE ??
+      path.join(ROOT, "outputs", "v44-source-reproducibility.json"),
+  );
   const rpcUrl = env.AGENTPOOL_V44_TESTNET_RPC_URL?.trim();
   const secondaryRpcUrl =
     env.AGENTPOOL_V44_TESTNET_RPC_URL_2?.trim();

@@ -36,7 +36,9 @@ else next.incidents[existing] = { ...next.incidents[existing], ...record };
 next.attestations = [];
 validateLedger(next, {
   policy: context.policyEvidence.policy,
+  policySha256: context.policyEvidence.policySha256,
   deployment: context.deployment,
+  evidencePipelineCommit: context.evidencePipelineCommit,
 });
 writeJsonAtomic(context.observationsPath, next);
 process.stdout.write(

@@ -40,6 +40,8 @@ const existing = fs.existsSync(context.observationsPath)
   ? readJson(context.observationsPath)
   : newObservationLedger({
       deployment: context.deployment,
+      policyEvidence: context.policyEvidence,
+      evidencePipelineCommit: context.evidencePipelineCommit,
       startedAt: new Date(blockTime.getTime() - 1).toISOString(),
       endedAt: blockTime.toISOString(),
     });
@@ -56,6 +58,7 @@ next.observations.push({
   txHash,
   contractKey: rule.contractKey,
   expectedStatus: rule.transactionStatus,
+  blockNumber: Number(receipt.blockNumber),
   recordedBy: argument("recorded-by") ?? "permissionless",
 });
 next.endedAt = blockTime.toISOString();
@@ -67,7 +70,9 @@ if (Date.parse(next.endedAt) <= Date.parse(next.startedAt)) {
 next.attestations = [];
 validateLedger(next, {
   policy: context.policyEvidence.policy,
+  policySha256: context.policyEvidence.policySha256,
   deployment: context.deployment,
+  evidencePipelineCommit: context.evidencePipelineCommit,
 });
 await collectLiveRpcEvidence({
   rpcUrl,

@@ -22,17 +22,39 @@
       "fromBlock": "deployment.deploymentBlock",
       "contractKeys": [
         "taskMarket",
-        "contributionLedger"
+        "contributionLedger",
+        "proofRegistry",
+        "systemIssueGate",
+        "transitionIssueConsensus",
+        "issueConsensus"
       ],
       "sourceContractKeys": [
         "settlementRouter"
       ],
       "eventSignatures": [
+        "IssueProposed(uint256,bytes32,address,bytes32)",
+        "VoteCommitted(uint256,address,uint256)",
+        "VoteRevealed(uint256,address,bool,bytes32,uint256)",
+        "ProposalClosed(uint256,uint8)",
+        "IssueProposed(uint256,bytes32,address)",
+        "VoteRevealed(uint256,address,bool,uint256)",
+        "TransitionIssueApproved(bytes32)",
+        "MatureIssueApproved(bytes32)",
+        "IssueConsumed(bytes32,bytes32,address,uint256,uint256)",
         "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)",
         "MilestoneDelivered(bytes32,uint32,bytes32,bytes32)",
+        "RoundOpened(bytes32,uint64,uint64,bytes32,uint16)",
+        "EvaluationCommitted(bytes32,address,bytes32)",
+        "EvaluationRevealed(bytes32,address,uint16,bytes32)",
         "MilestoneSettled(bytes32,uint32,uint256,address)",
         "OutcomeRecorded(address,address,bytes32,uint256,bool)"
       ]
+    },
+    "policyActivation": {
+      "configurationStatus": "PENDING_EXTERNAL_KEYS",
+      "activatedAt": null,
+      "activatedBlock": null,
+      "restartObservationWindowOnChange": true
     },
     "controlDomainPolicy": {
       "configurationStatus": "PENDING_EXTERNAL_KEYS",
@@ -61,7 +83,7 @@
       "authorizationScope": "SINGLE_50TH_SYSTEM_SETTLEMENT"
     },
     "generatedCodeBinding": {
-      "sourceCommit": "sourceEvidence.sourceCommit",
+      "sourceCommit": "evidencePipeline.sourceCommit",
       "deploymentManifestSha256": "deployment.manifestSha256",
       "configSha256": "deployment.configSha256"
     }

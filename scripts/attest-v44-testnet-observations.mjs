@@ -17,7 +17,9 @@ const context = loadLedgerContext();
 const ledger = readJson(context.observationsPath);
 validateLedger(ledger, {
   policy: context.policyEvidence.policy,
+  policySha256: context.policyEvidence.policySha256,
   deployment: context.deployment,
+  evidencePipelineCommit: context.evidencePipelineCommit,
 });
 const account = privateKeyToAccount(
   requireEnv("V44_TESTNET_OBSERVER_PRIVATE_KEY"),

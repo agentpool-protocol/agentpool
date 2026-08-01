@@ -27,14 +27,24 @@ blocked by default.
 
 The tracked v4.4 autonomy policy now fail-closes at 49 successful SYSTEM
 settlements. Its 50th transition requires a two-RPC, independently signed
-maturity authorization, and the public-testnet campaign cannot begin until
-external observer keys are pinned; no placeholder maintainer key is accepted.
+maturity authorization that was precommitted before the 50th job was created.
+The public-testnet campaign cannot begin until external observer and validator
+keys are pinned; no placeholder maintainer key is accepted. Changing those
+keys, their threshold, or the trusted policy hash invalidates prior
+observations and starts a new 90-day window from the recorded activation block.
 
 Public provenance reports the immutable testnet contract source commit and
 the currently deployed interface/build commit separately. The interface is
 marked verified only when its clean-tree manifest, source archive hash, Sites
 version, and runtime commit all match; a newer interface commit is never
 presented as the historical contract deployment commit.
+
+SYSTEM settlement evidence is reconstructed from the actual Issue proposal,
+commit/reveal votes, approval, Issue consumption, Job creation, ProofRegistry
+round, validator commit/reveal, outcome, and settlement logs from two RPCs.
+Admission and settlement shadow bundles must match the hashes revealed in that
+chain lifecycle; a post-hoc bundle, journal entry, or maturity authorization
+cannot create eligibility.
 
 The mainnet BOOTSTRAP is a finite catalog of 24-32 distinct, evidence-addressed
 AgentPool improvement or verification objectives—not one repeatable mining

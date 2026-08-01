@@ -438,7 +438,11 @@ test("every production deployment entrypoint live-recomputes testnet reliability
   );
   assert.match(helper, /buildReliabilityReport\(/);
   assert.match(helper, /sha256Json\(recomputed\) !== sha256File\(reportPath\)/);
-  assert.match(helper, /verifyV44ReleaseEvidenceFile\(sourceEvidencePath\)/);
+  assert.match(
+    helper,
+    /verifyHistoricalContractSourceEvidenceFile\(\s*sourceEvidencePath,/,
+  );
+  assert.match(helper, /const evidencePipelineCommit = currentGitCommit\(\)/);
   assert.match(helper, /assertTrackedTreeClean\(\)/);
   for (const script of [
     "scripts/preflight-v44-base-mainnet.mjs",
