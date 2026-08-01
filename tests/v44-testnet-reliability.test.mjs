@@ -327,6 +327,32 @@ test("v4.4 public-testnet policy requires a 90-day live campaign", () => {
   assert.equal(policy.maximumOpenCriticalIncidents, 0);
   assert.equal(policy.categories.SYSTEM_SETTLED.minimum, 50);
   assert.equal(policy.categories.EXTERNAL_SETTLED.minimum, 25);
+  assert.equal(
+    policy.autonomyV2.exposurePolicy
+      .preMatureMaximumSuccessfulSystemSettlements,
+    49,
+  );
+  assert.equal(
+    policy.autonomyV2.exposurePolicy.maturityTransitionSettlement,
+    50,
+  );
+  assert.equal(
+    policy.autonomyV2.governanceEventPolicy.fromBlock,
+    "deployment.deploymentBlock",
+  );
+  assert.deepEqual(
+    policy.autonomyV2.governanceEventPolicy.contractKeys.sort(),
+    ["contributionLedger", "taskMarket"],
+  );
+  assert.equal(
+    policy.autonomyV2.maturityAuthorizationPolicy
+      .maximumControlDomainShareBps,
+    2_999,
+  );
+  assert.equal(
+    policy.autonomyV2.controlDomainPolicy.configurationStatus,
+    "PENDING_EXTERNAL_KEYS",
+  );
 });
 
 test("legacy v4.3 evidence cannot impersonate the v4.4 campaign", () => {
@@ -880,6 +906,11 @@ test("autonomy policy is loaded from the verified campaign policy", () => {
     /const trustedAutonomyPolicy = policy\.autonomyV2/u,
   );
   assert.match(reliability, /evaluationTimeMs: Date\.now\(\)/u);
+  const observerAttester = source(
+    "scripts/attest-v44-autonomy-observer.mjs",
+  );
+  assert.match(observerAttester, /const evaluationTimeMs = Date\.now\(\)/u);
+  assert.doesNotMatch(observerAttester, /atMs: bundle\.evaluationTimeMs/u);
 });
 
 test("an unresolved high-severity invariant incident blocks approval", () => {

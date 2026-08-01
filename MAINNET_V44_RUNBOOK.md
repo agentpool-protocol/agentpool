@@ -120,6 +120,33 @@ Reverted cap and Issue-replay observations must reproduce from the prior block
 and pass their exact calldata and pre-state checks; sharing only a custom-error
 selector is not sufficient.
 
+The `autonomyV2` section of the same tracked policy is also part of the
+campaign commitment. Before the 90-day window starts, two or more independent
+observer public keys must be pinned in each of the control-domain, checkpoint,
+and maturity-authorization policies and their status changed from
+`PENDING_EXTERNAL_KEYS` to `ACTIVE`. Changing those keys later changes the
+policy digest and restarts the evidence window; placeholder or maintainer keys
+must not be used.
+
+Autonomy settlement evidence is reconstructed from events the deployed
+contracts actually emit: `JobCreated`, `MilestoneDelivered`,
+`MilestoneSettled`, and `OutcomeRecorded`. Two RPC providers must agree on the
+same finalized block, raw logs, transaction calldata, and historical contract
+state. One settlement must join exactly one contribution receipt, exposure
+slot, signed admission bundle, and signed settlement bundle. A caller-provided
+nonzero receipt identifier or an offchain aggregate event is not evidence.
+
+Before maturity, the exposure ledger is fixed to 49 successful SYSTEM
+settlements. The 50th slot is a one-shot transition and requires an
+independently signed authorization bound to that exact slot, source commit,
+deployment manifest, and a two-provider historical chain snapshot. The
+snapshot must show at least five non-maintainer voting agents, three onchain
+operator groups, positive Work Power for every voter, at least three
+corroborated control domains with no domain reaching 30%, zero maintainer
+governance units, available proposal and recovery paths, no unresolved
+HIGH/CRITICAL incident, and a successful governance dry run. Neither the
+ledger file nor a Runner may raise the limit itself.
+
 The default command intentionally writes a blocked report until
 `deployments/84532.v44.json`,
 `outputs/v44-public-testnet-observations.json`, the current source evidence,

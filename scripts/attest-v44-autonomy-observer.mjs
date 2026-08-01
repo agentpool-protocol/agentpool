@@ -34,6 +34,8 @@ const kind = (argument("kind") ?? "ADMISSION").toUpperCase();
 const bundle = JSON.parse(fs.readFileSync(bundlePath, "utf8"));
 const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
 const policy = JSON.parse(fs.readFileSync(policyPath, "utf8"));
+const autonomyPolicy = policy.autonomyV2 ?? policy;
+const evaluationTimeMs = Date.now();
 const privateKeyPem = fs.readFileSync(privateKeyPath, "utf8");
 const publicKeyPem = fs.readFileSync(publicKeyPath, "utf8");
 const signedReport = signObserverReport(
@@ -79,9 +81,9 @@ if (bundle.reports.length >= 2) {
     bundle.controlDomainRegistry,
     {
       authorizedPublicKeys:
-        policy.controlDomainPolicy?.authorizedPublicKeys ?? [],
-      threshold: policy.controlDomainPolicy?.threshold ?? 2,
-      atMs: bundle.evaluationTimeMs,
+        autonomyPolicy.controlDomainPolicy?.authorizedPublicKeys ?? [],
+      threshold: autonomyPolicy.controlDomainPolicy?.threshold ?? 2,
+      atMs: evaluationTimeMs,
     },
   );
   validateShadowBundle(bundle, { kind, controlDomainRegistry });

@@ -1,5 +1,14 @@
 import crypto from "node:crypto";
-import { keccak256, toBytes } from "viem";
+import {
+  decodeAbiParameters,
+  decodeEventLog,
+  decodeFunctionData,
+  encodeAbiParameters,
+  encodeEventTopics,
+  encodeFunctionData,
+  keccak256,
+  toBytes,
+} from "viem";
 
 export const SLOT_STATES = Object.freeze({
   RESERVED_FOR_ISSUE: "RESERVED_FOR_ISSUE",
@@ -34,11 +43,163 @@ const ALLOWED_SLOT_TRANSITIONS = Object.freeze({
 const HASH_PATTERN = /^0x[0-9a-f]{64}$/u;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/u;
 const ZERO_HASH = `0x${"00".repeat(32)}`;
-export const V44_SYSTEM_SETTLED_EVENT_SIGNATURE =
-  "V44SystemSettled(bytes32,bytes32,uint256,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32)";
-export const V44_SYSTEM_SETTLED_TOPIC0 = keccak256(
-  toBytes(V44_SYSTEM_SETTLED_EVENT_SIGNATURE),
-).toLowerCase();
+export const PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS = 49;
+export const V44_CHAIN_EVENT_SIGNATURES = Object.freeze({
+  jobCreated:
+    "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)",
+  milestoneDelivered: "MilestoneDelivered(bytes32,uint32,bytes32,bytes32)",
+  milestoneSettled: "MilestoneSettled(bytes32,uint32,uint256,address)",
+  outcomeRecorded: "OutcomeRecorded(address,address,bytes32,uint256,bool)",
+});
+
+const JOB_CREATED_EVENT = {
+  type: "event",
+  name: "JobCreated",
+  inputs: [
+    { name: "jobId", type: "bytes32", indexed: true },
+    { name: "creator", type: "address", indexed: true },
+    { name: "funding", type: "uint8", indexed: false },
+    { name: "budget", type: "uint256", indexed: false },
+    { name: "releaseId", type: "bytes32", indexed: false },
+    { name: "planHash", type: "bytes32", indexed: false },
+    { name: "issueId", type: "bytes32", indexed: false },
+  ],
+};
+const MILESTONE_DELIVERED_EVENT = {
+  type: "event",
+  name: "MilestoneDelivered",
+  inputs: [
+    { name: "jobId", type: "bytes32", indexed: true },
+    { name: "milestone", type: "uint32", indexed: true },
+    { name: "deliveryHash", type: "bytes32", indexed: false },
+    { name: "proofRoundId", type: "bytes32", indexed: false },
+  ],
+};
+const MILESTONE_SETTLED_EVENT = {
+  type: "event",
+  name: "MilestoneSettled",
+  inputs: [
+    { name: "jobId", type: "bytes32", indexed: true },
+    { name: "milestone", type: "uint32", indexed: true },
+    { name: "paid", type: "uint256", indexed: false },
+    { name: "keeper", type: "address", indexed: true },
+  ],
+};
+const OUTCOME_RECORDED_EVENT = {
+  type: "event",
+  name: "OutcomeRecorded",
+  inputs: [
+    { name: "source", type: "address", indexed: true },
+    { name: "agent", type: "address", indexed: true },
+    { name: "receiptId", type: "bytes32", indexed: true },
+    { name: "units", type: "uint256", indexed: false },
+    { name: "successful", type: "bool", indexed: false },
+  ],
+};
+const CHAIN_EVENT_DEFINITIONS = Object.freeze([
+  {
+    type: "JOB_CREATED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.jobCreated,
+    abi: JOB_CREATED_EVENT,
+    contractKey: "taskMarket",
+  },
+  {
+    type: "MILESTONE_DELIVERED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.milestoneDelivered,
+    abi: MILESTONE_DELIVERED_EVENT,
+    contractKey: "taskMarket",
+  },
+  {
+    type: "MILESTONE_SETTLED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.milestoneSettled,
+    abi: MILESTONE_SETTLED_EVENT,
+    contractKey: "taskMarket",
+  },
+  {
+    type: "OUTCOME_RECORDED",
+    signature: V44_CHAIN_EVENT_SIGNATURES.outcomeRecorded,
+    abi: OUTCOME_RECORDED_EVENT,
+    contractKey: "contributionLedger",
+  },
+].map((definition) => ({
+  ...definition,
+  topic0: keccak256(toBytes(definition.signature)).toLowerCase(),
+})));
+const CHAIN_EVENT_BY_TOPIC = new Map(
+  CHAIN_EVENT_DEFINITIONS.map((definition) => [definition.topic0, definition]),
+);
+
+const RESOLVE_ABI = {
+  type: "function",
+  name: "resolve",
+  stateMutability: "nonpayable",
+  inputs: [
+    { name: "jobId", type: "bytes32" },
+    { name: "milestoneIndex", type: "uint32" },
+    { name: "proof", type: "bytes" },
+    { name: "recipients", type: "address[]" },
+    { name: "amounts", type: "uint256[]" },
+  ],
+  outputs: [],
+};
+const TASK_MARKET_READ_ABI = [
+  {
+    type: "function",
+    name: "jobs",
+    stateMutability: "view",
+    inputs: [{ name: "jobId", type: "bytes32" }],
+    outputs: [
+      { name: "creator", type: "address" },
+      { name: "funding", type: "uint8" },
+      { name: "state", type: "uint8" },
+      { name: "planHash", type: "bytes32" },
+      { name: "releaseId", type: "bytes32" },
+      { name: "issueId", type: "bytes32" },
+      { name: "budget", type: "uint128" },
+      { name: "paid", type: "uint128" },
+      { name: "nextMilestone", type: "uint32" },
+      { name: "milestoneCount", type: "uint32" },
+      { name: "createdAt", type: "uint64" },
+    ],
+  },
+  {
+    type: "function",
+    name: "milestones",
+    stateMutability: "view",
+    inputs: [
+      { name: "jobId", type: "bytes32" },
+      { name: "milestone", type: "uint32" },
+    ],
+    outputs: [
+      { name: "worker", type: "address" },
+      { name: "verifier", type: "address" },
+      { name: "capability", type: "bytes32" },
+      { name: "specificationHash", type: "bytes32" },
+      { name: "expectedEvidenceHash", type: "bytes32" },
+      { name: "payoutRoot", type: "bytes32" },
+      { name: "deliveryHash", type: "bytes32" },
+      { name: "allocation", type: "uint128" },
+      { name: "workerBond", type: "uint128" },
+      { name: "keeperFee", type: "uint128" },
+      { name: "deadline", type: "uint64" },
+      { name: "capacityUnits", type: "uint32" },
+      { name: "minimumReveals", type: "uint16" },
+      { name: "passScoreBps", type: "uint16" },
+      { name: "commitWindow", type: "uint32" },
+      { name: "revealWindow", type: "uint32" },
+      { name: "state", type: "uint8" },
+      { name: "candidateAttested", type: "bool" },
+      { name: "adoptionRecorded", type: "bool" },
+    ],
+  },
+  {
+    type: "function",
+    name: "jobGovernanceEligible",
+    stateMutability: "view",
+    inputs: [{ name: "jobId", type: "bytes32" }],
+    outputs: [{ name: "eligible", type: "bool" }],
+  },
+];
 const TERMINAL_OUTCOMES = new Set([
   "REJECTED",
   "REFUNDED",
@@ -97,17 +258,14 @@ export function exposureSlotId({
   });
 }
 
-export function newExposureLedger({ maximumSuccessfulSystemSettlements = 49 } = {}) {
-  if (
-    !Number.isSafeInteger(maximumSuccessfulSystemSettlements) ||
-    maximumSuccessfulSystemSettlements < 0
-  ) {
-    throw new Error("V44_EXPOSURE_MAXIMUM_INVALID");
-  }
+export function newExposureLedger() {
   return {
     schema: "agentpool.v44.exposure-ledger/v1",
-    maximumSuccessfulSystemSettlements,
+    maximumSuccessfulSystemSettlements:
+      PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
     successfulSystemSettlements: 0,
+    maturityAuthorizationId: null,
+    maturityAuthorizationConsumed: false,
     slots: {},
     journal: [],
   };
@@ -160,7 +318,15 @@ function liveExposure(ledger) {
   ).length;
 }
 
-export function reserveExposureSlot(ledger, descriptor) {
+export function reserveExposureSlot(
+  ledger,
+  descriptor,
+  {
+    maturityAuthorization = null,
+    maturityAuthorizationPolicy = null,
+    evaluationTimeMs = Date.now(),
+  } = {},
+) {
   const slotId = exposureSlotId(descriptor);
   if (ledger.slots[slotId]) {
     throw new Error("V44_EXPOSURE_SLOT_DUPLICATE");
@@ -168,7 +334,22 @@ export function reserveExposureSlot(ledger, descriptor) {
   const worstCase =
     ledger.successfulSystemSettlements + liveExposure(ledger) + 1;
   if (worstCase > ledger.maximumSuccessfulSystemSettlements) {
-    throw new Error("V44_EXPOSURE_WORST_CASE_LIMIT");
+    if (
+      worstCase !== ledger.maximumSuccessfulSystemSettlements + 1 ||
+      ledger.maturityAuthorizationConsumed === true ||
+      maturityAuthorizationPolicy === null
+    ) {
+      throw new Error("V44_EXPOSURE_WORST_CASE_LIMIT");
+    }
+    const verified = validateMaturityAuthorization(maturityAuthorization, {
+      ...maturityAuthorizationPolicy,
+      atMs: evaluationTimeMs,
+      expectedExposureSlotId: slotId,
+      preMatureMaximumSuccessfulSystemSettlements:
+        ledger.maximumSuccessfulSystemSettlements,
+    });
+    ledger.maturityAuthorizationId = verified.authorizationId;
+    ledger.maturityAuthorizationConsumed = true;
   }
   ledger.slots[slotId] = {
     slotId,
@@ -315,6 +496,258 @@ export function signControlDomainRegistry(
           .toString("base64"),
       },
     ],
+  };
+}
+
+function maturityAuthorizationBody(authorization) {
+  const body = structuredClone(authorization);
+  delete body.authorizationId;
+  delete body.signatures;
+  return body;
+}
+
+export function createMaturityAuthorization({
+  issuedAtMs,
+  expiresAtMs,
+  sourceCommit,
+  deploymentManifestSha256,
+  authorizedExposureSlotId,
+  providerSnapshots,
+}) {
+  const body = {
+    schema: "agentpool.v44.maturity-authorization/v1",
+    authorizationVersion: 1,
+    authorizationScope: "SINGLE_50TH_SYSTEM_SETTLEMENT",
+    issuedAtMs,
+    expiresAtMs,
+    sourceCommit,
+    deploymentManifestSha256,
+    authorizedExposureSlotId,
+    providerSnapshots,
+  };
+  return { ...body, authorizationId: sha256Json(body), signatures: [] };
+}
+
+export function signMaturityAuthorization(
+  authorization,
+  { privateKeyPem, publicKeyPem, controllerDomain },
+) {
+  const body = maturityAuthorizationBody(authorization);
+  return {
+    ...authorization,
+    authorizationId: sha256Json(body),
+    signatures: [
+      ...(authorization.signatures ?? []),
+      {
+        signerKeyId: observerKeyId(publicKeyPem),
+        publicKeyPem,
+        controllerDomain,
+        signature: crypto
+          .sign(null, Buffer.from(canonicalJson(body)), privateKeyPem)
+          .toString("base64"),
+      },
+    ],
+  };
+}
+
+export function validateMaturityAuthorization(
+  authorization,
+  {
+    authorizedPublicKeys = [],
+    threshold = 2,
+    atMs = Date.now(),
+    expectedSourceCommit = null,
+    expectedDeploymentManifestSha256 = null,
+    expectedExposureSlotId = null,
+    trustedProviderSnapshots = null,
+    preMatureMaximumSuccessfulSystemSettlements =
+      PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
+    minimumNonMaintainerVotingAgents = 5,
+    minimumOnchainGroups = 3,
+    minimumCorroboratedControlDomains = 3,
+    maximumControlDomainShareBps = 2_999,
+  } = {},
+) {
+  const body = maturityAuthorizationBody(authorization ?? {});
+  if (
+    authorization?.schema !== "agentpool.v44.maturity-authorization/v1" ||
+    authorization.authorizationVersion !== 1 ||
+    authorization.authorizationScope !== "SINGLE_50TH_SYSTEM_SETTLEMENT" ||
+    !Number.isSafeInteger(authorization.issuedAtMs) ||
+    !Number.isSafeInteger(authorization.expiresAtMs) ||
+    authorization.issuedAtMs > atMs ||
+    authorization.expiresAtMs < atMs ||
+    !/^[0-9a-f]{40}$/u.test(authorization.sourceCommit ?? "") ||
+    !/^[0-9a-f]{64}$/u.test(
+      authorization.deploymentManifestSha256 ?? "",
+    ) ||
+    !HASH_PATTERN.test(authorization.authorizedExposureSlotId ?? "") ||
+    authorization.authorizationId !== sha256Json(body) ||
+    (expectedSourceCommit !== null &&
+      authorization.sourceCommit !== expectedSourceCommit) ||
+    (expectedDeploymentManifestSha256 !== null &&
+      authorization.deploymentManifestSha256 !==
+        expectedDeploymentManifestSha256) ||
+    (expectedExposureSlotId !== null &&
+      authorization.authorizedExposureSlotId !== expectedExposureSlotId)
+  ) {
+    throw new Error("V44_MATURITY_AUTHORIZATION_IDENTITY_INVALID");
+  }
+  if (
+    !Array.isArray(authorization.providerSnapshots) ||
+    authorization.providerSnapshots.length < 2 ||
+    new Set(
+      authorization.providerSnapshots.map((snapshot) => snapshot.identity),
+    ).size < 2 ||
+    new Set(
+      authorization.providerSnapshots.map((snapshot) => snapshot.origin),
+    ).size < 2
+  ) {
+    throw new Error("V44_MATURITY_PROVIDER_INDEPENDENCE_INVALID");
+  }
+  const firstProvider = authorization.providerSnapshots[0];
+  const snapshotRoot = sha256Json(firstProvider.snapshot);
+  if (
+    !Number.isSafeInteger(firstProvider.finalizedBlockNumber) ||
+    !HASH_PATTERN.test(firstProvider.finalizedBlockHash ?? "") ||
+    authorization.providerSnapshots.some(
+      (provider) =>
+        provider.finalizedBlockNumber !== firstProvider.finalizedBlockNumber ||
+        provider.finalizedBlockHash?.toLowerCase() !==
+          firstProvider.finalizedBlockHash.toLowerCase() ||
+        sha256Json(provider.snapshot) !== snapshotRoot,
+    )
+  ) {
+    throw new Error("V44_MATURITY_PROVIDER_SNAPSHOT_CONFLICT");
+  }
+  if (
+    !Array.isArray(trustedProviderSnapshots) ||
+    trustedProviderSnapshots.length < 2
+  ) {
+    throw new Error("V44_MATURITY_TRUSTED_CHAIN_SNAPSHOT_REQUIRED");
+  }
+  const trustedByOrigin = new Map(
+    trustedProviderSnapshots.map((provider) => [provider.origin, provider]),
+  );
+  for (const provider of authorization.providerSnapshots) {
+    const trusted = trustedByOrigin.get(provider.origin);
+    if (
+      trusted?.identity !== provider.identity ||
+      trusted.finalizedBlockNumber !== provider.finalizedBlockNumber ||
+      trusted.finalizedBlockHash?.toLowerCase() !==
+        provider.finalizedBlockHash?.toLowerCase() ||
+      sha256Json(trusted.chainSnapshot) !== sha256Json(provider.chainSnapshot)
+    ) {
+      throw new Error("V44_MATURITY_CHAIN_SNAPSHOT_NOT_CORROBORATED");
+    }
+  }
+  const snapshot = firstProvider.snapshot;
+  const agents = snapshot?.nonMaintainerVotingAgents;
+  if (
+    !Array.isArray(agents) ||
+    agents.length < minimumNonMaintainerVotingAgents ||
+    new Set(agents.map((agent) => agent.agent?.toLowerCase())).size !==
+      agents.length ||
+    new Set(agents.map((agent) => agent.operatorGroup)).size <
+      minimumOnchainGroups ||
+    new Set(agents.map((agent) => agent.controlDomain)).size <
+      minimumCorroboratedControlDomains ||
+    agents.some(
+      (agent) =>
+        !ADDRESS_PATTERN.test(agent.agent?.toLowerCase?.() ?? "") ||
+        !HASH_PATTERN.test(agent.operatorGroup ?? "") ||
+        typeof agent.controlDomain !== "string" ||
+        agent.controlDomain.length < 3 ||
+        BigInt(agent.workPower ?? 0) <= 0n,
+    ) ||
+    BigInt(snapshot.maintainerGovernanceUnits ?? -1) !== 0n ||
+    snapshot.proposalBondAvailable !== true ||
+    snapshot.recoveryIssueAvailable !== true ||
+    snapshot.recoveryJobAvailable !== true ||
+    snapshot.governanceDryRunPassed !== true ||
+    snapshot.unresolvedCriticalHigh !== 0 ||
+    snapshot.successfulSystemSettlements !==
+      preMatureMaximumSuccessfulSystemSettlements
+  ) {
+    throw new Error("V44_MATURITY_CHAIN_REQUIREMENTS_INVALID");
+  }
+  const chainSnapshot = firstProvider.chainSnapshot;
+  if (
+    chainSnapshot?.successfulSystemSettlements !==
+      snapshot.successfulSystemSettlements ||
+    chainSnapshot?.eligibleAgentCount < minimumNonMaintainerVotingAgents ||
+    chainSnapshot?.eligibleGroupCount < minimumOnchainGroups ||
+    sha256Json(chainSnapshot?.votingAgents ?? null) !==
+      sha256Json(
+        agents
+          .map(({ agent, operatorGroup, workPower }) => ({
+            agent: agent.toLowerCase(),
+            operatorGroup,
+            workPower: String(workPower),
+          }))
+          .sort((left, right) => left.agent.localeCompare(right.agent)),
+      )
+  ) {
+    throw new Error("V44_MATURITY_CHAIN_METRICS_MISMATCH");
+  }
+  const totalWorkPower = agents.reduce(
+    (total, agent) => total + BigInt(agent.workPower),
+    0n,
+  );
+  const domainPower = new Map();
+  for (const agent of agents) {
+    domainPower.set(
+      agent.controlDomain,
+      (domainPower.get(agent.controlDomain) ?? 0n) + BigInt(agent.workPower),
+    );
+  }
+  const maximumDomainPower = [...domainPower.values()].reduce(
+    (maximum, value) => (value > maximum ? value : maximum),
+    0n,
+  );
+  if (
+    totalWorkPower <= 0n ||
+    maximumDomainPower * 10_000n >=
+      totalWorkPower * BigInt(maximumControlDomainShareBps + 1)
+  ) {
+    throw new Error("V44_MATURITY_CONTROL_DOMAIN_SHARE_INVALID");
+  }
+  if (
+    !Number.isSafeInteger(threshold) ||
+    threshold < 2 ||
+    authorizedPublicKeys.length < threshold
+  ) {
+    throw new Error("V44_MATURITY_SIGNER_POLICY_INVALID");
+  }
+  const authorizedIds = new Set(
+    authorizedPublicKeys.map((publicKeyPem) => observerKeyId(publicKeyPem)),
+  );
+  const validSignatures = (authorization.signatures ?? []).filter(
+    (signature) =>
+      authorizedIds.has(signature.signerKeyId) &&
+      signature.signerKeyId === observerKeyId(signature.publicKeyPem) &&
+      typeof signature.controllerDomain === "string" &&
+      crypto.verify(
+        null,
+        Buffer.from(canonicalJson(body)),
+        signature.publicKeyPem,
+        Buffer.from(signature.signature ?? "", "base64"),
+      ),
+  );
+  if (
+    new Set(validSignatures.map((signature) => signature.signerKeyId)).size <
+      threshold ||
+    new Set(validSignatures.map((signature) => signature.controllerDomain))
+      .size < threshold
+  ) {
+    throw new Error("V44_MATURITY_SIGNATURE_THRESHOLD");
+  }
+  return {
+    valid: true,
+    authorizationId: authorization.authorizationId,
+    finalizedBlockNumber: firstProvider.finalizedBlockNumber,
+    finalizedBlockHash: firstProvider.finalizedBlockHash.toLowerCase(),
+    snapshotRoot,
   };
 }
 
@@ -710,58 +1143,203 @@ export function reconcileFinalizedProviders(
   };
 }
 
-function hexWord(value) {
-  return value.toString(16).padStart(64, "0");
+function jsonSafe(value) {
+  if (typeof value === "bigint") return value.toString();
+  if (Array.isArray(value)) return value.map(jsonSafe);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [key, jsonSafe(nested)]),
+    );
+  }
+  return value;
 }
 
-export function encodeV44SystemSettledRawLog({
+function encodeRawEvent({
+  abi,
+  eventName,
+  args,
   transactionHash,
   blockHash,
   blockNumber,
   logIndex,
   address,
   transactionInput = "0x",
+}) {
+  const nonIndexed = abi.inputs.filter((input) => input.indexed !== true);
+  return {
+    transactionHash: transactionHash.toLowerCase(),
+    blockHash: blockHash.toLowerCase(),
+    blockNumber,
+    logIndex,
+    address: address.toLowerCase(),
+    receiptStatus: "success",
+    transactionInput: transactionInput.toLowerCase(),
+    topics: encodeEventTopics({ abi: [abi], eventName, args }).map((topic) =>
+      topic.toLowerCase(),
+    ),
+    data: encodeAbiParameters(
+      nonIndexed,
+      nonIndexed.map((input) => args[input.name]),
+    ).toLowerCase(),
+  };
+}
+
+export function systemSettlementReceiptId(jobId, milestone) {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "string" }, { type: "bytes32" }, { type: "uint32" }],
+      ["AGENTPOOL_V432_SETTLEMENT", jobId, milestone],
+    ),
+  ).toLowerCase();
+}
+
+export function encodeV44SettlementLifecycleRawLogs({
+  transactionHash,
+  jobTransactionHash = `0x${"91".repeat(32)}`,
+  deliveryTransactionHash = `0x${"92".repeat(32)}`,
+  blockHash,
+  blockNumber,
+  taskMarket,
+  contributionLedger,
+  settlementRouter,
   issueHash,
   jobId,
   milestone,
   roundId,
   artifactDigest,
-  sourceSnapshotDigest,
   specificationHash,
-  admissionBundleHash,
-  settlementBundleHash,
-  exposureSlotId: slotId,
-  outcomeEventId,
+  worker = `0x${"44".repeat(20)}`,
+  keeper = `0x${"55".repeat(20)}`,
+  creator = `0x${"66".repeat(20)}`,
+  capability = `0x${"77".repeat(32)}`,
+  funding = 2,
+  paid = 100n,
+  units = 1n,
+  governanceEligible = true,
 }) {
-  const dataWords = [
-    roundId,
-    artifactDigest,
-    sourceSnapshotDigest,
-    specificationHash,
-    admissionBundleHash,
-    settlementBundleHash,
-    slotId,
-    outcomeEventId,
+  const receiptId = systemSettlementReceiptId(jobId, milestone);
+  const resolveInput = encodeFunctionData({
+    abi: [RESOLVE_ABI],
+    functionName: "resolve",
+    args: [jobId, milestone, "0x1234", [worker], [paid]],
+  });
+  const rawEvents = [
+    encodeRawEvent({
+      abi: JOB_CREATED_EVENT,
+      eventName: "JobCreated",
+      args: {
+        jobId,
+        creator,
+        funding,
+        budget: paid,
+        releaseId: `0x${"88".repeat(32)}`,
+        planHash: `0x${"89".repeat(32)}`,
+        issueId: issueHash,
+      },
+      transactionHash: jobTransactionHash,
+      blockHash,
+      blockNumber: blockNumber - 2,
+      logIndex: 0,
+      address: taskMarket,
+    }),
+    encodeRawEvent({
+      abi: MILESTONE_DELIVERED_EVENT,
+      eventName: "MilestoneDelivered",
+      args: { jobId, milestone, deliveryHash: artifactDigest, proofRoundId: roundId },
+      transactionHash: deliveryTransactionHash,
+      blockHash,
+      blockNumber: blockNumber - 1,
+      logIndex: 0,
+      address: taskMarket,
+    }),
+    encodeRawEvent({
+      abi: OUTCOME_RECORDED_EVENT,
+      eventName: "OutcomeRecorded",
+      args: {
+        source: settlementRouter,
+        agent: worker,
+        receiptId,
+        units,
+        successful: true,
+      },
+      transactionHash,
+      blockHash,
+      blockNumber,
+      logIndex: 0,
+      address: contributionLedger,
+      transactionInput: resolveInput,
+    }),
+    encodeRawEvent({
+      abi: MILESTONE_SETTLED_EVENT,
+      eventName: "MilestoneSettled",
+      args: { jobId, milestone, paid, keeper },
+      transactionHash,
+      blockHash,
+      blockNumber,
+      logIndex: 1,
+      address: taskMarket,
+      transactionInput: resolveInput,
+    }),
   ];
-  return {
-    transactionHash,
-    blockHash,
-    blockNumber,
-    logIndex,
-    address,
-    receiptStatus: "success",
-    transactionInput,
-    topics: [
-      V44_SYSTEM_SETTLED_TOPIC0,
-      issueHash,
+  const stateReads = [
+    {
       jobId,
-      `0x${hexWord(BigInt(milestone))}`,
-    ],
-    data: `0x${dataWords.map((value) => value.slice(2)).join("")}`,
-  };
+      milestone,
+      finalizedBlockNumber: blockNumber,
+      job: {
+        creator: creator.toLowerCase(),
+        funding,
+        state: 4,
+        planHash: `0x${"89".repeat(32)}`,
+        releaseId: `0x${"88".repeat(32)}`,
+        issueId: issueHash.toLowerCase(),
+        budget: paid.toString(),
+        paid: paid.toString(),
+        nextMilestone: 0,
+        milestoneCount: 1,
+        createdAt: 1,
+      },
+      milestoneState: {
+        worker: worker.toLowerCase(),
+        verifier: `0x${"33".repeat(20)}`,
+        capability: capability.toLowerCase(),
+        specificationHash: specificationHash.toLowerCase(),
+        expectedEvidenceHash: `0x${"22".repeat(32)}`,
+        payoutRoot: `0x${"23".repeat(32)}`,
+        deliveryHash: artifactDigest.toLowerCase(),
+        allocation: paid.toString(),
+        workerBond: "1",
+        keeperFee: "0",
+        deadline: 1,
+        capacityUnits: Number(units),
+        minimumReveals: 3,
+        passScoreBps: 8_000,
+        commitWindow: 60,
+        revealWindow: 60,
+        state: 4,
+        candidateAttested: false,
+        adoptionRecorded: false,
+      },
+      governanceEligible,
+    },
+  ];
+  return { rawEvents, stateReads, receiptId };
 }
 
-function decodeV44SystemSettledRawLog(rawEvent, allowedEmitters) {
+function normalizedContractPolicy(contracts) {
+  const required = ["taskMarket", "contributionLedger", "settlementRouter"];
+  const normalized = {};
+  for (const key of required) {
+    const value = contracts?.[key]?.toLowerCase?.();
+    if (!ADDRESS_PATTERN.test(value ?? "")) {
+      throw new Error(`V44_GOVERNANCE_CONTRACT_${key.toUpperCase()}_INVALID`);
+    }
+    normalized[key] = value;
+  }
+  return normalized;
+}
+
+function decodeActualGovernanceRawLog(rawEvent, contracts) {
   if (
     !HASH_PATTERN.test(rawEvent?.transactionHash ?? "") ||
     !HASH_PATTERN.test(rawEvent?.blockHash ?? "") ||
@@ -774,30 +1352,33 @@ function decodeV44SystemSettledRawLog(rawEvent, allowedEmitters) {
     typeof rawEvent.transactionInput !== "string" ||
     !/^0x[0-9a-f]*$/u.test(rawEvent.transactionInput.toLowerCase()) ||
     !Array.isArray(rawEvent.topics) ||
-    rawEvent.topics.length !== 4 ||
-    rawEvent.topics[0]?.toLowerCase() !== V44_SYSTEM_SETTLED_TOPIC0 ||
-    !HASH_PATTERN.test(rawEvent.topics[1] ?? "") ||
-    !HASH_PATTERN.test(rawEvent.topics[2] ?? "") ||
-    !HASH_PATTERN.test(rawEvent.topics[3] ?? "") ||
+    rawEvent.topics.length < 1 ||
+    rawEvent.topics.some((topic) => !HASH_PATTERN.test(topic ?? "")) ||
     typeof rawEvent.data !== "string" ||
-    !/^0x[0-9a-f]{512}$/u.test(rawEvent.data.toLowerCase())
+    !/^0x(?:[0-9a-f]{2})*$/u.test(rawEvent.data.toLowerCase())
   ) {
     throw new Error("V44_GOVERNANCE_RAW_LOG_INVALID");
   }
-  if (!allowedEmitters.has(rawEvent.address.toLowerCase())) {
+  const definition = CHAIN_EVENT_BY_TOPIC.get(rawEvent.topics[0].toLowerCase());
+  if (!definition) throw new Error("V44_GOVERNANCE_EVENT_UNSUPPORTED");
+  if (rawEvent.address.toLowerCase() !== contracts[definition.contractKey]) {
     throw new Error("V44_GOVERNANCE_EVENT_EMITTER_UNAUTHORIZED");
   }
-  const dataWords = rawEvent.data
-    .slice(2)
-    .match(/.{64}/gu)
-    .map((word) => `0x${word.toLowerCase()}`);
-  const milestoneBigInt = BigInt(rawEvent.topics[3]);
-  if (milestoneBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error("V44_GOVERNANCE_MILESTONE_INVALID");
+  let decoded;
+  try {
+    decoded = decodeEventLog({
+      abi: [definition.abi],
+      eventName: definition.abi.name,
+      topics: rawEvent.topics,
+      data: rawEvent.data,
+      strict: true,
+    });
+  } catch {
+    throw new Error("V44_GOVERNANCE_EVENT_DECODE_FAILED");
   }
-  return {
+  const event = {
     eventId: `${rawEvent.transactionHash.toLowerCase()}:${rawEvent.logIndex}`,
-    type: "SYSTEM_SETTLED",
+    type: definition.type,
     transactionHash: rawEvent.transactionHash.toLowerCase(),
     blockHash: rawEvent.blockHash.toLowerCase(),
     blockNumber: rawEvent.blockNumber,
@@ -806,20 +1387,30 @@ function decodeV44SystemSettledRawLog(rawEvent, allowedEmitters) {
     transactionInputHash: sha256Json({
       transactionInput: rawEvent.transactionInput.toLowerCase(),
     }),
-    issueHash: rawEvent.topics[1].toLowerCase(),
-    jobId: rawEvent.topics[2].toLowerCase(),
-    milestone: Number(milestoneBigInt),
-    roundId: dataWords[0],
-    artifactDigest: dataWords[1],
-    sourceSnapshotDigest: dataWords[2],
-    specificationHash: dataWords[3],
-    admissionBundleHash: dataWords[4],
-    settlementBundleHash: dataWords[5],
-    exposureSlotId: dataWords[6],
-    outcomeEventId: dataWords[7],
+    args: jsonSafe(decoded.args),
     finalized: true,
     canonical: true,
   };
+  if (definition.type === "OUTCOME_RECORDED") {
+    if (event.args.source.toLowerCase() !== contracts.settlementRouter) {
+      throw new Error("V44_GOVERNANCE_OUTCOME_SOURCE_UNAUTHORIZED");
+    }
+  }
+  if (definition.type === "MILESTONE_SETTLED") {
+    try {
+      const call = decodeFunctionData({
+        abi: [RESOLVE_ABI],
+        data: rawEvent.transactionInput,
+      });
+      event.resolveInputValid =
+        call.functionName === "resolve" &&
+        call.args[0].toLowerCase() === event.args.jobId.toLowerCase() &&
+        Number(call.args[1]) === Number(event.args.milestone);
+    } catch {
+      event.resolveInputValid = false;
+    }
+  }
+  return event;
 }
 
 async function rpcRequest(rpcUrl, method, params, fetcher) {
@@ -847,7 +1438,7 @@ function rpcQuantity(value) {
 export async function collectGovernanceEventSnapshot({
   rpcUrl,
   fromBlock,
-  allowedEmitters,
+  contracts,
   finalizedBlockNumber,
   fetcher = fetch,
 }) {
@@ -855,14 +1446,11 @@ export async function collectGovernanceEventSnapshot({
     typeof rpcUrl !== "string" ||
     !Number.isSafeInteger(fromBlock) ||
     fromBlock < 0 ||
-    !Array.isArray(allowedEmitters) ||
-    allowedEmitters.length === 0 ||
-    allowedEmitters.some(
-      (address) => !ADDRESS_PATTERN.test(address.toLowerCase()),
-    )
+    !contracts
   ) {
     throw new Error("V44_GOVERNANCE_RPC_POLICY_INVALID");
   }
+  const contractPolicy = normalizedContractPolicy(contracts);
   const chainId = Number(
     BigInt(await rpcRequest(rpcUrl, "eth_chainId", [], fetcher)),
   );
@@ -898,10 +1486,10 @@ export async function collectGovernanceEventSnapshot({
     "eth_getLogs",
     [
       {
-        address: allowedEmitters,
+        address: [contractPolicy.taskMarket, contractPolicy.contributionLedger],
         fromBlock: rpcQuantity(fromBlock),
         toBlock: rpcQuantity(resolvedFinalizedBlockNumber),
-        topics: [V44_SYSTEM_SETTLED_TOPIC0],
+        topics: [CHAIN_EVENT_DEFINITIONS.map((definition) => definition.topic0)],
       },
     ],
     fetcher,
@@ -934,6 +1522,63 @@ export async function collectGovernanceEventSnapshot({
       data: log.data?.toLowerCase(),
     });
   }
+  const decodedSettlements = rawEvents
+    .map((rawEvent) => decodeActualGovernanceRawLog(rawEvent, contractPolicy))
+    .filter((event) => event.type === "MILESTONE_SETTLED");
+  const stateReads = [];
+  for (const event of decodedSettlements) {
+    const jobId = event.args.jobId.toLowerCase();
+    const milestone = Number(event.args.milestone);
+    const call = async (functionName, args) =>
+      rpcRequest(
+        rpcUrl,
+        "eth_call",
+        [
+          {
+            to: contractPolicy.taskMarket,
+            data: encodeFunctionData({
+              abi: TASK_MARKET_READ_ABI,
+              functionName,
+              args,
+            }),
+          },
+          rpcQuantity(resolvedFinalizedBlockNumber),
+        ],
+        fetcher,
+      );
+    const [jobResult, milestoneResult, governanceEligibleResult] =
+      await Promise.all([
+        call("jobs", [jobId]),
+        call("milestones", [jobId, milestone]),
+        call("jobGovernanceEligible", [jobId]),
+      ]);
+    const jobOutputs = TASK_MARKET_READ_ABI.find(
+      (entry) => entry.name === "jobs",
+    ).outputs;
+    const milestoneOutputs = TASK_MARKET_READ_ABI.find(
+      (entry) => entry.name === "milestones",
+    ).outputs;
+    const jobValues = decodeAbiParameters(jobOutputs, jobResult);
+    const milestoneValues = decodeAbiParameters(milestoneOutputs, milestoneResult);
+    stateReads.push({
+      jobId,
+      milestone,
+      finalizedBlockNumber: resolvedFinalizedBlockNumber,
+      job: Object.fromEntries(
+        jobOutputs.map((output, index) => [output.name, jsonSafe(jobValues[index])]),
+      ),
+      milestoneState: Object.fromEntries(
+        milestoneOutputs.map((output, index) => [
+          output.name,
+          jsonSafe(milestoneValues[index]),
+        ]),
+      ),
+      governanceEligible: decodeAbiParameters(
+        [{ type: "bool" }],
+        governanceEligibleResult,
+      )[0],
+    });
+  }
   const origin = new URL(rpcUrl).origin;
   return {
     identity: sha256Json({
@@ -944,13 +1589,120 @@ export async function collectGovernanceEventSnapshot({
     finalizedBlockNumber: resolvedFinalizedBlockNumber,
     finalizedBlockHash: finalizedBlock.hash.toLowerCase(),
     rawEvents,
+    stateReads,
   };
+}
+
+function uniqueMap(values, keyOf, duplicateError) {
+  const map = new Map();
+  for (const value of values) {
+    const key = keyOf(value);
+    if (map.has(key)) throw new Error(duplicateError);
+    map.set(key, value);
+  }
+  return map;
+}
+
+function lifecycleKey(jobId, milestone) {
+  return `${jobId.toLowerCase()}:${Number(milestone)}`;
+}
+
+function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
+  const jobs = uniqueMap(
+    decodedEvents.filter((event) => event.type === "JOB_CREATED"),
+    (event) => event.args.jobId.toLowerCase(),
+    "V44_GOVERNANCE_JOB_CREATED_DUPLICATE",
+  );
+  const deliveries = uniqueMap(
+    decodedEvents.filter((event) => event.type === "MILESTONE_DELIVERED"),
+    (event) => lifecycleKey(event.args.jobId, event.args.milestone),
+    "V44_GOVERNANCE_DELIVERY_DUPLICATE",
+  );
+  const outcomes = uniqueMap(
+    decodedEvents.filter((event) => event.type === "OUTCOME_RECORDED"),
+    (event) => event.args.receiptId.toLowerCase(),
+    "V44_GOVERNANCE_OUTCOME_DUPLICATE",
+  );
+  const states = uniqueMap(
+    stateReads ?? [],
+    (state) => lifecycleKey(state.jobId, state.milestone),
+    "V44_GOVERNANCE_STATE_READ_DUPLICATE",
+  );
+  const usedOutcomeIds = new Set();
+  const systemEvents = [];
+  for (const settled of decodedEvents.filter(
+    (event) => event.type === "MILESTONE_SETTLED",
+  )) {
+    const jobId = settled.args.jobId.toLowerCase();
+    const milestone = Number(settled.args.milestone);
+    const key = lifecycleKey(jobId, milestone);
+    const state = states.get(key);
+    if (state?.governanceEligible !== true) continue;
+    const jobCreated = jobs.get(jobId);
+    const delivered = deliveries.get(key);
+    const receiptId = systemSettlementReceiptId(jobId, milestone);
+    const outcome = outcomes.get(receiptId);
+    const funding = Number(state?.job?.funding);
+    const chainLifecycleValid =
+      [2, 3].includes(funding) &&
+      Number(state?.job?.state) === 4 &&
+      Number(state?.milestoneState?.state) === 4 &&
+      settled.resolveInputValid === true &&
+      jobCreated?.args?.issueId?.toLowerCase() ===
+        state?.job?.issueId?.toLowerCase() &&
+      Number(jobCreated?.args?.funding) === funding &&
+      delivered?.args?.deliveryHash?.toLowerCase() ===
+        state?.milestoneState?.deliveryHash?.toLowerCase() &&
+      outcome?.transactionHash === settled.transactionHash &&
+      outcome?.args?.agent?.toLowerCase() ===
+        state?.milestoneState?.worker?.toLowerCase() &&
+      BigInt(outcome?.args?.units ?? -1) ===
+        BigInt(state?.milestoneState?.capacityUnits ?? -2) &&
+      outcome?.args?.successful === true &&
+      !usedOutcomeIds.has(receiptId);
+    if (outcome) usedOutcomeIds.add(receiptId);
+    systemEvents.push({
+      eventId: settled.eventId,
+      type: "SYSTEM_SETTLED",
+      transactionHash: settled.transactionHash,
+      blockHash: settled.blockHash,
+      blockNumber: settled.blockNumber,
+      logIndex: settled.logIndex,
+      emitter: settled.emitter,
+      transactionInputHash: settled.transactionInputHash,
+      issueHash: state?.job?.issueId?.toLowerCase() ?? ZERO_HASH,
+      jobId,
+      milestone,
+      roundId: delivered?.args?.proofRoundId?.toLowerCase() ?? ZERO_HASH,
+      artifactDigest:
+        state?.milestoneState?.deliveryHash?.toLowerCase() ?? ZERO_HASH,
+      specificationHash:
+        state?.milestoneState?.specificationHash?.toLowerCase() ?? ZERO_HASH,
+      outcome: outcome
+        ? {
+            eventId: outcome.eventId,
+            source: outcome.args.source.toLowerCase(),
+            agent: outcome.args.agent.toLowerCase(),
+            receiptId: outcome.args.receiptId.toLowerCase(),
+            units: outcome.args.units,
+            successful: outcome.args.successful,
+            transactionHash: outcome.transactionHash,
+            blockHash: outcome.blockHash,
+            logIndex: outcome.logIndex,
+          }
+        : null,
+      chainLifecycleValid,
+      finalized: true,
+      canonical: true,
+    });
+  }
+  return systemEvents.sort((left, right) => left.eventId.localeCompare(right.eventId));
 }
 
 export function reconcileGovernanceEventSets({
   providers,
   localEventIds,
-  allowedEmitters = [],
+  contracts,
 }) {
   if (!Array.isArray(providers) || providers.length < 2) {
     return { eligible: false, reason: "TWO_EVENT_PROVIDERS_REQUIRED" };
@@ -974,27 +1726,45 @@ export function reconcileGovernanceEventSets({
   ) {
     return { eligible: false, reason: "EVENT_PROVIDER_FINALIZED_HEAD_CONFLICT" };
   }
-  const emitterSet = new Set(
-    allowedEmitters.map((address) => address.toLowerCase()),
-  );
-  if (
-    emitterSet.size === 0 ||
-    [...emitterSet].some((address) => !ADDRESS_PATTERN.test(address))
-  ) {
-    return { eligible: false, reason: "EVENT_EMITTER_POLICY_MISSING" };
+  let contractPolicy;
+  try {
+    contractPolicy = normalizedContractPolicy(contracts);
+  } catch {
+    return { eligible: false, reason: "EVENT_CONTRACT_POLICY_MISSING" };
   }
   const normalizedSets = providers.map((provider) =>
     [...(provider.rawEvents ?? [])]
-      .map((rawEvent) => decodeV44SystemSettledRawLog(rawEvent, emitterSet))
+      .map((rawEvent) => decodeActualGovernanceRawLog(rawEvent, contractPolicy))
       .filter((event) => event.blockNumber <= provider.finalizedBlockNumber)
       .map((event) => ({ ...event, eventHash: sha256Json(event) }))
       .sort((left, right) => left.eventId.localeCompare(right.eventId)),
   );
-  const canonicalRoot = sha256Json(normalizedSets[0]);
-  if (normalizedSets.some((events) => sha256Json(events) !== canonicalRoot)) {
+  const normalizedStateReads = providers.map((provider) =>
+    [...(provider.stateReads ?? [])].sort((left, right) =>
+      lifecycleKey(left.jobId, left.milestone).localeCompare(
+        lifecycleKey(right.jobId, right.milestone),
+      ),
+    ),
+  );
+  const rawEvidenceRoot = sha256Json({
+    events: normalizedSets[0],
+    stateReads: normalizedStateReads[0],
+  });
+  if (
+    normalizedSets.some(
+      (events, index) =>
+        sha256Json({ events, stateReads: normalizedStateReads[index] }) !==
+        rawEvidenceRoot,
+    )
+  ) {
     return { eligible: false, reason: "EVENT_SET_CONFLICT" };
   }
-  const canonicalIds = normalizedSets[0].map((event) => event.eventId);
+  const canonicalEvents = deriveActualSystemSettlementEvents(
+    normalizedSets[0],
+    normalizedStateReads[0],
+  );
+  const canonicalRoot = sha256Json(canonicalEvents);
+  const canonicalIds = canonicalEvents.map((event) => event.eventId);
   const localIds = [...(localEventIds ?? [])].sort();
   if (
     canonicalIds.length !== localIds.length ||
@@ -1010,7 +1780,8 @@ export function reconcileGovernanceEventSets({
   return {
     eligible: true,
     canonicalRoot,
-    events: normalizedSets[0],
+    rawEvidenceRoot,
+    events: canonicalEvents,
     providerCount: providers.length,
     finalizedBlockNumber: first.finalizedBlockNumber,
     finalizedBlockHash: first.finalizedBlockHash.toLowerCase(),
@@ -1040,9 +1811,54 @@ function eventJoinKey(value) {
     milestone: value.milestone,
     roundId: value.roundId,
     artifactDigest: value.artifactDigest,
-    sourceSnapshotDigest: value.sourceSnapshotDigest,
     specificationHash: value.specificationHash,
   });
+}
+
+export function validateExposureLifecycleAgainstEvents(ledger, events) {
+  const successfulSlots = Object.values(ledger?.slots ?? {}).filter(
+    (slot) => slot.state === SLOT_STATES.SUCCESSFULLY_CONSUMED,
+  );
+  const eventsByLifecycle = uniqueMap(
+    events,
+    (event) => lifecycleKey(event.jobId, event.milestone),
+    "V44_EXPOSURE_CHAIN_EVENT_DUPLICATE",
+  );
+  const journalBySlot = new Map();
+  for (const entry of ledger?.journal ?? []) {
+    const entries = journalBySlot.get(entry.slotId) ?? [];
+    entries.push(entry);
+    journalBySlot.set(entry.slotId, entries);
+  }
+  const expectedStates = [
+    SLOT_STATES.RESERVED_FOR_ISSUE,
+    SLOT_STATES.BOUND_TO_JOB_MILESTONE,
+    SLOT_STATES.VALIDATION_OPEN,
+    SLOT_STATES.VALIDATOR_AUTHORIZED,
+    SLOT_STATES.SUCCESSFULLY_CONSUMED,
+  ];
+  for (const slot of successfulSlots) {
+    const event = eventsByLifecycle.get(lifecycleKey(slot.jobId, slot.milestone));
+    const states = (journalBySlot.get(slot.slotId) ?? []).map(
+      (entry) => entry.state,
+    );
+    if (
+      event?.issueHash !== slot.issueHash ||
+      event?.chainLifecycleValid !== true ||
+      states.length !== expectedStates.length ||
+      states.some((state, index) => state !== expectedStates[index])
+    ) {
+      throw new Error("V44_EXPOSURE_JOURNAL_CHAIN_LIFECYCLE_MISMATCH");
+    }
+  }
+  if (successfulSlots.length !== events.length) {
+    throw new Error("V44_EXPOSURE_CHAIN_CARDINALITY_MISMATCH");
+  }
+  return {
+    valid: true,
+    successfulSlotCount: successfulSlots.length,
+    chainEventCount: events.length,
+  };
 }
 
 export function deriveSystemSettlementEvidence({
@@ -1080,11 +1896,16 @@ export function deriveSystemSettlementEvidence({
     const key = eventJoinKey(event);
     const admission = admissions.get(key);
     const settlement = settlements.get(key);
-    const slot = exposureLedger.slots?.[event.exposureSlotId];
+    const slotId = admission?.exposureSlotId;
+    const slot = exposureLedger.slots?.[slotId];
     const admissionBundleValid =
-      admission?.bundleHash === event.admissionBundleHash;
+      admission !== undefined &&
+      admission.bundleHash === shadowBundleHash(admission);
     const settlementBundleValid =
-      settlement?.bundleHash === event.settlementBundleHash;
+      settlement !== undefined &&
+      settlement.bundleHash === shadowBundleHash(settlement) &&
+      admission?.sourceSnapshotDigest === settlement?.sourceSnapshotDigest &&
+      admission?.exposureSlotId === settlement?.exposureSlotId;
     const canonicalScoreValid =
       admission?.canonicalScorePolicyVersion ===
         settlement?.canonicalScorePolicyVersion &&
@@ -1102,17 +1923,24 @@ export function deriveSystemSettlementEvidence({
       slot?.jobId === event.jobId &&
       slot?.milestone === event.milestone &&
       slot?.state === SLOT_STATES.SUCCESSFULLY_CONSUMED &&
-      !usedSlots.has(event.exposureSlotId);
+      !usedSlots.has(slotId);
     const outcomeRecorded =
-      HASH_PATTERN.test(event.outcomeEventId ?? "") &&
-      event.outcomeEventId !== ZERO_HASH &&
-      !usedOutcomes.has(event.outcomeEventId);
+      event.chainLifecycleValid === true &&
+      HASH_PATTERN.test(event.outcome?.receiptId ?? "") &&
+      event.outcome.receiptId === systemSettlementReceiptId(event.jobId, event.milestone) &&
+      event.outcome.successful === true &&
+      !usedOutcomes.has(event.outcome.eventId);
     if (admissionBundleValid) usedAdmissions.add(admission.bundleHash);
     if (settlementBundleValid) usedSettlements.add(settlement.bundleHash);
-    if (uniqueExposureSlotValid) usedSlots.add(event.exposureSlotId);
-    if (outcomeRecorded) usedOutcomes.add(event.outcomeEventId);
+    if (uniqueExposureSlotValid) usedSlots.add(slotId);
+    if (outcomeRecorded) usedOutcomes.add(event.outcome.eventId);
     return {
       ...event,
+      sourceSnapshotDigest: admission?.sourceSnapshotDigest ?? ZERO_HASH,
+      admissionBundleHash: admission?.bundleHash ?? ZERO_HASH,
+      settlementBundleHash: settlement?.bundleHash ?? ZERO_HASH,
+      exposureSlotId: slotId ?? ZERO_HASH,
+      outcomeEventId: event.outcome?.eventId ?? null,
       admissionBundleValid,
       settlementBundleValid,
       canonicalScoreValid,
@@ -1133,6 +1961,10 @@ export function deriveSystemSettlementEvidence({
         event.uniqueExposureSlotValid &&
         event.outcomeRecorded,
     );
+  const exposureLifecycle = validateExposureLifecycleAgainstEvents(
+    exposureLedger,
+    derivedEvents,
+  );
   return {
     complete,
     events: derivedEvents,
@@ -1140,6 +1972,7 @@ export function deriveSystemSettlementEvidence({
     settlementCount: usedSettlements.size,
     exposureCount: usedSlots.size,
     outcomeCount: usedOutcomes.size,
+    exposureLifecycle,
   };
 }
 
@@ -1313,6 +2146,8 @@ export function validateAutonomyEvidence(
     controlDomainPolicy = null,
     checkpointPolicy = null,
     governanceEventPolicy = null,
+    exposurePolicy = null,
+    maturityAuthorizationPolicy = null,
     generatedCodeCommit = null,
     evaluationTimeMs = Date.now(),
   } = {},
@@ -1325,14 +2160,68 @@ export function validateAutonomyEvidence(
   }
   const summary = exposureSummary(evidence.exposureLedger);
   const exposureJournal = validateExposureJournal(evidence.exposureLedger);
+  const trustedPreMatureMaximum =
+    exposurePolicy?.preMatureMaximumSuccessfulSystemSettlements ??
+    PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS;
   if (
-    summary.worstCaseSuccessfulSettlements >
-    summary.maximumSuccessfulSystemSettlements
+    summary.maximumSuccessfulSystemSettlements !== trustedPreMatureMaximum
   ) {
-    throw new Error("V44_AUTONOMY_EXPOSURE_LIMIT_EXCEEDED");
+    throw new Error("V44_AUTONOMY_EXPOSURE_POLICY_MISMATCH");
+  }
+  let maturityAuthorization = null;
+  if (summary.worstCaseSuccessfulSettlements > trustedPreMatureMaximum) {
+    if (
+      summary.worstCaseSuccessfulSettlements !== trustedPreMatureMaximum + 1 ||
+      evidence.exposureLedger.maturityAuthorizationConsumed !== true ||
+      maturityAuthorizationPolicy === null
+    ) {
+      throw new Error("V44_AUTONOMY_EXPOSURE_LIMIT_EXCEEDED");
+    }
+    maturityAuthorization = validateMaturityAuthorization(
+      evidence.maturityAuthorization,
+      {
+        ...maturityAuthorizationPolicy,
+        atMs: evaluationTimeMs,
+        expectedExposureSlotId:
+          evidence.maturityAuthorization?.authorizedExposureSlotId ?? null,
+        preMatureMaximumSuccessfulSystemSettlements: trustedPreMatureMaximum,
+      },
+    );
+    if (
+      maturityAuthorization.authorizationId !==
+        evidence.exposureLedger.maturityAuthorizationId ||
+      !evidence.exposureLedger.slots?.[
+        evidence.maturityAuthorization.authorizedExposureSlotId
+      ]
+    ) {
+      throw new Error("V44_AUTONOMY_MATURITY_AUTHORIZATION_MISMATCH");
+    }
   }
   const admissionBundles = evidence.admissionBundles ?? [];
   const settlementBundles = evidence.settlementBundles ?? [];
+  const signerPolicyReady = (policy) =>
+    Number.isSafeInteger(policy?.threshold) &&
+    policy.threshold >= 2 &&
+    Array.isArray(policy?.authorizedPublicKeys) &&
+    policy.authorizedPublicKeys.length >= policy.threshold;
+  if (
+    (admissionBundles.length > 0 || settlementBundles.length > 0) &&
+    (!signerPolicyReady(controlDomainPolicy) ||
+      !signerPolicyReady(checkpointPolicy))
+  ) {
+    return {
+      valid: false,
+      status: "PENDING_POLICY_CONFIGURATION",
+      exposure: summary,
+      exposureJournal,
+      maturityAuthorization,
+      contamination: {
+        governanceContaminated: "UNVERIFIED",
+        violationEventIds: [],
+        finalizedEventCount: 0,
+      },
+    };
+  }
   let controlDomainRegistry = null;
   if (admissionBundles.length > 0 || settlementBundles.length > 0) {
     controlDomainRegistry = validateControlDomainRegistry(
@@ -1360,7 +2249,7 @@ export function validateAutonomyEvidence(
   const eventReconciliation = reconcileGovernanceEventSets({
     providers: evidence.governanceEventProviders ?? [],
     localEventIds: evidence.governanceEventIds ?? [],
-    allowedEmitters: governanceEventPolicy?.allowedEmitters ?? [],
+    contracts: governanceEventPolicy?.contracts ?? null,
   });
   if (
     admissionBundles.length === 0 ||
@@ -1377,6 +2266,7 @@ export function validateAutonomyEvidence(
       status: "PENDING_NO_EVIDENCE",
       exposure: summary,
       exposureJournal,
+      maturityAuthorization,
       checkpoint,
       eventReconciliation,
       contamination: {
@@ -1420,6 +2310,7 @@ export function validateAutonomyEvidence(
       status: "PENDING_NO_EVIDENCE",
       exposure: summary,
       exposureJournal,
+      maturityAuthorization,
       checkpoint,
       eventReconciliation,
       settlementEvidence,
@@ -1441,6 +2332,7 @@ export function validateAutonomyEvidence(
         : "GOVERNANCE_CONTAMINATED",
     exposure: summary,
     exposureJournal,
+    maturityAuthorization,
     checkpoint,
     eventReconciliation,
     settlementEvidence,

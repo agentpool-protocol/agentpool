@@ -25,6 +25,11 @@ window that rejects emission reservation or settlement before genesis. No
 Base mainnet transaction has been sent and every evidence gate remains
 blocked by default.
 
+The tracked v4.4 autonomy policy now fail-closes at 49 successful SYSTEM
+settlements. Its 50th transition requires a two-RPC, independently signed
+maturity authorization, and the public-testnet campaign cannot begin until
+external observer keys are pinned; no placeholder maintainer key is accepted.
+
 The mainnet BOOTSTRAP is a finite catalog of 24-32 distinct, evidence-addressed
 AgentPool improvement or verification objectives—not one repeatable mining
 task. Challenge answers remain local until settlement; the public deployment

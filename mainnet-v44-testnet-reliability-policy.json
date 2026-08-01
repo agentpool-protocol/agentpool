@@ -12,6 +12,60 @@
   "minimumIndependentObservers": 2,
   "minimumIndependentObserverGroups": 2,
   "maximumOpenCriticalIncidents": 0,
+  "autonomyV2": {
+    "schema": "agentpool.v44.autonomy-policy/v1",
+    "exposurePolicy": {
+      "preMatureMaximumSuccessfulSystemSettlements": 49,
+      "maturityTransitionSettlement": 50
+    },
+    "governanceEventPolicy": {
+      "fromBlock": "deployment.deploymentBlock",
+      "contractKeys": [
+        "taskMarket",
+        "contributionLedger"
+      ],
+      "sourceContractKeys": [
+        "settlementRouter"
+      ],
+      "eventSignatures": [
+        "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)",
+        "MilestoneDelivered(bytes32,uint32,bytes32,bytes32)",
+        "MilestoneSettled(bytes32,uint32,uint256,address)",
+        "OutcomeRecorded(address,address,bytes32,uint256,bool)"
+      ]
+    },
+    "controlDomainPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_KEYS",
+      "authorizedPublicKeys": [],
+      "threshold": 2
+    },
+    "checkpointPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_KEYS",
+      "authorizedPublicKeys": [],
+      "threshold": 2
+    },
+    "maturityAuthorizationPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_KEYS",
+      "authorizedPublicKeys": [],
+      "threshold": 2,
+      "minimumNonMaintainerVotingAgents": 5,
+      "minimumOnchainGroups": 3,
+      "minimumCorroboratedControlDomains": 3,
+      "maximumControlDomainShareBps": 2999,
+      "maintainerGovernanceUnits": 0,
+      "proposalBondRequired": true,
+      "recoveryIssueRequired": true,
+      "recoveryJobRequired": true,
+      "maximumUnresolvedCriticalHigh": 0,
+      "governanceDryRunRequired": true,
+      "authorizationScope": "SINGLE_50TH_SYSTEM_SETTLEMENT"
+    },
+    "generatedCodeBinding": {
+      "sourceCommit": "sourceEvidence.sourceCommit",
+      "deploymentManifestSha256": "deployment.manifestSha256",
+      "configSha256": "deployment.configSha256"
+    }
+  },
   "categories": {
     "BOOTSTRAP_SETTLED": {
       "minimum": 20,

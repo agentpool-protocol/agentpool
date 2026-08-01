@@ -32,7 +32,10 @@ import {
   verifyV44ReleaseEvidenceFile,
 } from "../generate-v44-release-evidence.mjs";
 import {
+  PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
+  V44_CHAIN_EVENT_SIGNATURES,
   collectGovernanceEventSnapshot,
+  sha256Json as sha256AutonomyJson,
   validateAutonomyEvidence,
 } from "./v44-autonomy-safety.mjs";
 
@@ -109,6 +112,79 @@ function requireInteger(value, minimum, label) {
   }
 }
 
+function validatePinnedSignerPolicy(value, label) {
+  if (
+    !value ||
+    !Number.isSafeInteger(value.threshold) ||
+    value.threshold < 2 ||
+    !Array.isArray(value.authorizedPublicKeys) ||
+    new Set(value.authorizedPublicKeys).size !==
+      value.authorizedPublicKeys.length ||
+    value.authorizedPublicKeys.some(
+      (key) =>
+        typeof key !== "string" ||
+        !key.includes("BEGIN PUBLIC KEY"),
+    ) ||
+    !["ACTIVE", "PENDING_EXTERNAL_KEYS"].includes(
+      value.configurationStatus,
+    ) ||
+    (value.configurationStatus === "ACTIVE" &&
+      value.authorizedPublicKeys.length < value.threshold) ||
+    (value.configurationStatus === "PENDING_EXTERNAL_KEYS" &&
+      value.authorizedPublicKeys.length !== 0)
+  ) {
+    throw new Error(`V44_TESTNET_POLICY_INVALID:${label}`);
+  }
+}
+
+function validateAutonomyPolicy(autonomy) {
+  const exposure = autonomy?.exposurePolicy;
+  const governance = autonomy?.governanceEventPolicy;
+  const maturity = autonomy?.maturityAuthorizationPolicy;
+  const binding = autonomy?.generatedCodeBinding;
+  const expectedSignatures = Object.values(V44_CHAIN_EVENT_SIGNATURES).sort();
+  if (
+    autonomy?.schema !== "agentpool.v44.autonomy-policy/v1" ||
+    exposure?.preMatureMaximumSuccessfulSystemSettlements !== 49 ||
+    exposure?.maturityTransitionSettlement !== 50 ||
+    governance?.fromBlock !== "deployment.deploymentBlock" ||
+    JSON.stringify([...(governance?.contractKeys ?? [])].sort()) !==
+      JSON.stringify(["contributionLedger", "taskMarket"]) ||
+    JSON.stringify([...(governance?.sourceContractKeys ?? [])].sort()) !==
+      JSON.stringify(["settlementRouter"]) ||
+    JSON.stringify([...(governance?.eventSignatures ?? [])].sort()) !==
+      JSON.stringify(expectedSignatures) ||
+    maturity?.minimumNonMaintainerVotingAgents !== 5 ||
+    maturity?.minimumOnchainGroups !== 3 ||
+    maturity?.minimumCorroboratedControlDomains !== 3 ||
+    maturity?.maximumControlDomainShareBps !== 2_999 ||
+    maturity?.maintainerGovernanceUnits !== 0 ||
+    maturity?.proposalBondRequired !== true ||
+    maturity?.recoveryIssueRequired !== true ||
+    maturity?.recoveryJobRequired !== true ||
+    maturity?.maximumUnresolvedCriticalHigh !== 0 ||
+    maturity?.governanceDryRunRequired !== true ||
+    maturity?.authorizationScope !== "SINGLE_50TH_SYSTEM_SETTLEMENT" ||
+    binding?.sourceCommit !== "sourceEvidence.sourceCommit" ||
+    binding?.deploymentManifestSha256 !== "deployment.manifestSha256" ||
+    binding?.configSha256 !== "deployment.configSha256"
+  ) {
+    throw new Error("V44_TESTNET_AUTONOMY_POLICY_INVALID");
+  }
+  validatePinnedSignerPolicy(
+    autonomy.controlDomainPolicy,
+    "autonomyV2.controlDomainPolicy",
+  );
+  validatePinnedSignerPolicy(
+    autonomy.checkpointPolicy,
+    "autonomyV2.checkpointPolicy",
+  );
+  validatePinnedSignerPolicy(
+    maturity,
+    "autonomyV2.maturityAuthorizationPolicy",
+  );
+}
+
 function requireIso(value, label) {
   if (
     typeof value !== "string" ||
@@ -148,6 +224,7 @@ export function loadReliabilityPolicy(
   ) {
     throw new Error("V44_TESTNET_POLICY_IDENTITY_INVALID");
   }
+  validateAutonomyPolicy(policy.autonomyV2);
   for (const [label, value, minimum] of [
     ["minimumObservationDays", policy.minimumObservationDays, 90],
     ["maximumEvidenceAgeHours", policy.maximumEvidenceAgeHours, 1],
@@ -1472,6 +1549,82 @@ export function reconcileRpcEvidenceSnapshots({
   };
 }
 
+export async function collectMaturityProviderSnapshot({
+  rpcUrl,
+  deployment,
+  authorization,
+}) {
+  const origin = new URL(rpcUrl).origin;
+  const declaredProvider = authorization?.providerSnapshots?.find(
+    (provider) => provider.origin === origin,
+  );
+  const agents =
+    authorization?.providerSnapshots?.[0]?.snapshot
+      ?.nonMaintainerVotingAgents;
+  if (
+    !declaredProvider ||
+    !Array.isArray(agents) ||
+    agents.length === 0 ||
+    !Number.isSafeInteger(declaredProvider.finalizedBlockNumber)
+  ) {
+    throw new Error("V44_MATURITY_COLLECTION_INPUT_INVALID");
+  }
+  const blockNumber = BigInt(declaredProvider.finalizedBlockNumber);
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  const block = await client.getBlock({ blockNumber });
+  if (
+    block.hash?.toLowerCase() !==
+    declaredProvider.finalizedBlockHash?.toLowerCase()
+  ) {
+    throw new Error("V44_MATURITY_COLLECTION_BLOCK_MISMATCH");
+  }
+  const ledgerAbi = artifact(CONTRACT_TYPES.contributionLedger).abi;
+  const read = (functionName, args = []) =>
+    client.readContract({
+      address: deployment.contracts.contributionLedger,
+      abi: ledgerAbi,
+      functionName,
+      args,
+      blockNumber,
+    });
+  const [successfulSystemSettlements, eligibleAgentCount, eligibleGroupCount, epoch] =
+    await Promise.all([
+      read("successfulSettlementCount"),
+      read("eligibleAgentCount"),
+      read("eligibleGroupCount"),
+      read("latestGovernanceEpoch"),
+    ]);
+  const votingAgents = [];
+  for (const declaredAgent of agents) {
+    const address = getAddress(declaredAgent.agent);
+    const [operatorGroup, workPower] = await Promise.all([
+      read("operatorGroup", [address]),
+      read("votingPowerAt", [address, epoch, 8]),
+    ]);
+    votingAgents.push({
+      agent: address.toLowerCase(),
+      operatorGroup: operatorGroup.toLowerCase(),
+      workPower: workPower.toString(),
+    });
+  }
+  votingAgents.sort((left, right) => left.agent.localeCompare(right.agent));
+  return {
+    identity: sha256AutonomyJson({
+      domain: "AGENTPOOL_V44_RPC_PROVIDER_V1",
+      origin,
+    }),
+    origin,
+    finalizedBlockNumber: Number(block.number),
+    finalizedBlockHash: block.hash.toLowerCase(),
+    chainSnapshot: {
+      successfulSystemSettlements: Number(successfulSystemSettlements),
+      eligibleAgentCount: Number(eligibleAgentCount),
+      eligibleGroupCount: Number(eligibleGroupCount),
+      votingAgents,
+    },
+  };
+}
+
 export function evaluateReliability({
   policy,
   deployment,
@@ -1727,8 +1880,11 @@ export async function buildReliabilityReport({
       schema: "agentpool.v44.autonomy-evidence/v1",
       exposureLedger: {
         schema: "agentpool.v44.exposure-ledger/v1",
-        maximumSuccessfulSystemSettlements: 0,
+        maximumSuccessfulSystemSettlements:
+          PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
         successfulSystemSettlements: 0,
+        maturityAuthorizationId: null,
+        maturityAuthorizationConsumed: false,
         slots: {},
         journal: [],
       },
@@ -1748,22 +1904,34 @@ export async function buildReliabilityReport({
     policyEvidence.policy.autonomyV2 ?? {};
   const governancePolicy =
     trustedAutonomyPolicy.governanceEventPolicy;
+  const resolvedGovernancePolicy = governancePolicy
+    ? {
+        fromBlock:
+          governancePolicy.fromBlock === "deployment.deploymentBlock"
+            ? deployment.deploymentBlock
+            : governancePolicy.fromBlock,
+        contracts: {
+          taskMarket: deployment.contracts.taskMarket,
+          contributionLedger: deployment.contracts.contributionLedger,
+          settlementRouter: deployment.contracts.settlementRouter,
+        },
+      }
+    : null;
   let governanceEventProviders = [];
   let canonicalVerificationBlock = verificationBlockNumber;
   if (
-    Number.isSafeInteger(governancePolicy?.fromBlock) &&
-    Array.isArray(governancePolicy?.allowedEmitters) &&
-    governancePolicy.allowedEmitters.length > 0
+    Number.isSafeInteger(resolvedGovernancePolicy?.fromBlock) &&
+    resolvedGovernancePolicy.fromBlock >= 0
   ) {
     const primaryGovernance = await collectGovernanceEventSnapshot({
       rpcUrl,
-      fromBlock: governancePolicy.fromBlock,
-      allowedEmitters: governancePolicy.allowedEmitters,
+      fromBlock: resolvedGovernancePolicy.fromBlock,
+      contracts: resolvedGovernancePolicy.contracts,
     });
     const secondaryGovernance = await collectGovernanceEventSnapshot({
       rpcUrl: secondaryRpcUrl,
-      fromBlock: governancePolicy.fromBlock,
-      allowedEmitters: governancePolicy.allowedEmitters,
+      fromBlock: resolvedGovernancePolicy.fromBlock,
+      contracts: resolvedGovernancePolicy.contracts,
       finalizedBlockNumber: primaryGovernance.finalizedBlockNumber,
     });
     governanceEventProviders = [
@@ -1793,6 +1961,21 @@ export async function buildReliabilityReport({
     primary: primaryRpcEvidence,
     secondary: secondaryRpcEvidence,
   });
+  let trustedMaturityProviderSnapshots = null;
+  if (autonomyEvidence.maturityAuthorization) {
+    trustedMaturityProviderSnapshots = await Promise.all([
+      collectMaturityProviderSnapshot({
+        rpcUrl,
+        deployment,
+        authorization: autonomyEvidence.maturityAuthorization,
+      }),
+      collectMaturityProviderSnapshot({
+        rpcUrl: secondaryRpcUrl,
+        deployment,
+        authorization: autonomyEvidence.maturityAuthorization,
+      }),
+    ]);
+  }
   const autonomyV2 = validateAutonomyEvidence(
     {
       ...autonomyEvidence,
@@ -1803,9 +1986,23 @@ export async function buildReliabilityReport({
         trustedAutonomyPolicy.controlDomainPolicy ?? null,
       checkpointPolicy:
         trustedAutonomyPolicy.checkpointPolicy ?? null,
-      governanceEventPolicy: governancePolicy ?? null,
-      generatedCodeCommit:
-        trustedAutonomyPolicy.generatedCodeCommit ?? null,
+      governanceEventPolicy: resolvedGovernancePolicy,
+      exposurePolicy: trustedAutonomyPolicy.exposurePolicy ?? null,
+      maturityAuthorizationPolicy: trustedAutonomyPolicy
+        .maturityAuthorizationPolicy
+        ? {
+            ...trustedAutonomyPolicy.maturityAuthorizationPolicy,
+            expectedSourceCommit: sourceEvidence.sourceCommit,
+            expectedDeploymentManifestSha256: deployment.manifestSha256,
+            trustedProviderSnapshots: trustedMaturityProviderSnapshots,
+          }
+        : null,
+      generatedCodeCommit: sha256AutonomyJson({
+        domain: "AGENTPOOL_V44_GENERATED_CODE_BINDING_V1",
+        sourceCommit: sourceEvidence.sourceCommit,
+        deploymentManifestSha256: deployment.manifestSha256,
+        configSha256: deployment.configSha256,
+      }),
       evaluationTimeMs: Date.now(),
     },
   );

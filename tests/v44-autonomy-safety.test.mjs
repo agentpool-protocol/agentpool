@@ -2,14 +2,16 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import test from "node:test";
+import { encodeAbiParameters } from "viem";
 import {
   SLOT_STATES,
   collectGovernanceEventSnapshot,
   createControlDomainRegistry,
   createCheckpoint,
+  createMaturityAuthorization,
   deriveSystemSettlementEvidence,
   deterministicValidatorScore,
-  encodeV44SystemSettledRawLog,
+  encodeV44SettlementLifecycleRawLogs,
   exposureSlotId,
   exposureSummary,
   gradeControlDomains,
@@ -21,11 +23,13 @@ import {
   sha256Json,
   signControlDomainRegistry,
   signCheckpoint,
+  signMaturityAuthorization,
   signObserverReport,
   shadowBundleHash,
   transitionExposureSlot,
   validateCheckpointChain,
   validateControlDomainRegistry,
+  validateMaturityAuthorization,
   validateAutonomyEvidence,
   validateShadowBundle,
 } from "../scripts/lib/v44-autonomy-safety.mjs";
@@ -38,6 +42,14 @@ const descriptor = (candidateIndex = 0) => ({
   candidateIndex,
 });
 const jobId = hash("4");
+const taskMarket = `0x${"11".repeat(20)}`;
+const contributionLedger = `0x${"12".repeat(20)}`;
+const settlementRouter = `0x${"13".repeat(20)}`;
+const governanceContracts = {
+  taskMarket,
+  contributionLedger,
+  settlementRouter,
+};
 const observerKeys = Array.from({ length: 2 }, () => {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
   return {
@@ -149,18 +161,155 @@ function shadowBundle(kind = "ADMISSION") {
   return { ...bundle, bundleHash: shadowBundleHash(bundle) };
 }
 
-test("unique exposure slots reserve worst-case SYSTEM settlements", () => {
-  const ledger = newExposureLedger({
-    maximumSuccessfulSystemSettlements: 2,
+function settlementLifecycle(admission, options = {}) {
+  return encodeV44SettlementLifecycleRawLogs({
+    transactionHash: options.transactionHash ?? hash("6"),
+    blockHash: options.blockHash ?? hash("a"),
+    blockNumber: options.blockNumber ?? 100,
+    taskMarket,
+    contributionLedger,
+    settlementRouter,
+    issueHash: admission.issueHash,
+    jobId: admission.jobId,
+    milestone: admission.milestone,
+    roundId: admission.roundId,
+    artifactDigest: admission.artifactDigest,
+    specificationHash: admission.specificationHash,
   });
-  const first = reserveExposureSlot(ledger, descriptor(0));
-  const second = reserveExposureSlot(ledger, descriptor(1));
+}
+
+test("unique exposure slots reserve worst-case SYSTEM settlements", () => {
+  const ledger = newExposureLedger();
+  const slots = Array.from({ length: 49 }, (_, index) =>
+    reserveExposureSlot(ledger, descriptor(index)),
+  );
   assert.throws(
-    () => reserveExposureSlot(ledger, descriptor(2)),
+    () => reserveExposureSlot(ledger, descriptor(49)),
     /V44_EXPOSURE_WORST_CASE_LIMIT/u,
   );
-  assert.notEqual(first, second);
-  assert.equal(exposureSummary(ledger).worstCaseSuccessfulSettlements, 2);
+  assert.notEqual(slots[0], slots[1]);
+  assert.equal(exposureSummary(ledger).worstCaseSuccessfulSettlements, 49);
+});
+
+test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorization", () => {
+  const ledger = newExposureLedger();
+  for (let index = 0; index < 49; index += 1) {
+    const slotId = reserveExposureSlot(ledger, descriptor(index));
+    const uniqueJobId = `0x${(index + 1).toString(16).padStart(64, "0")}`;
+    transitionExposureSlot(
+      ledger,
+      slotId,
+      SLOT_STATES.BOUND_TO_JOB_MILESTONE,
+      { jobId: uniqueJobId, milestone: 0 },
+    );
+    transitionExposureSlot(ledger, slotId, SLOT_STATES.VALIDATION_OPEN);
+    transitionExposureSlot(ledger, slotId, SLOT_STATES.VALIDATOR_AUTHORIZED);
+    transitionExposureSlot(
+      ledger,
+      slotId,
+      SLOT_STATES.SUCCESSFULLY_CONSUMED,
+      { descendantFinalized: true, terminalOutcome: "SETTLED" },
+    );
+  }
+  const fiftiethDescriptor = descriptor(49);
+  const fiftiethSlotId = exposureSlotId(fiftiethDescriptor);
+  const snapshot = {
+    successfulSystemSettlements: 49,
+    nonMaintainerVotingAgents: Array.from({ length: 5 }, (_, index) => ({
+      agent: `0x${(index + 1).toString(16).padStart(40, "0")}`,
+      operatorGroup: `0x${((index % 3) + 1).toString(16).padStart(64, "0")}`,
+      controlDomain: `domain-${index}`,
+      workPower: "20",
+    })),
+    maintainerGovernanceUnits: "0",
+    proposalBondAvailable: true,
+    recoveryIssueAvailable: true,
+    recoveryJobAvailable: true,
+    unresolvedCriticalHigh: 0,
+    governanceDryRunPassed: true,
+  };
+  const chainSnapshot = {
+    successfulSystemSettlements: 49,
+    eligibleAgentCount: 5,
+    eligibleGroupCount: 3,
+    votingAgents: snapshot.nonMaintainerVotingAgents.map(
+      ({ agent, operatorGroup, workPower }) => ({
+        agent: agent.toLowerCase(),
+        operatorGroup,
+        workPower,
+      }),
+    ),
+  };
+  const unsigned = createMaturityAuthorization({
+    issuedAtMs: 2_000,
+    expiresAtMs: 10_000,
+    sourceCommit: "a".repeat(40),
+    deploymentManifestSha256: "b".repeat(64),
+    authorizedExposureSlotId: fiftiethSlotId,
+    providerSnapshots: [
+      {
+        identity: "rpc-a",
+        origin: "https://a.example",
+        finalizedBlockNumber: 100,
+        finalizedBlockHash: hash("a"),
+        snapshot,
+        chainSnapshot,
+      },
+      {
+        identity: "rpc-b",
+        origin: "https://b.example",
+        finalizedBlockNumber: 100,
+        finalizedBlockHash: hash("a"),
+        snapshot,
+        chainSnapshot,
+      },
+    ],
+  });
+  const authorization = observerKeys.reduce(
+    (value, keys, index) =>
+      signMaturityAuthorization(value, {
+        ...keys,
+        controllerDomain: `maturity-controller-${index}`,
+      }),
+    unsigned,
+  );
+  const policy = {
+    authorizedPublicKeys: observerKeys.map((keys) => keys.publicKeyPem),
+    threshold: 2,
+    expectedSourceCommit: "a".repeat(40),
+    expectedDeploymentManifestSha256: "b".repeat(64),
+    trustedProviderSnapshots: unsigned.providerSnapshots.map((provider) => ({
+      identity: provider.identity,
+      origin: provider.origin,
+      finalizedBlockNumber: provider.finalizedBlockNumber,
+      finalizedBlockHash: provider.finalizedBlockHash,
+      chainSnapshot: provider.chainSnapshot,
+    })),
+  };
+  assert.equal(
+    validateMaturityAuthorization(authorization, {
+      ...policy,
+      atMs: 2_500,
+      expectedExposureSlotId: fiftiethSlotId,
+    }).valid,
+    true,
+  );
+  reserveExposureSlot(ledger, fiftiethDescriptor, {
+    maturityAuthorization: authorization,
+    maturityAuthorizationPolicy: policy,
+    evaluationTimeMs: 2_500,
+  });
+  assert.equal(exposureSummary(ledger).worstCaseSuccessfulSettlements, 50);
+  assert.equal(ledger.maturityAuthorizationConsumed, true);
+  assert.throws(
+    () =>
+      reserveExposureSlot(ledger, descriptor(50), {
+        maturityAuthorization: authorization,
+        maturityAuthorizationPolicy: policy,
+        evaluationTimeMs: 2_500,
+      }),
+    /V44_EXPOSURE_WORST_CASE_LIMIT/u,
+  );
 });
 
 test("Issue expiry cannot release a slot with a live descendant", () => {
@@ -479,49 +628,32 @@ test("empty autonomy evidence remains pending instead of becoming ready", () => 
 });
 
 test("provider event sets must agree with the complete local ledger", () => {
-  const emitter = `0x${"11".repeat(20)}`;
   const admission = shadowBundle("ADMISSION");
-  const settlement = shadowBundle("SETTLEMENT");
-  const rawEvent = encodeV44SystemSettledRawLog({
-    transactionHash: hash("6"),
-    blockHash: hash("a"),
-    blockNumber: 10,
-    logIndex: 0,
-    address: emitter,
-    issueHash: admission.issueHash,
-    jobId: admission.jobId,
-    milestone: admission.milestone,
-    roundId: admission.roundId,
-    artifactDigest: admission.artifactDigest,
-    sourceSnapshotDigest: admission.sourceSnapshotDigest,
-    specificationHash: admission.specificationHash,
-    admissionBundleHash: admission.bundleHash,
-    settlementBundleHash: settlement.bundleHash,
-    exposureSlotId: admission.exposureSlotId,
-    outcomeEventId: hash("e"),
-  });
-  const eventId = `${hash("6")}:0`;
+  const lifecycle = settlementLifecycle(admission, { blockNumber: 10 });
+  const eventId = `${hash("6")}:1`;
   const providers = [
     {
       identity: "rpc-a",
       origin: "https://a.example",
       finalizedBlockNumber: 10,
       finalizedBlockHash: hash("a"),
-      rawEvents: [rawEvent],
+      rawEvents: lifecycle.rawEvents,
+      stateReads: lifecycle.stateReads,
     },
     {
       identity: "rpc-b",
       origin: "https://b.example",
       finalizedBlockNumber: 10,
       finalizedBlockHash: hash("a"),
-      rawEvents: [rawEvent],
+      rawEvents: lifecycle.rawEvents,
+      stateReads: lifecycle.stateReads,
     },
   ];
   assert.equal(
     reconcileGovernanceEventSets({
       providers,
       localEventIds: [eventId],
-      allowedEmitters: [emitter],
+      contracts: governanceContracts,
     }).eligible,
     true,
   );
@@ -529,59 +661,109 @@ test("provider event sets must agree with the complete local ledger", () => {
     reconcileGovernanceEventSets({
       providers,
       localEventIds: [],
-      allowedEmitters: [emitter],
+      contracts: governanceContracts,
     }).reason,
     "LOCAL_EVENT_SET_INCOMPLETE",
   );
 });
 
-test("governance snapshots are collected from raw finalized RPC evidence", async () => {
-  const emitter = `0x${"11".repeat(20)}`;
+test("a unique nonzero fake outcome receipt cannot satisfy settlement evidence", () => {
   const admission = shadowBundle("ADMISSION");
-  const settlement = shadowBundle("SETTLEMENT");
-  const encoded = encodeV44SystemSettledRawLog({
-    transactionHash: hash("6"),
-    blockHash: hash("a"),
-    blockNumber: 100,
-    logIndex: 0,
-    address: emitter,
-    transactionInput: "0x1234",
-    issueHash: admission.issueHash,
-    jobId: admission.jobId,
-    milestone: admission.milestone,
-    roundId: admission.roundId,
-    artifactDigest: admission.artifactDigest,
-    sourceSnapshotDigest: admission.sourceSnapshotDigest,
-    specificationHash: admission.specificationHash,
-    admissionBundleHash: admission.bundleHash,
-    settlementBundleHash: settlement.bundleHash,
-    exposureSlotId: admission.exposureSlotId,
-    outcomeEventId: hash("e"),
+  const lifecycle = settlementLifecycle(admission, { blockNumber: 10 });
+  const forged = structuredClone(lifecycle.rawEvents);
+  forged.find((event) => event.address === contributionLedger).topics[3] =
+    hash("e");
+  const providers = ["a", "b"].map((name) => ({
+    identity: `rpc-${name}`,
+    origin: `https://${name}.example`,
+    finalizedBlockNumber: 10,
+    finalizedBlockHash: hash("a"),
+    rawEvents: forged,
+    stateReads: lifecycle.stateReads,
+  }));
+  const result = reconcileGovernanceEventSets({
+    providers,
+    localEventIds: [`${hash("6")}:1`],
+    contracts: governanceContracts,
   });
+  assert.equal(result.eligible, true);
+  assert.equal(result.events[0].chainLifecycleValid, false);
+  assert.equal(result.events[0].outcome, null);
+});
+
+test("governance snapshots are collected from raw finalized RPC evidence", async () => {
+  const admission = shadowBundle("ADMISSION");
+  const lifecycle = settlementLifecycle(admission);
+  const rawByTransaction = new Map(
+    lifecycle.rawEvents.map((event) => [event.transactionHash, event]),
+  );
+  const jobState = lifecycle.stateReads[0].job;
+  const milestoneState = lifecycle.stateReads[0].milestoneState;
+  const jobResult = encodeAbiParameters(
+    [
+      "address", "uint8", "uint8", "bytes32", "bytes32", "bytes32",
+      "uint128", "uint128", "uint32", "uint32", "uint64",
+    ].map((type) => ({ type })),
+    [
+      jobState.creator, jobState.funding, jobState.state, jobState.planHash,
+      jobState.releaseId, jobState.issueId, BigInt(jobState.budget),
+      BigInt(jobState.paid), jobState.nextMilestone, jobState.milestoneCount,
+      BigInt(jobState.createdAt),
+    ],
+  );
+  const milestoneResult = encodeAbiParameters(
+    [
+      "address", "address", "bytes32", "bytes32", "bytes32", "bytes32",
+      "bytes32", "uint128", "uint128", "uint128", "uint64", "uint32",
+      "uint16", "uint16", "uint32", "uint32", "uint8", "bool", "bool",
+    ].map((type) => ({ type })),
+    [
+      milestoneState.worker, milestoneState.verifier, milestoneState.capability,
+      milestoneState.specificationHash, milestoneState.expectedEvidenceHash,
+      milestoneState.payoutRoot, milestoneState.deliveryHash,
+      BigInt(milestoneState.allocation), BigInt(milestoneState.workerBond),
+      BigInt(milestoneState.keeperFee), BigInt(milestoneState.deadline),
+      milestoneState.capacityUnits, milestoneState.minimumReveals,
+      milestoneState.passScoreBps, milestoneState.commitWindow,
+      milestoneState.revealWindow, milestoneState.state,
+      milestoneState.candidateAttested, milestoneState.adoptionRecorded,
+    ],
+  );
+  const ethCallResults = [
+    jobResult,
+    milestoneResult,
+    encodeAbiParameters([{ type: "bool" }], [true]),
+  ];
   const replies = {
     eth_chainId: "0x14a34",
     eth_getBlockByNumber: { number: "0x64", hash: hash("a") },
-    eth_getLogs: [
-      {
-        ...encoded,
-        blockNumber: "0x64",
-        logIndex: "0x0",
-      },
-    ],
+    eth_getLogs: lifecycle.rawEvents.map((event) => ({
+      ...event,
+      blockNumber: `0x${event.blockNumber.toString(16)}`,
+      logIndex: `0x${event.logIndex.toString(16)}`,
+    })),
     eth_getTransactionReceipt: { status: "0x1" },
-    eth_getTransactionByHash: { input: "0x1234" },
   };
   const snapshot = await collectGovernanceEventSnapshot({
     rpcUrl: "https://rpc-a.example/v1/key",
     fromBlock: 1,
-    allowedEmitters: [emitter],
+    contracts: governanceContracts,
     fetcher: async (_url, options) => {
       const request = JSON.parse(options.body);
+      let result = replies[request.method];
+      if (request.method === "eth_getTransactionByHash") {
+        result = {
+          input:
+            rawByTransaction.get(request.params[0].toLowerCase())
+              ?.transactionInput ?? "0x",
+        };
+      }
+      if (request.method === "eth_call") result = ethCallResults.shift();
       return new Response(
         JSON.stringify({
           jsonrpc: "2.0",
           id: request.id,
-          result: replies[request.method],
+          result,
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -589,8 +771,9 @@ test("governance snapshots are collected from raw finalized RPC evidence", async
   });
   assert.equal(snapshot.origin, "https://rpc-a.example");
   assert.equal(snapshot.finalizedBlockNumber, 100);
-  assert.equal(snapshot.rawEvents.length, 1);
-  assert.equal(snapshot.rawEvents[0].transactionInput, "0x1234");
+  assert.equal(snapshot.rawEvents.length, 4);
+  assert.equal(snapshot.stateReads.length, 1);
+  assert.equal(snapshot.stateReads[0].governanceEligible, true);
 });
 
 test("complete independently signed evidence can reach VERIFIED", () => {
@@ -612,26 +795,8 @@ test("complete independently signed evidence can reach VERIFIED", () => {
   );
   const admission = shadowBundle("ADMISSION");
   const settlement = shadowBundle("SETTLEMENT");
-  const emitter = `0x${"11".repeat(20)}`;
   const transactionHash = hash("6");
-  const rawEvent = encodeV44SystemSettledRawLog({
-    transactionHash,
-    blockHash: hash("a"),
-    blockNumber: 100,
-    logIndex: 0,
-    address: emitter,
-    issueHash: admission.issueHash,
-    jobId: admission.jobId,
-    milestone: admission.milestone,
-    roundId: admission.roundId,
-    artifactDigest: admission.artifactDigest,
-    sourceSnapshotDigest: admission.sourceSnapshotDigest,
-    specificationHash: admission.specificationHash,
-    admissionBundleHash: admission.bundleHash,
-    settlementBundleHash: settlement.bundleHash,
-    exposureSlotId: admission.exposureSlotId,
-    outcomeEventId: hash("e"),
-  });
+  const lifecycle = settlementLifecycle(admission, { transactionHash });
   const zero = hash("0");
   const unsignedCheckpoint = createCheckpoint({
     previousCheckpointHash: zero,
@@ -652,7 +817,7 @@ test("complete independently signed evidence can reach VERIFIED", () => {
       }),
     unsignedCheckpoint,
   );
-  const eventId = `${transactionHash}:0`;
+  const eventId = `${transactionHash}:1`;
   const result = validateAutonomyEvidence(
     {
       schema: "agentpool.v44.autonomy-evidence/v1",
@@ -668,14 +833,16 @@ test("complete independently signed evidence can reach VERIFIED", () => {
           origin: "https://a.example",
           finalizedBlockNumber: 100,
           finalizedBlockHash: hash("a"),
-          rawEvents: [rawEvent],
+          rawEvents: lifecycle.rawEvents,
+          stateReads: lifecycle.stateReads,
         },
         {
           identity: "rpc-b",
           origin: "https://b.example",
           finalizedBlockNumber: 100,
           finalizedBlockHash: hash("a"),
-          rawEvents: [rawEvent],
+          rawEvents: lifecycle.rawEvents,
+          stateReads: lifecycle.stateReads,
         },
       ],
       incidents: [],
@@ -685,7 +852,10 @@ test("complete independently signed evidence can reach VERIFIED", () => {
       controlDomainPolicy: controlPolicy,
       governanceEventPolicy: {
         fromBlock: 1,
-        allowedEmitters: [emitter],
+        contracts: governanceContracts,
+      },
+      exposurePolicy: {
+        preMatureMaximumSuccessfulSystemSettlements: 49,
       },
       checkpointPolicy: {
         authorizedPublicKeys: observerKeys.map(
