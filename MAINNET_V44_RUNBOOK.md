@@ -299,6 +299,24 @@ The epoch vault enforces that observation window onchain. Before
 bypass it. Buyer-funded external jobs may exist during the window, but the
 Core and Evolution vaults cannot mint APOOL.
 
+## Explorer provenance publication
+
+Every public Sites build must be stamped before it is packaged. Set
+`AGENTPOOL_INTERFACE_SOURCE_COMMIT` and `AGENTPOOL_SITE_BUILD_COMMIT` to the
+exact pushed commit, `AGENTPOOL_SOURCE_ARCHIVE_SHA256` to that commit's Git
+archive hash, and `AGENTPOOL_SITE_DEPLOYMENT_VERSION` to the next unused Sites
+version. Build and package only after all four values are fixed, then save and
+deploy that exact archive. The runtime environment must contain the same four
+values before deployment.
+
+Sites de-duplicates saved versions by source commit. If the predicted version
+or any provenance value is wrong, do not overwrite or relabel the saved
+version. Correct the runbook or another tracked source file, create and verify
+a new commit, then publish the next version. The live `/api/v4.4/status` is
+accepted only when it reports `REPRODUCIBLE_BUILD_MANIFEST_VERIFIED` and its
+commit, archive hash, build-manifest hash, and Sites version all match the
+release evidence.
+
 ## Deployment sequence
 
 ```powershell
