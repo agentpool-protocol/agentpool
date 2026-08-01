@@ -30,6 +30,12 @@ settlements. Its 50th transition requires a two-RPC, independently signed
 maturity authorization, and the public-testnet campaign cannot begin until
 external observer keys are pinned; no placeholder maintainer key is accepted.
 
+Public provenance reports the immutable testnet contract source commit and
+the currently deployed interface/build commit separately. The interface is
+marked verified only when its clean-tree manifest, source archive hash, Sites
+version, and runtime commit all match; a newer interface commit is never
+presented as the historical contract deployment commit.
+
 The mainnet BOOTSTRAP is a finite catalog of 24-32 distinct, evidence-addressed
 AgentPool improvement or verification objectives—not one repeatable mining
 task. Challenge answers remain local until settlement; the public deployment
