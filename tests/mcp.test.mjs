@@ -17,13 +17,29 @@ async function source(relativePath) {
 }
 
 test("public MCP is standard Streamable HTTP and defaults to strict v4.4 read-only", async () => {
-  const [route, http, tools, worker] = await Promise.all([
-    source("app/api/mcp/route.ts"),
-    source("lib/mcp-http.ts"),
-    source("lib/mcp-v44.ts"),
-    source("worker/index.ts"),
-  ]);
+  const [route, versionedRoute, internalFetch, http, tools, worker] =
+    await Promise.all([
+      source("app/api/mcp/route.ts"),
+      source("app/api/mcp/v4.4/route.ts"),
+      source("lib/mcp-v44-internal-fetch.ts"),
+      source("lib/mcp-http.ts"),
+      source("lib/mcp-v44.ts"),
+      source("worker/index.ts"),
+    ]);
   assert.match(route, /handlePublicMcpRequest/);
+  assert.match(route, /handlePublicMcpRequest\(request, v44InternalFetch\)/);
+  assert.match(
+    versionedRoute,
+    /handlePublicMcpRequest\(request, v44InternalFetch\)/,
+  );
+  for (const path of [
+    "/api/v4.4/discovery",
+    "/api/v4.4/status",
+    "/api/v4.4/opportunities",
+    "/api/v4.4/participate",
+  ]) {
+    assert.match(internalFetch, new RegExp(path.replaceAll(".", "\\.")));
+  }
   assert.match(http, /WebStandardStreamableHTTPServerTransport/);
   assert.match(http, /enableJsonResponse:\s*true/);
   assert.match(http, /requestOrigin !== endpointOrigin/);
