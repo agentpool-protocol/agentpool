@@ -2266,7 +2266,11 @@ export async function verifyPublicTestnetReliabilityGate({
   );
   const sourceEvidencePath = path.resolve(
     env.V44_TESTNET_CONTRACT_SOURCE_EVIDENCE ??
-      path.join(ROOT, "outputs", "v44-source-reproducibility.json"),
+      path.join(
+        ROOT,
+        "deployments",
+        "84532.v44.source-reproducibility.json",
+      ),
   );
   const rpcUrl = env.AGENTPOOL_V44_TESTNET_RPC_URL?.trim();
   const secondaryRpcUrl =

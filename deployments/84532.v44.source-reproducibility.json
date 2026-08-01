@@ -1,0 +1,460 @@
+{
+  "schema": "agentpool.mainnet.v44.source-reproducibility/v1",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "chainId": 8453,
+  "sourceCommit": "b535be69d179d39c2f118a80e8927961fbb20a4e",
+  "sourceTree": "848200533f1ad43294d046b36e4eb2455a473c49",
+  "nodeVersion": "v25.6.1",
+  "solcVersion": "0.8.36+commit.8a079791.Emscripten.clang",
+  "compilerSettings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "cancun"
+  },
+  "packageLockSha256": "dd6fbd96ec12d4cf3c7cf88f65a9dc573e97173b248a68cd9975a617a580573f",
+  "configSha256": "796bb66d98f53cde811116836c1d3dbfa2eb5e260d8dcd611f1cf33e51ad6b70",
+  "financeInvariantHash": "0x5e0d8e2a70c80319fee4f801027bd57ec13d6b17a912338f98224a3ced8c76ee",
+  "soliditySources": [
+    {
+      "file": "contracts/AgentPoolBenchmarkRewardVault.sol",
+      "gitBlob": "1d8f695ed199f1ed5d2d904d77690b74fdc9a0d9",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolFounderVesting.sol",
+      "gitBlob": "7c43e3a4c08777b6a25f22901e2e69cdf9ceccf7",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolJobEscrow.sol",
+      "gitBlob": "ac3d8990ca53a0cb7953414fcd65a85eb47c5d4f",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolLicense.sol",
+      "gitBlob": "1475b24de78cdd5f4428bf5934821a3add09223f",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolProjectEscrow.sol",
+      "gitBlob": "ae15b50e5f9969656307c9043db518d3eeb11a5b",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolProjectResolver.sol",
+      "gitBlob": "1e8ff683636f3d63c3923f4b6b2c3c91d9aa9624",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolRegistry.sol",
+      "gitBlob": "b9416a352d4b2ace4eefcfc44622aae54de7dee0",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolToken.sol",
+      "gitBlob": "dc342dc9562a8da01cdd941cd007d237a64506ba",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/AgentPoolWorkOracle.sol",
+      "gitBlob": "b6189d0e4fb459cc718ed06eb03c54d26c66607c",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/interfaces/IAgentPoolEscrow.sol",
+      "gitBlob": "babecbac7599cb4b66bb706a6623cb30cbe34525",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/interfaces/IAgentPoolProjectEscrow.sol",
+      "gitBlob": "d8c9534bf5322821d4f9e5e57e5bcc5fa274be73",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/interfaces/IAgentPoolRegistry.sol",
+      "gitBlob": "75d219f876f4c1b697961a2731369c8a62bb4d2f",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/interfaces/IAgentPoolResolver.sol",
+      "gitBlob": "6f8795da2dc3b4eb5a6e8e067be6ef76a4250807",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/interfaces/IRandomnessProvider.sol",
+      "gitBlob": "e1a94cf561bb3ab1f10564d0a7f4c901c53962ab",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/mocks/MockRandomnessProvider.sol",
+      "gitBlob": "bdb2d40e66815d77b3708f949e6d376d32a84af2",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/AgentPoolV41ArtifactRegistry.sol",
+      "gitBlob": "b604f3f9ca04a1f83d9b79251dcd7fef1cee1c8b",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/AgentPoolV41EmissionController.sol",
+      "gitBlob": "a00c28e1657cbfd55c8cffa2cdbfe2781c8cff5f",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/AgentPoolV41EpochVault.sol",
+      "gitBlob": "1d4771d5a580b22d17374d51c5c3b6da254d3a05",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/AgentPoolV41HashVerifier.sol",
+      "gitBlob": "df08a23e5c24ca11798d2758659c3c4aeeba3c64",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/AgentPoolV41ReleaseRegistry.sol",
+      "gitBlob": "01e4d7dfd1bebb8b912042b78b135711df8b9190",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/AgentPoolV41Token.sol",
+      "gitBlob": "bfa7529f9365fc804952b745c0b3c7b2247aa79e",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/AgentPoolV41UserEscrow.sol",
+      "gitBlob": "a7902ae4733aca5321ed6031456bb4626c8a843f",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v4/interfaces/IAgentPoolV41.sol",
+      "gitBlob": "2655dc1fcdec31df5dbd411db85f3a7b34149f3b",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v42/AgentPoolV42HashImprovementVerifier.sol",
+      "gitBlob": "de70dc0ce2974973305ee09c9c68d031642ce99f",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v42/AgentPoolV42ImprovementKernel.sol",
+      "gitBlob": "4073334f3ec4e7d1b35984d02098a42cd566c6f2",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v42/AgentPoolV42Token.sol",
+      "gitBlob": "d53a75bc6d5ac54997d1f85ce16bca0b39e0eafb",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v42/AgentPoolV42UserEscrow.sol",
+      "gitBlob": "9bcf1f234f1aa32838b68ae699840d0b79ede639",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v42/interfaces/IAgentPoolV42ImprovementVerifier.sol",
+      "gitBlob": "4e34bff7e5962d81b5055ed7efb2b0dbe4588d59",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV432IssueConsensus.sol",
+      "gitBlob": "2d4c0e8c944be9638f4a51a9e2d890b62cffd697",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV432ProofRegistry.sol",
+      "gitBlob": "5e14f5b24b6fae1c832cf1f7d93d5d072ab940ea",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV432SystemIssueGate.sol",
+      "gitBlob": "0a73a5c0efa160fac25cae250adb275bc5839501",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV432TaskMarket.sol",
+      "gitBlob": "281f957682c9eaaffd59d02cc5c09696ceed2aa4",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV435SystemIssueGate.sol",
+      "gitBlob": "a442f752d8581ae53ef0a46f5f2acd0d4697ec22",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
+      "gitBlob": "91546fc5537df6f7846d4d80fadedde8ede1068c",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV437SelfBootstrapPool.sol",
+      "gitBlob": "136aa254e3db46c8facb333da5a5f9c7f63e7811",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV439CandidateRewardPool.sol",
+      "gitBlob": "557384e0a0033c7bb631569411d77ad84505dd2a",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
+      "gitBlob": "22c2364423c61caa0a45722d89058f7d9c12e8aa",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43ContributionLedger.sol",
+      "gitBlob": "352014d97795e364af97ace718ebd986d6361223",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43EpochVault.sol",
+      "gitBlob": "09752984a773e24a60106868393ec6d0f60aeff9",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
+      "gitBlob": "ad2aa1c90059dfbfec4ba97bd21994c598fddfec",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43HashObjectiveVerifier.sol",
+      "gitBlob": "5e1392b88b67c21c21b9f0c399cf9bab1128b8ae",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43IssueConsensus.sol",
+      "gitBlob": "32c2bed8952faeba1d601c1d3f304d563975bb7c",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43ProofRegistry.sol",
+      "gitBlob": "076507b29f500e1ed6264c6e61ac945604983aeb",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43ReleaseRegistry.sol",
+      "gitBlob": "c19ebf1848b87ce853396615c91d2fc5e71007aa",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43SettlementRouter.sol",
+      "gitBlob": "7b4ac903e748a48da9eb0b1f7424b0d334254f05",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43SystemIssueGate.sol",
+      "gitBlob": "5ed74b97b4ba74c19b30bbece83325a076957425",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43TaskMarket.sol",
+      "gitBlob": "db2e33c0581f87392df0ea610c9c785f2cfdb760",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43Token.sol",
+      "gitBlob": "29a646cbf49ef513b27b0c3ca12a4aab90b5488f",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
+      "gitBlob": "19e14c46a9184b45347b3f6976a620134c206fec",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV432ProofRegistry.sol",
+      "gitBlob": "b57fe2ee842aab99ce656438c0062fcd76ccb20d",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV432SystemIssueGate.sol",
+      "gitBlob": "ba8cc4105ac8b5f96827e1a5ef02cd0c99a7b9d8",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV435ContributionLedger.sol",
+      "gitBlob": "00f59931ebbebe540e854a7fe68d93650fd1dd5a",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV435SystemIssueGate.sol",
+      "gitBlob": "2127d32b7ff9a11f450c5989776afc07fef4a479",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43CapacityRegistry.sol",
+      "gitBlob": "42acef25405c193e7a56dbdb75f0ba17c33a8608",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43ContributionLedger.sol",
+      "gitBlob": "cce5534ed00f978201b28879f6e3074fcd3bd2ef",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43EpochVault.sol",
+      "gitBlob": "5ec86e4aaa10cbc72a658060de70199582cd2242",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43ObjectiveVerifier.sol",
+      "gitBlob": "128576c14f6aa420a8db8b02eb971858b616ed28",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43ProofRegistry.sol",
+      "gitBlob": "754383dcf1d30804fc333353fd2f3e2138897e15",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43ReleaseRegistry.sol",
+      "gitBlob": "05d0ce351e8db389540a79ea50f4ab4b5e1089f3",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43SettlementRouter.sol",
+      "gitBlob": "48ded15ba7bee16eedbde883452174e01859f267",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43SystemIssueGate.sol",
+      "gitBlob": "8a592a9ea2bacea7675cacb34502ea7e0e6519bd",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43Token.sol",
+      "gitBlob": "41f07d7e762dbbdc771f18400ee95a4f64a878b9",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/interfaces/IAgentPoolV43UserEscrow.sol",
+      "gitBlob": "e29ceeab8d6e1ea2e7c9c06c9a7109d7446a1244",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/mocks/MockV437Stage.sol",
+      "gitBlob": "9b4c46b1331831df2aa4d9ff6bca39d40e052bce",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/mocks/MockV439GroupRegistry.sol",
+      "gitBlob": "53cb3feae43e57a5d0fe5f42b4bcdbd7aceb6d69",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/mocks/MockV43SettlementSource.sol",
+      "gitBlob": "6aea15f3b7ec36fc646f18dde7b0d8d2b2d54bff",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v43/mocks/MockV43Token.sol",
+      "gitBlob": "6aec9c9d1e74aaa9e2cea122feb6f1766c58abd5",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v44/AgentPoolV44Token.sol",
+      "gitBlob": "f34ddbd9afdeab896de1d64cb5e9a1f365587789",
+      "mode": "100644"
+    },
+    {
+      "file": "contracts/v44/mocks/AgentPoolV44EpochVaultHarness.sol",
+      "gitBlob": "fc8b40b57d61c669bc6bcdc85e555300d40ab610",
+      "mode": "100644"
+    }
+  ],
+  "artifacts": {
+    "AgentPoolV44Token": {
+      "sourceName": "contracts/v44/AgentPoolV44Token.sol",
+      "creationBytecodeHash": "0x9a339d42b2924233e5b8953ee6835df87c1ffa5649aadd7c0524abe40186b739",
+      "runtimeBytecodeHash": "0x2d69b3d66d3a8e0429035ce2d319a1346fabe3b7b5424379ed041d1c84c6d191",
+      "runtimeBytes": 2332
+    },
+    "AgentPoolV43SettlementRouter": {
+      "sourceName": "contracts/v43/AgentPoolV43SettlementRouter.sol",
+      "creationBytecodeHash": "0xaf43b3ec88832696c9000294e12f407ae5b3e713e7346c04f5c1750ad33aa17b",
+      "runtimeBytecodeHash": "0xeb65f8a8b3d4a657f2b091ef53301ca9028d0dc6245bcd70d39209af64bc7f1b",
+      "runtimeBytes": 1968
+    },
+    "AgentPoolV43ReleaseRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV43ReleaseRegistry.sol",
+      "creationBytecodeHash": "0xfe29e9f4604d20597536a87482a82b332ac3bdd7725f5f2c023e44d08f1bc8e9",
+      "runtimeBytecodeHash": "0x45f4923c309120c9b33ecbb81caf25169bd7ec94eb0ce1ba00a276bfa9b1c36c",
+      "runtimeBytes": 1434
+    },
+    "AgentPoolV43CapacityRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV43CapacityRegistry.sol",
+      "creationBytecodeHash": "0x38c07f4077efe56867e0c0a004980dd8cd6f7e90c376344527d3cafa29400a50",
+      "runtimeBytecodeHash": "0x6cc363d32315c5f74c390f61b489e9cc642f128814e8095e9630bf4f28806765",
+      "runtimeBytes": 1691
+    },
+    "AgentPoolV43UserEscrowKernel": {
+      "sourceName": "contracts/v43/AgentPoolV43UserEscrowKernel.sol",
+      "creationBytecodeHash": "0x6837a7537730a14ce899e116f0e3250befb95b3f96517f22d818edda78328b68",
+      "runtimeBytecodeHash": "0x9eaca37570eb80cc89f054c69c7264df69a2a0cdb5cdaeaf96184a57376e866e",
+      "runtimeBytes": 2098
+    },
+    "AgentPoolV43EpochVault": {
+      "sourceName": "contracts/v43/AgentPoolV43EpochVault.sol",
+      "creationBytecodeHash": "0x9f0c9084028766a6af6bc7be44e95153d425932bf6f88273a6d0f80d38b1fbb6",
+      "runtimeBytecodeHash": "0x3dc53a2c6e7182043adbdb9326484d5ee975fb60d9a0179bc938864feb0bc1f3",
+      "runtimeBytes": 3351
+    },
+    "AgentPoolV43ContributionLedger": {
+      "sourceName": "contracts/v43/AgentPoolV43ContributionLedger.sol",
+      "creationBytecodeHash": "0x2cb724ead6f158f34bed4b432ff938644f91ebf384f4dd18bb2ddadc3e935005",
+      "runtimeBytecodeHash": "0xdfb55c5e20173d4a35453135a6f1fa6ac913896e8d5813f7ba2ccf0e63922d6e",
+      "runtimeBytes": 7011
+    },
+    "AgentPoolV432ProofRegistry": {
+      "sourceName": "contracts/v43/AgentPoolV432ProofRegistry.sol",
+      "creationBytecodeHash": "0xd892d60079b6d9941994e70ba1e2550f53c56ca978ed70ec7cc1081b07b3936f",
+      "runtimeBytecodeHash": "0xb6edd8548aa3019fcd35fd5d3197c51ec4241854fd1cdea02c3224cb271f938a",
+      "runtimeBytes": 4805
+    },
+    "AgentPoolV43EvolutionConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV43EvolutionConsensus.sol",
+      "creationBytecodeHash": "0x17482251f0064450f36e149484a5994df1dcaf9b54e58968728c331bc88bcfe8",
+      "runtimeBytecodeHash": "0x0bbba27664922ed719347bddfe3917286cb35c75fafc06c2d62cbeaf9a2ac2c1",
+      "runtimeBytes": 13651
+    },
+    "AgentPoolV43HashObjectiveVerifier": {
+      "sourceName": "contracts/v43/AgentPoolV43HashObjectiveVerifier.sol",
+      "creationBytecodeHash": "0x55b40b9302bc216b1d983288cc727070265cbcd059388ac2efae3fe2f238ceb6",
+      "runtimeBytecodeHash": "0xc477333eca94cec141227e48960398c211bd65c87ed8b643794bd836d9c7e8a1",
+      "runtimeBytes": 328
+    },
+    "AgentPoolV435SystemIssueGate": {
+      "sourceName": "contracts/v43/AgentPoolV435SystemIssueGate.sol",
+      "creationBytecodeHash": "0xcbf078242eb319da4f3cbfba66768beab3fe99ccdf9753e7c3cf8d85ed26386c",
+      "runtimeBytecodeHash": "0x8a00f931df93cb401b8e6dd5eed17d9d211e1340f38eb493ad3afc11442e502b",
+      "runtimeBytes": 8633
+    },
+    "AgentPoolV435TransitionIssueConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV435TransitionIssueConsensus.sol",
+      "creationBytecodeHash": "0xa70a60131a716a163d3b42d8df2c7b255100dc51669503f322c999be51548aea",
+      "runtimeBytecodeHash": "0x10c2543b14f3f5ae79aeb15370feb30dfd640158c2a90c63ba9bb4684f386f93",
+      "runtimeBytes": 7419
+    },
+    "AgentPoolV432IssueConsensus": {
+      "sourceName": "contracts/v43/AgentPoolV432IssueConsensus.sol",
+      "creationBytecodeHash": "0xd31c456ee2753845140f4e6fab6ab6dda4ccd302261c4a432e59b7f3bf79e137",
+      "runtimeBytecodeHash": "0xd933708044800b5f7990dd1571ddc493792b4f19c0052ca1ffbd34828ddf8e48",
+      "runtimeBytes": 6029
+    },
+    "AgentPoolV432TaskMarket": {
+      "sourceName": "contracts/v43/AgentPoolV432TaskMarket.sol",
+      "creationBytecodeHash": "0x3454133ce658110b932e19a6300a3db94d12fa14092e08d6cfc6535981f0937d",
+      "runtimeBytecodeHash": "0x6219cdab124843dcbb93f7ebad7061e1f8906c91ce5bafe84f347706f3017077",
+      "runtimeBytes": 22073
+    }
+  },
+  "reproduce": [
+    "npm ci",
+    "npm run contracts:compile",
+    "npm run evidence:v4.4:source",
+    "npm run evidence:v4.4:source:verify"
+  ],
+  "evidenceSha256": "4b603929771bcac1162eea4817485ece0d1d6546d708bccab41c1dc106fd0ff1"
+}

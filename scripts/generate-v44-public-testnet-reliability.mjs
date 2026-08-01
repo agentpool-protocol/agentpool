@@ -36,7 +36,7 @@ export async function generatePublicTestnetReliability({
   sourceEvidencePath = optionalPath(
     "--source-evidence",
     "V44_SOURCE_EVIDENCE_FILE",
-    path.join(ROOT, "outputs", "v44-source-reproducibility.json"),
+    path.join(ROOT, "deployments", "84532.v44.source-reproducibility.json"),
   ),
   rpcUrl =
     argument("--rpc-url") ??

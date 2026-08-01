@@ -405,7 +405,7 @@ test("historical contract provenance is verified separately from the evidence pi
     source("deployments/84532.v44.json"),
   );
   const verified = verifyHistoricalContractSourceEvidenceFile(
-    path.join(ROOT, "outputs", "v44-source-reproducibility.json"),
+    path.join(ROOT, "deployments", "84532.v44.source-reproducibility.json"),
     manifest,
   );
   assert.equal(verified.evidence.sourceCommit, manifest.sourceCommit);

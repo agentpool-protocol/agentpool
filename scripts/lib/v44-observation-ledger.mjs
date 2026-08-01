@@ -29,8 +29,8 @@ export const DEFAULT_V44_TESTNET_OBSERVATIONS_PATH = path.join(
 );
 export const DEFAULT_V44_SOURCE_EVIDENCE_PATH = path.join(
   ROOT,
-  "outputs",
-  "v44-source-reproducibility.json",
+  "deployments",
+  "84532.v44.source-reproducibility.json",
 );
 
 export function argument(name, argv = process.argv.slice(2)) {
