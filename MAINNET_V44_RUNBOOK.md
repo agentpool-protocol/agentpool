@@ -129,18 +129,24 @@ selector is not sufficient.
 The `autonomyV2` section of the same tracked policy is also part of the
 campaign commitment. Before the 90-day window starts, two or more independent
 observer public keys must be pinned in each of the control-domain, checkpoint,
-and maturity-authorization policies and their status changed from
-`PENDING_EXTERNAL_KEYS` to `ACTIVE` with an activation timestamp and block.
-Changing those keys, thresholds, activation data, or any trusted policy field
-changes the policy and signer-set hashes and restarts the evidence window;
-placeholder or maintainer keys must not be used.
+and maturity-authorization policies. Every key must also have a policy-fixed
+controller domain, custody domain, and corroboration-evidence hash. Activation
+changes from `PENDING_EXTERNAL_ANCHOR` to `ACTIVE` only after an append-only,
+threshold-signed anchor fixes the policy hash, signer-set hash,
+evidence-pipeline commit, sequence, previous anchor, reference block,
+timestamp, and transparency-log root. Changing a key, threshold, provider
+operator, verifier, or trusted policy field requires the next activation
+sequence and restarts the evidence window; placeholder or maintainer keys must
+not be used.
 
 Autonomy settlement evidence is reconstructed from events the deployed
 contracts actually emit: Issue proposal, vote commit/reveal, approval and
 closure, Issue consumption, `JobCreated`, ProofRegistry round and evaluator
 commit/reveal, `MilestoneDelivered`, `OutcomeRecorded`, and
-`MilestoneSettled`. Two RPC providers must agree on the same finalized block,
-raw logs, transaction calldata, and historical contract state. The transition
+`MilestoneSettled`. Two policy-pinned RPC operators with separate custody
+domains must agree on the same evidence block, raw logs, transaction calldata,
+and historical contract state. Each independently reads its own `finalized`
+head and must prove that head covers the evidence block. The transition
 proposal and Job plan hash must commit to the exact admission bundle; every
 onchain evaluator reveal must commit to the exact settlement bundle. One
 settlement must join exactly one contribution receipt, exposure slot, signed
@@ -148,20 +154,26 @@ admission bundle, and signed settlement bundle. A post-hoc journal entry,
 caller-provided nonzero receipt identifier, or offchain aggregate event is not
 evidence.
 
-Before maturity, the exposure ledger is fixed to 49 successful SYSTEM
-settlements. The 50th slot is a one-shot transition and requires an
+Before maturity, the exposure ledger is fixed to 49 total SYSTEM exposures.
+The cap counts approved candidates, bound Job milestones, delivered work,
+validator-authorized work, and successful settlements; an unsettled 50th Job
+cannot evade it. The full exposure-state root and raw governance-evidence root
+are included in every signed checkpoint. The 50th slot is a one-shot
+transition and requires an
 independently signed authorization bound to that exact slot, evidence-pipeline
 commit, deployment manifest, admission bundle, and a two-provider historical
 chain snapshot. A signed checkpoint over that authorization must already
 exist at the snapshot block before the 50th `JobCreated`; it cannot be written
 after settlement. Each provider must prove that the snapshot block was
 finalized. The snapshot must show at least five non-maintainer voting agents,
-three onchain
-operator groups, positive Work Power for every voter, at least three
-corroborated control domains with no domain reaching 30%, zero maintainer
-governance units, available proposal and recovery paths, no unresolved
-HIGH/CRITICAL incident, and a successful governance dry run. Neither the
-ledger file nor a Runner may raise the limit itself.
+three onchain operator groups, positive Work Power for every voter, and at
+least three policy-bound control domains with no domain reaching 30%.
+Proposal-bond balance and allowance, exact recovery Issue and Job identifiers,
+a content-addressed governance dry-run transcript and verifier version, an
+append-only incident-ledger root, and historical maintainer Work Power must
+match independently collected readiness evidence. Caller-supplied booleans
+and claimed control-domain strings are ignored. Neither the ledger file nor a
+Runner may raise the limit itself.
 
 The default command intentionally writes a blocked report until
 `deployments/84532.v44.json`,

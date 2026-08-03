@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -8,13 +9,17 @@ import {
   assertClosedJobSemantic,
   assertCanonicalCreationInput,
   autonomyPolicyIdentity,
+  autonomyPolicyConfigurationHash,
+  autonomySignerSetHash,
   blockedReliabilityReport,
   collectMaturityProviderSnapshot,
+  createPolicyActivationAnchor,
   DEPLOYMENT_SCHEMA,
   evaluateReliability,
   loadReliabilityPolicy,
   observationAttestationMessage,
   reconcileRpcEvidenceSnapshots,
+  signPolicyActivationAnchor,
   validateObservations,
   validateTestnetDeployment,
   verifyHistoricalContractSourceEvidenceFile,
@@ -31,6 +36,7 @@ import {
   toBytes,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { observerKeyId } from "../scripts/lib/v44-autonomy-safety.mjs";
 import {
   merkleCatalog,
   artifact,
@@ -46,6 +52,48 @@ const source = (relativePath) =>
 const SOURCE_COMMIT = "a".repeat(40);
 const EVIDENCE_PIPELINE_COMMIT = "d".repeat(40);
 const POLICY_HASH = "e".repeat(64);
+function activateAutonomyPolicy(policy) {
+  const keys = Array.from({ length: 2 }, () => {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+    return {
+      publicKeyPem: publicKey.export({ type: "spki", format: "pem" }),
+      privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }),
+    };
+  });
+  policy.autonomyV2.policyActivation = {
+    configurationStatus: "ACTIVE",
+    authorizedPublicKeys: keys.map((key) => key.publicKeyPem),
+    signerBindings: keys.map((key, index) => ({
+      signerKeyId: observerKeyId(key.publicKeyPem),
+      controllerDomainId: `activation-controller-${index}`,
+      custodyDomainId: `activation-custody-${index}`,
+      corroborationEvidenceHash: `0x${(index + 1)
+        .toString(16)
+        .padStart(64, "0")}`,
+    })),
+    threshold: 2,
+    anchorHistory: [],
+    restartObservationWindowOnChange: true,
+  };
+  let anchor = createPolicyActivationAnchor({
+    policyConfigurationHash: autonomyPolicyConfigurationHash(
+      policy.autonomyV2,
+    ),
+    signerSetHash: autonomySignerSetHash(policy.autonomyV2),
+    evidencePipelineCommit: EVIDENCE_PIPELINE_COMMIT,
+    activationSequence: 1,
+    previousAnchorHash: `0x${"00".repeat(32)}`,
+    anchoredBlock: 1,
+    anchoredBlockHash: `0x${"ab".repeat(32)}`,
+    anchoredTimestampMs: Date.parse("2026-01-01T00:00:00.000Z"),
+    transparencyLogRoot: `0x${"cd".repeat(32)}`,
+  });
+  for (const key of keys) {
+    anchor = signPolicyActivationAnchor(anchor, key);
+  }
+  policy.autonomyV2.policyActivation.anchorHistory = [anchor];
+  return policy;
+}
 const CONTRACT_TYPES = {
   token: "AgentPoolV44Token",
   settlementRouter: "AgentPoolV43SettlementRouter",
@@ -286,7 +334,10 @@ function observations(
     evidencePipelineCommit = EVIDENCE_PIPELINE_COMMIT,
   } = {},
 ) {
-  const policyIdentity = autonomyPolicyIdentity(policy.autonomyV2);
+  const policyIdentity = autonomyPolicyIdentity(
+    policy.autonomyV2,
+    evidencePipelineCommit,
+  );
   return {
     schema: "agentpool.testnet.v44.observations/v1",
     observedChainId: 84532,
@@ -298,6 +349,8 @@ function observations(
     signerSetHash: policyIdentity.signerSetHash,
     policyActivatedAt: policyIdentity.activatedAt,
     policyActivatedBlock: policyIdentity.activatedBlock,
+    policyActivationSequence: policyIdentity.activationSequence,
+    policyActivationAnchorHash: policyIdentity.activationAnchorHash,
     startedAt: "2026-01-01T00:00:00.000Z",
     endedAt: "2026-04-01T00:00:00.000Z",
     observations: observationEntries(policy),
@@ -384,7 +437,7 @@ test("v4.4 public-testnet policy requires a 90-day live campaign", () => {
   );
   assert.equal(
     policy.autonomyV2.policyActivation.configurationStatus,
-    "PENDING_EXTERNAL_KEYS",
+    "PENDING_EXTERNAL_ANCHOR",
   );
 });
 
@@ -482,6 +535,41 @@ test("changing the signer policy invalidates an existing observation window", ()
   );
 });
 
+test("policy activation time cannot be backdated by editing tracked JSON", () => {
+  const { policy } = loadReliabilityPolicy();
+  const active = activateAutonomyPolicy(structuredClone(policy));
+  const original = autonomyPolicyIdentity(
+    active.autonomyV2,
+    EVIDENCE_PIPELINE_COMMIT,
+  );
+  assert.equal(original.activationSequence, 1);
+  active.autonomyV2.policyActivation.anchorHistory[0].anchoredTimestampMs -=
+    86_400_000;
+  assert.throws(
+    () =>
+      autonomyPolicyIdentity(
+        active.autonomyV2,
+        EVIDENCE_PIPELINE_COMMIT,
+      ),
+    /V44_POLICY_ACTIVATION_ANCHOR_INVALID/u,
+  );
+});
+
+test("trusted policy changes require a new activation sequence", () => {
+  const { policy } = loadReliabilityPolicy();
+  const active = activateAutonomyPolicy(structuredClone(policy));
+  active.autonomyV2.exposurePolicy
+    .preMatureMaximumSuccessfulSystemSettlements = 48;
+  assert.throws(
+    () =>
+      autonomyPolicyIdentity(
+        active.autonomyV2,
+        EVIDENCE_PIPELINE_COMMIT,
+      ),
+    /V44_POLICY_ACTIVATION_ANCHOR_INVALID/u,
+  );
+});
+
 test("an unfinalized maturity snapshot is rejected", async () => {
   const manifest = deployment();
   const blockHash = `0x${"aa".repeat(32)}`;
@@ -493,6 +581,7 @@ test("an unfinalized maturity snapshot is rejected", async () => {
         providerSnapshots: [
           {
             origin: "https://rpc-a.example",
+            providerOperatorId: "rpc-a",
             finalizedBlockNumber: 100,
             finalizedBlockHash: blockHash,
             snapshot: {
@@ -966,13 +1055,9 @@ test("a declared 90-day window cannot hide same-day chain transactions", () => {
 
 test("only fresh, live, independently attested evidence clears policy", () => {
   const policyEvidence = loadReliabilityPolicy();
-  const activePolicy = structuredClone(policyEvidence.policy);
-  activePolicy.autonomyV2.policyActivation = {
-    configurationStatus: "ACTIVE",
-    activatedAt: "2026-01-01T00:00:00.000Z",
-    activatedBlock: 1,
-    restartObservationWindowOnChange: true,
-  };
+  const activePolicy = activateAutonomyPolicy(
+    structuredClone(policyEvidence.policy),
+  );
   const manifest = deployment();
   const ledger = observations(activePolicy, manifest, {
     policySha256: POLICY_HASH,

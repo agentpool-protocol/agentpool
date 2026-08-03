@@ -32,6 +32,7 @@ import {
   validateControlDomainRegistry,
   validateMaturityAuthorization,
   validateAutonomyEvidence,
+  validateExposureLedgerAgainstChainStates,
   validateShadowBundle,
 } from "../scripts/lib/v44-autonomy-safety.mjs";
 
@@ -59,6 +60,25 @@ const governanceContracts = {
   transitionIssueConsensus,
   issueConsensus,
 };
+const providerOperatorPolicy = {
+  configurationStatus: "ACTIVE",
+  providers: ["a", "b"].map((name) => ({
+    operatorId: `rpc-${name}`,
+    allowedOrigins: [`https://${name}.example`],
+    custodyDomainId: `rpc-custody-${name}`,
+    corroborationEvidenceHash: hash(name === "a" ? "a" : "b"),
+  })),
+};
+function governanceProvider(name, value) {
+  return {
+    identity: `rpc-${name}`,
+    providerOperatorId: `rpc-${name}`,
+    origin: `https://${name}.example`,
+    providerFinalizedHeadNumber: value.finalizedBlockNumber,
+    providerFinalizedHeadHash: value.finalizedBlockHash,
+    ...value,
+  };
+}
 const observerKeys = Array.from({ length: 2 }, () => {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
   return {
@@ -144,6 +164,15 @@ function signedControlRegistry() {
 
 const controlPolicy = {
   authorizedPublicKeys: observerKeys.map((keys) => keys.publicKeyPem),
+  signerBindings: observerKeys.map((keys, index) => ({
+    signerKeyId: sha256Json({
+      domain: "AGENTPOOL_V44_OBSERVER_KEY_V1",
+      publicKeyPem: keys.publicKeyPem.trim(),
+    }),
+    controllerDomainId: `policy-controller-${index}`,
+    custodyDomainId: `policy-custody-${index}`,
+    corroborationEvidenceHash: hash(index === 0 ? "c" : "d"),
+  })),
   threshold: 2,
 };
 
@@ -288,6 +317,39 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       }),
     ),
   };
+  const readinessEvidence = {
+    proposalBond: {
+      token: `0x${"91".repeat(20)}`,
+      owner: `0x${"92".repeat(20)}`,
+      spender: `0x${"93".repeat(20)}`,
+      requiredAmount: "100",
+      balance: "100",
+      allowance: "100",
+      blockNumber: 100,
+      evidenceHash: hash("9"),
+    },
+    recoveryIssue: {
+      issueId: hash("a"),
+      state: "AVAILABLE",
+      evidenceHash: hash("b"),
+    },
+    recoveryJob: {
+      jobId: hash("c"),
+      state: "AVAILABLE",
+      evidenceHash: hash("d"),
+    },
+    governanceDryRun: {
+      transcriptHash: hash("e"),
+      verifierVersion: "v44-dry-run-v1",
+      passed: true,
+    },
+    incidentLedger: { root: hash("f"), unresolvedCriticalHigh: 0 },
+    maintainerWorkPower: {
+      agentSetRoot: hash("1"),
+      epoch: 1,
+      units: "0",
+    },
+  };
   const unsigned = createMaturityAuthorization({
     issuedAtMs: 2_000,
     expiresAtMs: 10_000,
@@ -299,6 +361,7 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
     providerSnapshots: [
       {
         identity: "rpc-a",
+        providerOperatorId: "rpc-a",
         origin: "https://a.example",
         finalizedBlockNumber: 100,
         finalizedBlockHash: hash("a"),
@@ -307,6 +370,7 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       },
       {
         identity: "rpc-b",
+        providerOperatorId: "rpc-b",
         origin: "https://b.example",
         finalizedBlockNumber: 100,
         finalizedBlockHash: hash("a"),
@@ -314,6 +378,7 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
         chainSnapshot,
       },
     ],
+    readinessEvidence,
   });
   const authorization = observerKeys.reduce(
     (value, keys, index) =>
@@ -325,6 +390,15 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
   );
   const policy = {
     authorizedPublicKeys: observerKeys.map((keys) => keys.publicKeyPem),
+    signerBindings: controlPolicy.signerBindings,
+    agentControlDomainBindings: snapshot.nonMaintainerVotingAgents.map(
+      (agent, index) => ({
+        agent: agent.agent,
+        controllerDomainId: `agent-controller-${index}`,
+        custodyDomainId: `agent-custody-${index}`,
+        corroborationEvidenceHash: hash(index % 2 === 0 ? "7" : "8"),
+      }),
+    ),
     threshold: 2,
     expectedSourceCommit: "a".repeat(40),
     expectedDeploymentManifestSha256: "b".repeat(64),
@@ -335,6 +409,8 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       finalizedBlockHash: provider.finalizedBlockHash,
       chainSnapshot: provider.chainSnapshot,
     })),
+    trustedReadinessEvidence: readinessEvidence,
+    providerOperatorPolicy,
   };
   assert.equal(
     validateMaturityAuthorization(authorization, {
@@ -343,6 +419,22 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       expectedExposureSlotId: fiftiethSlotId,
     }).valid,
     true,
+  );
+  assert.throws(
+    () =>
+      validateMaturityAuthorization(authorization, {
+        ...policy,
+        atMs: 2_500,
+        expectedExposureSlotId: fiftiethSlotId,
+        trustedReadinessEvidence: {
+          ...readinessEvidence,
+          proposalBond: {
+            ...readinessEvidence.proposalBond,
+            balance: "0",
+          },
+        },
+      }),
+    /V44_MATURITY_READINESS_EVIDENCE_INVALID/u,
   );
   reserveExposureSlot(ledger, fiftiethDescriptor, {
     maturityAuthorization: authorization,
@@ -623,8 +715,7 @@ test("checkpoint deletion, mutation, and chain breaks are detected", () => {
     second,
   );
   const policy = {
-    authorizedPublicKeys: observerKeys.map((keys) => keys.publicKeyPem),
-    threshold: 2,
+    ...controlPolicy,
   };
   assert.equal(
     validateCheckpointChain([signedFirst, signedSecond], policy).valid,
@@ -682,28 +773,25 @@ test("provider event sets must agree with the complete local ledger", () => {
   const lifecycle = settlementLifecycle(admission, { blockNumber: 10 });
   const eventId = `${hash("6")}:1`;
   const providers = [
-    {
-      identity: "rpc-a",
-      origin: "https://a.example",
+    governanceProvider("a", {
       finalizedBlockNumber: 10,
       finalizedBlockHash: hash("a"),
       rawEvents: lifecycle.rawEvents,
       stateReads: lifecycle.stateReads,
-    },
-    {
-      identity: "rpc-b",
-      origin: "https://b.example",
+    }),
+    governanceProvider("b", {
       finalizedBlockNumber: 10,
       finalizedBlockHash: hash("a"),
       rawEvents: lifecycle.rawEvents,
       stateReads: lifecycle.stateReads,
-    },
+    }),
   ];
   assert.equal(
     reconcileGovernanceEventSets({
       providers,
       localEventIds: [eventId],
       contracts: governanceContracts,
+      providerOperatorPolicy,
     }).eligible,
     true,
   );
@@ -712,8 +800,112 @@ test("provider event sets must agree with the complete local ledger", () => {
       providers,
       localEventIds: [],
       contracts: governanceContracts,
+      providerOperatorPolicy,
     }).reason,
     "LOCAL_EVENT_SET_INCOMPLETE",
+  );
+});
+
+test("unsettled governance exposure is counted before settlement", () => {
+  const ledger = newExposureLedger();
+  const slotId = reserveExposureSlot(ledger, descriptor());
+  transitionExposureSlot(
+    ledger,
+    slotId,
+    SLOT_STATES.BOUND_TO_JOB_MILESTONE,
+    { jobId, milestone: 0 },
+  );
+  assert.equal(
+    validateExposureLedgerAgainstChainStates(ledger, [
+      {
+        exposureKey: `${jobId}:0`,
+        issueHash: hash("1"),
+        issueTermsHash: hash("1"),
+        jobId,
+        milestone: 0,
+        state: SLOT_STATES.BOUND_TO_JOB_MILESTONE,
+        anchors: {},
+      },
+    ]).exposureCount,
+    1,
+  );
+  assert.throws(
+    () =>
+      validateExposureLedgerAgainstChainStates(
+        ledger,
+        Array.from({ length: 50 }, (_, index) => ({
+          exposureKey: `issue:${index}`,
+          issueHash: hash("1"),
+          issueTermsHash: hash("1"),
+          jobId: null,
+          milestone: null,
+          state: SLOT_STATES.RESERVED_FOR_ISSUE,
+          anchors: {},
+        })),
+      ),
+    /V44_CHAIN_EXPOSURE_LIMIT_EXCEEDED/u,
+  );
+});
+
+test("two RPCs expose a delivered but unsettled SYSTEM milestone", () => {
+  const admission = shadowBundle("ADMISSION");
+  const lifecycle = settlementLifecycle(admission, { blockNumber: 10 });
+  const rawEvents = lifecycle.rawEvents.filter(
+    (event) =>
+      event.address !== contributionLedger &&
+      !(
+        event.address === taskMarket &&
+        event.logIndex === 1 &&
+        event.blockNumber === 10
+      ),
+  );
+  const stateReads = structuredClone(lifecycle.stateReads);
+  stateReads[0].job.state = 2;
+  stateReads[0].milestoneState.state = 2;
+  const providers = ["a", "b"].map((name) =>
+    governanceProvider(name, {
+      finalizedBlockNumber: 10,
+      finalizedBlockHash: hash("a"),
+      rawEvents,
+      stateReads,
+    }),
+  );
+  const reconciled = reconcileGovernanceEventSets({
+    providers,
+    localEventIds: [],
+    contracts: governanceContracts,
+    providerOperatorPolicy,
+  });
+  assert.equal(reconciled.eligible, true);
+  assert.equal(reconciled.events.length, 0);
+  assert.equal(reconciled.exposureStates.length, 1);
+  assert.equal(
+    reconciled.exposureStates[0].state,
+    SLOT_STATES.VALIDATOR_AUTHORIZED,
+  );
+});
+
+test("a provider cannot claim an evidence block above its own finalized head", () => {
+  const admission = shadowBundle("ADMISSION");
+  const lifecycle = settlementLifecycle(admission, { blockNumber: 10 });
+  const providers = ["a", "b"].map((name) =>
+    governanceProvider(name, {
+      finalizedBlockNumber: 10,
+      finalizedBlockHash: hash("a"),
+      providerFinalizedHeadNumber: name === "a" ? 10 : 9,
+      providerFinalizedHeadHash: hash("a"),
+      rawEvents: lifecycle.rawEvents,
+      stateReads: lifecycle.stateReads,
+    }),
+  );
+  assert.equal(
+    reconcileGovernanceEventSets({
+      providers,
+      localEventIds: [`${hash("6")}:1`],
+      contracts: governanceContracts,
+      providerOperatorPolicy,
+    }).reason,
+    "EVENT_PROVIDER_FINALIZED_HEAD_CONFLICT",
   );
 });
 
@@ -723,9 +915,7 @@ test("a unique nonzero fake outcome receipt cannot satisfy settlement evidence",
   const forged = structuredClone(lifecycle.rawEvents);
   forged.find((event) => event.address === contributionLedger).topics[3] =
     hash("e");
-  const providers = ["a", "b"].map((name) => ({
-    identity: `rpc-${name}`,
-    origin: `https://${name}.example`,
+  const providers = ["a", "b"].map((name) => governanceProvider(name, {
     finalizedBlockNumber: 10,
     finalizedBlockHash: hash("a"),
     rawEvents: forged,
@@ -735,6 +925,7 @@ test("a unique nonzero fake outcome receipt cannot satisfy settlement evidence",
     providers,
     localEventIds: [`${hash("6")}:1`],
     contracts: governanceContracts,
+    providerOperatorPolicy,
   });
   assert.equal(result.eligible, true);
   assert.equal(result.events[0].chainLifecycleValid, false);
@@ -833,6 +1024,7 @@ test("governance snapshots are collected from raw finalized RPC evidence", async
   };
   const snapshot = await collectGovernanceEventSnapshot({
     rpcUrl: "https://rpc-a.example/v1/key",
+    providerOperatorId: "rpc-a",
     fromBlock: 1,
     contracts: governanceContracts,
     fetcher: async (_url, options) => {
@@ -867,9 +1059,7 @@ test("a shadow bundle written after settlement cannot impersonate onchain valida
   const admission = shadowBundle("ADMISSION");
   const settlement = shadowBundle("SETTLEMENT");
   const lifecycle = settlementLifecycle(admission);
-  const providers = ["a", "b"].map((name) => ({
-    identity: `rpc-${name}`,
-    origin: `https://${name}.example`,
+  const providers = ["a", "b"].map((name) => governanceProvider(name, {
     finalizedBlockNumber: 100,
     finalizedBlockHash: hash("a"),
     rawEvents: lifecycle.rawEvents,
@@ -879,6 +1069,7 @@ test("a shadow bundle written after settlement cannot impersonate onchain valida
     providers,
     localEventIds: [`${hash("6")}:1`],
     contracts: governanceContracts,
+    providerOperatorPolicy,
   });
   assert.equal(reconciled.eligible, true);
   const ledger = completedLedgerFromEvent(reconciled.events[0]);
@@ -896,9 +1087,7 @@ test("a posthoc journal without exact chain anchors is rejected", () => {
   const admission = shadowBundle("ADMISSION");
   const settlement = shadowBundle("SETTLEMENT");
   const lifecycle = settlementLifecycle(admission, { settlement });
-  const providers = ["a", "b"].map((name) => ({
-    identity: `rpc-${name}`,
-    origin: `https://${name}.example`,
+  const providers = ["a", "b"].map((name) => governanceProvider(name, {
     finalizedBlockNumber: 100,
     finalizedBlockHash: hash("a"),
     rawEvents: lifecycle.rawEvents,
@@ -908,6 +1097,7 @@ test("a posthoc journal without exact chain anchors is rejected", () => {
     providers,
     localEventIds: [`${hash("6")}:1`],
     contracts: governanceContracts,
+    providerOperatorPolicy,
   });
   const ledger = completedLedgerFromEvent(reconciled.events[0], {
     anchored: false,
@@ -933,9 +1123,7 @@ test("complete independently signed evidence can reach VERIFIED", () => {
     settlement,
   });
   const eventId = `${transactionHash}:1`;
-  const providers = ["a", "b"].map((name) => ({
-    identity: `rpc-${name}`,
-    origin: `https://${name}.example`,
+  const providers = ["a", "b"].map((name) => governanceProvider(name, {
     finalizedBlockNumber: 100,
     finalizedBlockHash: hash("a"),
     rawEvents: lifecycle.rawEvents,
@@ -945,6 +1133,7 @@ test("complete independently signed evidence can reach VERIFIED", () => {
     providers,
     localEventIds: [eventId],
     contracts: governanceContracts,
+    providerOperatorPolicy,
   });
   assert.equal(reconciled.eligible, true);
   const anchors = exposureChainAnchorsForEvent(reconciled.events[0]);
@@ -985,6 +1174,8 @@ test("complete independently signed evidence can reach VERIFIED", () => {
     contaminationLatch: false,
     incidentRoot: sha256Json([]),
     generatedCodeCommit: hash("f"),
+    governanceExposureRoot: reconciled.exposureStateRoot,
+    rawGovernanceEvidenceRoot: reconciled.rawEvidenceRoot,
   });
   const checkpoint = observerKeys.reduce(
     (value, keys, index) =>
@@ -1016,10 +1207,12 @@ test("complete independently signed evidence can reach VERIFIED", () => {
       exposurePolicy: {
         preMatureMaximumSuccessfulSystemSettlements: 49,
       },
+      providerOperatorPolicy,
       checkpointPolicy: {
         authorizedPublicKeys: observerKeys.map(
           (keys) => keys.publicKeyPem,
         ),
+        signerBindings: controlPolicy.signerBindings,
         threshold: 2,
       },
       generatedCodeCommit: hash("f"),

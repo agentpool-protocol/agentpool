@@ -97,6 +97,7 @@ export function newObservationLedger({
 }) {
   const policyIdentity = autonomyPolicyIdentity(
     policyEvidence.policy.autonomyV2,
+    evidencePipelineCommit,
   );
   return {
     schema: "agentpool.testnet.v44.observations/v1",
@@ -109,6 +110,8 @@ export function newObservationLedger({
     signerSetHash: policyIdentity.signerSetHash,
     policyActivatedAt: policyIdentity.activatedAt,
     policyActivatedBlock: policyIdentity.activatedBlock,
+    policyActivationSequence: policyIdentity.activationSequence,
+    policyActivationAnchorHash: policyIdentity.activationAnchorHash,
     startedAt,
     endedAt,
     observations: [],

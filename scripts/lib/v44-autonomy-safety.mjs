@@ -731,6 +731,52 @@ export function observerKeyId(publicKeyPem) {
   });
 }
 
+function validatedSignerBindings(
+  authorizedPublicKeys,
+  signerBindings,
+  threshold,
+  errorCode,
+) {
+  if (
+    !Number.isSafeInteger(threshold) ||
+    threshold < 1 ||
+    authorizedPublicKeys.length < threshold ||
+    !Array.isArray(signerBindings)
+  ) {
+    throw new Error(errorCode);
+  }
+  const authorizedIds = new Set(
+    authorizedPublicKeys.map((publicKeyPem) => observerKeyId(publicKeyPem)),
+  );
+  const bindings = new Map();
+  for (const binding of signerBindings) {
+    if (
+      !authorizedIds.has(binding.signerKeyId) ||
+      typeof binding.controllerDomainId !== "string" ||
+      binding.controllerDomainId.length < 3 ||
+      typeof binding.custodyDomainId !== "string" ||
+      binding.custodyDomainId.length < 3 ||
+      !HASH_PATTERN.test(binding.corroborationEvidenceHash ?? "") ||
+      bindings.has(binding.signerKeyId)
+    ) {
+      throw new Error(errorCode);
+    }
+    bindings.set(binding.signerKeyId, binding);
+  }
+  if (
+    bindings.size < threshold ||
+    new Set(
+      [...bindings.values()].map((binding) => binding.controllerDomainId),
+    ).size < threshold ||
+    new Set(
+      [...bindings.values()].map((binding) => binding.custodyDomainId),
+    ).size < threshold
+  ) {
+    throw new Error(errorCode);
+  }
+  return bindings;
+}
+
 function controlDomainRegistryBody(registry) {
   const body = structuredClone(registry);
   delete body.registryHash;
@@ -797,6 +843,7 @@ export function createMaturityAuthorization({
   admissionBundleHash,
   precommitCheckpointHash,
   providerSnapshots,
+  readinessEvidence,
 }) {
   const body = {
     schema: "agentpool.v44.maturity-authorization/v1",
@@ -810,6 +857,7 @@ export function createMaturityAuthorization({
     admissionBundleHash,
     precommitCheckpointHash,
     providerSnapshots,
+    readinessEvidence,
   };
   return { ...body, authorizationId: sha256Json(body), signatures: [] };
 }
@@ -840,18 +888,22 @@ export function validateMaturityAuthorization(
   authorization,
   {
     authorizedPublicKeys = [],
+    signerBindings = [],
     threshold = 2,
     atMs = Date.now(),
     expectedSourceCommit = null,
     expectedDeploymentManifestSha256 = null,
     expectedExposureSlotId = null,
     trustedProviderSnapshots = null,
+    trustedReadinessEvidence = null,
+    providerOperatorPolicy = null,
     preMatureMaximumSuccessfulSystemSettlements =
       PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
     minimumNonMaintainerVotingAgents = 5,
     minimumOnchainGroups = 3,
     minimumCorroboratedControlDomains = 3,
     maximumControlDomainShareBps = 2_999,
+    agentControlDomainBindings = [],
   } = {},
 ) {
   const body = maturityAuthorizationBody(authorization ?? {});
@@ -881,6 +933,39 @@ export function validateMaturityAuthorization(
   ) {
     throw new Error("V44_MATURITY_AUTHORIZATION_IDENTITY_INVALID");
   }
+  const readiness = authorization.readinessEvidence;
+  if (
+    !readiness ||
+    !trustedReadinessEvidence ||
+    sha256Json(readiness) !== sha256Json(trustedReadinessEvidence) ||
+    !ADDRESS_PATTERN.test(readiness.proposalBond?.token?.toLowerCase?.() ?? "") ||
+    !ADDRESS_PATTERN.test(readiness.proposalBond?.owner?.toLowerCase?.() ?? "") ||
+    !ADDRESS_PATTERN.test(readiness.proposalBond?.spender?.toLowerCase?.() ?? "") ||
+    BigInt(readiness.proposalBond?.requiredAmount ?? -1) < 0n ||
+    BigInt(readiness.proposalBond?.balance ?? -1) <
+      BigInt(readiness.proposalBond?.requiredAmount ?? 0) ||
+    BigInt(readiness.proposalBond?.allowance ?? -1) <
+      BigInt(readiness.proposalBond?.requiredAmount ?? 0) ||
+    !Number.isSafeInteger(readiness.proposalBond?.blockNumber) ||
+    !HASH_PATTERN.test(readiness.proposalBond?.evidenceHash ?? "") ||
+    !HASH_PATTERN.test(readiness.recoveryIssue?.issueId ?? "") ||
+    readiness.recoveryIssue?.state !== "AVAILABLE" ||
+    !HASH_PATTERN.test(readiness.recoveryIssue?.evidenceHash ?? "") ||
+    !HASH_PATTERN.test(readiness.recoveryJob?.jobId ?? "") ||
+    readiness.recoveryJob?.state !== "AVAILABLE" ||
+    !HASH_PATTERN.test(readiness.recoveryJob?.evidenceHash ?? "") ||
+    !HASH_PATTERN.test(readiness.governanceDryRun?.transcriptHash ?? "") ||
+    typeof readiness.governanceDryRun?.verifierVersion !== "string" ||
+    readiness.governanceDryRun.verifierVersion.length < 3 ||
+    readiness.governanceDryRun?.passed !== true ||
+    !HASH_PATTERN.test(readiness.incidentLedger?.root ?? "") ||
+    readiness.incidentLedger?.unresolvedCriticalHigh !== 0 ||
+    !HASH_PATTERN.test(readiness.maintainerWorkPower?.agentSetRoot ?? "") ||
+    !Number.isSafeInteger(readiness.maintainerWorkPower?.epoch) ||
+    BigInt(readiness.maintainerWorkPower?.units ?? -1) !== 0n
+  ) {
+    throw new Error("V44_MATURITY_READINESS_EVIDENCE_INVALID");
+  }
   if (
     !Array.isArray(authorization.providerSnapshots) ||
     authorization.providerSnapshots.length < 2 ||
@@ -892,6 +977,30 @@ export function validateMaturityAuthorization(
     ).size < 2
   ) {
     throw new Error("V44_MATURITY_PROVIDER_INDEPENDENCE_INVALID");
+  }
+  const trustedOperators = new Map(
+    (providerOperatorPolicy?.providers ?? []).map((provider) => [
+      provider.operatorId,
+      provider,
+    ]),
+  );
+  if (
+    providerOperatorPolicy?.configurationStatus !== "ACTIVE" ||
+    authorization.providerSnapshots.some((provider) => {
+      const trusted = trustedOperators.get(provider.providerOperatorId);
+      return (
+        provider.identity !== provider.providerOperatorId ||
+        !trusted?.allowedOrigins?.includes(provider.origin)
+      );
+    }) ||
+    new Set(
+      authorization.providerSnapshots.map(
+        (provider) =>
+          trustedOperators.get(provider.providerOperatorId)?.custodyDomainId,
+      ),
+    ).size < 2
+  ) {
+    throw new Error("V44_MATURITY_PROVIDER_OPERATOR_POLICY_INVALID");
   }
   const firstProvider = authorization.providerSnapshots[0];
   const snapshotRoot = sha256Json(firstProvider.snapshot);
@@ -931,6 +1040,12 @@ export function validateMaturityAuthorization(
   }
   const snapshot = firstProvider.snapshot;
   const agents = snapshot?.nonMaintainerVotingAgents;
+  const agentBindings = new Map(
+    agentControlDomainBindings.map((binding) => [
+      binding.agent?.toLowerCase?.(),
+      binding,
+    ]),
+  );
   if (
     !Array.isArray(agents) ||
     agents.length < minimumNonMaintainerVotingAgents ||
@@ -938,22 +1053,28 @@ export function validateMaturityAuthorization(
       agents.length ||
     new Set(agents.map((agent) => agent.operatorGroup)).size <
       minimumOnchainGroups ||
-    new Set(agents.map((agent) => agent.controlDomain)).size <
+    new Set(
+      agents.map(
+        (agent) =>
+          agentBindings.get(agent.agent?.toLowerCase?.())?.controllerDomainId,
+      ),
+    ).size <
       minimumCorroboratedControlDomains ||
     agents.some(
       (agent) =>
         !ADDRESS_PATTERN.test(agent.agent?.toLowerCase?.() ?? "") ||
         !HASH_PATTERN.test(agent.operatorGroup ?? "") ||
-        typeof agent.controlDomain !== "string" ||
-        agent.controlDomain.length < 3 ||
+        !agentBindings.has(agent.agent.toLowerCase()) ||
+        typeof agentBindings.get(agent.agent.toLowerCase()).controllerDomainId !==
+          "string" ||
+        typeof agentBindings.get(agent.agent.toLowerCase()).custodyDomainId !==
+          "string" ||
+        !HASH_PATTERN.test(
+          agentBindings.get(agent.agent.toLowerCase())
+            .corroborationEvidenceHash ?? "",
+        ) ||
         BigInt(agent.workPower ?? 0) <= 0n,
     ) ||
-    BigInt(snapshot.maintainerGovernanceUnits ?? -1) !== 0n ||
-    snapshot.proposalBondAvailable !== true ||
-    snapshot.recoveryIssueAvailable !== true ||
-    snapshot.recoveryJobAvailable !== true ||
-    snapshot.governanceDryRunPassed !== true ||
-    snapshot.unresolvedCriticalHigh !== 0 ||
     snapshot.successfulSystemSettlements !==
       preMatureMaximumSuccessfulSystemSettlements
   ) {
@@ -984,9 +1105,12 @@ export function validateMaturityAuthorization(
   );
   const domainPower = new Map();
   for (const agent of agents) {
+    const controlDomain = agentBindings.get(
+      agent.agent.toLowerCase(),
+    ).controllerDomainId;
     domainPower.set(
-      agent.controlDomain,
-      (domainPower.get(agent.controlDomain) ?? 0n) + BigInt(agent.workPower),
+      controlDomain,
+      (domainPower.get(controlDomain) ?? 0n) + BigInt(agent.workPower),
     );
   }
   const maximumDomainPower = [...domainPower.values()].reduce(
@@ -1000,21 +1124,16 @@ export function validateMaturityAuthorization(
   ) {
     throw new Error("V44_MATURITY_CONTROL_DOMAIN_SHARE_INVALID");
   }
-  if (
-    !Number.isSafeInteger(threshold) ||
-    threshold < 2 ||
-    authorizedPublicKeys.length < threshold
-  ) {
-    throw new Error("V44_MATURITY_SIGNER_POLICY_INVALID");
-  }
-  const authorizedIds = new Set(
-    authorizedPublicKeys.map((publicKeyPem) => observerKeyId(publicKeyPem)),
+  const bindings = validatedSignerBindings(
+    authorizedPublicKeys,
+    signerBindings,
+    threshold,
+    "V44_MATURITY_SIGNER_POLICY_INVALID",
   );
   const validSignatures = (authorization.signatures ?? []).filter(
     (signature) =>
-      authorizedIds.has(signature.signerKeyId) &&
+      bindings.has(signature.signerKeyId) &&
       signature.signerKeyId === observerKeyId(signature.publicKeyPem) &&
-      typeof signature.controllerDomain === "string" &&
       crypto.verify(
         null,
         Buffer.from(canonicalJson(body)),
@@ -1025,8 +1144,16 @@ export function validateMaturityAuthorization(
   if (
     new Set(validSignatures.map((signature) => signature.signerKeyId)).size <
       threshold ||
-    new Set(validSignatures.map((signature) => signature.controllerDomain))
-      .size < threshold
+    new Set(
+      validSignatures.map(
+        (signature) => bindings.get(signature.signerKeyId).controllerDomainId,
+      ),
+    ).size < threshold ||
+    new Set(
+      validSignatures.map(
+        (signature) => bindings.get(signature.signerKeyId).custodyDomainId,
+      ),
+    ).size < threshold
   ) {
     throw new Error("V44_MATURITY_SIGNATURE_THRESHOLD");
   }
@@ -1048,6 +1175,7 @@ export function validateControlDomainRegistry(
   registry,
   {
     authorizedPublicKeys = [],
+    signerBindings = [],
     threshold = 2,
     atMs = Date.now(),
   } = {},
@@ -1083,21 +1211,16 @@ export function validateControlDomainRegistry(
   if (registry.registryHash !== sha256Json(body)) {
     throw new Error("V44_CONTROL_DOMAIN_REGISTRY_HASH_INVALID");
   }
-  if (
-    !Number.isSafeInteger(threshold) ||
-    threshold < 1 ||
-    authorizedPublicKeys.length < threshold
-  ) {
-    throw new Error("V44_CONTROL_DOMAIN_REGISTRY_POLICY_INVALID");
-  }
-  const authorizedIds = new Set(
-    authorizedPublicKeys.map((publicKeyPem) => observerKeyId(publicKeyPem)),
+  const bindings = validatedSignerBindings(
+    authorizedPublicKeys,
+    signerBindings,
+    threshold,
+    "V44_CONTROL_DOMAIN_REGISTRY_POLICY_INVALID",
   );
   const validSignatures = (registry.signatures ?? []).filter(
     (signature) =>
-      authorizedIds.has(signature.signerKeyId) &&
+      bindings.has(signature.signerKeyId) &&
       signature.signerKeyId === observerKeyId(signature.publicKeyPem) &&
-      typeof signature.controllerDomain === "string" &&
       crypto.verify(
         null,
         Buffer.from(canonicalJson(body)),
@@ -1108,8 +1231,16 @@ export function validateControlDomainRegistry(
   if (
     new Set(validSignatures.map((signature) => signature.signerKeyId)).size <
       threshold ||
-    new Set(validSignatures.map((signature) => signature.controllerDomain))
-      .size < threshold
+    new Set(
+      validSignatures.map(
+        (signature) => bindings.get(signature.signerKeyId).controllerDomainId,
+      ),
+    ).size < threshold ||
+    new Set(
+      validSignatures.map(
+        (signature) => bindings.get(signature.signerKeyId).custodyDomainId,
+      ),
+    ).size < threshold
   ) {
     throw new Error("V44_CONTROL_DOMAIN_REGISTRY_SIGNATURE_THRESHOLD");
   }
@@ -2037,6 +2168,7 @@ export async function collectGovernanceEventSnapshot({
   fromBlock,
   contracts,
   finalizedBlockNumber,
+  providerOperatorId,
   fetcher = fetch,
 }) {
   if (
@@ -2054,30 +2186,56 @@ export async function collectGovernanceEventSnapshot({
   if (chainId !== 84532) {
     throw new Error("V44_GOVERNANCE_RPC_CHAIN_INVALID");
   }
-  const blockTag =
-    finalizedBlockNumber === undefined
-      ? "finalized"
-      : rpcQuantity(finalizedBlockNumber);
-  const finalizedBlock = await rpcRequest(
+  if (
+    typeof providerOperatorId !== "string" ||
+    providerOperatorId.length < 3
+  ) {
+    throw new Error("V44_GOVERNANCE_RPC_OPERATOR_ID_REQUIRED");
+  }
+  const providerFinalizedHead = await rpcRequest(
     rpcUrl,
     "eth_getBlockByNumber",
-    [blockTag, false],
+    ["finalized", false],
     fetcher,
   );
   if (
-    !finalizedBlock ||
-    !HASH_PATTERN.test(finalizedBlock.hash ?? "") ||
-    !finalizedBlock.number
+    !providerFinalizedHead ||
+    !HASH_PATTERN.test(providerFinalizedHead.hash ?? "") ||
+    !providerFinalizedHead.number
   ) {
     throw new Error("V44_GOVERNANCE_FINALIZED_BLOCK_INVALID");
   }
-  const resolvedFinalizedBlockNumber = Number(BigInt(finalizedBlock.number));
+  const providerFinalizedHeadNumber = Number(
+    BigInt(providerFinalizedHead.number),
+  );
+  const evidenceBlockNumber =
+    finalizedBlockNumber === undefined
+      ? providerFinalizedHeadNumber
+      : finalizedBlockNumber;
   if (
-    finalizedBlockNumber !== undefined &&
-    resolvedFinalizedBlockNumber !== finalizedBlockNumber
+    !Number.isSafeInteger(evidenceBlockNumber) ||
+    evidenceBlockNumber < fromBlock ||
+    evidenceBlockNumber > providerFinalizedHeadNumber
   ) {
-    throw new Error("V44_GOVERNANCE_FINALIZED_BLOCK_NUMBER_MISMATCH");
+    throw new Error("V44_GOVERNANCE_EVIDENCE_BLOCK_NOT_FINALIZED");
   }
+  const finalizedBlock =
+    evidenceBlockNumber === providerFinalizedHeadNumber
+      ? providerFinalizedHead
+      : await rpcRequest(
+          rpcUrl,
+          "eth_getBlockByNumber",
+          [rpcQuantity(evidenceBlockNumber), false],
+          fetcher,
+        );
+  if (
+    !finalizedBlock ||
+    Number(BigInt(finalizedBlock.number)) !== evidenceBlockNumber ||
+    !HASH_PATTERN.test(finalizedBlock.hash ?? "")
+  ) {
+    throw new Error("V44_GOVERNANCE_EVIDENCE_BLOCK_INVALID");
+  }
+  const resolvedFinalizedBlockNumber = evidenceBlockNumber;
   const logs = await rpcRequest(
     rpcUrl,
     "eth_getLogs",
@@ -2142,13 +2300,31 @@ export async function collectGovernanceEventSnapshot({
       data: log.data?.toLowerCase(),
     });
   }
-  const decodedSettlements = rawEvents
+  const decodedEvents = rawEvents
     .map((rawEvent) => decodeActualGovernanceRawLog(rawEvent, contractPolicy))
-    .filter((event) => event.type === "MILESTONE_SETTLED");
+  const lifecycleCandidates = [];
+  const candidateKeys = new Set();
+  for (const event of decodedEvents) {
+    let candidate = null;
+    if (["MILESTONE_DELIVERED", "MILESTONE_SETTLED"].includes(event.type)) {
+      candidate = {
+        jobId: event.args.jobId.toLowerCase(),
+        milestone: Number(event.args.milestone),
+      };
+    } else if (event.type === "JOB_CREATED") {
+      candidate = { jobId: event.args.jobId.toLowerCase(), milestone: 0 };
+    }
+    if (!candidate) continue;
+    const key = lifecycleKey(candidate.jobId, candidate.milestone);
+    if (!candidateKeys.has(key)) {
+      candidateKeys.add(key);
+      lifecycleCandidates.push(candidate);
+    }
+  }
   const stateReads = [];
-  for (const event of decodedSettlements) {
-    const jobId = event.args.jobId.toLowerCase();
-    const milestone = Number(event.args.milestone);
+  for (const event of lifecycleCandidates) {
+    const jobId = event.jobId;
+    const milestone = event.milestone;
     const call = async (to, abi, functionName, args) =>
       rpcRequest(
         rpcUrl,
@@ -2190,15 +2366,24 @@ export async function collectGovernanceEventSnapshot({
     const job = Object.fromEntries(
       jobOutputs.map((output, index) => [output.name, jsonSafe(jobValues[index])]),
     );
+    for (
+      let nextMilestone = 1;
+      nextMilestone < Number(job.milestoneCount ?? 0);
+      nextMilestone += 1
+    ) {
+      const nextKey = lifecycleKey(jobId, nextMilestone);
+      if (!candidateKeys.has(nextKey)) {
+        candidateKeys.add(nextKey);
+        lifecycleCandidates.push({ jobId, milestone: nextMilestone });
+      }
+    }
     const milestoneState = Object.fromEntries(
       milestoneOutputs.map((output, index) => [
         output.name,
         jsonSafe(milestoneValues[index]),
       ]),
     );
-    const delivered = rawEvents
-      .map((rawEvent) => decodeActualGovernanceRawLog(rawEvent, contractPolicy))
-      .find(
+    const delivered = decodedEvents.find(
         (candidate) =>
           candidate.type === "MILESTONE_DELIVERED" &&
           candidate.args.jobId.toLowerCase() === jobId &&
@@ -2289,13 +2474,13 @@ export async function collectGovernanceEventSnapshot({
   }
   const origin = new URL(rpcUrl).origin;
   return {
-    identity: sha256Json({
-      domain: "AGENTPOOL_V44_RPC_PROVIDER_V1",
-      origin,
-    }),
+    identity: providerOperatorId,
+    providerOperatorId,
     origin,
     finalizedBlockNumber: resolvedFinalizedBlockNumber,
     finalizedBlockHash: finalizedBlock.hash.toLowerCase(),
+    providerFinalizedHeadNumber,
+    providerFinalizedHeadHash: providerFinalizedHead.hash.toLowerCase(),
     rawEvents,
     stateReads,
   };
@@ -2631,17 +2816,135 @@ function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
   return systemEvents.sort((left, right) => left.eventId.localeCompare(right.eventId));
 }
 
+function deriveGovernanceExposureStates(decodedEvents, stateReads) {
+  const deliveries = uniqueMap(
+    decodedEvents.filter((event) => event.type === "MILESTONE_DELIVERED"),
+    (event) => lifecycleKey(event.args.jobId, event.args.milestone),
+    "V44_GOVERNANCE_DELIVERY_DUPLICATE",
+  );
+  const settlements = uniqueMap(
+    decodedEvents.filter((event) => event.type === "MILESTONE_SETTLED"),
+    (event) => lifecycleKey(event.args.jobId, event.args.milestone),
+    "V44_GOVERNANCE_SETTLEMENT_DUPLICATE",
+  );
+  const outcomes = new Set(
+    decodedEvents
+      .filter(
+        (event) =>
+          event.type === "OUTCOME_RECORDED" && event.args.successful === true,
+      )
+      .map((event) => event.args.receiptId.toLowerCase()),
+  );
+  const revealsByRound = groupedBy(
+    decodedEvents.filter((event) => event.type === "EVALUATION_REVEALED"),
+    roundKey,
+  );
+  const boundIssueTerms = new Set();
+  const exposures = [];
+  for (const state of stateReads ?? []) {
+    if (state.governanceEligible !== true) continue;
+    const jobId = state.jobId.toLowerCase();
+    const milestone = Number(state.milestone);
+    const key = lifecycleKey(jobId, milestone);
+    const delivered = deliveries.get(key);
+    const settled = settlements.get(key);
+    const issueTermsHash =
+      state.issueGateState?.termsHash?.toLowerCase?.() ?? ZERO_HASH;
+    boundIssueTerms.add(issueTermsHash);
+    const roundId = delivered?.args?.proofRoundId?.toLowerCase() ?? ZERO_HASH;
+    const reveals = revealsByRound.get(roundId) ?? [];
+    const minimumReveals = Number(state.milestoneState?.minimumReveals ?? 0);
+    const validatorAuthorized =
+      delivered !== undefined &&
+      minimumReveals > 0 &&
+      reveals.length >= minimumReveals &&
+      new Set(reveals.map((event) => event.args.validator.toLowerCase())).size ===
+        reveals.length;
+    const successfullyConsumed =
+      settled !== undefined &&
+      outcomes.has(systemSettlementReceiptId(jobId, milestone)) &&
+      Number(state.job?.state) === 4 &&
+      Number(state.milestoneState?.state) === 4;
+    const stateName = successfullyConsumed
+      ? SLOT_STATES.SUCCESSFULLY_CONSUMED
+      : validatorAuthorized
+        ? SLOT_STATES.VALIDATOR_AUTHORIZED
+        : delivered !== undefined
+          ? SLOT_STATES.VALIDATION_OPEN
+          : SLOT_STATES.BOUND_TO_JOB_MILESTONE;
+    exposures.push({
+      exposureKey: key,
+      issueHash: state.job?.issueId?.toLowerCase?.() ?? ZERO_HASH,
+      issueTermsHash,
+      jobId,
+      milestone,
+      state: stateName,
+      anchors: {
+        deliveryEventId: delivered?.eventId ?? null,
+        settlementEventId: settled?.eventId ?? null,
+        revealEventIds: reveals.map((event) => event.eventId).sort(),
+      },
+    });
+  }
+  for (const approved of decodedEvents.filter((event) =>
+    ["TRANSITION_ISSUE_APPROVED", "MATURE_ISSUE_APPROVED"].includes(
+      event.type,
+    ),
+  )) {
+    const issueTermsHash = approved.args.issueHash.toLowerCase();
+    if (boundIssueTerms.has(issueTermsHash)) continue;
+    exposures.push({
+      exposureKey: `issue:${issueTermsHash}`,
+      issueHash: issueTermsHash,
+      issueTermsHash,
+      jobId: null,
+      milestone: null,
+      state: SLOT_STATES.RESERVED_FOR_ISSUE,
+      anchors: { approvalEventId: approved.eventId },
+    });
+  }
+  return exposures.sort((left, right) =>
+    left.exposureKey.localeCompare(right.exposureKey),
+  );
+}
+
 export function reconcileGovernanceEventSets({
   providers,
   localEventIds,
   contracts,
+  providerOperatorPolicy,
 }) {
   if (!Array.isArray(providers) || providers.length < 2) {
     return { eligible: false, reason: "TWO_EVENT_PROVIDERS_REQUIRED" };
   }
+  const trustedOperators = new Map(
+    (providerOperatorPolicy?.providers ?? []).map((provider) => [
+      provider.operatorId,
+      provider,
+    ]),
+  );
   if (
-    new Set(providers.map((provider) => provider.identity)).size < 2 ||
-    new Set(providers.map((provider) => provider.origin)).size < 2
+    providerOperatorPolicy?.configurationStatus !== "ACTIVE" ||
+    trustedOperators.size < 2 ||
+    new Set(providers.map((provider) => provider.providerOperatorId)).size < 2 ||
+    new Set(providers.map((provider) => provider.origin)).size < 2 ||
+    providers.some((provider) => {
+      const trusted = trustedOperators.get(provider.providerOperatorId);
+      return (
+        provider.identity !== provider.providerOperatorId ||
+        !trusted ||
+        !Array.isArray(trusted.allowedOrigins) ||
+        !trusted.allowedOrigins.includes(provider.origin) ||
+        typeof trusted.custodyDomainId !== "string" ||
+        !HASH_PATTERN.test(trusted.corroborationEvidenceHash ?? "")
+      );
+    }) ||
+    new Set(
+      providers.map(
+        (provider) =>
+          trustedOperators.get(provider.providerOperatorId).custodyDomainId,
+      ),
+    ).size < 2
   ) {
     return { eligible: false, reason: "EVENT_PROVIDER_INDEPENDENCE_UNPROVEN" };
   }
@@ -2653,7 +2956,26 @@ export function reconcileGovernanceEventSets({
       (provider) =>
         provider.finalizedBlockNumber !== first.finalizedBlockNumber ||
         provider.finalizedBlockHash?.toLowerCase() !==
-          first.finalizedBlockHash.toLowerCase(),
+          first.finalizedBlockHash.toLowerCase() ||
+        !Number.isSafeInteger(provider.providerFinalizedHeadNumber) ||
+        provider.providerFinalizedHeadNumber < provider.finalizedBlockNumber ||
+        !HASH_PATTERN.test(provider.providerFinalizedHeadHash ?? ""),
+    )
+  ) {
+    return { eligible: false, reason: "EVENT_PROVIDER_FINALIZED_HEAD_CONFLICT" };
+  }
+  const headsByNumber = groupedBy(
+    providers,
+    (provider) => provider.providerFinalizedHeadNumber,
+  );
+  if (
+    [...headsByNumber.values()].some(
+      (sameHeight) =>
+        new Set(
+          sameHeight.map((provider) =>
+            provider.providerFinalizedHeadHash.toLowerCase(),
+          ),
+        ).size !== 1,
     )
   ) {
     return { eligible: false, reason: "EVENT_PROVIDER_FINALIZED_HEAD_CONFLICT" };
@@ -2695,6 +3017,11 @@ export function reconcileGovernanceEventSets({
     normalizedSets[0],
     normalizedStateReads[0],
   );
+  const exposureStates = deriveGovernanceExposureStates(
+    normalizedSets[0],
+    normalizedStateReads[0],
+  );
+  const exposureStateRoot = sha256Json(exposureStates);
   const canonicalRoot = sha256Json(canonicalEvents);
   const canonicalIds = canonicalEvents.map((event) => event.eventId);
   const localIds = [...(localEventIds ?? [])].sort();
@@ -2713,6 +3040,8 @@ export function reconcileGovernanceEventSets({
     eligible: true,
     canonicalRoot,
     rawEvidenceRoot,
+    exposureStateRoot,
+    exposureStates,
     events: canonicalEvents,
     providerCount: providers.length,
     finalizedBlockNumber: first.finalizedBlockNumber,
@@ -2843,8 +3172,59 @@ export function validateExposureLifecycleAgainstEvents(ledger, events) {
   };
 }
 
+export function validateExposureLedgerAgainstChainStates(
+  ledger,
+  exposureStates,
+  { maximumExposure = PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS } = {},
+) {
+  const chainStates = exposureStates ?? [];
+  if (
+    !Number.isSafeInteger(maximumExposure) ||
+    maximumExposure < 1 ||
+    chainStates.length > maximumExposure
+  ) {
+    throw new Error("V44_CHAIN_EXPOSURE_LIMIT_EXCEEDED");
+  }
+  const liveSlots = Object.values(ledger?.slots ?? {}).filter(
+    (slot) => slot.state !== SLOT_STATES.TERMINAL_WITHOUT_SUCCESS,
+  );
+  if (liveSlots.length !== chainStates.length) {
+    throw new Error("V44_CHAIN_EXPOSURE_CARDINALITY_MISMATCH");
+  }
+  const slotsByLifecycle = new Map(
+    liveSlots
+      .filter((slot) => slot.jobId !== null && slot.milestone !== null)
+      .map((slot) => [lifecycleKey(slot.jobId, slot.milestone), slot]),
+  );
+  const unboundSlotsByIssue = groupedBy(
+    liveSlots.filter((slot) => slot.jobId === null),
+    (slot) => slot.issueHash,
+  );
+  for (const chainState of chainStates) {
+    const slot =
+      chainState.jobId === null
+        ? (unboundSlotsByIssue.get(chainState.issueHash) ?? []).shift()
+        : slotsByLifecycle.get(
+            lifecycleKey(chainState.jobId, chainState.milestone),
+          );
+    if (
+      !slot ||
+      slot.issueHash !== chainState.issueHash ||
+      slot.state !== chainState.state
+    ) {
+      throw new Error("V44_CHAIN_EXPOSURE_STATE_MISMATCH");
+    }
+  }
+  return {
+    valid: true,
+    exposureCount: chainStates.length,
+    exposureStateRoot: sha256Json(chainStates),
+  };
+}
+
 export function deriveSystemSettlementEvidence({
   events,
+  exposureStates = null,
   admissionBundles,
   settlementBundles,
   exposureLedger,
@@ -2981,6 +3361,19 @@ export function deriveSystemSettlementEvidence({
     exposureLedger,
     derivedEvents,
   );
+  const chainExposure =
+    exposureStates === null
+      ? null
+      : validateExposureLedgerAgainstChainStates(
+          exposureLedger,
+          exposureStates,
+          {
+            maximumExposure:
+              exposureLedger.maturityAuthorizationConsumed === true
+                ? PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS + 1
+                : PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
+          },
+        );
   return {
     complete,
     events: derivedEvents,
@@ -2989,6 +3382,7 @@ export function deriveSystemSettlementEvidence({
     exposureCount: usedSlots.size,
     outcomeCount: usedOutcomes.size,
     exposureLifecycle,
+    chainExposure,
   };
 }
 
@@ -3029,6 +3423,8 @@ export function createCheckpoint({
   contaminationLatch,
   incidentRoot,
   generatedCodeCommit,
+  governanceExposureRoot = ZERO_HASH,
+  rawGovernanceEvidenceRoot = ZERO_HASH,
 }) {
   const checkpoint = {
     schema: "agentpool.v44.readiness-checkpoint/v1",
@@ -3042,6 +3438,8 @@ export function createCheckpoint({
     contaminationLatch,
     incidentRoot,
     generatedCodeCommit,
+    governanceExposureRoot,
+    rawGovernanceEvidenceRoot,
   };
   return { ...checkpoint, checkpointHash: sha256Json(checkpoint) };
 }
@@ -3080,6 +3478,7 @@ export function validateCheckpointChain(
   checkpoints,
   {
     authorizedPublicKeys = [],
+    signerBindings = [],
     threshold = 2,
     expectedFinalState = null,
   } = {},
@@ -3092,15 +3491,11 @@ export function validateCheckpointChain(
       count: 0,
     };
   }
-  if (
-    !Number.isSafeInteger(threshold) ||
-    threshold < 1 ||
-    authorizedPublicKeys.length < threshold
-  ) {
-    throw new Error("V44_CHECKPOINT_SIGNER_POLICY_INVALID");
-  }
-  const authorizedIds = new Set(
-    authorizedPublicKeys.map((publicKeyPem) => observerKeyId(publicKeyPem)),
+  const bindings = validatedSignerBindings(
+    authorizedPublicKeys,
+    signerBindings,
+    threshold,
+    "V44_CHECKPOINT_SIGNER_POLICY_INVALID",
   );
   let previous = `0x${"00".repeat(32)}`;
   for (const checkpoint of checkpoints) {
@@ -3114,9 +3509,8 @@ export function validateCheckpointChain(
     const validSignatures = [];
     for (const signature of checkpoint.signatures ?? []) {
       if (
-        !authorizedIds.has(signature.signerKeyId) ||
+        !bindings.has(signature.signerKeyId) ||
         signature.signerKeyId !== observerKeyId(signature.publicKeyPem) ||
-        typeof signature.controllerDomain !== "string" ||
         !crypto.verify(
           null,
           Buffer.from(canonicalJson(body)),
@@ -3132,7 +3526,14 @@ export function validateCheckpointChain(
       new Set(validSignatures.map((signature) => signature.signerKeyId)).size <
         threshold ||
       new Set(
-        validSignatures.map((signature) => signature.controllerDomain),
+        validSignatures.map(
+          (signature) => bindings.get(signature.signerKeyId).controllerDomainId,
+        ),
+      ).size < threshold ||
+      new Set(
+        validSignatures.map(
+          (signature) => bindings.get(signature.signerKeyId).custodyDomainId,
+        ),
       ).size < threshold
     ) {
       throw new Error("V44_CHECKPOINT_SIGNATURE_THRESHOLD");
@@ -3162,6 +3563,7 @@ export function validateAutonomyEvidence(
     controlDomainPolicy = null,
     checkpointPolicy = null,
     governanceEventPolicy = null,
+    providerOperatorPolicy = null,
     exposurePolicy = null,
     maturityAuthorizationPolicy = null,
     generatedCodeCommit = null,
@@ -3219,7 +3621,9 @@ export function validateAutonomyEvidence(
     Number.isSafeInteger(policy?.threshold) &&
     policy.threshold >= 2 &&
     Array.isArray(policy?.authorizedPublicKeys) &&
-    policy.authorizedPublicKeys.length >= policy.threshold;
+    policy.authorizedPublicKeys.length >= policy.threshold &&
+    Array.isArray(policy?.signerBindings) &&
+    policy.signerBindings.length >= policy.threshold;
   if (
     (admissionBundles.length > 0 || settlementBundles.length > 0) &&
     (!signerPolicyReady(controlDomainPolicy) ||
@@ -3245,6 +3649,7 @@ export function validateAutonomyEvidence(
       {
         authorizedPublicKeys:
           controlDomainPolicy?.authorizedPublicKeys ?? [],
+        signerBindings: controlDomainPolicy?.signerBindings ?? [],
         threshold: controlDomainPolicy?.threshold ?? 2,
         atMs: evaluationTimeMs,
       },
@@ -3266,6 +3671,7 @@ export function validateAutonomyEvidence(
     providers: evidence.governanceEventProviders ?? [],
     localEventIds: evidence.governanceEventIds ?? [],
     contracts: governanceEventPolicy?.contracts ?? null,
+    providerOperatorPolicy,
   });
   if (
     admissionBundles.length === 0 ||
@@ -3275,6 +3681,7 @@ export function validateAutonomyEvidence(
     const checkpoint = validateCheckpointChain(evidence.checkpoints ?? [], {
       authorizedPublicKeys:
         checkpointPolicy?.authorizedPublicKeys ?? [],
+      signerBindings: checkpointPolicy?.signerBindings ?? [],
       threshold: checkpointPolicy?.threshold ?? 2,
     });
     return {
@@ -3315,6 +3722,7 @@ export function validateAutonomyEvidence(
       {
         authorizedPublicKeys:
           checkpointPolicy?.authorizedPublicKeys ?? [],
+        signerBindings: checkpointPolicy?.signerBindings ?? [],
         threshold: checkpointPolicy?.threshold ?? 2,
       },
     );
@@ -3340,6 +3748,7 @@ export function validateAutonomyEvidence(
   }
   const settlementEvidence = deriveSystemSettlementEvidence({
     events: eventReconciliation.events,
+    exposureStates: eventReconciliation.exposureStates,
     admissionBundles,
     settlementBundles,
     exposureLedger: evidence.exposureLedger,
@@ -3357,6 +3766,8 @@ export function validateAutonomyEvidence(
     contaminationLatch:
       contamination.governanceContaminated || !settlementEvidence.complete,
     incidentRoot: incidentRoot(evidence.incidents ?? []),
+    governanceExposureRoot: eventReconciliation.exposureStateRoot,
+    rawGovernanceEvidenceRoot: eventReconciliation.rawEvidenceRoot,
   };
   if (generatedCodeCommit) {
     expectedFinalState.generatedCodeCommit = generatedCodeCommit;
@@ -3364,6 +3775,7 @@ export function validateAutonomyEvidence(
   const checkpoint = validateCheckpointChain(evidence.checkpoints ?? [], {
     authorizedPublicKeys:
       checkpointPolicy?.authorizedPublicKeys ?? [],
+    signerBindings: checkpointPolicy?.signerBindings ?? [],
     threshold: checkpointPolicy?.threshold ?? 2,
     expectedFinalState,
   });

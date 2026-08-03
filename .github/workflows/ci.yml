@@ -18,11 +18,18 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact requested source head
+        shell: bash
+        run: |
+          expected="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
       - uses: actions/setup-node@v5
         with:
           node-version: "22.13.0"
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run contracts:compile
       - run: npm run evidence:v4.4:source
       - run: npm run evidence:v4.4:source:verify
@@ -38,6 +45,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact requested source head
+        shell: bash
+        run: |
+          expected="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
       - uses: actions/setup-node@v5
         with:
           node-version: "22.13.0"
@@ -57,6 +71,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact requested source head
+        shell: bash
+        run: |
+          expected="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
       - uses: actions/setup-node@v5
         with:
           node-version: "22.13.0"

@@ -1110,6 +1110,9 @@ test("v4.4 full rehearsal deploys and settles the exact mainnet graph", () => {
 
 test("CI reproduces v4.4 evidence and both mainnet rehearsals", () => {
   const workflow = source(".github/workflows/ci.yml");
+  assert.match(workflow, /pull_request\.head\.sha/u);
+  assert.match(workflow, /git rev-parse HEAD/u);
+  assert.match(workflow, /npm audit --audit-level=moderate/u);
   for (const command of [
     "npm run evidence:v4.4:source",
     "npm run evidence:v4.4:source:verify",

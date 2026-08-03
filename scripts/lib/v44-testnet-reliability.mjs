@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
@@ -116,6 +117,7 @@ function validatePinnedSignerPolicy(value, label) {
     !Number.isSafeInteger(value.threshold) ||
     value.threshold < 2 ||
     !Array.isArray(value.authorizedPublicKeys) ||
+    !Array.isArray(value.signerBindings) ||
     new Set(value.authorizedPublicKeys).size !==
       value.authorizedPublicKeys.length ||
     value.authorizedPublicKeys.some(
@@ -127,9 +129,31 @@ function validatePinnedSignerPolicy(value, label) {
       value.configurationStatus,
     ) ||
     (value.configurationStatus === "ACTIVE" &&
-      value.authorizedPublicKeys.length < value.threshold) ||
+      (value.authorizedPublicKeys.length < value.threshold ||
+        value.signerBindings.length < value.threshold ||
+        new Set(
+          value.signerBindings.map((binding) => binding.signerKeyId),
+        ).size !== value.signerBindings.length ||
+        new Set(
+          value.signerBindings.map(
+            (binding) => binding.controllerDomainId,
+          ),
+        ).size < value.threshold ||
+        new Set(
+          value.signerBindings.map((binding) => binding.custodyDomainId),
+        ).size < value.threshold ||
+        value.signerBindings.some(
+          (binding) =>
+            !HASH_PATTERN.test(binding.signerKeyId ?? "") ||
+            typeof binding.controllerDomainId !== "string" ||
+            binding.controllerDomainId.length < 3 ||
+            typeof binding.custodyDomainId !== "string" ||
+            binding.custodyDomainId.length < 3 ||
+            !HASH_PATTERN.test(binding.corroborationEvidenceHash ?? ""),
+        ))) ||
     (value.configurationStatus === "PENDING_EXTERNAL_KEYS" &&
-      value.authorizedPublicKeys.length !== 0)
+      (value.authorizedPublicKeys.length !== 0 ||
+        value.signerBindings.length !== 0))
   ) {
     throw new Error(`V44_TESTNET_POLICY_INVALID:${label}`);
   }
@@ -139,6 +163,7 @@ function validateAutonomyPolicy(autonomy) {
   const exposure = autonomy?.exposurePolicy;
   const governance = autonomy?.governanceEventPolicy;
   const maturity = autonomy?.maturityAuthorizationPolicy;
+  const providers = autonomy?.governanceEventProviderPolicy;
   const binding = autonomy?.generatedCodeBinding;
   const expectedSignatures = [
     ...new Set(Object.values(V44_CHAIN_EVENT_SIGNATURES)),
@@ -162,25 +187,73 @@ function validateAutonomyPolicy(autonomy) {
       JSON.stringify(["settlementRouter"]) ||
     JSON.stringify([...(governance?.eventSignatures ?? [])].sort()) !==
       JSON.stringify(expectedSignatures) ||
-    !["ACTIVE", "PENDING_EXTERNAL_KEYS"].includes(
+    !["ACTIVE", "PENDING_EXTERNAL_PROVIDERS"].includes(
+      providers?.configurationStatus,
+    ) ||
+    !Array.isArray(providers?.providers) ||
+    (providers?.configurationStatus === "PENDING_EXTERNAL_PROVIDERS" &&
+      providers.providers.length !== 0) ||
+    (providers?.configurationStatus === "ACTIVE" &&
+      (providers.providers.length < 2 ||
+        new Set(providers.providers.map((provider) => provider.operatorId))
+          .size !== providers.providers.length ||
+        new Set(providers.providers.map((provider) => provider.custodyDomainId))
+          .size < 2 ||
+        providers.providers.some(
+          (provider) =>
+            typeof provider.operatorId !== "string" ||
+            provider.operatorId.length < 3 ||
+            !Array.isArray(provider.allowedOrigins) ||
+            provider.allowedOrigins.length < 1 ||
+            provider.allowedOrigins.some((origin) => {
+              try {
+                return new URL(origin).origin !== origin;
+              } catch {
+                return true;
+              }
+            }) ||
+            typeof provider.custodyDomainId !== "string" ||
+            provider.custodyDomainId.length < 3 ||
+            !HASH_PATTERN.test(provider.corroborationEvidenceHash ?? ""),
+        ))) ||
+    !["ACTIVE", "PENDING_EXTERNAL_ANCHOR"].includes(
       activation?.configurationStatus,
     ) ||
     activation?.restartObservationWindowOnChange !== true ||
-    (
-      activation?.configurationStatus === "ACTIVE" &&
-      (
-        !ISO_PATTERN.test(activation.activatedAt ?? "") ||
-        !Number.isSafeInteger(activation.activatedBlock) ||
-        activation.activatedBlock < 0
-      )
-    ) ||
-    (
-      activation?.configurationStatus === "PENDING_EXTERNAL_KEYS" &&
-      (activation.activatedAt !== null || activation.activatedBlock !== null)
-    ) ||
+    !Array.isArray(activation?.authorizedPublicKeys) ||
+    !Array.isArray(activation?.signerBindings) ||
+    !Number.isSafeInteger(activation?.threshold) ||
+    activation.threshold < 2 ||
+    (activation?.configurationStatus === "PENDING_EXTERNAL_ANCHOR" &&
+      (!Array.isArray(activation.anchorHistory) ||
+        activation.anchorHistory.length !== 0 ||
+        activation.authorizedPublicKeys.length !== 0 ||
+        activation.signerBindings.length !== 0)) ||
+    (activation?.configurationStatus === "ACTIVE" &&
+      (!Array.isArray(activation.anchorHistory) ||
+        activation.anchorHistory.length < 1)) ||
     maturity?.minimumNonMaintainerVotingAgents !== 5 ||
     maturity?.minimumOnchainGroups !== 3 ||
     maturity?.minimumCorroboratedControlDomains !== 3 ||
+    !Array.isArray(maturity?.agentControlDomainBindings) ||
+    (maturity?.configurationStatus === "PENDING_EXTERNAL_KEYS" &&
+      maturity.agentControlDomainBindings.length !== 0) ||
+    (maturity?.configurationStatus === "ACTIVE" &&
+      (maturity.agentControlDomainBindings.length < 5 ||
+        new Set(
+          maturity.agentControlDomainBindings.map((binding) =>
+            binding.agent?.toLowerCase?.(),
+          ),
+        ).size !== maturity.agentControlDomainBindings.length ||
+        maturity.agentControlDomainBindings.some(
+          (binding) =>
+            !isAddress(binding.agent ?? "") ||
+            typeof binding.controllerDomainId !== "string" ||
+            binding.controllerDomainId.length < 3 ||
+            typeof binding.custodyDomainId !== "string" ||
+            binding.custodyDomainId.length < 3 ||
+            !HASH_PATTERN.test(binding.corroborationEvidenceHash ?? ""),
+        ))) ||
     maturity?.maximumControlDomainShareBps !== 2_999 ||
     maturity?.maintainerGovernanceUnits !== 0 ||
     maturity?.proposalBondRequired !== true ||
@@ -207,6 +280,9 @@ function validateAutonomyPolicy(autonomy) {
     maturity,
     "autonomyV2.maturityAuthorizationPolicy",
   );
+  if (activation.configurationStatus === "ACTIVE") {
+    validatePinnedSignerPolicy(activation, "autonomyV2.policyActivation");
+  }
 }
 
 function requireIso(value, label) {
@@ -233,19 +309,215 @@ export function observationAttestationMessage(observations) {
   ].join("\n");
 }
 
-export function autonomyPolicyIdentity(autonomyPolicy) {
+export function autonomySignerSetHash(autonomyPolicy) {
+  return sha256Json({
+    controlDomainPolicy: autonomyPolicy?.controlDomainPolicy ?? null,
+    checkpointPolicy: autonomyPolicy?.checkpointPolicy ?? null,
+    maturityAuthorizationPolicy:
+      autonomyPolicy?.maturityAuthorizationPolicy ?? null,
+  });
+}
+
+export function autonomyPolicyConfigurationHash(autonomyPolicy) {
+  return sha256Json({
+    schema: autonomyPolicy?.schema ?? null,
+    exposurePolicy: autonomyPolicy?.exposurePolicy ?? null,
+    governanceEventPolicy: autonomyPolicy?.governanceEventPolicy ?? null,
+    governanceEventProviderPolicy:
+      autonomyPolicy?.governanceEventProviderPolicy ?? null,
+    controlDomainPolicy: autonomyPolicy?.controlDomainPolicy ?? null,
+    checkpointPolicy: autonomyPolicy?.checkpointPolicy ?? null,
+    maturityAuthorizationPolicy:
+      autonomyPolicy?.maturityAuthorizationPolicy ?? null,
+    generatedCodeBinding: autonomyPolicy?.generatedCodeBinding ?? null,
+  });
+}
+
+function activationAnchorBody(anchor) {
+  const body = structuredClone(anchor ?? {});
+  delete body.anchorHash;
+  delete body.signatures;
+  return body;
+}
+
+export function createPolicyActivationAnchor({
+  policyConfigurationHash,
+  signerSetHash,
+  evidencePipelineCommit,
+  activationSequence,
+  previousAnchorHash,
+  anchoredBlock,
+  anchoredBlockHash,
+  anchoredTimestampMs,
+  transparencyLogRoot,
+}) {
+  const body = {
+    schema: "agentpool.v44.policy-activation-anchor/v1",
+    chainId: TESTNET_CHAIN_ID,
+    policyConfigurationHash,
+    signerSetHash,
+    evidencePipelineCommit,
+    activationSequence,
+    previousAnchorHash,
+    anchoredBlock,
+    anchoredBlockHash,
+    anchoredTimestampMs,
+    transparencyLogRoot,
+  };
+  return { ...body, anchorHash: sha256Json(body), signatures: [] };
+}
+
+export function signPolicyActivationAnchor(
+  anchor,
+  { privateKeyPem, publicKeyPem },
+) {
+  const body = activationAnchorBody(anchor);
+  const signerKeyId = sha256AutonomyJson({
+    domain: "AGENTPOOL_V44_OBSERVER_KEY_V1",
+    publicKeyPem: publicKeyPem.trim(),
+  });
   return {
-    signerSetHash: sha256Json({
-      controlDomainPolicy: autonomyPolicy?.controlDomainPolicy ?? null,
-      checkpointPolicy: autonomyPolicy?.checkpointPolicy ?? null,
-      maturityAuthorizationPolicy:
-        autonomyPolicy?.maturityAuthorizationPolicy ?? null,
-    }),
-    activatedAt: autonomyPolicy?.policyActivation?.activatedAt ?? null,
+    ...anchor,
+    anchorHash: sha256Json(body),
+    signatures: [
+      ...(anchor.signatures ?? []),
+      {
+        signerKeyId,
+        publicKeyPem,
+        signature: crypto
+          .sign(null, Buffer.from(JSON.stringify(body)), privateKeyPem)
+          .toString("base64"),
+      },
+    ],
+  };
+}
+
+export function validatePolicyActivationAnchor(
+  activation,
+  {
+    expectedPolicyConfigurationHash = null,
+    expectedSignerSetHash = null,
+    expectedEvidencePipelineCommit = null,
+  } = {},
+) {
+  if (activation?.configurationStatus !== "ACTIVE") {
+    return {
+      valid: false,
+      status: activation?.configurationStatus ?? "PENDING_EXTERNAL_ANCHOR",
+      anchor: null,
+    };
+  }
+  if (
+    !Array.isArray(activation.anchorHistory) ||
+    activation.anchorHistory.length === 0
+  ) {
+    throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
+  }
+  validatePinnedSignerPolicy(activation, "autonomyV2.policyActivation");
+  const bindings = new Map(
+    activation.signerBindings.map((binding) => [binding.signerKeyId, binding]),
+  );
+  let previousAnchorHash = `0x${"00".repeat(32)}`;
+  let previousBlock = -1;
+  let previousTimestampMs = -1;
+  for (const [index, anchor] of activation.anchorHistory.entries()) {
+    const body = activationAnchorBody(anchor);
+    if (
+      anchor?.schema !== "agentpool.v44.policy-activation-anchor/v1" ||
+      anchor.chainId !== TESTNET_CHAIN_ID ||
+      !SHA256_PATTERN.test(anchor.policyConfigurationHash ?? "") ||
+      !SHA256_PATTERN.test(anchor.signerSetHash ?? "") ||
+      !/^[0-9a-f]{40}$/u.test(anchor.evidencePipelineCommit ?? "") ||
+      anchor.activationSequence !== index + 1 ||
+      anchor.previousAnchorHash !== previousAnchorHash ||
+      !Number.isSafeInteger(anchor.anchoredBlock) ||
+      anchor.anchoredBlock <= previousBlock ||
+      !HASH_PATTERN.test(anchor.anchoredBlockHash ?? "") ||
+      !Number.isSafeInteger(anchor.anchoredTimestampMs) ||
+      anchor.anchoredTimestampMs <= previousTimestampMs ||
+      !HASH_PATTERN.test(anchor.transparencyLogRoot ?? "") ||
+      anchor.anchorHash !== sha256Json(body)
+    ) {
+      throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
+    }
+    const validSignatures = (anchor.signatures ?? []).filter((signature) => {
+      const binding = bindings.get(signature.signerKeyId);
+      return (
+        binding &&
+        signature.signerKeyId ===
+          sha256AutonomyJson({
+            domain: "AGENTPOOL_V44_OBSERVER_KEY_V1",
+            publicKeyPem: signature.publicKeyPem?.trim?.(),
+          }) &&
+        crypto.verify(
+          null,
+          Buffer.from(JSON.stringify(body)),
+          signature.publicKeyPem,
+          Buffer.from(signature.signature ?? "", "base64"),
+        )
+      );
+    });
+    if (
+      new Set(validSignatures.map((signature) => signature.signerKeyId)).size <
+        activation.threshold ||
+      new Set(
+        validSignatures.map(
+          (signature) => bindings.get(signature.signerKeyId).controllerDomainId,
+        ),
+      ).size < activation.threshold ||
+      new Set(
+        validSignatures.map(
+          (signature) => bindings.get(signature.signerKeyId).custodyDomainId,
+        ),
+      ).size < activation.threshold
+    ) {
+      throw new Error("V44_POLICY_ACTIVATION_SIGNATURE_THRESHOLD");
+    }
+    previousAnchorHash = anchor.anchorHash;
+    previousBlock = anchor.anchoredBlock;
+    previousTimestampMs = anchor.anchoredTimestampMs;
+  }
+  const anchor = activation.anchorHistory.at(-1);
+  if (
+    (expectedPolicyConfigurationHash !== null &&
+      anchor.policyConfigurationHash !== expectedPolicyConfigurationHash) ||
+    (expectedSignerSetHash !== null &&
+      anchor.signerSetHash !== expectedSignerSetHash) ||
+    (expectedEvidencePipelineCommit !== null &&
+      anchor.evidencePipelineCommit !== expectedEvidencePipelineCommit)
+  ) {
+    throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
+  }
+  return { valid: true, status: "ACTIVE", anchor };
+}
+
+export function autonomyPolicyIdentity(
+  autonomyPolicy,
+  evidencePipelineCommit = null,
+) {
+  const activation = validatePolicyActivationAnchor(
+    autonomyPolicy?.policyActivation,
+    {
+      expectedPolicyConfigurationHash:
+        autonomyPolicyConfigurationHash(autonomyPolicy),
+      expectedSignerSetHash: autonomySignerSetHash(autonomyPolicy),
+      expectedEvidencePipelineCommit: evidencePipelineCommit,
+    },
+  );
+  return {
+    signerSetHash: autonomySignerSetHash(autonomyPolicy),
+    activatedAt:
+      activation.valid === true
+        ? new Date(activation.anchor.anchoredTimestampMs).toISOString()
+        : null,
     activatedBlock:
-      autonomyPolicy?.policyActivation?.activatedBlock ?? null,
+      activation.valid === true ? activation.anchor.anchoredBlock : null,
     activationStatus:
-      autonomyPolicy?.policyActivation?.configurationStatus ?? null,
+      activation.valid === true ? "ACTIVE" : activation.status,
+    activationSequence:
+      activation.valid === true ? activation.anchor.activationSequence : null,
+    activationAnchorHash:
+      activation.valid === true ? activation.anchor.anchorHash : null,
   };
 }
 
@@ -584,7 +856,10 @@ export function validateObservations(
   observations,
   { policy, policySha256, deployment, evidencePipelineCommit },
 ) {
-  const policyIdentity = autonomyPolicyIdentity(policy?.autonomyV2);
+  const policyIdentity = autonomyPolicyIdentity(
+    policy?.autonomyV2,
+    evidencePipelineCommit,
+  );
   if (
     observations?.schema !== OBSERVATION_SCHEMA ||
     observations.observedChainId !== TESTNET_CHAIN_ID ||
@@ -595,7 +870,11 @@ export function validateObservations(
     observations.policySha256 !== policySha256 ||
     observations.signerSetHash !== policyIdentity.signerSetHash ||
     observations.policyActivatedAt !== policyIdentity.activatedAt ||
-    observations.policyActivatedBlock !== policyIdentity.activatedBlock
+    observations.policyActivatedBlock !== policyIdentity.activatedBlock ||
+    (observations.policyActivationSequence ?? null) !==
+      policyIdentity.activationSequence ||
+    (observations.policyActivationAnchorHash ?? null) !==
+      policyIdentity.activationAnchorHash
   ) {
     throw new Error("V44_TESTNET_OBSERVATIONS_IDENTITY_INVALID");
   }
@@ -1708,6 +1987,7 @@ export async function collectMaturityProviderSnapshot({
       ?.nonMaintainerVotingAgents;
   if (
     !declaredProvider ||
+    typeof declaredProvider.providerOperatorId !== "string" ||
     !Array.isArray(agents) ||
     agents.length === 0 ||
     !Number.isSafeInteger(declaredProvider.finalizedBlockNumber)
@@ -1759,10 +2039,8 @@ export async function collectMaturityProviderSnapshot({
   }
   votingAgents.sort((left, right) => left.agent.localeCompare(right.agent));
   return {
-    identity: sha256AutonomyJson({
-      domain: "AGENTPOOL_V44_RPC_PROVIDER_V1",
-      origin,
-    }),
+    identity: declaredProvider.providerOperatorId,
+    providerOperatorId: declaredProvider.providerOperatorId,
     origin,
     finalizedBlockNumber: Number(block.number),
     finalizedBlockHash: block.hash.toLowerCase(),
@@ -1799,7 +2077,10 @@ export function evaluateReliability({
   const chainStartedAt = rpcEvidence?.earliestObservedTimestamp;
   const chainEndedAt = rpcEvidence?.latestObservedTimestamp;
   const chainStartedBlock = rpcEvidence?.earliestObservedBlock;
-  const policyIdentity = autonomyPolicyIdentity(policy.autonomyV2);
+  const policyIdentity = autonomyPolicyIdentity(
+    policy.autonomyV2,
+    evidencePipelineCommit,
+  );
   const observationDays =
     Number.isFinite(chainStartedAt) && Number.isFinite(chainEndedAt)
       ? (chainEndedAt - chainStartedAt) / DAY_MS
@@ -1839,7 +2120,11 @@ export function evaluateReliability({
     policyIdentity.activationStatus === "ACTIVE" &&
       observations.policyActivatedAt === policyIdentity.activatedAt &&
       observations.policyActivatedBlock === policyIdentity.activatedBlock &&
-      observations.signerSetHash === policyIdentity.signerSetHash,
+      observations.signerSetHash === policyIdentity.signerSetHash &&
+      observations.policyActivationSequence ===
+        policyIdentity.activationSequence &&
+      observations.policyActivationAnchorHash ===
+        policyIdentity.activationAnchorHash,
     "AUTONOMY_POLICY_ACTIVATION_REQUIRED",
   );
   blocker(
@@ -2117,17 +2402,32 @@ export async function buildReliabilityReport({
     : null;
   let governanceEventProviders = [];
   let canonicalVerificationBlock = verificationBlockNumber;
+  const governanceProviderPolicy =
+    trustedAutonomyPolicy.governanceEventProviderPolicy ?? null;
   if (
     Number.isSafeInteger(resolvedGovernancePolicy?.fromBlock) &&
-    resolvedGovernancePolicy.fromBlock >= 0
+    resolvedGovernancePolicy.fromBlock >= 0 &&
+    governanceProviderPolicy?.configurationStatus === "ACTIVE"
   ) {
+    const operatorFor = (url) => {
+      const origin = new URL(url).origin;
+      const provider = governanceProviderPolicy.providers.find((candidate) =>
+        candidate.allowedOrigins.includes(origin),
+      );
+      if (!provider) {
+        throw new Error("V44_GOVERNANCE_RPC_OPERATOR_NOT_PINNED");
+      }
+      return provider.operatorId;
+    };
     const primaryGovernance = await collectGovernanceEventSnapshot({
       rpcUrl,
+      providerOperatorId: operatorFor(rpcUrl),
       fromBlock: resolvedGovernancePolicy.fromBlock,
       contracts: resolvedGovernancePolicy.contracts,
     });
     const secondaryGovernance = await collectGovernanceEventSnapshot({
       rpcUrl: secondaryRpcUrl,
+      providerOperatorId: operatorFor(secondaryRpcUrl),
       fromBlock: resolvedGovernancePolicy.fromBlock,
       contracts: resolvedGovernancePolicy.contracts,
       finalizedBlockNumber: primaryGovernance.finalizedBlockNumber,
@@ -2185,6 +2485,7 @@ export async function buildReliabilityReport({
       checkpointPolicy:
         trustedAutonomyPolicy.checkpointPolicy ?? null,
       governanceEventPolicy: resolvedGovernancePolicy,
+      providerOperatorPolicy: governanceProviderPolicy,
       exposurePolicy: trustedAutonomyPolicy.exposurePolicy ?? null,
       maturityAuthorizationPolicy: trustedAutonomyPolicy
         .maturityAuthorizationPolicy
@@ -2193,6 +2494,7 @@ export async function buildReliabilityReport({
             expectedSourceCommit: evidencePipelineCommit,
             expectedDeploymentManifestSha256: deployment.manifestSha256,
             trustedProviderSnapshots: trustedMaturityProviderSnapshots,
+            providerOperatorPolicy: governanceProviderPolicy,
           }
         : null,
       generatedCodeCommit: sha256AutonomyJson({

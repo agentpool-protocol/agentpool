@@ -50,26 +50,36 @@
         "OutcomeRecorded(address,address,bytes32,uint256,bool)"
       ]
     },
+    "governanceEventProviderPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_PROVIDERS",
+      "providers": []
+    },
     "policyActivation": {
-      "configurationStatus": "PENDING_EXTERNAL_KEYS",
-      "activatedAt": null,
-      "activatedBlock": null,
+      "configurationStatus": "PENDING_EXTERNAL_ANCHOR",
+      "authorizedPublicKeys": [],
+      "signerBindings": [],
+      "threshold": 2,
+      "anchorHistory": [],
       "restartObservationWindowOnChange": true
     },
     "controlDomainPolicy": {
       "configurationStatus": "PENDING_EXTERNAL_KEYS",
       "authorizedPublicKeys": [],
+      "signerBindings": [],
       "threshold": 2
     },
     "checkpointPolicy": {
       "configurationStatus": "PENDING_EXTERNAL_KEYS",
       "authorizedPublicKeys": [],
+      "signerBindings": [],
       "threshold": 2
     },
     "maturityAuthorizationPolicy": {
       "configurationStatus": "PENDING_EXTERNAL_KEYS",
       "authorizedPublicKeys": [],
+      "signerBindings": [],
       "threshold": 2,
+      "agentControlDomainBindings": [],
       "minimumNonMaintainerVotingAgents": 5,
       "minimumOnchainGroups": 3,
       "minimumCorroboratedControlDomains": 3,

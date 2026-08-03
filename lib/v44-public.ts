@@ -95,6 +95,10 @@ export function v44ReadinessBoundary() {
     mode: "READ_ONLY_ALPHA",
     publicWriteReady: false,
     tamperEvidenceStatus: "PENDING_ANCHOR",
+    policyActivationStatus:
+      policy.autonomyV2.policyActivation.configurationStatus,
+    rpcOperatorPolicyStatus:
+      policy.autonomyV2.governanceEventProviderPolicy.configurationStatus,
     recoveryCryptographicThreshold: "NOT_DEPLOYED",
     recoveryCustodyDomains: 0,
     recoveryControllerDomains: 0,
@@ -105,6 +109,8 @@ export function v44ReadinessBoundary() {
       successful: 0,
       reservedWorstCase: 0,
       automaticBootstrapMaximum: 49,
+      allUnsettledStatesCountTowardMaximum: true,
+      exposureStateRootVerified: false,
       admissionShadowBundleRequired: true,
       settlementShadowBundleRequired: true,
       uniqueExposureSlotRequired: true,
@@ -133,6 +139,9 @@ export function v44ReadinessBoundary() {
       "EXTERNAL_CONTROL_DOMAINS_NOT_OBSERVED",
       "PUBLIC_RELIABILITY_CAMPAIGN_NOT_COMPLETE",
       "AUTONOMY_V2_EVIDENCE_NOT_COMPLETE",
+      "POLICY_ACTIVATION_ANCHOR_NOT_PUBLISHED",
+      "INDEPENDENT_RPC_OPERATORS_NOT_PINNED",
+      "OBJECTIVE_MATURITY_READINESS_EVIDENCE_NOT_COMPLETE",
     ],
   };
 }

@@ -25,13 +25,17 @@ window that rejects emission reservation or settlement before genesis. No
 Base mainnet transaction has been sent and every evidence gate remains
 blocked by default.
 
-The tracked v4.4 autonomy policy now fail-closes at 49 successful SYSTEM
-settlements. Its 50th transition requires a two-RPC, independently signed
-maturity authorization that was precommitted before the 50th job was created.
+The tracked v4.4 autonomy policy now fail-closes at 49 total live-or-successful
+SYSTEM exposures, including approved but unconsumed Issues, open Jobs,
+delivered work, validator-authorized work, and settled work. Its 50th
+transition requires a two-RPC, independently signed maturity authorization
+that was precommitted before the 50th job was created.
 The public-testnet campaign cannot begin until external observer and validator
 keys are pinned; no placeholder maintainer key is accepted. Changing those
-keys, their threshold, or the trusted policy hash invalidates prior
-observations and starts a new 90-day window from the recorded activation block.
+keys, their threshold, provider-operator mapping, or trusted policy hash
+invalidates prior observations. The 90-day window starts only from the latest
+threshold-signed, append-only activation anchor; a timestamp typed into JSON
+is not accepted.
 
 Public provenance reports the immutable testnet contract source commit and
 the currently deployed interface/build commit separately. The interface is
@@ -41,7 +45,9 @@ presented as the historical contract deployment commit.
 
 SYSTEM settlement evidence is reconstructed from the actual Issue proposal,
 commit/reveal votes, approval, Issue consumption, Job creation, ProofRegistry
-round, validator commit/reveal, outcome, and settlement logs from two RPCs.
+round, validator commit/reveal, outcome, and settlement logs from two
+policy-pinned RPC operators. Each operator must independently prove its own
+finalized head covers the common evidence block.
 Admission and settlement shadow bundles must match the hashes revealed in that
 chain lifecycle; a post-hoc bundle, journal entry, or maturity authorization
 cannot create eligibility.
