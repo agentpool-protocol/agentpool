@@ -296,7 +296,7 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
   const fiftiethSlotId = exposureSlotId(fiftiethDescriptor);
   const snapshot = {
     successfulSystemSettlements: 49,
-    nonMaintainerVotingAgents: Array.from({ length: 5 }, (_, index) => ({
+    nonMaintainerVotingAgents: Array.from({ length: 6 }, (_, index) => ({
       agent: `0x${(index + 1).toString(16).padStart(40, "0")}`,
       operatorGroup: `0x${((index % 3) + 1).toString(16).padStart(64, "0")}`,
       controlDomain: `domain-${index}`,
@@ -311,8 +311,15 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
   };
   const chainSnapshot = {
     successfulSystemSettlements: 49,
-    eligibleAgentCount: 5,
+    eligibleAgentCount: 6,
     eligibleGroupCount: 3,
+    populationComplete: true,
+    populationFromBlock: 1,
+    populationToBlock: 100,
+    populationSourceEventCount: 49,
+    successfulAgentAddressCount: 6,
+    positiveVotingAgentCount: 6,
+    positiveVotingGroupCount: 3,
     votingAgents: snapshot.nonMaintainerVotingAgents.map(
       ({ agent, operatorGroup, workPower }) => ({
         agent: agent.toLowerCase(),
@@ -321,6 +328,10 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       }),
     ),
   };
+  chainSnapshot.totalWorkPower = chainSnapshot.votingAgents
+    .reduce((total, agent) => total + BigInt(agent.workPower), 0n)
+    .toString();
+  chainSnapshot.populationRoot = sha256Json(chainSnapshot.votingAgents);
   const readinessEvidence = {
     proposalBond: {
       token: `0x${"91".repeat(20)}`,
@@ -439,6 +450,39 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
         },
       }),
     /V44_MATURITY_READINESS_EVIDENCE_INVALID/u,
+  );
+  const omittedSnapshots = structuredClone(unsigned.providerSnapshots);
+  for (const provider of omittedSnapshots) {
+    provider.snapshot.nonMaintainerVotingAgents =
+      provider.snapshot.nonMaintainerVotingAgents.slice(1);
+    provider.chainSnapshot.votingAgents =
+      provider.chainSnapshot.votingAgents.slice(1);
+    provider.chainSnapshot.positiveVotingAgentCount = 5;
+    provider.chainSnapshot.totalWorkPower = "100";
+    provider.chainSnapshot.populationRoot = sha256Json(
+      provider.chainSnapshot.votingAgents,
+    );
+  }
+  const omittedUnsigned = createMaturityAuthorization({
+    ...unsigned,
+    providerSnapshots: omittedSnapshots,
+  });
+  const omittedAuthorization = observerKeys.reduce(
+    (value, keys, index) =>
+      signMaturityAuthorization(value, {
+        ...keys,
+        controllerDomain: `maturity-controller-${index}`,
+      }),
+    omittedUnsigned,
+  );
+  assert.throws(
+    () =>
+      validateMaturityAuthorization(omittedAuthorization, {
+        ...policy,
+        atMs: 2_500,
+        expectedExposureSlotId: fiftiethSlotId,
+      }),
+    /V44_MATURITY_CHAIN_SNAPSHOT_NOT_CORROBORATED/u,
   );
   reserveExposureSlot(ledger, fiftiethDescriptor, {
     maturityAuthorization: authorization,
@@ -770,6 +814,19 @@ test("empty autonomy evidence remains pending instead of becoming ready", () => 
   const result = validateAutonomyEvidence(evidence);
   assert.equal(result.valid, false);
   assert.equal(result.status, "PENDING_NO_EVIDENCE");
+  const forgedCounter = structuredClone(evidence);
+  forgedCounter.exposureLedger.successfulSystemSettlements = 49;
+  assert.throws(
+    () => validateAutonomyEvidence(forgedCounter),
+    /V44_AUTONOMY_EXPOSURE_POLICY_MISMATCH/u,
+  );
+  const forgedAuthorizationFlag = structuredClone(evidence);
+  forgedAuthorizationFlag.exposureLedger.maturityAuthorizationConsumed = true;
+  forgedAuthorizationFlag.exposureLedger.maturityAuthorizationId = hash("9");
+  assert.throws(
+    () => validateAutonomyEvidence(forgedAuthorizationFlag),
+    /V44_AUTONOMY_MATURITY_AUTHORIZATION_FLAG_MISMATCH/u,
+  );
 });
 
 test("provider event sets must agree with the complete local ledger", () => {

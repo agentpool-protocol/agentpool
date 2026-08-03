@@ -16,6 +16,7 @@ import {
   blockedReliabilityReport,
   collectMaturityProviderSnapshot,
   collectMaturityReadinessEvidence,
+  collectGovernanceDryRunChecks,
   collectPolicyActivationPublicationSnapshot,
   createPolicyActivationAnchor,
   DEPLOYMENT_SCHEMA,
@@ -42,7 +43,6 @@ import {
   toBytes,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { observerKeyId } from "../scripts/lib/v44-autonomy-safety.mjs";
 import {
   merkleCatalog,
   artifact,
@@ -58,32 +58,38 @@ const source = (relativePath) =>
 const SOURCE_COMMIT = "a".repeat(40);
 const EVIDENCE_PIPELINE_COMMIT = "d".repeat(40);
 const POLICY_HASH = "e".repeat(64);
+const ACTIVATION_AUTHORITY = "0xf000000000000000000000000000000000000001";
+const ACTIVATION_AUTHORITY_RUNTIME = "0x6001600055";
+const ACTIVATION_OWNERS = [
+  "0xf000000000000000000000000000000000000011",
+  "0xf000000000000000000000000000000000000012",
+  "0xf000000000000000000000000000000000000013",
+];
 function activateAutonomyPolicy(policy) {
-  const keys = Array.from({ length: 2 }, () => {
-    const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
-    return {
-      publicKeyPem: publicKey.export({ type: "spki", format: "pem" }),
-      privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }),
-    };
-  });
   policy.autonomyV2.policyActivation = {
     configurationStatus: "ACTIVE",
     contractKey: "policyAnchor",
-    authorizedPublicKeys: keys.map((key) => key.publicKeyPem),
-    signerBindings: keys.map((key, index) => ({
-      signerKeyId: observerKeyId(key.publicKeyPem),
+    thresholdAuthority: {
+      address: ACTIVATION_AUTHORITY,
+      runtimeCodeHash: keccak256(ACTIVATION_AUTHORITY_RUNTIME),
+      owners: ACTIVATION_OWNERS,
+      threshold: 2,
+      ownerBindings: ACTIVATION_OWNERS.map((owner, index) => ({
+      owner,
       controllerDomainId: `activation-controller-${index}`,
       custodyDomainId: `activation-custody-${index}`,
       corroborationEvidenceHash: `0x${(index + 1)
         .toString(16)
         .padStart(64, "0")}`,
-    })),
-    threshold: 2,
+      })),
+    },
     anchorHistory: [],
     restartObservationWindowOnChange: true,
+    rotationPolicy: "NEW_CONTRACT_AND_WINDOW",
   };
-  let anchor = createPolicyActivationAnchor({
+  const anchor = createPolicyActivationAnchor({
     policyAnchorAddress: deployment().contracts.policyAnchor,
+    activationAuthority: ACTIVATION_AUTHORITY,
     policyConfigurationHash: autonomyPolicyConfigurationHash(
       policy.autonomyV2,
     ),
@@ -91,7 +97,8 @@ function activateAutonomyPolicy(policy) {
     activationSignerSetHash: activationSignerSetHash(
       policy.autonomyV2.policyActivation,
     ),
-    activationThreshold: policy.autonomyV2.policyActivation.threshold,
+    activationThreshold:
+      policy.autonomyV2.policyActivation.thresholdAuthority.threshold,
     activationBindingsRoot: activationBindingsRoot(
       policy.autonomyV2.policyActivation,
     ),
@@ -100,9 +107,6 @@ function activateAutonomyPolicy(policy) {
     previousAnchorHash: `0x${"00".repeat(32)}`,
     transparencyLogRoot: `0x${"cd".repeat(32)}`,
   });
-  for (const key of keys) {
-    anchor = signPolicyActivationAnchor(anchor, key);
-  }
   anchor.publication = {
     transactionHash: `0x${"98".repeat(32)}`,
     logIndex: 0,
@@ -111,11 +115,28 @@ function activateAutonomyPolicy(policy) {
   return policy;
 }
 
+function activateObserverIndependencePolicy(policy) {
+  policy.autonomyV2.observerIndependencePolicy = {
+    configurationStatus: "ACTIVE",
+    bindings: OBSERVER_ACCOUNTS.map((account, index) => ({
+      observer: account.address,
+      operatorGroup: OBSERVER_GROUPS[index],
+      controllerDomainId: `observer-controller-${index}`,
+      custodyDomainId: `observer-custody-${index}`,
+      corroborationEvidenceHash: `0x${(index + 20)
+        .toString(16)
+        .padStart(64, "0")}`,
+    })),
+  };
+  return policy;
+}
+
 function trustedActivationPublications(policy) {
   return policy.autonomyV2.policyActivation.anchorHistory.map((anchor) => ({
     anchorHash: anchor.anchorHash,
     activationSequence: anchor.activationSequence,
     policyConfigurationHash: `0x${anchor.policyConfigurationHash}`,
+    activationAuthority: anchor.activationAuthority,
     signerSetHash: `0x${anchor.signerSetHash}`,
     activationSignerSetHash: `0x${anchor.activationSignerSetHash}`,
     activationThreshold: anchor.activationThreshold,
@@ -128,6 +149,14 @@ function trustedActivationPublications(policy) {
     blockNumber: 1,
     blockHash: `0x${"ab".repeat(32)}`,
     blockTimestampMs: Date.parse("2026-01-01T00:00:00.000Z"),
+    authorityRuntimeCodeHash:
+      policy.autonomyV2.policyActivation.thresholdAuthority.runtimeCodeHash,
+    authorityOwners:
+      policy.autonomyV2.policyActivation.thresholdAuthority.owners
+        .map((owner) => owner.toLowerCase())
+        .sort(),
+    authorityThreshold:
+      policy.autonomyV2.policyActivation.thresholdAuthority.threshold,
   }));
 }
 
@@ -287,6 +316,7 @@ function deployment() {
     financeInvariantHash: SOURCE_EVIDENCE.financeInvariantHash,
     configSha256: SOURCE_EVIDENCE.configSha256,
     deployer: "0x1000000000000000000000000000000000000000",
+    policyActivationAuthority: ACTIVATION_AUTHORITY,
     deploymentBlock: 1,
     genesisStart: 1,
     genesisRelease: `0x${"11".repeat(32)}`,
@@ -618,7 +648,42 @@ test("trusted policy changes require a new activation sequence", () => {
   );
 });
 
-test("policy activation time comes from the finalized ownerless anchor event", async () => {
+test("observer control and custody bindings are fixed by policy activation", () => {
+  const { policy } = loadReliabilityPolicy();
+  const active = activateAutonomyPolicy(structuredClone(policy));
+  activateObserverIndependencePolicy(active);
+  assert.throws(
+    () =>
+      autonomyPolicyIdentity(
+        active.autonomyV2,
+        EVIDENCE_PIPELINE_COMMIT,
+        policyIdentityOptions(active),
+      ),
+    /V44_POLICY_ACTIVATION_ANCHOR_INVALID/u,
+  );
+});
+
+test("delayed offchain signatures and in-place authority rotation cannot activate policy", () => {
+  const { policy } = loadReliabilityPolicy();
+  const active = activateAutonomyPolicy(structuredClone(policy));
+  const anchor = active.autonomyV2.policyActivation.anchorHistory[0];
+  assert.throws(
+    () => signPolicyActivationAnchor(anchor, {}),
+    /V44_POLICY_ACTIVATION_OFFCHAIN_SIGNATURES_UNSUPPORTED/u,
+  );
+  active.autonomyV2.policyActivation.anchorHistory.push({ ...anchor });
+  assert.throws(
+    () =>
+      autonomyPolicyIdentity(
+        active.autonomyV2,
+        EVIDENCE_PIPELINE_COMMIT,
+        policyIdentityOptions(active),
+      ),
+    /V44_POLICY_ACTIVATION_ROTATION_REQUIRES_NEW_CONTRACT/u,
+  );
+});
+
+test("policy activation time comes from the finalized threshold-authorized anchor event", async () => {
   const { policy } = loadReliabilityPolicy();
   const active = activateAutonomyPolicy(structuredClone(policy));
   const manifest = deployment();
@@ -627,6 +692,7 @@ test("policy activation time comes from the finalized ownerless anchor event", a
     { name: "anchorHash", type: "bytes32", indexed: true },
     { name: "activationSequence", type: "uint64", indexed: true },
     { name: "policyConfigurationHash", type: "bytes32", indexed: true },
+    { name: "activationAuthority", type: "address", indexed: false },
     { name: "signerSetHash", type: "bytes32", indexed: false },
     { name: "activationSignerSetHash", type: "bytes32", indexed: false },
     { name: "activationThreshold", type: "uint16", indexed: false },
@@ -656,6 +722,7 @@ test("policy activation time comes from the finalized ownerless anchor event", a
     data: encodeAbiParameters(
       eventAbi.filter((input) => !input.indexed),
       [
+        anchor.activationAuthority,
         `0x${anchor.signerSetHash}`,
         `0x${anchor.activationSignerSetHash}`,
         anchor.activationThreshold,
@@ -682,9 +749,21 @@ test("policy activation time comes from the finalized ownerless anchor event", a
       blockHash,
       logs: [log],
     }),
-    getTransaction: async () => ({ to: manifest.contracts.policyAnchor }),
-    getCode: async () => artifact("AgentPoolV44PolicyAnchor").deployedBytecode,
+    getTransaction: async () => ({ to: ACTIVATION_AUTHORITY }),
+    getCode: async ({ address }) =>
+      address.toLowerCase() === ACTIVATION_AUTHORITY.toLowerCase()
+        ? ACTIVATION_AUTHORITY_RUNTIME
+        : artifact("AgentPoolV44PolicyAnchor").deployedBytecode,
+    readContract: async ({ functionName }) => {
+      if (functionName === "ACTIVATION_AUTHORITY") return ACTIVATION_AUTHORITY;
+      if (functionName === "getOwners") return ACTIVATION_OWNERS;
+      if (functionName === "getThreshold") return 2n;
+      throw new Error(`UNEXPECTED_READ:${functionName}`);
+    },
   };
+  manifest.deployedCodeHashes.policyAnchor = keccak256(
+    artifact("AgentPoolV44PolicyAnchor").deployedBytecode,
+  );
   const snapshots = await Promise.all(
     ["a", "b"].map((name) =>
       collectPolicyActivationPublicationSnapshot({
@@ -707,6 +786,19 @@ test("policy activation time comes from the finalized ownerless anchor event", a
       })),
     },
   });
+  await assert.rejects(
+    collectPolicyActivationPublicationSnapshot({
+      rpcUrl: "https://a.example",
+      deployment: manifest,
+      activation: active.autonomyV2.policyActivation,
+      providerOperatorId: "rpc-a",
+      client: {
+        ...client,
+        getTransaction: async () => ({ to: manifest.contracts.policyAnchor }),
+      },
+    }),
+    /V44_POLICY_ACTIVATION_PUBLICATION_INVALID/u,
+  );
   assert.equal(reconciled.publications[0].blockNumber, 1);
   assert.equal(
     autonomyPolicyIdentity(active.autonomyV2, EVIDENCE_PIPELINE_COMMIT, {
@@ -717,31 +809,100 @@ test("policy activation time comes from the finalized ownerless anchor event", a
   );
 });
 
+async function governanceDryRunFixture(manifest) {
+  const checkPolicy = structuredClone(
+    loadReliabilityPolicy().policy.autonomyV2.maturityAuthorizationPolicy
+      .readinessEvidencePolicy.governanceDryRun.checkPolicy,
+  );
+  const dummyInput = (input) => {
+    if (input.type === "tuple") return input.components.map(dummyInput);
+    if (input.type.endsWith("[]")) return [];
+    const fixedArray = input.type.match(/^(.*)\[([0-9]+)\]$/u);
+    if (fixedArray) {
+      return Array.from({ length: Number(fixedArray[2]) }, () =>
+        dummyInput({ ...input, type: fixedArray[1] }),
+      );
+    }
+    if (input.type === "address") return OBSERVER_ACCOUNTS[0].address;
+    if (input.type === "bool") return false;
+    if (/^u?int[0-9]*$/u.test(input.type)) return 0n;
+    if (input.type === "bytes") return "0x";
+    const fixedBytes = input.type.match(/^bytes([0-9]+)$/u);
+    if (fixedBytes) return `0x${"00".repeat(Number(fixedBytes[1]))}`;
+    if (input.type === "string") return "";
+    throw new Error(`UNSUPPORTED_DUMMY_ABI_TYPE:${input.type}`);
+  };
+  const records = new Map();
+  const locators = checkPolicy.map((check, index) => {
+    const transactionHash = `0x${(index + 150)
+      .toString(16)
+      .padStart(64, "0")}`;
+    const functionEntry = artifact(CONTRACT_TYPES[check.contractKey]).abi.find(
+      (entry) => entry.type === "function" && entry.name === check.functionName,
+    );
+    const input = encodeFunctionData({
+      abi: [functionEntry],
+      functionName: check.functionName,
+      args: functionEntry.inputs.map(dummyInput),
+    });
+    const blockNumber = BigInt(80 + index);
+    const blockHash = `0x${(index + 180).toString(16).padStart(64, "0")}`;
+    records.set(transactionHash, {
+      transaction: { to: manifest.contracts[check.contractKey], input },
+      receipt: {
+        status: check.expectedStatus,
+        blockNumber,
+        blockHash,
+        logs: check.requiredEvents.map((event, logIndex) => ({
+          address: manifest.contracts[event.contractKey],
+          topics: [keccak256(toBytes(event.signature))],
+          data: "0x",
+          logIndex,
+        })),
+      },
+    });
+    return { id: check.id, transactionHash };
+  });
+  const client = {
+    getTransaction: async ({ hash }) => records.get(hash).transaction,
+    getTransactionReceipt: async ({ hash }) => records.get(hash).receipt,
+    getBlock: async ({ blockNumber }) => {
+      const record = [...records.values()].find(
+        (entry) => entry.receipt.blockNumber === blockNumber,
+      );
+      return { number: blockNumber, hash: record.receipt.blockHash };
+    },
+  };
+  const trustedChecks = await collectGovernanceDryRunChecks({
+    client,
+    deployment: manifest,
+    transcript: { finalizedBlockNumber: 100, checks: locators },
+    checkPolicy,
+    maximumFinalizedBlockNumber: 100,
+  });
+  return {
+    checkPolicy,
+    records,
+    transcript: {
+      schema: "agentpool.v44.governance-dry-run/v2",
+      verifierVersion: "agentpool-v44-governance-dry-run-v2",
+      deploymentManifestSha256: manifest.manifestSha256,
+      finalizedBlockNumber: 100,
+      transactionCount: trustedChecks.length,
+      result: "PASS",
+      checks: trustedChecks,
+    },
+  };
+}
+
 test("maturity readiness is independently collected at the finalized block", async () => {
   const manifest = deployment();
   const outputRoot = path.join(ROOT, "outputs");
   fs.mkdirSync(outputRoot, { recursive: true });
   const directory = fs.mkdtempSync(path.join(outputRoot, "readiness-test-"));
   const transcriptPath = path.join(directory, "dry-run.json");
-  const transcript = {
-    schema: "agentpool.v44.governance-dry-run/v1",
-    verifierVersion: "agentpool-v44-governance-dry-run-v1",
-    deploymentManifestSha256: manifest.manifestSha256,
-    finalizedBlockNumber: 100,
-    transactionCount: 9,
-    result: "PASS",
-    checks: [
-      "proposal-bond-funded",
-      "issue-proposed",
-      "commit-reveal-completed",
-      "issue-finalized",
-      "recovery-job-created",
-      "recovery-refund-completed",
-      "exposure-cap-preserved",
-      "duplicate-settlement-rejected",
-      "fund-conservation-preserved",
-    ].map((id) => ({ id, passed: true, evidence: `${id}-proof` })),
-  };
+  const { transcript, checkPolicy, records } =
+    await governanceDryRunFixture(manifest);
   fs.writeFileSync(transcriptPath, `${JSON.stringify(transcript, null, 2)}\n`);
   const fileSha256 = (filePath) =>
     crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
@@ -750,6 +911,7 @@ test("maturity readiness is independently collected at the finalized block", asy
   const jobId = `0x${"63".repeat(32)}`;
   const maturityPolicy = {
     configurationStatus: "ACTIVE",
+    minimumRecoveryAvailabilitySeconds: 2_592_000,
     readinessEvidencePolicy: {
       proposalBond: {
         tokenContractKey: "token",
@@ -760,9 +922,13 @@ test("maturity readiness is independently collected at the finalized block", asy
       recoveryIssue: {
         issueId,
         termsHash,
-        issueTerms: { issueId },
+        issueTerms: { issueId, expiresAt: 4_000_000 },
       },
-      recoveryJob: { jobId, allowedStates: [1, 2, 3] },
+      recoveryJob: {
+        jobId,
+        allowedStates: [1, 2, 3],
+        allowedMilestoneStates: [1, 2, 3],
+      },
       governanceDryRun: {
         transcriptPath: path.relative(ROOT, transcriptPath),
         transcriptSha256: fileSha256(transcriptPath),
@@ -770,6 +936,7 @@ test("maturity readiness is independently collected at the finalized block", asy
         verifierSha256: fileSha256(
           path.join(ROOT, "scripts/lib/v44-governance-dry-run.mjs"),
         ),
+        checkPolicy,
       },
       maintainerAgents: [],
     },
@@ -796,9 +963,50 @@ test("maturity readiness is independently collected at the finalized block", asy
         1n,
       ];
     }
+    if (functionName === "milestones") {
+      return [
+        OBSERVER_ACCOUNTS[0].address,
+        OBSERVER_ACCOUNTS[1].address,
+        `0x${"03".repeat(32)}`,
+        `0x${"04".repeat(32)}`,
+        `0x${"05".repeat(32)}`,
+        `0x${"06".repeat(32)}`,
+        `0x${"00".repeat(32)}`,
+        1n,
+        0n,
+        0n,
+        4_000_000n,
+        1,
+        3,
+        8_000,
+        60,
+        60,
+        1,
+        false,
+        false,
+      ];
+    }
     if (functionName === "jobGovernanceEligible") return false;
     if (functionName === "latestGovernanceEpoch") return 1n;
     throw new Error(`UNEXPECTED_READ:${functionName}`);
+  };
+  const readinessClient = {
+    getBlock: async ({ blockTag, blockNumber }) => {
+      if (blockTag === "finalized" || blockNumber === 100n) {
+        return { number: 100n, hash: blockHash, timestamp: 1_000n };
+      }
+      const record = [...records.values()].find(
+        (entry) => entry.receipt.blockNumber === blockNumber,
+      );
+      return {
+        number: blockNumber,
+        hash: record.receipt.blockHash,
+        timestamp: 900n,
+      };
+    },
+    getTransaction: async ({ hash }) => records.get(hash).transaction,
+    getTransactionReceipt: async ({ hash }) => records.get(hash).receipt,
+    readContract,
   };
   const evidence = await collectMaturityReadinessEvidence({
     rpcUrl: "https://a.example",
@@ -810,22 +1018,81 @@ test("maturity readiness is independently collected at the finalized block", asy
       finalizedBlockNumber: 100,
       finalizedBlockHash: blockHash,
     },
-    client: {
-      getBlock: async ({ blockTag }) =>
-        blockTag === "finalized"
-          ? { number: 100n, hash: blockHash }
-          : { number: 100n, hash: blockHash },
-      readContract,
-    },
+    client: readinessClient,
   });
   assert.equal(evidence.proposalBond.balance, "100");
   assert.equal(evidence.recoveryIssue.state, "AVAILABLE");
   assert.equal(evidence.recoveryJob.state, "AVAILABLE");
   assert.equal(evidence.governanceDryRun.passed, true);
+  const expiredIssuePolicy = structuredClone(maturityPolicy);
+  expiredIssuePolicy.readinessEvidencePolicy.recoveryIssue.issueTerms.expiresAt =
+    2_000_000;
+  const expiredIssueEvidence = await collectMaturityReadinessEvidence({
+    rpcUrl: "https://a.example",
+    deployment: manifest,
+    maturityPolicy: expiredIssuePolicy,
+    observations: { incidents: [] },
+    trustedProviderSnapshot: {
+      origin: "https://a.example",
+      finalizedBlockNumber: 100,
+      finalizedBlockHash: blockHash,
+    },
+    client: readinessClient,
+  });
+  assert.equal(expiredIssueEvidence.recoveryIssue.state, "UNAVAILABLE");
+  const expiredJobEvidence = await collectMaturityReadinessEvidence({
+    rpcUrl: "https://a.example",
+    deployment: manifest,
+    maturityPolicy,
+    observations: { incidents: [] },
+    trustedProviderSnapshot: {
+      origin: "https://a.example",
+      finalizedBlockNumber: 100,
+      finalizedBlockHash: blockHash,
+    },
+    client: {
+      ...readinessClient,
+      readContract: async (request) => {
+        const value = await readContract(request);
+        if (request.functionName !== "milestones") return value;
+        const expired = [...value];
+        expired[10] = 2_000_000n;
+        return expired;
+      },
+    },
+  });
+  assert.equal(expiredJobEvidence.recoveryJob.state, "UNAVAILABLE");
   assert.equal(
     reconcileMaturityReadinessEvidence([evidence, structuredClone(evidence)])
       .providerCount,
     2,
+  );
+  const fabricated = {
+    ...transcript,
+    checks: transcript.checks.map((check) => ({
+      id: check.id,
+      passed: true,
+      evidence: `${check.id}-string`,
+    })),
+  };
+  fs.writeFileSync(transcriptPath, `${JSON.stringify(fabricated, null, 2)}\n`);
+  const fabricatedPolicy = structuredClone(maturityPolicy);
+  fabricatedPolicy.readinessEvidencePolicy.governanceDryRun.transcriptSha256 =
+    fileSha256(transcriptPath);
+  await assert.rejects(
+    collectMaturityReadinessEvidence({
+      rpcUrl: "https://a.example",
+      deployment: manifest,
+      maturityPolicy: fabricatedPolicy,
+      observations: { incidents: [] },
+      trustedProviderSnapshot: {
+        origin: "https://a.example",
+        finalizedBlockNumber: 100,
+        finalizedBlockHash: blockHash,
+      },
+      client: readinessClient,
+    }),
+    /V44_MATURITY_DRY_RUN_TRANSACTION_INVALID/u,
   );
   fs.rmSync(directory, { recursive: true, force: true });
 });
@@ -861,6 +1128,62 @@ test("an unfinalized maturity snapshot is rejected", async () => {
       },
     }),
     /V44_MATURITY_COLLECTION_BLOCK_MISMATCH/u,
+  );
+});
+
+test("maturity Work Power population is reconstructed from all finalized outcomes", async () => {
+  const manifest = deployment();
+  const blockHash = `0x${"ab".repeat(32)}`;
+  const agents = OBSERVER_ACCOUNTS.slice(0, 2).map((account) =>
+    account.address.toLowerCase(),
+  );
+  const snapshot = await collectMaturityProviderSnapshot({
+    rpcUrl: "https://rpc-a.example",
+    deployment: manifest,
+    authorization: {
+      providerSnapshots: [
+        {
+          origin: "https://rpc-a.example",
+          providerOperatorId: "rpc-a",
+          finalizedBlockNumber: 100,
+          finalizedBlockHash: blockHash,
+          snapshot: {
+            nonMaintainerVotingAgents: [{ agent: agents[0] }],
+          },
+        },
+      ],
+    },
+    maturityPolicy: { readinessEvidencePolicy: { maintainerAgents: [] } },
+    client: {
+      getBlock: async ({ blockTag }) =>
+        blockTag === "finalized"
+          ? { number: 100n, hash: blockHash }
+          : { number: 100n, hash: blockHash },
+      getLogs: async () =>
+        agents.map((agent) => ({ args: { agent, successful: true } })),
+      readContract: async ({ functionName, args = [] }) => {
+        if (functionName === "successfulSettlementCount") return 49n;
+        if (functionName === "eligibleAgentCount") return 2n;
+        if (functionName === "eligibleGroupCount") return 2n;
+        if (functionName === "latestGovernanceEpoch") return 8n;
+        if (functionName === "operatorGroup") {
+          return args[0].toLowerCase() === agents[0]
+            ? OBSERVER_GROUPS[0]
+            : OBSERVER_GROUPS[1];
+        }
+        if (functionName === "votingPowerAt") {
+          return args[0].toLowerCase() === agents[0] ? 10n : 90n;
+        }
+        throw new Error(`UNEXPECTED_READ:${functionName}`);
+      },
+    },
+  });
+  assert.equal(snapshot.chainSnapshot.populationComplete, true);
+  assert.equal(snapshot.chainSnapshot.positiveVotingAgentCount, 2);
+  assert.equal(snapshot.chainSnapshot.totalWorkPower, "100");
+  assert.deepEqual(
+    snapshot.chainSnapshot.votingAgents.map((agent) => agent.agent),
+    [...agents].sort(),
   );
 });
 
@@ -1081,6 +1404,7 @@ test("different Issue terms cannot impersonate a finalized Issue replay", async 
 
 test("observer groups come from the deployment registry, not signer claims", async () => {
   const policyEvidence = loadReliabilityPolicy();
+  activateObserverIndependencePolicy(policyEvidence.policy);
   const manifest = deployment();
   const ledger = observations(policyEvidence.policy, manifest);
   const unregistered = [

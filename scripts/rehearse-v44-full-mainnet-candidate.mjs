@@ -386,7 +386,12 @@ const evolutionConsensus = await deploy("AgentPoolV43EvolutionConsensus", [
   proposalBond,
 ]);
 const verifier = await deploy("AgentPoolV43HashObjectiveVerifier");
-const policyAnchor = await deploy("AgentPoolV44PolicyAnchor");
+const policyActivationAuthority = await deploy(
+  "MockV44ActivationAuthority",
+);
+const policyAnchor = await deploy("AgentPoolV44PolicyAnchor", [
+  policyActivationAuthority,
+]);
 const policyAnchorArgs = [
   1n,
   keccak256(toBytes("v44-policy-configuration")),
@@ -404,11 +409,27 @@ const policyAnchorHash = await read(
   "computeAnchorHash",
   policyAnchorArgs,
 );
+await expectRevert("policyAnchor.directPublicationRejected", () =>
+  write(
+    "AgentPoolV44PolicyAnchor",
+    policyAnchor,
+    "publish",
+    policyAnchorArgs,
+  ),
+);
 await write(
-  "AgentPoolV44PolicyAnchor",
-  policyAnchor,
-  "publish",
-  policyAnchorArgs,
+  "MockV44ActivationAuthority",
+  policyActivationAuthority,
+  "activate",
+  [policyAnchor, ...policyAnchorArgs],
+);
+await expectRevert("policyAnchor.secondActivationRejected", () =>
+  write(
+    "MockV44ActivationAuthority",
+    policyActivationAuthority,
+    "activate",
+    [policyAnchor, ...policyAnchorArgs],
+  ),
 );
 check(
   "policy anchor is append-only and chain-timestamped",

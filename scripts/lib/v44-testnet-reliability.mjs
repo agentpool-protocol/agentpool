@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import crypto from "node:crypto";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
@@ -15,6 +14,7 @@ import {
   parseEther,
   recoverMessageAddress,
   toBytes,
+  toEventSignature,
 } from "viem";
 import {
   CONTRACT_TYPES,
@@ -39,6 +39,7 @@ import {
 } from "./v44-autonomy-safety.mjs";
 import {
   GOVERNANCE_DRY_RUN_VERIFIER_VERSION,
+  REQUIRED_GOVERNANCE_DRY_RUN_CHECKS,
   verifyGovernanceDryRunTranscript,
 } from "./v44-governance-dry-run.mjs";
 
@@ -61,7 +62,7 @@ const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}`;
 const POLICY_ANCHOR_DOMAIN = keccak256(
-  toBytes("AGENTPOOL_V44_POLICY_ACTIVATION_ANCHOR_V1"),
+  toBytes("AGENTPOOL_V44_POLICY_ACTIVATION_ANCHOR_V2"),
 );
 const POLICY_ACTIVATION_ANCHORED_EVENT = {
   type: "event",
@@ -70,6 +71,7 @@ const POLICY_ACTIVATION_ANCHORED_EVENT = {
     { name: "anchorHash", type: "bytes32", indexed: true },
     { name: "activationSequence", type: "uint64", indexed: true },
     { name: "policyConfigurationHash", type: "bytes32", indexed: true },
+    { name: "activationAuthority", type: "address", indexed: false },
     { name: "signerSetHash", type: "bytes32", indexed: false },
     { name: "activationSignerSetHash", type: "bytes32", indexed: false },
     { name: "activationThreshold", type: "uint16", indexed: false },
@@ -79,6 +81,22 @@ const POLICY_ACTIVATION_ANCHORED_EVENT = {
     { name: "transparencyLogRoot", type: "bytes32", indexed: false },
   ],
 };
+const THRESHOLD_AUTHORITY_ABI = [
+  {
+    type: "function",
+    name: "getOwners",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+  {
+    type: "function",
+    name: "getThreshold",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+];
 const JOB_STATE = Object.freeze({
   SETTLED: 4,
   REJECTED: 5,
@@ -245,18 +263,58 @@ function validateAutonomyPolicy(autonomy) {
     ) ||
     activation?.contractKey !== "policyAnchor" ||
     activation?.restartObservationWindowOnChange !== true ||
-    !Array.isArray(activation?.authorizedPublicKeys) ||
-    !Array.isArray(activation?.signerBindings) ||
-    !Number.isSafeInteger(activation?.threshold) ||
-    activation.threshold < 2 ||
+    activation?.rotationPolicy !== "NEW_CONTRACT_AND_WINDOW" ||
     (activation?.configurationStatus === "PENDING_EXTERNAL_ANCHOR" &&
       (!Array.isArray(activation.anchorHistory) ||
         activation.anchorHistory.length !== 0 ||
-        activation.authorizedPublicKeys.length !== 0 ||
-        activation.signerBindings.length !== 0)) ||
+        activation.thresholdAuthority !== null)) ||
     (activation?.configurationStatus === "ACTIVE" &&
       (!Array.isArray(activation.anchorHistory) ||
-        activation.anchorHistory.length < 1)) ||
+        activation.anchorHistory.length !== 1 ||
+        !isAddress(activation.thresholdAuthority?.address ?? "") ||
+        !HASH_PATTERN.test(
+          activation.thresholdAuthority?.runtimeCodeHash ?? "",
+        ) ||
+        !Number.isSafeInteger(activation.thresholdAuthority?.threshold) ||
+        activation.thresholdAuthority.threshold < 2 ||
+        !Array.isArray(activation.thresholdAuthority?.owners) ||
+        activation.thresholdAuthority.owners.length <
+          activation.thresholdAuthority.threshold ||
+        new Set(
+          activation.thresholdAuthority.owners.map((owner) =>
+            owner?.toLowerCase?.(),
+          ),
+        ).size !== activation.thresholdAuthority.owners.length ||
+        activation.thresholdAuthority.owners.some(
+          (owner) => !isAddress(owner ?? ""),
+        ) ||
+        !Array.isArray(activation.thresholdAuthority?.ownerBindings) ||
+        activation.thresholdAuthority.ownerBindings.length !==
+          activation.thresholdAuthority.owners.length ||
+        new Set(
+          activation.thresholdAuthority.ownerBindings.map((binding) =>
+            binding.owner?.toLowerCase?.(),
+          ),
+        ).size !== activation.thresholdAuthority.ownerBindings.length ||
+        new Set(
+          activation.thresholdAuthority.ownerBindings.map(
+            (binding) => binding.controllerDomainId,
+          ),
+        ).size < activation.thresholdAuthority.threshold ||
+        new Set(
+          activation.thresholdAuthority.ownerBindings.map(
+            (binding) => binding.custodyDomainId,
+          ),
+        ).size < activation.thresholdAuthority.threshold ||
+        activation.thresholdAuthority.ownerBindings.some(
+          (binding) =>
+            !activation.thresholdAuthority.owners
+              .map((owner) => owner.toLowerCase())
+              .includes(binding.owner?.toLowerCase?.()) ||
+            typeof binding.controllerDomainId !== "string" ||
+            typeof binding.custodyDomainId !== "string" ||
+            !HASH_PATTERN.test(binding.corroborationEvidenceHash ?? ""),
+        ))) ||
     maturity?.minimumNonMaintainerVotingAgents !== 5 ||
     maturity?.minimumOnchainGroups !== 3 ||
     maturity?.minimumCorroboratedControlDomains !== 3 ||
@@ -290,12 +348,33 @@ function validateAutonomyPolicy(autonomy) {
     Object.hasOwn(maturity ?? {}, "trustedReadinessEvidence") ||
     readiness?.proposalBond?.tokenContractKey !== "token" ||
     readiness?.proposalBond?.spenderContractKey !== "issueConsensus" ||
+    maturity?.minimumRecoveryAvailabilitySeconds !== 2_592_000 ||
     JSON.stringify(readiness?.recoveryJob?.allowedStates) !==
+      JSON.stringify([1, 2, 3]) ||
+    JSON.stringify(readiness?.recoveryJob?.allowedMilestoneStates) !==
       JSON.stringify([1, 2, 3]) ||
     readiness?.governanceDryRun?.verifierPath !==
       "scripts/lib/v44-governance-dry-run.mjs" ||
     readiness?.governanceDryRun?.verifierVersion !==
       GOVERNANCE_DRY_RUN_VERIFIER_VERSION ||
+    JSON.stringify(
+      (readiness?.governanceDryRun?.checkPolicy ?? []).map(
+        (check) => check.id,
+      ),
+    ) !== JSON.stringify(REQUIRED_GOVERNANCE_DRY_RUN_CHECKS) ||
+    (readiness?.governanceDryRun?.checkPolicy ?? []).some(
+      (check) =>
+        !(check.contractKey in CONTRACT_TYPES) ||
+        typeof check.functionName !== "string" ||
+        !["success", "reverted"].includes(check.expectedStatus) ||
+        !Array.isArray(check.requiredEvents) ||
+        check.requiredEvents.some(
+          (event) =>
+            !(event.contractKey in CONTRACT_TYPES) ||
+            typeof event.signature !== "string" ||
+            !/^[A-Za-z_][A-Za-z0-9_]*\(.*\)$/u.test(event.signature),
+        ),
+    ) ||
     !Array.isArray(readiness?.maintainerAgents) ||
     new Set(
       readiness.maintainerAgents.map((agent) => agent?.toLowerCase?.()),
@@ -336,9 +415,6 @@ function validateAutonomyPolicy(autonomy) {
     maturity,
     "autonomyV2.maturityAuthorizationPolicy",
   );
-  if (activation.configurationStatus === "ACTIVE") {
-    validatePinnedSignerPolicy(activation, "autonomyV2.policyActivation");
-  }
 }
 
 function requireIso(value, label) {
@@ -367,6 +443,8 @@ export function observationAttestationMessage(observations) {
 
 export function autonomySignerSetHash(autonomyPolicy) {
   return sha256Json({
+    observerIndependencePolicy:
+      autonomyPolicy?.observerIndependencePolicy ?? null,
     controlDomainPolicy: autonomyPolicy?.controlDomainPolicy ?? null,
     checkpointPolicy: autonomyPolicy?.checkpointPolicy ?? null,
     maturityAuthorizationPolicy:
@@ -376,18 +454,21 @@ export function autonomySignerSetHash(autonomyPolicy) {
 
 export function activationSignerSetHash(activation) {
   return sha256Json({
-    authorizedPublicKeys: [...(activation?.authorizedPublicKeys ?? [])].sort(),
-    signerBindings: [...(activation?.signerBindings ?? [])].sort((left, right) =>
-      left.signerKeyId.localeCompare(right.signerKeyId),
-    ),
-    threshold: activation?.threshold ?? null,
+    authorityAddress:
+      activation?.thresholdAuthority?.address?.toLowerCase?.() ?? null,
+    runtimeCodeHash:
+      activation?.thresholdAuthority?.runtimeCodeHash?.toLowerCase?.() ?? null,
+    owners: [...(activation?.thresholdAuthority?.owners ?? [])]
+      .map((owner) => owner.toLowerCase())
+      .sort(),
+    threshold: activation?.thresholdAuthority?.threshold ?? null,
   });
 }
 
 export function activationBindingsRoot(activation) {
   return sha256Json(
-    [...(activation?.signerBindings ?? [])].sort((left, right) =>
-      left.signerKeyId.localeCompare(right.signerKeyId),
+    [...(activation?.thresholdAuthority?.ownerBindings ?? [])].sort((left, right) =>
+      left.owner.toLowerCase().localeCompare(right.owner.toLowerCase()),
     ),
   );
 }
@@ -395,6 +476,8 @@ export function activationBindingsRoot(activation) {
 export function autonomyPolicyConfigurationHash(autonomyPolicy) {
   return sha256Json({
     schema: autonomyPolicy?.schema ?? null,
+    observerIndependencePolicy:
+      autonomyPolicy?.observerIndependencePolicy ?? null,
     exposurePolicy: autonomyPolicy?.exposurePolicy ?? null,
     governanceEventPolicy: autonomyPolicy?.governanceEventPolicy ?? null,
     governanceEventProviderPolicy:
@@ -431,6 +514,7 @@ function computePolicyAnchorHash(anchor) {
         "bytes32",
         "uint256",
         "address",
+        "address",
         "uint64",
         "bytes32",
         "bytes32",
@@ -445,6 +529,7 @@ function computePolicyAnchorHash(anchor) {
         POLICY_ANCHOR_DOMAIN,
         BigInt(anchor.chainId),
         getAddress(anchor.policyAnchorAddress),
+        getAddress(anchor.activationAuthority),
         BigInt(anchor.activationSequence),
         asBytes32(anchor.policyConfigurationHash, "POLICY_HASH"),
         asBytes32(anchor.signerSetHash, "SIGNER_SET_HASH"),
@@ -461,6 +546,7 @@ function computePolicyAnchorHash(anchor) {
 
 export function createPolicyActivationAnchor({
   policyAnchorAddress,
+  activationAuthority,
   policyConfigurationHash,
   signerSetHash,
   activationSignerSetHash: pinnedActivationSignerSetHash,
@@ -472,9 +558,10 @@ export function createPolicyActivationAnchor({
   transparencyLogRoot,
 }) {
   const body = {
-    schema: "agentpool.v44.policy-activation-anchor/v2",
+    schema: "agentpool.v44.policy-activation-anchor/v3",
     chainId: TESTNET_CHAIN_ID,
     policyAnchorAddress: getAddress(policyAnchorAddress).toLowerCase(),
+    activationAuthority: getAddress(activationAuthority).toLowerCase(),
     policyConfigurationHash,
     signerSetHash,
     activationSignerSetHash: pinnedActivationSignerSetHash,
@@ -488,29 +575,8 @@ export function createPolicyActivationAnchor({
   return { ...body, anchorHash: computePolicyAnchorHash(body), signatures: [] };
 }
 
-export function signPolicyActivationAnchor(
-  anchor,
-  { privateKeyPem, publicKeyPem },
-) {
-  const body = activationAnchorBody(anchor);
-  const signerKeyId = sha256AutonomyJson({
-    domain: "AGENTPOOL_V44_OBSERVER_KEY_V1",
-    publicKeyPem: publicKeyPem.trim(),
-  });
-  return {
-    ...anchor,
-    anchorHash: computePolicyAnchorHash(body),
-    signatures: [
-      ...(anchor.signatures ?? []),
-      {
-        signerKeyId,
-        publicKeyPem,
-        signature: crypto
-          .sign(null, Buffer.from(JSON.stringify(body)), privateKeyPem)
-          .toString("base64"),
-      },
-    ],
-  };
+export function signPolicyActivationAnchor() {
+  throw new Error("V44_POLICY_ACTIVATION_OFFCHAIN_SIGNATURES_UNSUPPORTED");
 }
 
 export function validatePolicyActivationAnchor(
@@ -536,7 +602,6 @@ export function validatePolicyActivationAnchor(
   ) {
     throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
   }
-  validatePinnedSignerPolicy(activation, "autonomyV2.policyActivation");
   const expectedActivationSignerSetHash = activationSignerSetHash(activation);
   const expectedActivationBindingsRoot = activationBindingsRoot(activation);
   const publications = new Map(
@@ -545,78 +610,55 @@ export function validatePolicyActivationAnchor(
       publication,
     ]),
   );
-  const bindings = new Map(
-    activation.signerBindings.map((binding) => [binding.signerKeyId, binding]),
-  );
-  let previousAnchorHash = `0x${"00".repeat(32)}`;
-  let previousBlock = -1;
-  let previousTimestampMs = -1;
-  for (const [index, anchor] of activation.anchorHistory.entries()) {
+  if (activation.anchorHistory.length !== 1) {
+    throw new Error("V44_POLICY_ACTIVATION_ROTATION_REQUIRES_NEW_CONTRACT");
+  }
+  for (const anchor of activation.anchorHistory) {
     const body = activationAnchorBody(anchor);
     const publication = publications.get(anchor.anchorHash?.toLowerCase?.());
     if (
-      anchor?.schema !== "agentpool.v44.policy-activation-anchor/v2" ||
+      anchor?.schema !== "agentpool.v44.policy-activation-anchor/v3" ||
       anchor.chainId !== TESTNET_CHAIN_ID ||
       !isAddress(anchor.policyAnchorAddress ?? "") ||
+      anchor.activationAuthority?.toLowerCase?.() !==
+        activation.thresholdAuthority.address.toLowerCase() ||
       (expectedPolicyAnchorAddress !== null &&
         anchor.policyAnchorAddress.toLowerCase() !==
           expectedPolicyAnchorAddress.toLowerCase()) ||
       !SHA256_PATTERN.test(anchor.policyConfigurationHash ?? "") ||
       !SHA256_PATTERN.test(anchor.signerSetHash ?? "") ||
       anchor.activationSignerSetHash !== expectedActivationSignerSetHash ||
-      anchor.activationThreshold !== activation.threshold ||
+      anchor.activationThreshold !==
+        activation.thresholdAuthority.threshold ||
       anchor.activationBindingsRoot !== expectedActivationBindingsRoot ||
       !/^[0-9a-f]{40}$/u.test(anchor.evidencePipelineCommit ?? "") ||
-      anchor.activationSequence !== index + 1 ||
-      anchor.previousAnchorHash !== previousAnchorHash ||
+      anchor.activationSequence !== 1 ||
+      anchor.previousAnchorHash !== `0x${"00".repeat(32)}` ||
       !HASH_PATTERN.test(anchor.transparencyLogRoot ?? "") ||
       anchor.anchorHash !== computePolicyAnchorHash(body) ||
       !publication ||
       publication.anchorHash.toLowerCase() !== anchor.anchorHash.toLowerCase() ||
       publication.activationSequence !== anchor.activationSequence ||
-      publication.blockNumber <= previousBlock ||
-      publication.blockTimestampMs <= previousTimestampMs ||
+      publication.activationAuthority?.toLowerCase?.() !==
+        anchor.activationAuthority.toLowerCase() ||
+      publication.authorityRuntimeCodeHash?.toLowerCase?.() !==
+        activation.thresholdAuthority.runtimeCodeHash.toLowerCase() ||
+      publication.authorityThreshold !==
+        activation.thresholdAuthority.threshold ||
+      sha256Json(publication.authorityOwners ?? []) !==
+        sha256Json(
+          activation.thresholdAuthority.owners
+            .map((owner) => owner.toLowerCase())
+            .sort(),
+        ) ||
       !HASH_PATTERN.test(publication.blockHash ?? "") ||
       !HASH_PATTERN.test(publication.transactionHash ?? "")
     ) {
       throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
     }
-    const validSignatures = (anchor.signatures ?? []).filter((signature) => {
-      const binding = bindings.get(signature.signerKeyId);
-      return (
-        binding &&
-        signature.signerKeyId ===
-          sha256AutonomyJson({
-            domain: "AGENTPOOL_V44_OBSERVER_KEY_V1",
-            publicKeyPem: signature.publicKeyPem?.trim?.(),
-          }) &&
-        crypto.verify(
-          null,
-          Buffer.from(JSON.stringify(body)),
-          signature.publicKeyPem,
-          Buffer.from(signature.signature ?? "", "base64"),
-        )
-      );
-    });
-    if (
-      new Set(validSignatures.map((signature) => signature.signerKeyId)).size <
-        activation.threshold ||
-      new Set(
-        validSignatures.map(
-          (signature) => bindings.get(signature.signerKeyId).controllerDomainId,
-        ),
-      ).size < activation.threshold ||
-      new Set(
-        validSignatures.map(
-          (signature) => bindings.get(signature.signerKeyId).custodyDomainId,
-        ),
-      ).size < activation.threshold
-    ) {
-      throw new Error("V44_POLICY_ACTIVATION_SIGNATURE_THRESHOLD");
+    if ((anchor.signatures ?? []).length !== 0) {
+      throw new Error("V44_POLICY_ACTIVATION_OFFCHAIN_SIGNATURES_FORBIDDEN");
     }
-    previousAnchorHash = anchor.anchorHash;
-    previousBlock = publication.blockNumber;
-    previousTimestampMs = publication.blockTimestampMs;
   }
   const anchor = activation.anchorHistory.at(-1);
   const publication = publications.get(anchor.anchorHash.toLowerCase());
@@ -671,6 +713,7 @@ function canonicalActivationPublication(value) {
     anchorHash: value.anchorHash.toLowerCase(),
     activationSequence: Number(value.activationSequence),
     policyConfigurationHash: value.policyConfigurationHash.toLowerCase(),
+    activationAuthority: value.activationAuthority.toLowerCase(),
     signerSetHash: value.signerSetHash.toLowerCase(),
     activationSignerSetHash: value.activationSignerSetHash.toLowerCase(),
     activationThreshold: Number(value.activationThreshold),
@@ -683,6 +726,11 @@ function canonicalActivationPublication(value) {
     blockNumber: Number(value.blockNumber),
     blockHash: value.blockHash.toLowerCase(),
     blockTimestampMs: Number(value.blockTimestampMs),
+    authorityRuntimeCodeHash: value.authorityRuntimeCodeHash.toLowerCase(),
+    authorityOwners: [...value.authorityOwners]
+      .map((owner) => owner.toLowerCase())
+      .sort(),
+    authorityThreshold: Number(value.authorityThreshold),
   };
 }
 
@@ -706,9 +754,11 @@ export async function collectPolicyActivationPublicationSnapshot({
     suppliedClient ?? createPublicClient({ transport: http(rpcUrl) });
   const finalizedHead = await client.getBlock({ blockTag: "finalized" });
   const policyAnchorAddress = getAddress(deployment.contracts.policyAnchor);
-  const expectedRuntimeHash = keccak256(
-    artifact(CONTRACT_TYPES.policyAnchor).deployedBytecode,
-  );
+  const authorityAddress = getAddress(activation.thresholdAuthority.address);
+  const expectedRuntimeHash = deployment.deployedCodeHashes?.policyAnchor;
+  if (!HASH_PATTERN.test(expectedRuntimeHash ?? "")) {
+    throw new Error("V44_POLICY_ACTIVATION_RUNTIME_HASH_MISSING");
+  }
   const publications = [];
   for (const anchor of activation.anchorHistory ?? []) {
     if (
@@ -725,20 +775,66 @@ export async function collectPolicyActivationPublicationSnapshot({
     ]);
     if (
       receipt.status !== "success" ||
-      transaction.to?.toLowerCase() !== policyAnchorAddress.toLowerCase() ||
+      transaction.to?.toLowerCase() !== authorityAddress.toLowerCase() ||
       receipt.blockNumber > finalizedHead.number
     ) {
       throw new Error("V44_POLICY_ACTIVATION_PUBLICATION_INVALID");
     }
     const block = await client.getBlock({ blockNumber: receipt.blockNumber });
-    const runtimeCode = await client.getCode({
-      address: policyAnchorAddress,
-      blockNumber: receipt.blockNumber,
-    });
+    const [
+      runtimeCode,
+      authorityRuntimeCode,
+      anchoredAuthority,
+      authorityOwners,
+      authorityThreshold,
+    ] = await Promise.all([
+      client.getCode({
+        address: policyAnchorAddress,
+        blockNumber: receipt.blockNumber,
+      }),
+      client.getCode({
+        address: authorityAddress,
+        blockNumber: receipt.blockNumber,
+      }),
+      client.readContract({
+        address: policyAnchorAddress,
+        abi: artifact(CONTRACT_TYPES.policyAnchor).abi,
+        functionName: "ACTIVATION_AUTHORITY",
+        blockNumber: receipt.blockNumber,
+      }),
+      client.readContract({
+        address: authorityAddress,
+        abi: THRESHOLD_AUTHORITY_ABI,
+        functionName: "getOwners",
+        blockNumber: receipt.blockNumber,
+      }),
+      client.readContract({
+        address: authorityAddress,
+        abi: THRESHOLD_AUTHORITY_ABI,
+        functionName: "getThreshold",
+        blockNumber: receipt.blockNumber,
+      }),
+    ]);
+    const authorityRuntimeCodeHash = keccak256(authorityRuntimeCode);
+    const normalizedOwners = [...authorityOwners]
+      .map((owner) => getAddress(owner).toLowerCase())
+      .sort();
     if (
       block.hash?.toLowerCase() !== receipt.blockHash?.toLowerCase() ||
       !runtimeCode ||
-      keccak256(runtimeCode) !== expectedRuntimeHash
+      keccak256(runtimeCode) !== expectedRuntimeHash.toLowerCase() ||
+      !authorityRuntimeCode ||
+      authorityRuntimeCodeHash !==
+        activation.thresholdAuthority.runtimeCodeHash.toLowerCase() ||
+      anchoredAuthority.toLowerCase() !== authorityAddress.toLowerCase() ||
+      Number(authorityThreshold) !==
+        activation.thresholdAuthority.threshold ||
+      sha256Json(normalizedOwners) !==
+        sha256Json(
+          activation.thresholdAuthority.owners
+            .map((owner) => owner.toLowerCase())
+            .sort(),
+        )
     ) {
       throw new Error("V44_POLICY_ACTIVATION_RUNTIME_INVALID");
     }
@@ -769,6 +865,9 @@ export async function collectPolicyActivationPublicationSnapshot({
       blockNumber: receipt.blockNumber,
       blockHash: receipt.blockHash,
       blockTimestampMs: Number(block.timestamp) * 1_000,
+      authorityRuntimeCodeHash,
+      authorityOwners: normalizedOwners,
+      authorityThreshold: Number(authorityThreshold),
     });
     const expected = canonicalActivationPublication({
       anchorHash: anchor.anchorHash,
@@ -777,6 +876,7 @@ export async function collectPolicyActivationPublicationSnapshot({
         anchor.policyConfigurationHash,
         "POLICY_HASH",
       ),
+      activationAuthority: authorityAddress,
       signerSetHash: asBytes32(anchor.signerSetHash, "SIGNER_SET_HASH"),
       activationSignerSetHash: asBytes32(
         anchor.activationSignerSetHash,
@@ -795,6 +895,9 @@ export async function collectPolicyActivationPublicationSnapshot({
       blockNumber: receipt.blockNumber,
       blockHash: receipt.blockHash,
       blockTimestampMs: Number(block.timestamp) * 1_000,
+      authorityRuntimeCodeHash,
+      authorityOwners: normalizedOwners,
+      authorityThreshold: Number(authorityThreshold),
     });
     if (sha256Json(publication) !== sha256Json(expected)) {
       throw new Error("V44_POLICY_ACTIVATION_EVENT_MISMATCH");
@@ -876,6 +979,43 @@ export function loadReliabilityPolicy(
     throw new Error("V44_TESTNET_POLICY_IDENTITY_INVALID");
   }
   validateAutonomyPolicy(policy.autonomyV2);
+  const { config } = loadAndValidateConfig();
+  const requiredRecoveryLifetimeSeconds =
+    policy.minimumObservationDays * 86_400 +
+    policy.autonomyV2.maturityAuthorizationPolicy
+      .minimumRecoveryAvailabilitySeconds;
+  if (
+    config.dynamicIssues.maxLifetimeSeconds < requiredRecoveryLifetimeSeconds
+  ) {
+    throw new Error("V44_TESTNET_RECOVERY_LIFETIME_TOO_SHORT");
+  }
+  for (const check of policy.autonomyV2.maturityAuthorizationPolicy
+    .readinessEvidencePolicy.governanceDryRun.checkPolicy) {
+    const callAbi = artifact(CONTRACT_TYPES[check.contractKey]).abi;
+    const matchingFunctions = callAbi.filter(
+      (entry) =>
+        entry.type === "function" && entry.name === check.functionName,
+    );
+    if (
+      matchingFunctions.length !== 1
+    ) {
+      throw new Error(`V44_TESTNET_DRY_RUN_FUNCTION_INVALID:${check.id}`);
+    }
+    for (const requiredEvent of check.requiredEvents) {
+      const eventAbi = artifact(
+        CONTRACT_TYPES[requiredEvent.contractKey],
+      ).abi;
+      if (
+        !eventAbi.some(
+          (entry) =>
+            entry.type === "event" &&
+            toEventSignature(entry) === requiredEvent.signature,
+        )
+      ) {
+        throw new Error(`V44_TESTNET_DRY_RUN_EVENT_INVALID:${check.id}`);
+      }
+    }
+  }
   for (const [label, value, minimum] of [
     ["minimumObservationDays", policy.minimumObservationDays, 90],
     ["maximumEvidenceAgeHours", policy.maximumEvidenceAgeHours, 1],
@@ -900,6 +1040,40 @@ export function loadReliabilityPolicy(
     ],
   ]) {
     requireInteger(value, minimum, label);
+  }
+  const observerPolicy = policy.autonomyV2.observerIndependencePolicy;
+  const observerBindings = observerPolicy?.bindings ?? [];
+  if (
+    ![
+      "PENDING_EXTERNAL_CONTROLLERS",
+      "ACTIVE",
+    ].includes(observerPolicy?.configurationStatus) ||
+    !Array.isArray(observerBindings) ||
+    (observerPolicy.configurationStatus === "PENDING_EXTERNAL_CONTROLLERS" &&
+      observerBindings.length !== 0) ||
+    (observerPolicy.configurationStatus === "ACTIVE" &&
+      (observerBindings.length < policy.minimumIndependentObservers ||
+        new Set(
+          observerBindings.map((binding) => binding.observer?.toLowerCase?.()),
+        ).size !== observerBindings.length ||
+        new Set(
+          observerBindings.map((binding) => binding.controllerDomainId),
+        ).size < policy.minimumIndependentObservers ||
+        new Set(
+          observerBindings.map((binding) => binding.custodyDomainId),
+        ).size < policy.minimumIndependentObservers ||
+        observerBindings.some(
+          (binding) =>
+            !isAddress(binding.observer ?? "") ||
+            !HASH_PATTERN.test(binding.operatorGroup ?? "") ||
+            typeof binding.controllerDomainId !== "string" ||
+            binding.controllerDomainId.length < 3 ||
+            typeof binding.custodyDomainId !== "string" ||
+            binding.custodyDomainId.length < 3 ||
+            !HASH_PATTERN.test(binding.corroborationEvidenceHash ?? ""),
+        )))
+  ) {
+    throw new Error("V44_TESTNET_OBSERVER_INDEPENDENCE_POLICY_INVALID");
   }
   const categoryEntries = Object.entries(policy.categories ?? {});
   if (categoryEntries.length === 0) {
@@ -1030,6 +1204,13 @@ export function validateTestnetDeployment(deployment, sourceEvidence) {
   );
   if (!isAddress(deployment.deployer)) {
     throw new Error("V44_TESTNET_DEPLOYMENT_DEPLOYER_INVALID");
+  }
+  if (
+    Object.hasOwn(deployment.contracts ?? {}, "policyAnchor") &&
+    (!isAddress(deployment.policyActivationAuthority ?? "") ||
+      deployment.policyActivationAuthority.toLowerCase() === ZERO_ADDRESS)
+  ) {
+    throw new Error("V44_TESTNET_POLICY_ACTIVATION_AUTHORITY_INVALID");
   }
   const seenAddresses = new Set();
   for (const key of contractKeys) {
@@ -1284,6 +1465,18 @@ export async function verifyObservationAttestations(
   const message = observationAttestationMessage(observations);
   const addresses = new Set();
   const groups = new Set();
+  const controllerDomains = new Set();
+  const custodyDomains = new Set();
+  const independencePolicy = policy.autonomyV2.observerIndependencePolicy;
+  const controlBindings = new Map(
+    (independencePolicy?.bindings ?? []).map((binding) => [
+      getAddress(binding.observer).toLowerCase(),
+      binding,
+    ]),
+  );
+  if (independencePolicy?.configurationStatus !== "ACTIVE") {
+    throw new Error("V44_TESTNET_OBSERVER_INDEPENDENCE_POLICY_NOT_READY");
+  }
   const observerRegistry = new Map(
     (deployment?.bootstrap?.validators ?? []).map((entry) => [
       getAddress(entry.address).toLowerCase(),
@@ -1313,22 +1506,33 @@ export async function verifyObservationAttestations(
     }
     const recoveredAddress = recovered.toLowerCase();
     const registeredGroup = observerRegistry.get(recoveredAddress);
+    const controlBinding = controlBindings.get(recoveredAddress);
     if (
       !registeredGroup ||
-      registeredGroup !== attestation.operatorGroup.toLowerCase()
+      registeredGroup !== attestation.operatorGroup.toLowerCase() ||
+      controlBinding?.operatorGroup?.toLowerCase?.() !== registeredGroup ||
+      typeof controlBinding.controllerDomainId !== "string" ||
+      typeof controlBinding.custodyDomainId !== "string" ||
+      !HASH_PATTERN.test(controlBinding.corroborationEvidenceHash ?? "")
     ) {
       throw new Error("V44_TESTNET_OBSERVER_NOT_REGISTERED");
     }
     addresses.add(recoveredAddress);
     groups.add(registeredGroup);
+    controllerDomains.add(controlBinding.controllerDomainId);
+    custodyDomains.add(controlBinding.custodyDomainId);
   }
   return {
     verified: true,
     observerCount: addresses.size,
     observerGroupCount: groups.size,
+    observerControllerDomainCount: controllerDomains.size,
+    observerCustodyDomainCount: custodyDomains.size,
     meetsIndependence:
       addresses.size >= policy.minimumIndependentObservers &&
-      groups.size >= policy.minimumIndependentObserverGroups,
+      groups.size >= policy.minimumIndependentObserverGroups &&
+      controllerDomains.size >= policy.minimumIndependentObservers &&
+      custodyDomains.size >= policy.minimumIndependentObservers,
   };
 }
 
@@ -1437,7 +1641,7 @@ export function canonicalDeploymentArguments({
     ],
   };
   if (deployment.contracts.policyAnchor) {
-    argumentsByKey.policyAnchor = [];
+    argumentsByKey.policyAnchor = [deployment.policyActivationAuthority];
   }
   exactKeys(
     argumentsByKey,
@@ -2339,20 +2543,16 @@ export async function collectMaturityProviderSnapshot({
   rpcUrl,
   deployment,
   authorization,
+  maturityPolicy = null,
   client: suppliedClient = null,
 }) {
   const origin = new URL(rpcUrl).origin;
   const declaredProvider = authorization?.providerSnapshots?.find(
     (provider) => provider.origin === origin,
   );
-  const agents =
-    authorization?.providerSnapshots?.[0]?.snapshot
-      ?.nonMaintainerVotingAgents;
   if (
     !declaredProvider ||
     typeof declaredProvider.providerOperatorId !== "string" ||
-    !Array.isArray(agents) ||
-    agents.length === 0 ||
     !Number.isSafeInteger(declaredProvider.finalizedBlockNumber)
   ) {
     throw new Error("V44_MATURITY_COLLECTION_INPUT_INVALID");
@@ -2372,6 +2572,12 @@ export async function collectMaturityProviderSnapshot({
     throw new Error("V44_MATURITY_COLLECTION_BLOCK_MISMATCH");
   }
   const ledgerAbi = artifact(CONTRACT_TYPES.contributionLedger).abi;
+  const outcomeRecordedEvent = ledgerAbi.find(
+    (entry) => entry.type === "event" && entry.name === "OutcomeRecorded",
+  );
+  if (!outcomeRecordedEvent) {
+    throw new Error("V44_MATURITY_OUTCOME_EVENT_MISSING");
+  }
   const read = (functionName, args = []) =>
     client.readContract({
       address: deployment.contracts.contributionLedger,
@@ -2387,13 +2593,34 @@ export async function collectMaturityProviderSnapshot({
       read("eligibleGroupCount"),
       read("latestGovernanceEpoch"),
     ]);
+  const outcomeLogs = await client.getLogs({
+    address: deployment.contracts.contributionLedger,
+    event: outcomeRecordedEvent,
+    fromBlock: BigInt(deployment.deploymentBlock),
+    toBlock: blockNumber,
+    strict: true,
+  });
+  const successfulAgents = new Set(
+    outcomeLogs
+      .filter((log) => log.args?.successful === true)
+      .map((log) => getAddress(log.args.agent).toLowerCase()),
+  );
+  const maintainerAgents = new Set(
+    (
+      maturityPolicy?.readinessEvidencePolicy?.maintainerAgents ?? []
+    ).map((agent) => getAddress(agent).toLowerCase()),
+  );
   const votingAgents = [];
-  for (const declaredAgent of agents) {
-    const address = getAddress(declaredAgent.agent);
+  for (const candidate of [...successfulAgents].sort()) {
+    const address = getAddress(candidate);
     const [operatorGroup, workPower] = await Promise.all([
       read("operatorGroup", [address]),
       read("votingPowerAt", [address, epoch, 8]),
     ]);
+    if (BigInt(workPower) <= 0n) continue;
+    if (maintainerAgents.has(address.toLowerCase())) {
+      throw new Error("V44_MATURITY_MAINTAINER_HAS_WORK_POWER");
+    }
     votingAgents.push({
       agent: address.toLowerCase(),
       operatorGroup: operatorGroup.toLowerCase(),
@@ -2401,6 +2628,16 @@ export async function collectMaturityProviderSnapshot({
     });
   }
   votingAgents.sort((left, right) => left.agent.localeCompare(right.agent));
+  if (votingAgents.length === 0) {
+    throw new Error("V44_MATURITY_VOTING_POPULATION_EMPTY");
+  }
+  const positiveVotingGroups = new Set(
+    votingAgents.map((agent) => agent.operatorGroup),
+  );
+  const totalWorkPower = votingAgents.reduce(
+    (total, agent) => total + BigInt(agent.workPower),
+    0n,
+  );
   return {
     identity: declaredProvider.providerOperatorId,
     providerOperatorId: declaredProvider.providerOperatorId,
@@ -2413,6 +2650,15 @@ export async function collectMaturityProviderSnapshot({
       successfulSystemSettlements: Number(successfulSystemSettlements),
       eligibleAgentCount: Number(eligibleAgentCount),
       eligibleGroupCount: Number(eligibleGroupCount),
+      populationComplete: true,
+      populationFromBlock: deployment.deploymentBlock,
+      populationToBlock: Number(blockNumber),
+      populationSourceEventCount: outcomeLogs.length,
+      successfulAgentAddressCount: successfulAgents.size,
+      positiveVotingAgentCount: votingAgents.length,
+      positiveVotingGroupCount: positiveVotingGroups.size,
+      totalWorkPower: totalWorkPower.toString(),
+      populationRoot: sha256Json(votingAgents),
       votingAgents,
     },
   };
@@ -2425,6 +2671,97 @@ function resolvePinnedEvidencePath(relativePath, label) {
     throw new Error(`V44_MATURITY_${label}_PATH_INVALID`);
   }
   return resolved;
+}
+
+export async function collectGovernanceDryRunChecks({
+  client,
+  deployment,
+  transcript,
+  checkPolicy,
+  maximumFinalizedBlockNumber,
+}) {
+  if (
+    !client ||
+    !Array.isArray(transcript?.checks) ||
+    !Array.isArray(checkPolicy) ||
+    !Number.isSafeInteger(maximumFinalizedBlockNumber)
+  ) {
+    throw new Error("V44_MATURITY_DRY_RUN_COLLECTION_INPUT_INVALID");
+  }
+  const locators = new Map(
+    transcript.checks.map((check) => [check.id, check.transactionHash]),
+  );
+  const trustedChecks = [];
+  for (const policy of checkPolicy) {
+    const transactionHash = locators.get(policy.id);
+    if (!HASH_PATTERN.test(transactionHash ?? "")) {
+      throw new Error("V44_MATURITY_DRY_RUN_TRANSACTION_INVALID");
+    }
+    const [transaction, receipt] = await Promise.all([
+      client.getTransaction({ hash: transactionHash }),
+      client.getTransactionReceipt({ hash: transactionHash }),
+    ]);
+    const expectedAddress = getAddress(
+      deployment.contracts[policy.contractKey],
+    );
+    const contractAbi = artifact(CONTRACT_TYPES[policy.contractKey]).abi;
+    let decoded;
+    try {
+      decoded = decodeFunctionData({ abi: contractAbi, data: transaction.input });
+    } catch {
+      throw new Error("V44_MATURITY_DRY_RUN_CALLDATA_INVALID");
+    }
+    const blockNumber = Number(receipt.blockNumber);
+    if (
+      transaction.to?.toLowerCase() !== expectedAddress.toLowerCase() ||
+      decoded.functionName !== policy.functionName ||
+      receipt.status !== policy.expectedStatus ||
+      !Number.isSafeInteger(blockNumber) ||
+      blockNumber > transcript.finalizedBlockNumber ||
+      blockNumber > maximumFinalizedBlockNumber
+    ) {
+      throw new Error("V44_MATURITY_DRY_RUN_TRANSACTION_MISMATCH");
+    }
+    const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+    if (block.hash?.toLowerCase() !== receipt.blockHash?.toLowerCase()) {
+      throw new Error("V44_MATURITY_DRY_RUN_BLOCK_MISMATCH");
+    }
+    const requiredEvents = policy.requiredEvents.map((requiredEvent) => {
+      const eventAddress = getAddress(
+        deployment.contracts[requiredEvent.contractKey],
+      );
+      const topic0 = eventTopic(requiredEvent.signature);
+      const log = receipt.logs.find(
+        (candidate) =>
+          candidate.address?.toLowerCase() === eventAddress.toLowerCase() &&
+          candidate.topics?.[0]?.toLowerCase() === topic0,
+      );
+      if (!log) {
+        throw new Error("V44_MATURITY_DRY_RUN_EVENT_MISSING");
+      }
+      return {
+        contractKey: requiredEvent.contractKey,
+        signature: requiredEvent.signature,
+        address: eventAddress.toLowerCase(),
+        topic0,
+        logIndex: Number(log.logIndex),
+        dataHash: keccak256(log.data),
+      };
+    });
+    trustedChecks.push({
+      id: policy.id,
+      transactionHash: transactionHash.toLowerCase(),
+      contractKey: policy.contractKey,
+      functionName: policy.functionName,
+      status: receipt.status,
+      blockNumber,
+      blockHash: receipt.blockHash.toLowerCase(),
+      inputHash: keccak256(transaction.input),
+      requiredEvents,
+      stateReads: [],
+    });
+  }
+  return trustedChecks;
 }
 
 export async function collectMaturityReadinessEvidence({
@@ -2486,6 +2823,8 @@ export async function collectMaturityReadinessEvidence({
     throw new Error("V44_MATURITY_RECOVERY_ISSUE_ID_MISMATCH");
   }
   const recoveryJobId = readinessPolicy.recoveryJob.jobId;
+  const recoveryAvailabilityDeadline =
+    Number(block.timestamp) + maturityPolicy.minimumRecoveryAvailabilitySeconds;
   const maintainerAgents = readinessPolicy.maintainerAgents.map((agent) =>
     getAddress(agent),
   );
@@ -2497,6 +2836,7 @@ export async function collectMaturityReadinessEvidence({
     transitionApproved,
     matureApproved,
     recoveryJob,
+    recoveryMilestone,
     recoveryJobGovernanceEligible,
     epoch,
   ] = await Promise.all([
@@ -2527,6 +2867,10 @@ export async function collectMaturityReadinessEvidence({
       [readinessPolicy.recoveryIssue.termsHash],
     ),
     read(deployment.contracts.taskMarket, marketAbi, "jobs", [recoveryJobId]),
+    read(deployment.contracts.taskMarket, marketAbi, "milestones", [
+      recoveryJobId,
+      0,
+    ]),
     read(
       deployment.contracts.taskMarket,
       marketAbi,
@@ -2546,11 +2890,24 @@ export async function collectMaturityReadinessEvidence({
       readinessPolicy.recoveryIssue.termsHash.toLowerCase() &&
     (transitionApproved === true || matureApproved === true) &&
     usageCandidates === 0 &&
-    usageTermsHash === ZERO_BYTES32;
+    usageTermsHash === ZERO_BYTES32 &&
+    Number(issueTerms.expiresAt) >= recoveryAvailabilityDeadline;
   const recoveryJobState = Number(recoveryJob[2]);
+  const recoveryMilestoneState = Number(recoveryMilestone[16]);
   const jobAvailable =
     readinessPolicy.recoveryJob.allowedStates.includes(recoveryJobState) &&
-    recoveryJobGovernanceEligible === false;
+    readinessPolicy.recoveryJob.allowedMilestoneStates.includes(
+      recoveryMilestoneState,
+    ) &&
+    recoveryJobGovernanceEligible === false &&
+    recoveryJob[0] !== ZERO_ADDRESS &&
+    BigInt(recoveryJob[6]) > 0n &&
+    BigInt(recoveryJob[7]) === 0n &&
+    Number(recoveryJob[9]) === 1 &&
+    recoveryMilestone[0] !== ZERO_ADDRESS &&
+    recoveryMilestone[1] !== ZERO_ADDRESS &&
+    BigInt(recoveryMilestone[7]) > 0n &&
+    Number(recoveryMilestone[10]) >= recoveryAvailabilityDeadline;
   const maintainerRows = [];
   for (const agent of maintainerAgents) {
     const units = await read(
@@ -2584,9 +2941,18 @@ export async function collectMaturityReadinessEvidence({
     throw new Error("V44_MATURITY_DRY_RUN_CONTENT_INVALID");
   }
   const transcript = readJson(transcriptPath);
+  const trustedDryRunChecks = await collectGovernanceDryRunChecks({
+    client,
+    deployment,
+    transcript,
+    checkPolicy: readinessPolicy.governanceDryRun.checkPolicy,
+    maximumFinalizedBlockNumber: Number(blockNumber),
+  });
   const dryRun = verifyGovernanceDryRunTranscript(transcript, {
     deploymentManifestSha256: deployment.manifestSha256,
-    finalizedBlockNumber: Number(blockNumber),
+    maximumFinalizedBlockNumber: Number(blockNumber),
+    trustedChecks: trustedDryRunChecks,
+    checkPolicy: readinessPolicy.governanceDryRun.checkPolicy,
   });
   const incidents = observations.incidents ?? [];
   const unresolvedCriticalHigh = incidents.filter(
@@ -2611,6 +2977,8 @@ export async function collectMaturityReadinessEvidence({
     issueId: recoveryIssueId.toLowerCase(),
     state: issueAvailable ? "AVAILABLE" : "UNAVAILABLE",
     termsHash: computedIssueHash.toLowerCase(),
+    expiresAt: Number(issueTerms.expiresAt),
+    minimumAvailableUntil: recoveryAvailabilityDeadline,
   };
   recoveryIssue.evidenceHash = sha256AutonomyJson({
     ...recoveryIssue,
@@ -2625,6 +2993,9 @@ export async function collectMaturityReadinessEvidence({
     jobId: recoveryJobId.toLowerCase(),
     state: jobAvailable ? "AVAILABLE" : "UNAVAILABLE",
     onchainState: recoveryJobState,
+    milestoneState: recoveryMilestoneState,
+    milestoneDeadline: Number(recoveryMilestone[10]),
+    minimumAvailableUntil: recoveryAvailabilityDeadline,
   };
   recoveryJobEvidence.evidenceHash = sha256AutonomyJson({
     ...recoveryJobEvidence,
@@ -2638,6 +3009,8 @@ export async function collectMaturityReadinessEvidence({
     recoveryJob: recoveryJobEvidence,
     governanceDryRun: {
       transcriptHash: sha256AutonomyJson(transcript),
+      trustedChecksRoot: dryRun.trustedChecksRoot,
+      finalizedBlockNumber: transcript.finalizedBlockNumber,
       verifierVersion: dryRun.verifierVersion,
       passed: dryRun.passed,
     },
@@ -3105,11 +3478,13 @@ export async function buildReliabilityReport({
         rpcUrl,
         deployment,
         authorization: autonomyEvidence.maturityAuthorization,
+        maturityPolicy: trustedAutonomyPolicy.maturityAuthorizationPolicy,
       }),
       collectMaturityProviderSnapshot({
         rpcUrl: secondaryRpcUrl,
         deployment,
         authorization: autonomyEvidence.maturityAuthorization,
+        maturityPolicy: trustedAutonomyPolicy.maturityAuthorizationPolicy,
       }),
     ]);
     const readinessEvidenceSets = await Promise.all([

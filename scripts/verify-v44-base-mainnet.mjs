@@ -406,6 +406,24 @@ for (const [key, type] of Object.entries(CONTRACT_TYPES)) {
     );
   }
 }
+const anchoredActivationAuthority = await read(
+  "AgentPoolV44PolicyAnchor",
+  manifest.contracts.policyAnchor,
+  "ACTIVATION_AUTHORITY",
+);
+check(
+  "policyAnchor.activationAuthority",
+  anchoredActivationAuthority,
+  manifest.policyActivationAuthority,
+);
+const activationAuthorityCode = await client.getCode({
+  address: manifest.policyActivationAuthority,
+});
+check(
+  "policyAnchor.activationAuthorityHasCode",
+  Boolean(activationAuthorityCode && activationAuthorityCode !== "0x"),
+  true,
+);
 check(
   "bootstrapVerifierCodehashMatchesObjectiveVerifier",
   manifest.bootstrapVerifierCodehash,

@@ -612,6 +612,12 @@ function liveExposure(ledger) {
   ).length;
 }
 
+function successfulExposure(ledger) {
+  return Object.values(ledger?.slots ?? {}).filter(
+    (slot) => slot.state === SLOT_STATES.SUCCESSFULLY_CONSUMED,
+  ).length;
+}
+
 export function reserveExposureSlot(
   ledger,
   descriptor,
@@ -626,8 +632,11 @@ export function reserveExposureSlot(
   if (ledger.slots[slotId]) {
     throw new Error("V44_EXPOSURE_SLOT_DUPLICATE");
   }
-  const worstCase =
-    ledger.successfulSystemSettlements + liveExposure(ledger) + 1;
+  const derivedSuccessfulSettlements = successfulExposure(ledger);
+  if (ledger.successfulSystemSettlements !== derivedSuccessfulSettlements) {
+    throw new Error("V44_EXPOSURE_SUCCESS_COUNTER_MISMATCH");
+  }
+  const worstCase = derivedSuccessfulSettlements + liveExposure(ledger) + 1;
   if (worstCase > ledger.maximumSuccessfulSystemSettlements) {
     if (
       worstCase !== ledger.maximumSuccessfulSystemSettlements + 1 ||
@@ -714,11 +723,14 @@ export function exposureSummary(ledger) {
     Object.values(SLOT_STATES).map((state) => [state, 0]),
   );
   for (const slot of Object.values(ledger.slots)) states[slot.state] += 1;
+  const derivedSuccessfulSettlements = successfulExposure(ledger);
   return {
-    successfulSystemSettlements: ledger.successfulSystemSettlements,
+    successfulSystemSettlements: derivedSuccessfulSettlements,
+    declaredSuccessfulSystemSettlements:
+      ledger.successfulSystemSettlements,
     liveExposure: liveExposure(ledger),
     worstCaseSuccessfulSettlements:
-      ledger.successfulSystemSettlements + liveExposure(ledger),
+      derivedSuccessfulSettlements + liveExposure(ledger),
     maximumSuccessfulSystemSettlements:
       ledger.maximumSuccessfulSystemSettlements,
     states,
@@ -1095,21 +1107,31 @@ export function validateMaturityAuthorization(
     throw new Error("V44_MATURITY_CHAIN_REQUIREMENTS_INVALID");
   }
   const chainSnapshot = firstProvider.chainSnapshot;
+  const canonicalVotingAgents = agents
+    .map(({ agent, operatorGroup, workPower }) => ({
+      agent: agent.toLowerCase(),
+      operatorGroup,
+      workPower: String(workPower),
+    }))
+    .sort((left, right) => left.agent.localeCompare(right.agent));
+  const canonicalTotalWorkPower = canonicalVotingAgents.reduce(
+    (total, agent) => total + BigInt(agent.workPower),
+    0n,
+  );
   if (
     chainSnapshot?.successfulSystemSettlements !==
       snapshot.successfulSystemSettlements ||
     chainSnapshot?.eligibleAgentCount < minimumNonMaintainerVotingAgents ||
     chainSnapshot?.eligibleGroupCount < minimumOnchainGroups ||
+    chainSnapshot?.populationComplete !== true ||
+    chainSnapshot?.positiveVotingAgentCount !== canonicalVotingAgents.length ||
+    chainSnapshot?.positiveVotingGroupCount !==
+      new Set(canonicalVotingAgents.map((agent) => agent.operatorGroup)).size ||
+    BigInt(chainSnapshot?.totalWorkPower ?? -1) !==
+      canonicalTotalWorkPower ||
+    chainSnapshot?.populationRoot !== sha256Json(canonicalVotingAgents) ||
     sha256Json(chainSnapshot?.votingAgents ?? null) !==
-      sha256Json(
-        agents
-          .map(({ agent, operatorGroup, workPower }) => ({
-            agent: agent.toLowerCase(),
-            operatorGroup,
-            workPower: String(workPower),
-          }))
-          .sort((left, right) => left.agent.localeCompare(right.agent)),
-      )
+      sha256Json(canonicalVotingAgents)
   ) {
     throw new Error("V44_MATURITY_CHAIN_METRICS_MISMATCH");
   }
@@ -3258,6 +3280,9 @@ export function validateExposureLedgerAgainstChainStates(
   const activeChainStates = chainStates.filter(
     (state) => state.state !== SLOT_STATES.TERMINAL_WITHOUT_SUCCESS,
   );
+  const successfulChainStates = chainStates.filter(
+    (state) => state.state === SLOT_STATES.SUCCESSFULLY_CONSUMED,
+  );
   if (
     !Number.isSafeInteger(maximumExposure) ||
     maximumExposure < 1 ||
@@ -3266,6 +3291,15 @@ export function validateExposureLedgerAgainstChainStates(
     throw new Error("V44_CHAIN_EXPOSURE_LIMIT_EXCEEDED");
   }
   const allSlots = Object.values(ledger?.slots ?? {});
+  const successfulSlots = allSlots.filter(
+    (slot) => slot.state === SLOT_STATES.SUCCESSFULLY_CONSUMED,
+  );
+  if (
+    ledger?.successfulSystemSettlements !== successfulSlots.length ||
+    successfulSlots.length !== successfulChainStates.length
+  ) {
+    throw new Error("V44_CHAIN_EXPOSURE_SUCCESS_COUNTER_MISMATCH");
+  }
   if (allSlots.length !== chainStates.length) {
     throw new Error("V44_CHAIN_EXPOSURE_CARDINALITY_MISMATCH");
   }
@@ -3308,6 +3342,7 @@ export function deriveSystemSettlementEvidence({
   settlementBundles,
   exposureLedger,
   maturityAuthorization = null,
+  maturityAuthorizationValidated = false,
 }) {
   const allBundles = [...admissionBundles, ...settlementBundles];
   if (
@@ -3448,7 +3483,7 @@ export function deriveSystemSettlementEvidence({
           exposureStates,
           {
             maximumExposure:
-              exposureLedger.maturityAuthorizationConsumed === true
+              maturityAuthorizationValidated === true
                 ? PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS + 1
                 : PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
           },
@@ -3661,19 +3696,48 @@ export function validateAutonomyEvidence(
     exposurePolicy?.preMatureMaximumSuccessfulSystemSettlements ??
     PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS;
   if (
-    summary.maximumSuccessfulSystemSettlements !== trustedPreMatureMaximum
+    summary.maximumSuccessfulSystemSettlements !== trustedPreMatureMaximum ||
+    summary.declaredSuccessfulSystemSettlements !==
+      summary.successfulSystemSettlements
   ) {
     throw new Error("V44_AUTONOMY_EXPOSURE_POLICY_MISMATCH");
   }
   let maturityAuthorization = null;
+  const authorizationFlag =
+    evidence.exposureLedger.maturityAuthorizationConsumed === true;
+  const authorizationProvided = evidence.maturityAuthorization != null;
+  if (authorizationFlag !== authorizationProvided) {
+    throw new Error("V44_AUTONOMY_MATURITY_AUTHORIZATION_FLAG_MISMATCH");
+  }
   if (summary.worstCaseSuccessfulSettlements > trustedPreMatureMaximum) {
     if (
       summary.worstCaseSuccessfulSettlements !== trustedPreMatureMaximum + 1 ||
-      evidence.exposureLedger.maturityAuthorizationConsumed !== true ||
+      !authorizationFlag ||
       maturityAuthorizationPolicy === null
     ) {
       throw new Error("V44_AUTONOMY_EXPOSURE_LIMIT_EXCEEDED");
     }
+    maturityAuthorization = validateMaturityAuthorization(
+      evidence.maturityAuthorization,
+      {
+        ...maturityAuthorizationPolicy,
+        atMs: evaluationTimeMs,
+        expectedExposureSlotId:
+          evidence.maturityAuthorization?.authorizedExposureSlotId ?? null,
+        preMatureMaximumSuccessfulSystemSettlements: trustedPreMatureMaximum,
+      },
+    );
+    if (
+      maturityAuthorization.authorizationId !==
+        evidence.exposureLedger.maturityAuthorizationId ||
+      !evidence.exposureLedger.slots?.[
+        evidence.maturityAuthorization.authorizedExposureSlotId
+      ]
+    ) {
+      throw new Error("V44_AUTONOMY_MATURITY_AUTHORIZATION_MISMATCH");
+    }
+  }
+  if (authorizationFlag && maturityAuthorization === null) {
     maturityAuthorization = validateMaturityAuthorization(
       evidence.maturityAuthorization,
       {
@@ -3831,7 +3895,8 @@ export function validateAutonomyEvidence(
     admissionBundles,
     settlementBundles,
     exposureLedger: evidence.exposureLedger,
-    maturityAuthorization: evidence.maturityAuthorization ?? null,
+    maturityAuthorization,
+    maturityAuthorizationValidated: maturityAuthorization !== null,
   });
   const contamination = reduceGovernanceContamination(
     settlementEvidence.events,

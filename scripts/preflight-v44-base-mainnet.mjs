@@ -18,6 +18,7 @@ import {
   collectReleaseInputs,
   loadAndValidateConfig,
   loadAndValidateGates,
+  requireAddress,
   requireEnv,
 } from "./lib/v44-mainnet.mjs";
 import {
@@ -60,6 +61,9 @@ const sourceEvidence = verifyV44ReleaseEvidenceFile(
 );
 const sourceCommit = requireEnv("V44_SOURCE_COMMIT").toLowerCase();
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
+const policyActivationAuthority = requireAddress(
+  "V44_POLICY_ACTIVATION_AUTHORITY",
+);
 const releaseInputs = collectReleaseInputs({
   deployerAddress: account.address,
 });
@@ -78,6 +82,12 @@ if (balance < minimumBalance) {
   throw new Error(
     `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(minimumBalance)}`,
   );
+}
+const activationAuthorityCode = await client.getCode({
+  address: policyActivationAuthority,
+});
+if (!activationAuthorityCode || activationAuthorityCode === "0x") {
+  throw new Error("V44_POLICY_ACTIVATION_AUTHORITY_MUST_BE_CONTRACT");
 }
 
 const bytecode = artifactBytecodeEvidence();
@@ -98,6 +108,7 @@ const report = {
   chainId: profile.chainId,
   sourceCommit,
   deployer: account.address,
+  policyActivationAuthority,
   deployerBalanceEth: formatEther(balance),
   minimumBalanceEth: formatEther(minimumBalance),
   genesisStart: releaseInputs.genesisStart,

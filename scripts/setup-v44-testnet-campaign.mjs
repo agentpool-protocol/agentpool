@@ -82,6 +82,7 @@ const lines = [
   "MIN_V44_TESTNET_DEPLOYER_BALANCE_WEI=1000000000000000",
   `V44_SOURCE_COMMIT=${sourceCommit}`,
   "V44_SOURCE_EVIDENCE_FILE=outputs/v44-source-reproducibility.json",
+  "V44_POLICY_ACTIVATION_AUTHORITY=SET_BASE_SEPOLIA_THRESHOLD_SAFE_ADDRESS",
   `V44_GENESIS_TIMESTAMP=${genesisStart}`,
   `V44_BOOTSTRAP_PROPOSER=${proposer}`,
   ...validators.flatMap((address, index) => [

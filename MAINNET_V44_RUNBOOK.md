@@ -129,19 +129,21 @@ selector is not sufficient.
 The `autonomyV2` section of the same tracked policy is also part of the
 campaign commitment. Before the 90-day window starts, two or more independent
 observer public keys must be pinned in each of the control-domain, checkpoint,
-and maturity-authorization policies. Every key must also have a policy-fixed
-controller domain, custody domain, and corroboration-evidence hash. Activation
-changes from `PENDING_EXTERNAL_ANCHOR` to `ACTIVE` only after an append-only,
-threshold-signed publication to the ownerless `AgentPoolV44PolicyAnchor`
-contract fixes the policy hash, general signer-set hash, activation signer-set
-hash and threshold, activation key-binding root, evidence-pipeline commit,
-sequence, previous anchor, and transparency-log root. The activation block and
-time come only from the finalized chain event. Two policy-pinned RPC operators
-must independently reproduce the successful transaction, event, emitter,
-runtime code hash, block hash, and timestamp. Changing a key, threshold, provider
-operator, verifier, or trusted policy field requires the next activation
-sequence and restarts the evidence window; placeholder or maintainer keys must
-not be used.
+and maturity-authorization policies. Every key and observation attester must
+also have a policy-fixed controller domain, custody domain, and
+corroboration-evidence hash. Activation changes from
+`PENDING_EXTERNAL_ANCHOR` to `ACTIVE` only after a predeployed threshold Safe
+or equivalent contract executes the one-shot `AgentPoolV44PolicyAnchor`
+publication. That event fixes the policy hash, general signer-set hash,
+authority owner-set hash and threshold, authority binding root,
+evidence-pipeline commit, and transparency-log root. The activation block and
+time come only from the finalized authority transaction and event. Two
+policy-pinned RPC operators independently reproduce the authority call, event,
+both runtime code hashes, owner set, threshold, block hash, and timestamp.
+Offchain signatures added after an arbitrary publication are never accepted.
+Changing a key, threshold, provider operator, verifier, or trusted policy field
+requires a new PolicyAnchor contract and a fresh observation window;
+placeholder or maintainer keys must not be used.
 
 Autonomy settlement evidence is reconstructed from events the deployed
 contracts actually emit: Issue proposal, vote commit/reveal, approval and
@@ -174,14 +176,21 @@ exist at the snapshot block before the 50th `JobCreated`; it cannot be written
 after settlement. Each provider must prove that the snapshot block was
 finalized. The snapshot must show at least five non-maintainer voting agents,
 three onchain operator groups, positive Work Power for every voter, and at
-least three policy-bound control domains with no domain reaching 30%.
+least three policy-bound control domains with no domain reaching 30%. Each RPC
+reconstructs the complete positive-Work-Power population from every finalized
+`OutcomeRecorded` event since deployment; the authorization cannot supply a
+smaller caller-selected population.
 Proposal-bond balance and allowance, exact recovery Issue and Job identifiers,
 a policy-pinned full recovery Issue tuple, a content-addressed governance
 dry-run transcript and independently executed verifier version, an
 append-only incident-ledger root, and historical maintainer Work Power must
 match independently collected readiness evidence. Caller-supplied booleans
-and claimed control-domain strings are ignored. Neither the ledger file nor a
-Runner may raise the limit itself.
+and claimed control-domain strings are ignored. The recovery Issue and its
+single-milestone Job must still have at least 30 days before expiry at the
+maturity snapshot. Dry-run PASS strings are rejected: the verifier replays the
+pinned transaction destination, decoded function, receipt status, canonical
+block, and required events. Neither the ledger file nor a Runner may raise the
+limit itself.
 
 Terminal failed, rejected, expired, and refunded Jobs or milestones are kept
 in the exact local/chain reconciliation history but no longer consume an
@@ -208,6 +217,13 @@ production entrypoint can replay the approved public-testnet evidence.
 Instead it requires the exact acknowledgement
 `I_UNDERSTAND_THIS_IS_VALUELESS_BASE_SEPOLIA` and refuses any chain except
 84532.
+
+Deploy a 2-of-N Base Sepolia Safe (or another reviewed threshold contract)
+first and set its contract address as `V44_POLICY_ACTIVATION_AUTHORITY`. The
+deployer refuses an EOA or an address without runtime code. This Safe does not
+own protocol funds or upgrade contracts; its only role is to execute the
+single policy activation that begins the observation clock. Any later owner
+or threshold change requires a new PolicyAnchor and a new campaign.
 
 For the existing local test identities, the setup helper creates the ignored
 environment file and a private 24-objective campaign catalog without copying

@@ -14,6 +14,10 @@
   "maximumOpenCriticalIncidents": 0,
   "autonomyV2": {
     "schema": "agentpool.v44.autonomy-policy/v1",
+    "observerIndependencePolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_CONTROLLERS",
+      "bindings": []
+    },
     "exposurePolicy": {
       "preMatureMaximumSuccessfulSystemSettlements": 49,
       "maturityTransitionSettlement": 50
@@ -57,11 +61,10 @@
     "policyActivation": {
       "configurationStatus": "PENDING_EXTERNAL_ANCHOR",
       "contractKey": "policyAnchor",
-      "authorizedPublicKeys": [],
-      "signerBindings": [],
-      "threshold": 2,
+      "thresholdAuthority": null,
       "anchorHistory": [],
-      "restartObservationWindowOnChange": true
+      "restartObservationWindowOnChange": true,
+      "rotationPolicy": "NEW_CONTRACT_AND_WINDOW"
     },
     "controlDomainPolicy": {
       "configurationStatus": "PENDING_EXTERNAL_KEYS",
@@ -85,6 +88,7 @@
       "minimumOnchainGroups": 3,
       "minimumCorroboratedControlDomains": 3,
       "maximumControlDomainShareBps": 2999,
+      "minimumRecoveryAvailabilitySeconds": 2592000,
       "maintainerGovernanceUnits": 0,
       "proposalBondRequired": true,
       "recoveryIssueRequired": true,
@@ -106,14 +110,26 @@
         },
         "recoveryJob": {
           "jobId": null,
-          "allowedStates": [1, 2, 3]
+          "allowedStates": [1, 2, 3],
+          "allowedMilestoneStates": [1, 2, 3]
         },
         "governanceDryRun": {
           "transcriptPath": null,
           "transcriptSha256": null,
           "verifierPath": "scripts/lib/v44-governance-dry-run.mjs",
           "verifierSha256": null,
-          "verifierVersion": "agentpool-v44-governance-dry-run-v1"
+          "verifierVersion": "agentpool-v44-governance-dry-run-v2",
+          "checkPolicy": [
+            { "id": "proposal-bond-funded", "contractKey": "token", "functionName": "approve", "expectedStatus": "success", "requiredEvents": [] },
+            { "id": "issue-proposed", "contractKey": "issueConsensus", "functionName": "propose", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "issueConsensus", "signature": "IssueProposed(uint256,bytes32,address)" }] },
+            { "id": "commit-reveal-completed", "contractKey": "issueConsensus", "functionName": "revealVote", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "issueConsensus", "signature": "VoteRevealed(uint256,address,bool,uint256)" }] },
+            { "id": "issue-finalized", "contractKey": "issueConsensus", "functionName": "finalize", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "systemIssueGate", "signature": "MatureIssueApproved(bytes32)" }] },
+            { "id": "recovery-job-created", "contractKey": "taskMarket", "functionName": "createSystemJobV2", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)" }] },
+            { "id": "recovery-refund-completed", "contractKey": "taskMarket", "functionName": "refundExpired", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobClosed(bytes32,uint8,uint256,uint256)" }] },
+            { "id": "exposure-cap-preserved", "contractKey": "taskMarket", "functionName": "createSystemJobV2", "expectedStatus": "reverted", "requiredEvents": [] },
+            { "id": "duplicate-settlement-rejected", "contractKey": "taskMarket", "functionName": "resolve", "expectedStatus": "reverted", "requiredEvents": [] },
+            { "id": "fund-conservation-preserved", "contractKey": "taskMarket", "functionName": "refundExpired", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobClosed(bytes32,uint8,uint256,uint256)" }] }
+          ]
         },
         "maintainerAgents": []
       }

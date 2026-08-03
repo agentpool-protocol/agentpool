@@ -37,18 +37,29 @@ exposure slot. This makes the worst-case reserved capacity equal to the
 onchain active-work count instead of an optimistic count of completed work.
 The public-testnet campaign cannot begin until external observer and validator
 keys are pinned; no placeholder maintainer key is accepted. Changing those
-keys, their threshold, provider-operator mapping, or trusted policy hash
-invalidates prior observations. The 90-day window starts only from the latest
-threshold-signed activation published through the ownerless
-`AgentPoolV44PolicyAnchor` contract. Two policy-pinned RPC operators must
-independently verify the finalized transaction, event, runtime code hash, and
-activation signer-set binding. A timestamp or block typed into JSON is not
+keys, their threshold, provider-operator mapping, observer controller/custody
+binding, or trusted policy hash invalidates prior observations. The 90-day
+window starts only when a predeclared threshold contract executes the one-shot
+`AgentPoolV44PolicyAnchor` activation onchain. Offchain signatures collected
+after an arbitrary publication cannot activate it. Two policy-pinned RPC
+operators must independently verify the finalized authority transaction,
+event, PolicyAnchor and authority runtime code hashes, authority owner set, and
+threshold. Changing that authority requires a new PolicyAnchor deployment and
+a fresh observation window; a timestamp or block typed into JSON is not
 accepted.
 
 The currently public Base Sepolia graph predates these final candidate
 safeguards and therefore remains a read-only historical alpha. The new source
 must be deployed as a fresh v4.4 graph, never used to overwrite or relabel the
 old addresses, before its 90-day evidence window can begin.
+
+The maturity snapshot reconstructs the complete positive-Work-Power population
+from all finalized `OutcomeRecorded` events since deployment. A caller cannot
+omit a dominant agent from the signed list. The policy-pinned recovery Issue
+and one-milestone recovery Job must remain executable for at least 30 days
+after the maturity snapshot, and the governance dry run is accepted only when
+its pinned transactions, call targets, function selectors, receipts, and
+required events are independently replayed from finalized RPC state.
 
 Public provenance reports the immutable testnet contract source commit and
 the currently deployed interface/build commit separately. The interface is

@@ -23,7 +23,7 @@
     "candidateAdmissionBondApool": "10",
     "maxCandidates": 1,
     "maxGovernanceMilestones": 1,
-    "maxLifetimeSeconds": 604800
+    "maxLifetimeSeconds": 15552000
   },
   "consensus": {
     "proposalBondApool": "10"
