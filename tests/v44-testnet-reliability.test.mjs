@@ -29,11 +29,13 @@ import {
   reconcileMaturityAuthorizationPublicationSnapshots,
   reconcilePolicyActivationPublicationSnapshots,
   signPolicyActivationAnchor,
+  validateAutonomyPolicy,
   validateObservations,
   validateTestnetDeployment,
   verifyHistoricalContractSourceEvidenceFile,
   verifyObservationAttestations,
   verifyObservationSemantic,
+  verifyMatureApprovalPopulation,
   verifyPublicTestnetReliabilityGate,
 } from "../scripts/lib/v44-testnet-reliability.mjs";
 import {
@@ -525,6 +527,67 @@ test("v4.4 public-testnet policy requires a 90-day live campaign", () => {
   assert.equal(
     policy.autonomyV2.policyActivation.configurationStatus,
     "PENDING_EXTERNAL_ANCHOR",
+  );
+});
+
+test("the externally supplied activation overlay is revalidated", () => {
+  const active = loadReliabilityPolicy().policy;
+  activateAutonomyPolicy(active);
+  assert.doesNotThrow(() => validateAutonomyPolicy(active.autonomyV2));
+
+  const missingBindings = structuredClone(active.autonomyV2);
+  missingBindings.policyActivation.thresholdAuthority.ownerBindings = [];
+  assert.throws(
+    () => validateAutonomyPolicy(missingBindings),
+    /V44_TESTNET_AUTONOMY_POLICY_INVALID/u,
+  );
+
+  const commonController = structuredClone(active.autonomyV2);
+  for (const binding of commonController.policyActivation.thresholdAuthority
+    .ownerBindings) {
+    binding.controllerDomainId = "one-controller";
+  }
+  assert.throws(
+    () => validateAutonomyPolicy(commonController),
+    /V44_TESTNET_AUTONOMY_POLICY_INVALID/u,
+  );
+});
+
+test("a maturity dry-run locator belongs to the signed observations, not the activation policy", () => {
+  const policyEvidence = loadReliabilityPolicy();
+  activateAutonomyPolicy(policyEvidence.policy);
+  const manifest = deployment();
+  const ledger = observations(policyEvidence.policy, manifest);
+  ledger.autonomyEvidence = { maturityAuthorization: {} };
+  assert.throws(
+    () =>
+      validateObservations(ledger, {
+        policy: policyEvidence.policy,
+        policySha256: POLICY_HASH,
+        deployment: manifest,
+        evidencePipelineCommit: EVIDENCE_PIPELINE_COMMIT,
+        trustedActivationPublications: trustedActivationPublications(
+          policyEvidence.policy,
+        ),
+      }),
+    /V44_TESTNET_MATURITY_DRY_RUN_OBSERVATION_REQUIRED/u,
+  );
+  ledger.maturityReadinessEvidence = {
+    governanceDryRun: {
+      transcriptPath: "outputs/governance-dry-run.json",
+      transcriptSha256: "a".repeat(64),
+    },
+  };
+  assert.doesNotThrow(() =>
+    validateObservations(ledger, {
+      policy: policyEvidence.policy,
+      policySha256: POLICY_HASH,
+      deployment: manifest,
+      evidencePipelineCommit: EVIDENCE_PIPELINE_COMMIT,
+      trustedActivationPublications: trustedActivationPublications(
+        policyEvidence.policy,
+      ),
+    }),
   );
 });
 
@@ -1237,8 +1300,8 @@ test("maturity readiness is independently collected at the finalized block", asy
         issueTerms: { issueId, expiresAt: 4_000_000 },
       },
       governanceDryRun: {
-        transcriptPath: path.relative(ROOT, transcriptPath),
-        transcriptSha256: fileSha256(transcriptPath),
+        transcriptPath: null,
+        transcriptSha256: null,
         verifierPath: "scripts/lib/v44-governance-dry-run.mjs",
         verifierSha256: fileSha256(
           path.join(ROOT, "scripts/lib/v44-governance-dry-run.mjs"),
@@ -1246,6 +1309,15 @@ test("maturity readiness is independently collected at the finalized block", asy
         checkPolicy,
       },
       maintainerAgents: [],
+    },
+  };
+  const readinessObservations = {
+    incidents: [],
+    maturityReadinessEvidence: {
+      governanceDryRun: {
+        transcriptPath: path.relative(ROOT, transcriptPath),
+        transcriptSha256: fileSha256(transcriptPath),
+      },
     },
   };
   const blockHash = `0x${"aa".repeat(32)}`;
@@ -1344,7 +1416,7 @@ test("maturity readiness is independently collected at the finalized block", asy
     rpcUrl: "https://a.example",
     deployment: manifest,
     maturityPolicy,
-    observations: { incidents: [] },
+    observations: readinessObservations,
     trustedProviderSnapshot: {
       origin: "https://a.example",
       finalizedBlockNumber: 100,
@@ -1377,7 +1449,7 @@ test("maturity readiness is independently collected at the finalized block", asy
     rpcUrl: "https://a.example",
     deployment: manifest,
     maturityPolicy: expiredIssuePolicy,
-    observations: { incidents: [] },
+    observations: readinessObservations,
     trustedProviderSnapshot: {
       origin: "https://a.example",
       finalizedBlockNumber: 100,
@@ -1397,7 +1469,7 @@ test("maturity readiness is independently collected at the finalized block", asy
       rpcUrl: "https://a.example",
       deployment: manifest,
       maturityPolicy,
-      observations: { incidents: [] },
+      observations: readinessObservations,
       trustedProviderSnapshot: {
         origin: "https://a.example",
         finalizedBlockNumber: 100,
@@ -1413,7 +1485,7 @@ test("maturity readiness is independently collected at the finalized block", asy
       rpcUrl: "https://a.example",
       deployment: manifest,
       maturityPolicy,
-      observations: { incidents: [] },
+      observations: readinessObservations,
       trustedProviderSnapshot: {
         origin: "https://a.example",
         finalizedBlockNumber: 100,
@@ -1448,7 +1520,7 @@ test("maturity readiness is independently collected at the finalized block", asy
       rpcUrl: "https://a.example",
       deployment: manifest,
       maturityPolicy,
-      observations: { incidents: [] },
+      observations: readinessObservations,
       trustedProviderSnapshot: {
         origin: "https://a.example",
         finalizedBlockNumber: 100,
@@ -1469,15 +1541,15 @@ test("maturity readiness is independently collected at the finalized block", asy
     })),
   };
   fs.writeFileSync(transcriptPath, `${JSON.stringify(fabricated, null, 2)}\n`);
-  const fabricatedPolicy = structuredClone(maturityPolicy);
-  fabricatedPolicy.readinessEvidencePolicy.governanceDryRun.transcriptSha256 =
+  const fabricatedObservations = structuredClone(readinessObservations);
+  fabricatedObservations.maturityReadinessEvidence.governanceDryRun.transcriptSha256 =
     fileSha256(transcriptPath);
   await assert.rejects(
     collectMaturityReadinessEvidence({
       rpcUrl: "https://a.example",
       deployment: manifest,
-      maturityPolicy: fabricatedPolicy,
-      observations: { incidents: [] },
+      maturityPolicy,
+      observations: fabricatedObservations,
       trustedProviderSnapshot: {
         origin: "https://a.example",
         finalizedBlockNumber: 100,
@@ -1580,6 +1652,122 @@ test("maturity Work Power population is reconstructed from all finalized outcome
   assert.deepEqual(
     snapshot.chainSnapshot.votingAgents.map((agent) => agent.agent),
     [...agents].sort(),
+  );
+});
+
+test("every mature approval is checked against its own proposal snapshot epoch", async () => {
+  const manifest = deployment();
+  const agents = ["41", "42", "43", "44", "45"].map((byte) =>
+    privateKeyToAccount(`0x${byte.repeat(32)}`).address.toLowerCase(),
+  );
+  const groups = [0, 1, 2, 0, 1].map(
+    (index) => `0x${(index + 1).toString(16).repeat(64)}`,
+  );
+  const issueHash = `0x${"91".repeat(32)}`;
+  const proposalId = 7n;
+  const issueConsensusAbi = artifact("AgentPoolV432IssueConsensus").abi;
+  const issueGateAbi = artifact("AgentPoolV435SystemIssueGate").abi;
+  const receipt = {
+    blockNumber: 200n,
+    transactionHash: `0x${"92".repeat(32)}`,
+    logs: [
+      {
+        address: manifest.contracts.issueConsensus,
+        topics: encodeEventTopics({
+          abi: issueConsensusAbi,
+          eventName: "ProposalClosed",
+          args: { proposalId },
+        }),
+        data: encodeAbiParameters([{ type: "uint8" }], [3]),
+      },
+      {
+        address: manifest.contracts.systemIssueGate,
+        topics: encodeEventTopics({
+          abi: issueGateAbi,
+          eventName: "MatureIssueApproved",
+          args: { issueHash },
+        }),
+        data: "0x",
+      },
+    ],
+  };
+  const maturityPolicy = {
+    configurationStatus: "ACTIVE",
+    minimumNonMaintainerVotingAgents: 5,
+    minimumOnchainGroups: 3,
+    minimumCorroboratedControlDomains: 3,
+    maximumControlDomainShareBps: 2_999,
+    agentControlDomainBindings: agents.map((agent, index) => ({
+      agent,
+      controllerDomainId: `controller-${index}`,
+      custodyDomainId: `custody-${index}`,
+      corroborationEvidenceHash: `0x${(index + 1)
+        .toString(16)
+        .padStart(64, "0")}`,
+    })),
+    readinessEvidencePolicy: { maintainerAgents: [] },
+  };
+  const observedEpochs = [];
+  const read = async (key, functionName, args = []) => {
+    if (key === "issueConsensus" && functionName === "proposals") {
+      return [
+        agents[0],
+        issueHash,
+        8n,
+        0n,
+        0n,
+        1n,
+        100n,
+        0n,
+        5,
+        3,
+        3,
+      ];
+    }
+    if (key === "contributionLedger" && functionName === "operatorGroup") {
+      return groups[agents.indexOf(args[0].toLowerCase())];
+    }
+    if (key === "contributionLedger" && functionName === "votingPowerAt") {
+      observedEpochs.push(args[1]);
+      return 20n;
+    }
+    throw new Error(`UNEXPECTED_READ:${key}.${functionName}`);
+  };
+  const client = {
+    getLogs: async () =>
+      agents.map((agent) => ({ args: { agent, successful: true } })),
+  };
+  const evidence = await verifyMatureApprovalPopulation({
+    client,
+    deployment: manifest,
+    maturityPolicy,
+    proposalId,
+    receipt,
+    read,
+  });
+  assert.equal(evidence.snapshotEpoch, 8);
+  assert.equal(evidence.positiveVotingAgentCount, 5);
+  assert.equal(evidence.controlDomainCount, 5);
+  assert.deepEqual(observedEpochs, Array(5).fill(8n));
+
+  await assert.rejects(
+    verifyMatureApprovalPopulation({
+      client,
+      deployment: manifest,
+      maturityPolicy,
+      proposalId,
+      receipt,
+      read: async (key, functionName, args = []) => {
+        if (
+          key === "contributionLedger" &&
+          functionName === "votingPowerAt"
+        ) {
+          return args[0].toLowerCase() === agents[0] ? 80n : 5n;
+        }
+        return read(key, functionName, args);
+      },
+    }),
+    /V44_MATURE_APPROVAL_WORK_POWER_INVALID/u,
   );
 });
 

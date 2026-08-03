@@ -200,7 +200,7 @@ function validatePinnedSignerPolicy(value, label) {
   }
 }
 
-function validateAutonomyPolicy(autonomy) {
+export function validateAutonomyPolicy(autonomy) {
   const exposure = autonomy?.exposurePolicy;
   const governance = autonomy?.governanceEventPolicy;
   const maturity = autonomy?.maturityAuthorizationPolicy;
@@ -211,6 +211,21 @@ function validateAutonomyPolicy(autonomy) {
   ].sort();
   const activation = autonomy?.policyActivation;
   const readiness = maturity?.readinessEvidencePolicy;
+  const governanceDryRun = readiness?.governanceDryRun;
+  if (governanceDryRun) {
+    exactKeys(
+      governanceDryRun,
+      [
+        "transcriptPath",
+        "transcriptSha256",
+        "verifierPath",
+        "verifierSha256",
+        "verifierVersion",
+        "checkPolicy",
+      ],
+      "MATURITY_DRY_RUN_POLICY",
+    );
+  }
   if (
     autonomy?.schema !== "agentpool.v44.autonomy-policy/v1" ||
     exposure?.preMatureMaximumSuccessfulSystemSettlements !== 49 ||
@@ -350,6 +365,8 @@ function validateAutonomyPolicy(autonomy) {
     readiness?.proposalBond?.tokenContractKey !== "token" ||
     readiness?.proposalBond?.spenderContractKey !== "transitionIssueConsensus" ||
     maturity?.minimumRecoveryAvailabilitySeconds !== 2_592_000 ||
+    governanceDryRun?.transcriptPath !== null ||
+    governanceDryRun?.transcriptSha256 !== null ||
     readiness?.governanceDryRun?.verifierPath !==
       "scripts/lib/v44-governance-dry-run.mjs" ||
     readiness?.governanceDryRun?.verifierVersion !==
@@ -385,11 +402,6 @@ function validateAutonomyPolicy(autonomy) {
         !HASH_PATTERN.test(readiness.recoveryIssue?.termsHash ?? "") ||
         typeof readiness.recoveryIssue?.issueTerms !== "object" ||
         readiness.recoveryIssue.issueTerms === null ||
-        typeof readiness.governanceDryRun?.transcriptPath !== "string" ||
-        readiness.governanceDryRun.transcriptPath.length < 3 ||
-        !SHA256_PATTERN.test(
-          readiness.governanceDryRun?.transcriptSha256 ?? "",
-        ) ||
         !SHA256_PATTERN.test(
           readiness.governanceDryRun?.verifierSha256 ?? "",
         ))) ||
@@ -1678,6 +1690,28 @@ export function validateObservations(
   ) {
     throw new Error("V44_TESTNET_OBSERVATIONS_SHAPE_INVALID");
   }
+  const dryRunLocator =
+    observations.maturityReadinessEvidence?.governanceDryRun ?? null;
+  if (dryRunLocator !== null) {
+    exactKeys(
+      dryRunLocator,
+      ["transcriptPath", "transcriptSha256"],
+      "MATURITY_DRY_RUN_OBSERVATION",
+    );
+    if (
+      typeof dryRunLocator.transcriptPath !== "string" ||
+      dryRunLocator.transcriptPath.length < 3 ||
+      !SHA256_PATTERN.test(dryRunLocator.transcriptSha256 ?? "")
+    ) {
+      throw new Error("V44_TESTNET_MATURITY_DRY_RUN_OBSERVATION_INVALID");
+    }
+  }
+  if (
+    observations.autonomyEvidence?.maturityAuthorization &&
+    dryRunLocator === null
+  ) {
+    throw new Error("V44_TESTNET_MATURITY_DRY_RUN_OBSERVATION_REQUIRED");
+  }
   const seenTransactions = new Set();
   for (const entry of observations.observations) {
     const rule = policy.categories?.[entry?.category];
@@ -2071,6 +2105,179 @@ export function assertClosedJobSemantic({
   return { jobId, expectedState };
 }
 
+export async function verifyMatureApprovalPopulation({
+  client,
+  deployment,
+  maturityPolicy,
+  proposalId,
+  receipt,
+  read,
+}) {
+  if (
+    maturityPolicy?.configurationStatus !== "ACTIVE" ||
+    !Array.isArray(maturityPolicy.agentControlDomainBindings)
+  ) {
+    throw new Error("V44_MATURE_APPROVAL_POLICY_NOT_ACTIVE");
+  }
+  const proposal = await read(
+    "issueConsensus",
+    "proposals",
+    [proposalId],
+    receipt.blockNumber,
+  );
+  const issueHash = resultField(proposal, "issueHash", 1)?.toLowerCase?.();
+  const snapshotEpoch = BigInt(resultField(proposal, "snapshotEpoch", 2));
+  const proposalState = Number(resultField(proposal, "state", 10));
+  const closed = matchingDecodedEvents({
+    receipt,
+    deployment,
+    contractKey: "issueConsensus",
+    eventName: "ProposalClosed",
+  }).filter(
+    (event) =>
+      BigInt(event.args.proposalId) === BigInt(proposalId) &&
+      Number(event.args.state) === 3,
+  );
+  const approved = matchingDecodedEvents({
+    receipt,
+    deployment,
+    contractKey: "systemIssueGate",
+    eventName: "MatureIssueApproved",
+  }).filter(
+    (event) => event.args.issueHash.toLowerCase() === issueHash,
+  );
+  if (
+    !HASH_PATTERN.test(issueHash ?? "") ||
+    proposalState !== 3 ||
+    closed.length !== 1 ||
+    approved.length !== 1
+  ) {
+    throw new Error("V44_MATURE_APPROVAL_PROPOSAL_INVALID");
+  }
+
+  const ledgerAbi = artifact(CONTRACT_TYPES.contributionLedger).abi;
+  const outcomeRecordedEvent = ledgerAbi.find(
+    (entry) => entry.type === "event" && entry.name === "OutcomeRecorded",
+  );
+  if (!outcomeRecordedEvent) {
+    throw new Error("V44_MATURE_APPROVAL_OUTCOME_EVENT_MISSING");
+  }
+  const outcomeLogs = await client.getLogs({
+    address: deployment.contracts.contributionLedger,
+    event: outcomeRecordedEvent,
+    fromBlock: BigInt(deployment.deploymentBlock),
+    toBlock: receipt.blockNumber,
+    strict: true,
+  });
+  const successfulAgents = new Set(
+    outcomeLogs
+      .filter((log) => log.args?.successful === true)
+      .map((log) => getAddress(log.args.agent).toLowerCase()),
+  );
+  const bindingByAgent = new Map(
+    maturityPolicy.agentControlDomainBindings.map((binding) => [
+      getAddress(binding.agent).toLowerCase(),
+      binding,
+    ]),
+  );
+  const maintainerAgents = new Set(
+    (
+      maturityPolicy.readinessEvidencePolicy?.maintainerAgents ?? []
+    ).map((agent) => getAddress(agent).toLowerCase()),
+  );
+  const population = [];
+  for (const candidate of [...successfulAgents].sort()) {
+    const address = getAddress(candidate);
+    const [operatorGroup, workPower] = await Promise.all([
+      read(
+        "contributionLedger",
+        "operatorGroup",
+        [address],
+        receipt.blockNumber,
+      ),
+      read(
+        "contributionLedger",
+        "votingPowerAt",
+        [address, snapshotEpoch, 8],
+        receipt.blockNumber,
+      ),
+    ]);
+    if (BigInt(workPower) <= 0n) continue;
+    const binding = bindingByAgent.get(address.toLowerCase());
+    if (
+      maintainerAgents.has(address.toLowerCase()) ||
+      !binding ||
+      !HASH_PATTERN.test(operatorGroup ?? "") ||
+      operatorGroup === ZERO_BYTES32
+    ) {
+      throw new Error("V44_MATURE_APPROVAL_AGENT_BINDING_INVALID");
+    }
+    population.push({
+      agent: address.toLowerCase(),
+      operatorGroup: operatorGroup.toLowerCase(),
+      controllerDomainId: binding.controllerDomainId,
+      custodyDomainId: binding.custodyDomainId,
+      workPower: BigInt(workPower).toString(),
+    });
+  }
+  for (const maintainer of maintainerAgents) {
+    const workPower = await read(
+      "contributionLedger",
+      "votingPowerAt",
+      [getAddress(maintainer), snapshotEpoch, 8],
+      receipt.blockNumber,
+    );
+    if (BigInt(workPower) !== 0n) {
+      throw new Error("V44_MATURE_APPROVAL_MAINTAINER_HAS_WORK_POWER");
+    }
+  }
+  population.sort((left, right) => left.agent.localeCompare(right.agent));
+  const totalWorkPower = population.reduce(
+    (total, agent) => total + BigInt(agent.workPower),
+    0n,
+  );
+  const domainPower = new Map();
+  for (const agent of population) {
+    domainPower.set(
+      agent.controllerDomainId,
+      (domainPower.get(agent.controllerDomainId) ?? 0n) +
+        BigInt(agent.workPower),
+    );
+  }
+  const maximumDomainPower = [...domainPower.values()].reduce(
+    (maximum, value) => (value > maximum ? value : maximum),
+    0n,
+  );
+  if (
+    population.length < maturityPolicy.minimumNonMaintainerVotingAgents ||
+    new Set(population.map((agent) => agent.operatorGroup)).size <
+      maturityPolicy.minimumOnchainGroups ||
+    domainPower.size < maturityPolicy.minimumCorroboratedControlDomains ||
+    totalWorkPower <= 0n ||
+    maximumDomainPower * 10_000n >=
+      totalWorkPower *
+        BigInt(maturityPolicy.maximumControlDomainShareBps + 1)
+  ) {
+    throw new Error("V44_MATURE_APPROVAL_WORK_POWER_INVALID");
+  }
+  return {
+    proposalId: BigInt(proposalId).toString(),
+    issueHash,
+    snapshotEpoch: Number(snapshotEpoch),
+    approvalTransactionHash: receipt.transactionHash.toLowerCase(),
+    positiveVotingAgentCount: population.length,
+    positiveVotingGroupCount: new Set(
+      population.map((agent) => agent.operatorGroup),
+    ).size,
+    controlDomainCount: domainPower.size,
+    totalWorkPower: totalWorkPower.toString(),
+    maximumControlDomainShareBps: Number(
+      (maximumDomainPower * 10_000n) / totalWorkPower,
+    ),
+    populationRoot: sha256Json(population),
+  };
+}
+
 export async function verifyObservationSemantic({
   client,
   deployment,
@@ -2079,6 +2286,7 @@ export async function verifyObservationSemantic({
   receipt,
   transaction,
   read,
+  maturityPolicy = null,
 }) {
   const abi = artifact(CONTRACT_TYPES[rule.contractKey]).abi;
   let decoded;
@@ -2107,6 +2315,17 @@ export async function verifyObservationSemantic({
     rule.transactionStatus === "reverted"
       ? receipt.blockNumber - 1n
       : receipt.blockNumber;
+
+  if (rule.semantic === "MATURE_APPROVAL") {
+    return verifyMatureApprovalPopulation({
+      client,
+      deployment,
+      maturityPolicy,
+      proposalId: decodedArgument(decoded, 0),
+      receipt,
+      read,
+    });
+  }
 
   if (
     [
@@ -2648,6 +2867,7 @@ export async function collectLiveRpcEvidence({
   }
 
   const contributors = new Set();
+  const matureGovernancePopulations = [];
   const blocks = new Set();
   let latestObservedBlock = 0n;
   let earliestObservedBlock = null;
@@ -2669,7 +2889,7 @@ export async function collectLiveRpcEvidence({
     ) {
       throw new Error(`V44_TESTNET_RECEIPT_INVALID:${entry.txHash}`);
     }
-    await verifyObservationSemantic({
+    const semanticEvidence = await verifyObservationSemantic({
       client,
       deployment,
       entry,
@@ -2677,7 +2897,11 @@ export async function collectLiveRpcEvidence({
       receipt,
       transaction,
       read,
+      maturityPolicy: policy.autonomyV2?.maturityAuthorizationPolicy ?? null,
     });
+    if (rule.semantic === "MATURE_APPROVAL") {
+      matureGovernancePopulations.push(semanticEvidence);
+    }
     for (const expectedEvent of rule.requiredEvents) {
       const address =
         deployment.contracts[expectedEvent.contractKey].toLowerCase();
@@ -2748,6 +2972,9 @@ export async function collectLiveRpcEvidence({
     latestObservedTimestamp,
     latestBlock: Number(verificationBlock),
     indexerLagBlocks: Number(verificationBlock - latestObservedBlock),
+    matureGovernancePopulations: matureGovernancePopulations.sort((left, right) =>
+      left.proposalId.localeCompare(right.proposalId),
+    ),
   };
 }
 
@@ -2777,6 +3004,7 @@ export function reconcileRpcEvidenceSnapshots({
     latestObservedTimestamp: value.latestObservedTimestamp,
     latestBlock: value.latestBlock,
     indexerLagBlocks: value.indexerLagBlocks,
+    matureGovernancePopulations: value.matureGovernancePopulations,
   });
   const primaryComparable = comparable(primary);
   const secondaryComparable = comparable(secondary);
@@ -3368,8 +3596,16 @@ export async function collectMaturityReadinessEvidence({
   ) {
     throw new Error("V44_MATURITY_GOVERNANCE_EPOCH_MISMATCH");
   }
+  const dryRunLocator =
+    observations.maturityReadinessEvidence?.governanceDryRun ?? null;
+  if (
+    typeof dryRunLocator?.transcriptPath !== "string" ||
+    !SHA256_PATTERN.test(dryRunLocator?.transcriptSha256 ?? "")
+  ) {
+    throw new Error("V44_MATURITY_DRY_RUN_LOCATOR_INVALID");
+  }
   const transcriptPath = resolvePinnedEvidencePath(
-    readinessPolicy.governanceDryRun.transcriptPath,
+    dryRunLocator.transcriptPath,
     "DRY_RUN_TRANSCRIPT",
   );
   const verifierPath = resolvePinnedEvidencePath(
@@ -3379,7 +3615,7 @@ export async function collectMaturityReadinessEvidence({
   if (
     !fs.existsSync(transcriptPath) ||
     sha256File(transcriptPath) !==
-      readinessPolicy.governanceDryRun.transcriptSha256 ||
+      dryRunLocator.transcriptSha256 ||
     sha256File(verifierPath) !==
       readinessPolicy.governanceDryRun.verifierSha256
   ) {
@@ -3672,6 +3908,8 @@ export function evaluateReliability({
       latestBlock: rpcEvidence?.latestBlock ?? null,
       indexerLagBlocks: rpcEvidence?.indexerLagBlocks ?? null,
     },
+    matureGovernancePopulations:
+      rpcEvidence?.matureGovernancePopulations ?? [],
     criticalInvariants: Object.fromEntries(
       policy.criticalInvariants.map((invariant) => [
         invariant,
@@ -3774,6 +4012,11 @@ export async function buildReliabilityReport({
     policyActivation:
       observations.policyActivation ?? trustedAutonomyPolicy.policyActivation,
   };
+  // The external activation locator is trusted only after the exact resolved
+  // policy has passed the same structural and independence checks as the
+  // tracked policy. Otherwise an observations file could replace the active
+  // threshold authority with an incomplete or single-controller overlay.
+  validateAutonomyPolicy(resolvedAutonomyPolicy);
   const resolvedPolicy = {
     ...policyEvidence.policy,
     autonomyV2: resolvedAutonomyPolicy,

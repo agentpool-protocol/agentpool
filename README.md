@@ -61,6 +61,18 @@ snapshot. Separately, the governance dry run must prove one causally linked
 lifecycle—bond funding, that Issue's proposal and vote, finalization, a Job
 created from the same terms, and conservation on refund—by independently
 replaying its calldata, receipts, events, and state from finalized RPC data.
+Policy activation pins the verifier source hash and check policy, while the
+later transaction transcript locator is carried by the independently attested
+observation ledger and then bound into the threshold-signed maturity
+authorization. This permits the dry run to happen after live BOOTSTRAP work
+without creating a commit-to-future-transaction cycle.
+
+The readiness snapshot at settlement 49 is not reused as a permanent proxy
+for governance safety. Every observed MATURE Issue approval reconstructs the
+complete positive-Work-Power population at that proposal's own immutable
+snapshot epoch and rechecks the five-agent, three-group, three-control-domain,
+zero-maintainer, and 29.99% maximum control-domain-share rules. The resulting
+population root is included in the two-RPC reliability report.
 
 Public provenance reports the immutable testnet contract source commit and
 the currently deployed interface/build commit separately. The interface is

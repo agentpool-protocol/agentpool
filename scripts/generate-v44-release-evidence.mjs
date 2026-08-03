@@ -125,7 +125,8 @@ if (
       `${JSON.stringify({
         ok: true,
         sourceCommit: verified.sourceCommit,
-        evidenceSha256: verified.evidenceSha256,
+        evidenceBodySha256: verified.evidenceSha256,
+        evidenceFileSha256: sha256File(path.resolve(verifyPath)),
         verifiedPath: path.resolve(verifyPath),
       }, null, 2)}\n`,
     );
@@ -142,7 +143,8 @@ if (
       `${JSON.stringify({
         ok: true,
         sourceCommit: evidence.sourceCommit,
-        evidenceSha256: evidence.evidenceSha256,
+        evidenceBodySha256: evidence.evidenceSha256,
+        evidenceFileSha256: sha256File(outputPath),
         outputPath,
       }, null, 2)}\n`,
     );

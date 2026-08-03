@@ -117,6 +117,7 @@ export function newObservationLedger({
     observations: [],
     incidents: [],
     attestations: [],
+    maturityReadinessEvidence: null,
     autonomyEvidence: {
       schema: "agentpool.v44.autonomy-evidence/v1",
       exposureLedger: newExposureLedger(),
