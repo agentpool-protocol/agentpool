@@ -120,7 +120,14 @@ test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
     baseline.schema,
     "agentpool.security.slither-baseline/v1",
   );
-  assert.equal(Object.keys(baseline.contracts).length, 14);
+  assert.equal(Object.keys(baseline.contracts).length, 15);
+  assert.deepEqual(
+    baseline.contracts.AgentPoolV44PolicyAnchor,
+    {
+      sourceName: "contracts/v44/AgentPoolV44PolicyAnchor.sol",
+      detectors: {},
+    },
+  );
   assert.match(checker, /V44_SLITHER_BASELINE_CHANGED/);
   assert.match(checker, /detector\.impact !== "High"/);
   assert.match(checker, /detector\.impact !== "Medium"/);
