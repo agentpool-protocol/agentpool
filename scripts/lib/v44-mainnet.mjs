@@ -62,7 +62,9 @@ export const V44_GATE_EVIDENCE = Object.freeze({
 
 export const CONTRACT_TYPES = Object.freeze({
   token: "AgentPoolV44Token",
+  thresholdAuthority: "AgentPoolV44ThresholdAuthority",
   policyAnchor: "AgentPoolV44PolicyAnchor",
+  maturityAnchor: "AgentPoolV44MaturityAnchor",
   settlementRouter: "AgentPoolV43SettlementRouter",
   releaseRegistry: "AgentPoolV43ReleaseRegistry",
   capacityRegistry: "AgentPoolV43CapacityRegistry",
@@ -142,6 +144,35 @@ export function requireAddress(name, env = process.env) {
   const value = requireEnv(name, env);
   if (!isAddress(value)) throw new Error(`${name}_INVALID`);
   return getAddress(value);
+}
+
+export function requireThresholdAuthorityConfig(env = process.env) {
+  const owners = requireEnv("V44_THRESHOLD_AUTHORITY_OWNERS", env)
+    .split(",")
+    .map((owner) => owner.trim())
+    .filter(Boolean)
+    .map((owner) => {
+      if (!isAddress(owner)) {
+        throw new Error("V44_THRESHOLD_AUTHORITY_OWNERS_INVALID");
+      }
+      return getAddress(owner);
+    })
+    .sort((left, right) =>
+      left.toLowerCase().localeCompare(right.toLowerCase()),
+    );
+  const threshold = Number(
+    requireEnv("V44_THRESHOLD_AUTHORITY_THRESHOLD", env),
+  );
+  if (
+    owners.length < 2 ||
+    new Set(owners.map((owner) => owner.toLowerCase())).size !== owners.length ||
+    !Number.isSafeInteger(threshold) ||
+    threshold < 2 ||
+    threshold > owners.length
+  ) {
+    throw new Error("V44_THRESHOLD_AUTHORITY_CONFIG_INVALID");
+  }
+  return { owners, threshold };
 }
 
 export function requireBytes32(name, env = process.env) {

@@ -2,14 +2,11 @@ import crypto from "node:crypto";
 
 export const REQUIRED_GOVERNANCE_DRY_RUN_CHECKS = Object.freeze([
   "proposal-bond-funded",
-  "issue-proposed",
-  "commit-reveal-completed",
-  "issue-finalized",
+  "transition-issue-proposed",
+  "transition-vote-revealed",
+  "transition-issue-finalized",
   "recovery-job-created",
-  "recovery-refund-completed",
-  "exposure-cap-preserved",
-  "duplicate-settlement-rejected",
-  "fund-conservation-preserved",
+  "recovery-refund-and-conservation",
 ]);
 
 export const GOVERNANCE_DRY_RUN_VERIFIER_VERSION =
@@ -57,6 +54,7 @@ export function verifyGovernanceDryRunTranscript(
     transcript.finalizedBlockNumber <= maximumFinalizedBlockNumber &&
     Number.isSafeInteger(transcript.transactionCount) &&
     transcript.transactionCount === checks.length &&
+    new Set(checks.map((check) => check.transactionHash)).size === checks.length &&
     JSON.stringify(checkIds) ===
       JSON.stringify(REQUIRED_GOVERNANCE_DRY_RUN_CHECKS) &&
     JSON.stringify(policyIds) ===

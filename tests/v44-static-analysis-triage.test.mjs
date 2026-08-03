@@ -108,7 +108,7 @@ test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
   );
   assert.match(
     collaborative,
-    /276 transactions, 33 checks, 24 bootstrap\s+objectives/,
+    /286 transactions, 39 checks, 24 bootstrap\s+objectives/,
   );
 
   assert.match(packet, /git rev-parse HEAD/);
@@ -120,11 +120,25 @@ test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
     baseline.schema,
     "agentpool.security.slither-baseline/v1",
   );
-  assert.equal(Object.keys(baseline.contracts).length, 15);
+  assert.equal(Object.keys(baseline.contracts).length, 17);
+  assert.deepEqual(
+    baseline.contracts.AgentPoolV44MaturityAnchor,
+    {
+      sourceName: "contracts/v44/AgentPoolV44MaturityAnchor.sol",
+      detectors: {},
+    },
+  );
   assert.deepEqual(
     baseline.contracts.AgentPoolV44PolicyAnchor,
     {
       sourceName: "contracts/v44/AgentPoolV44PolicyAnchor.sol",
+      detectors: {},
+    },
+  );
+  assert.deepEqual(
+    baseline.contracts.AgentPoolV44ThresholdAuthority,
+    {
+      sourceName: "contracts/v44/AgentPoolV44ThresholdAuthority.sol",
       detectors: {},
     },
   );

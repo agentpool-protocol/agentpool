@@ -15,6 +15,7 @@ import {
   activationSignerSetHash,
   blockedReliabilityReport,
   collectMaturityProviderSnapshot,
+  collectMaturityAuthorizationPublicationSnapshot,
   collectMaturityReadinessEvidence,
   collectGovernanceDryRunChecks,
   collectPolicyActivationPublicationSnapshot,
@@ -25,6 +26,7 @@ import {
   observationAttestationMessage,
   reconcileRpcEvidenceSnapshots,
   reconcileMaturityReadinessEvidence,
+  reconcileMaturityAuthorizationPublicationSnapshots,
   reconcilePolicyActivationPublicationSnapshots,
   signPolicyActivationAnchor,
   validateObservations,
@@ -59,7 +61,9 @@ const SOURCE_COMMIT = "a".repeat(40);
 const EVIDENCE_PIPELINE_COMMIT = "d".repeat(40);
 const POLICY_HASH = "e".repeat(64);
 const ACTIVATION_AUTHORITY = "0xf000000000000000000000000000000000000001";
-const ACTIVATION_AUTHORITY_RUNTIME = "0x6001600055";
+const ACTIVATION_AUTHORITY_RUNTIME = artifact(
+  "AgentPoolV44ThresholdAuthority",
+).deployedBytecode;
 const ACTIVATION_OWNERS = [
   "0xf000000000000000000000000000000000000011",
   "0xf000000000000000000000000000000000000012",
@@ -168,7 +172,9 @@ function policyIdentityOptions(policy, manifest = deployment()) {
 }
 const CONTRACT_TYPES = {
   token: "AgentPoolV44Token",
+  thresholdAuthority: "AgentPoolV44ThresholdAuthority",
   policyAnchor: "AgentPoolV44PolicyAnchor",
+  maturityAnchor: "AgentPoolV44MaturityAnchor",
   settlementRouter: "AgentPoolV43SettlementRouter",
   releaseRegistry: "AgentPoolV43ReleaseRegistry",
   capacityRegistry: "AgentPoolV43CapacityRegistry",
@@ -317,6 +323,8 @@ function deployment() {
     configSha256: SOURCE_EVIDENCE.configSha256,
     deployer: "0x1000000000000000000000000000000000000000",
     policyActivationAuthority: ACTIVATION_AUTHORITY,
+    thresholdAuthorityOwners: [...ACTIVATION_OWNERS].sort(),
+    thresholdAuthorityThreshold: 2,
     deploymentBlock: 1,
     genesisStart: 1,
     genesisRelease: `0x${"11".repeat(32)}`,
@@ -367,6 +375,10 @@ function deployment() {
       ]),
     ),
   };
+  value.contracts.thresholdAuthority = ACTIVATION_AUTHORITY;
+  value.deployedCodeHashes.thresholdAuthority = keccak256(
+    ACTIVATION_AUTHORITY_RUNTIME,
+  );
   value.manifestSha256 = sha256Json(value);
   return value;
 }
@@ -734,6 +746,25 @@ test("policy activation time comes from the finalized threshold-authorized ancho
     ),
   };
   const blockHash = `0x${"ab".repeat(32)}`;
+  const authorityInput = encodeFunctionData({
+    abi: artifact("AgentPoolV44ThresholdAuthority").abi,
+    functionName: "executePolicyActivation",
+    args: [
+      manifest.contracts.policyAnchor,
+      BigInt(anchor.activationSequence),
+      `0x${anchor.policyConfigurationHash}`,
+      `0x${anchor.signerSetHash}`,
+      `0x${anchor.activationSignerSetHash}`,
+      anchor.activationThreshold,
+      `0x${anchor.activationBindingsRoot}`,
+      `0x${anchor.evidencePipelineCommit}`,
+      anchor.previousAnchorHash,
+      anchor.transparencyLogRoot,
+      0n,
+      9_999_999_999n,
+      ["0x01", "0x02"],
+    ],
+  });
   const client = {
     getBlock: async ({ blockTag }) =>
       blockTag === "finalized"
@@ -749,7 +780,10 @@ test("policy activation time comes from the finalized threshold-authorized ancho
       blockHash,
       logs: [log],
     }),
-    getTransaction: async () => ({ to: ACTIVATION_AUTHORITY }),
+    getTransaction: async () => ({
+      to: ACTIVATION_AUTHORITY,
+      input: authorityInput,
+    }),
     getCode: async ({ address }) =>
       address.toLowerCase() === ACTIVATION_AUTHORITY.toLowerCase()
         ? ACTIVATION_AUTHORITY_RUNTIME
@@ -794,7 +828,10 @@ test("policy activation time comes from the finalized threshold-authorized ancho
       providerOperatorId: "rpc-a",
       client: {
         ...client,
-        getTransaction: async () => ({ to: manifest.contracts.policyAnchor }),
+        getTransaction: async () => ({
+          to: manifest.contracts.policyAnchor,
+          input: authorityInput,
+        }),
       },
     }),
     /V44_POLICY_ACTIVATION_PUBLICATION_INVALID/u,
@@ -809,30 +846,280 @@ test("policy activation time comes from the finalized threshold-authorized ancho
   );
 });
 
+test("maturity authorization must be published by the exact threshold authority", async () => {
+  const manifest = deployment();
+  manifest.deployedCodeHashes.maturityAnchor = keccak256(
+    artifact("AgentPoolV44MaturityAnchor").deployedBytecode,
+  );
+  const authorization = {
+    authorizationId: "51".repeat(32),
+    precommitCheckpointHash: `0x${"52".repeat(32)}`,
+    authorizedExposureSlotId: `0x${"53".repeat(32)}`,
+    admissionBundleHash: `0x${"54".repeat(32)}`,
+    sourceCommit: "55".repeat(20),
+    deploymentManifestSha256: "56".repeat(32),
+    publication: {
+      transactionHash: `0x${"57".repeat(32)}`,
+      logIndex: 0,
+    },
+  };
+  const maturityEvent = artifact("AgentPoolV44MaturityAnchor").abi.find(
+    (entry) =>
+      entry.type === "event" &&
+      entry.name === "MaturityAuthorizationPublished",
+  );
+  const publicationHash = `0x${"58".repeat(32)}`;
+  const eventArgs = {
+    publicationHash,
+    authorizationId: `0x${authorization.authorizationId}`,
+    exposureSlotId: authorization.authorizedExposureSlotId,
+    precommitCheckpointHash: authorization.precommitCheckpointHash,
+    admissionBundleHash: authorization.admissionBundleHash,
+    evidencePipelineCommit: `0x${authorization.sourceCommit}`,
+    deploymentManifestHash: `0x${authorization.deploymentManifestSha256}`,
+  };
+  const log = {
+    address: manifest.contracts.maturityAnchor,
+    topics: encodeEventTopics({
+      abi: [maturityEvent],
+      eventName: maturityEvent.name,
+      args: eventArgs,
+    }),
+    data: encodeAbiParameters(
+      maturityEvent.inputs.filter((input) => !input.indexed),
+      maturityEvent.inputs
+        .filter((input) => !input.indexed)
+        .map((input) => eventArgs[input.name]),
+    ),
+    logIndex: 0,
+  };
+  const authorityInput = (signatures) =>
+    encodeFunctionData({
+      abi: artifact("AgentPoolV44ThresholdAuthority").abi,
+      functionName: "executeMaturityPublication",
+      args: [
+        manifest.contracts.maturityAnchor,
+        `0x${authorization.authorizationId}`,
+        authorization.precommitCheckpointHash,
+        authorization.authorizedExposureSlotId,
+        authorization.admissionBundleHash,
+        `0x${authorization.sourceCommit}`,
+        `0x${authorization.deploymentManifestSha256}`,
+        1n,
+        9_999_999_999n,
+        signatures,
+      ],
+    });
+  const blockHash = `0x${"59".repeat(32)}`;
+  const client = {
+    getTransactionReceipt: async () => ({
+      status: "success",
+      blockNumber: 10n,
+      blockHash,
+      logs: [log],
+    }),
+    getTransaction: async () => ({
+      to: manifest.contracts.thresholdAuthority,
+      input: authorityInput(["0x01", "0x02"]),
+    }),
+    getBlock: async ({ blockTag }) =>
+      blockTag === "finalized"
+        ? { number: 100n, hash: `0x${"5a".repeat(32)}` }
+        : { number: 10n, hash: blockHash, timestamp: 1_000n },
+    getCode: async ({ address }) =>
+      address.toLowerCase() ===
+      manifest.contracts.thresholdAuthority.toLowerCase()
+        ? ACTIVATION_AUTHORITY_RUNTIME
+        : artifact("AgentPoolV44MaturityAnchor").deployedBytecode,
+    readContract: async ({ functionName }) => {
+      if (functionName === "AUTHORITY") {
+        return manifest.contracts.thresholdAuthority;
+      }
+      if (functionName === "getOwners") return ACTIVATION_OWNERS;
+      if (functionName === "getThreshold") return 2n;
+      throw new Error(`UNEXPECTED_READ:${functionName}`);
+    },
+  };
+  const providers = await Promise.all(
+    ["a", "b"].map((name) =>
+      collectMaturityAuthorizationPublicationSnapshot({
+        rpcUrl: `https://${name}.example`,
+        deployment: manifest,
+        authorization,
+        providerOperatorId: `rpc-${name}`,
+        client,
+      }),
+    ),
+  );
+  const reconciled = reconcileMaturityAuthorizationPublicationSnapshots({
+    providers,
+    providerOperatorPolicy: {
+      configurationStatus: "ACTIVE",
+      providers: ["a", "b"].map((name) => ({
+        operatorId: `rpc-${name}`,
+        allowedOrigins: [`https://${name}.example`],
+        custodyDomainId: `custody-${name}`,
+      })),
+    },
+  });
+  assert.equal(reconciled.publication.authorizationId, eventArgs.authorizationId);
+  await assert.rejects(
+    collectMaturityAuthorizationPublicationSnapshot({
+      rpcUrl: "https://a.example",
+      deployment: manifest,
+      authorization,
+      providerOperatorId: "rpc-a",
+      client: {
+        ...client,
+        getTransaction: async () => ({
+          to: manifest.contracts.thresholdAuthority,
+          input: authorityInput(["0x01"]),
+        }),
+      },
+    }),
+    /V44_MATURITY_AUTHORITY_EXECUTION_INVALID/u,
+  );
+});
+
 async function governanceDryRunFixture(manifest) {
   const checkPolicy = structuredClone(
     loadReliabilityPolicy().policy.autonomyV2.maturityAuthorizationPolicy
       .readinessEvidencePolicy.governanceDryRun.checkPolicy,
   );
-  const dummyInput = (input) => {
-    if (input.type === "tuple") return input.components.map(dummyInput);
-    if (input.type.endsWith("[]")) return [];
-    const fixedArray = input.type.match(/^(.*)\[([0-9]+)\]$/u);
-    if (fixedArray) {
-      return Array.from({ length: Number(fixedArray[2]) }, () =>
-        dummyInput({ ...input, type: fixedArray[1] }),
-      );
-    }
-    if (input.type === "address") return OBSERVER_ACCOUNTS[0].address;
-    if (input.type === "bool") return false;
-    if (/^u?int[0-9]*$/u.test(input.type)) return 0n;
-    if (input.type === "bytes") return "0x";
-    const fixedBytes = input.type.match(/^bytes([0-9]+)$/u);
-    if (fixedBytes) return `0x${"00".repeat(Number(fixedBytes[1]))}`;
-    if (input.type === "string") return "";
-    throw new Error(`UNSUPPORTED_DUMMY_ABI_TYPE:${input.type}`);
-  };
   const records = new Map();
+  const dryRunJobId = `0x${"41".repeat(32)}`;
+  const issue = {
+    issueId: `0x${"42".repeat(32)}`,
+    bootstrapProposer: "0x0000000000000000000000000000000000000000",
+    specificationHash: `0x${"43".repeat(32)}`,
+    verifier: manifest.contracts.objectiveVerifier,
+    expectedEvidenceHash: `0x${"44".repeat(32)}`,
+    objectiveRoot: `0x${"45".repeat(32)}`,
+    validatorRoot: manifest.dynamicValidatorRoot,
+    candidateBudgetCap: 100n,
+    totalBudgetCap: 1_000n,
+    maxCandidates: 5,
+    minimumReveals: 3,
+    passScoreBps: 8_000,
+    minimumValidatorGroups: 2,
+    funding: 3,
+    expiresAt: 9_999_999n,
+  };
+  const planHash = `0x${"46".repeat(32)}`;
+  const releaseId = `0x${"47".repeat(32)}`;
+  const needEvidenceHash = `0x${"48".repeat(32)}`;
+  const voteEvidenceHash = `0x${"49".repeat(32)}`;
+  const salt = `0x${"4a".repeat(32)}`;
+  const proposalId = 1n;
+  const budget = 10n;
+  const gateAbi = artifact(CONTRACT_TYPES.systemIssueGate).abi;
+  const hashIssueInput = gateAbi.find(
+    (entry) => entry.type === "function" && entry.name === "hashIssue",
+  ).inputs[0];
+  const issueTermsHash = keccak256(
+    encodeAbiParameters([hashIssueInput], [issue]),
+  );
+  const eventLog = (contractKey, eventName, args, logIndex = 0) => {
+    const abi = artifact(CONTRACT_TYPES[contractKey]).abi;
+    const event = abi.find(
+      (entry) => entry.type === "event" && entry.name === eventName,
+    );
+    return {
+      address: manifest.contracts[contractKey],
+      topics: encodeEventTopics({ abi: [event], eventName, args }),
+      data: encodeAbiParameters(
+        event.inputs.filter((input) => !input.indexed),
+        event.inputs
+          .filter((input) => !input.indexed)
+          .map((input) => args[input.name]),
+      ),
+      logIndex,
+    };
+  };
+  const milestoneTerms = [{
+    worker: OBSERVER_ACCOUNTS[0].address,
+    verifier: manifest.contracts.objectiveVerifier,
+    capability: `0x${"4b".repeat(32)}`,
+    specificationHash: issue.specificationHash,
+    expectedEvidenceHash: issue.expectedEvidenceHash,
+    payoutRoot: `0x${"4c".repeat(32)}`,
+    allocation: budget,
+    workerBond: 1n,
+    keeperFee: 0n,
+    deadline: 9_999_998n,
+    capacityUnits: 1,
+    minimumReveals: 3,
+    passScoreBps: 8_000,
+    commitWindow: 60,
+    revealWindow: 60,
+  }];
+  const validationPolicies = [{
+    validatorRoot: manifest.dynamicValidatorRoot,
+    minimumOperatorGroups: 2,
+  }];
+  const calls = {
+    "proposal-bond-funded": {
+      args: [manifest.contracts.transitionIssueConsensus, 100n],
+      logs: [],
+    },
+    "transition-issue-proposed": {
+      args: [issue, needEvidenceHash, 100n, 1_000_000n, 2_000_000n],
+      logs: [eventLog("transitionIssueConsensus", "IssueProposed", {
+        proposalId,
+        issueHash: issueTermsHash,
+        proposer: OBSERVER_ACCOUNTS[0].address,
+        needEvidenceHash,
+      })],
+    },
+    "transition-vote-revealed": {
+      args: [proposalId, true, voteEvidenceHash, salt],
+      logs: [eventLog("transitionIssueConsensus", "VoteRevealed", {
+        proposalId,
+        voter: OBSERVER_ACCOUNTS[1].address,
+        support: true,
+        evidenceHash: voteEvidenceHash,
+        weight: 1n,
+      })],
+    },
+    "transition-issue-finalized": {
+      args: [proposalId],
+      logs: [eventLog("systemIssueGate", "TransitionIssueApproved", {
+        issueHash: issueTermsHash,
+      })],
+    },
+    "recovery-job-created": {
+      args: [
+        3,
+        budget,
+        planHash,
+        releaseId,
+        issue,
+        [],
+        milestoneTerms,
+        validationPolicies,
+        [0],
+        [[]],
+      ],
+      logs: [eventLog("taskMarket", "JobCreated", {
+        jobId: dryRunJobId,
+        creator: OBSERVER_ACCOUNTS[0].address,
+        funding: 3,
+        budget,
+        releaseId,
+        planHash,
+        issueId: issue.issueId,
+      })],
+    },
+    "recovery-refund-and-conservation": {
+      args: [dryRunJobId, 0],
+      logs: [eventLog("taskMarket", "JobClosed", {
+        jobId: dryRunJobId,
+        state: 7,
+        paid: 0n,
+        returnedOrReleased: budget,
+      })],
+    },
+  };
   const locators = checkPolicy.map((check, index) => {
     const transactionHash = `0x${(index + 150)
       .toString(16)
@@ -843,7 +1130,7 @@ async function governanceDryRunFixture(manifest) {
     const input = encodeFunctionData({
       abi: [functionEntry],
       functionName: check.functionName,
-      args: functionEntry.inputs.map(dummyInput),
+      args: calls[check.id].args,
     });
     const blockNumber = BigInt(80 + index);
     const blockHash = `0x${(index + 180).toString(16).padStart(64, "0")}`;
@@ -853,12 +1140,8 @@ async function governanceDryRunFixture(manifest) {
         status: check.expectedStatus,
         blockNumber,
         blockHash,
-        logs: check.requiredEvents.map((event, logIndex) => ({
-          address: manifest.contracts[event.contractKey],
-          topics: [keccak256(toBytes(event.signature))],
-          data: "0x",
-          logIndex,
-        })),
+        transactionIndex: 0,
+        logs: calls[check.id].logs,
       },
     });
     return { id: check.id, transactionHash };
@@ -872,6 +1155,26 @@ async function governanceDryRunFixture(manifest) {
       );
       return { number: blockNumber, hash: record.receipt.blockHash };
     },
+    readContract: async ({ functionName, args }) => {
+      if (functionName === "minimumBond") return 100n;
+      if (functionName === "hashIssue") return issueTermsHash;
+      if (functionName === "jobs" && args[0].toLowerCase() === dryRunJobId) {
+        return [
+          OBSERVER_ACCOUNTS[0].address,
+          3,
+          7,
+          planHash,
+          releaseId,
+          issue.issueId,
+          budget,
+          0n,
+          0,
+          1,
+          1n,
+        ];
+      }
+      throw new Error(`UNEXPECTED_DRY_RUN_READ:${functionName}`);
+    },
   };
   const trustedChecks = await collectGovernanceDryRunChecks({
     client,
@@ -883,6 +1186,9 @@ async function governanceDryRunFixture(manifest) {
   return {
     checkPolicy,
     records,
+    dryRunJobId,
+    issue,
+    issueTermsHash,
     transcript: {
       schema: "agentpool.v44.governance-dry-run/v2",
       verifierVersion: "agentpool-v44-governance-dry-run-v2",
@@ -901,14 +1207,20 @@ test("maturity readiness is independently collected at the finalized block", asy
   fs.mkdirSync(outputRoot, { recursive: true });
   const directory = fs.mkdtempSync(path.join(outputRoot, "readiness-test-"));
   const transcriptPath = path.join(directory, "dry-run.json");
-  const { transcript, checkPolicy, records } =
+  const {
+    transcript,
+    checkPolicy,
+    records,
+    dryRunJobId,
+    issue: dryRunIssue,
+    issueTermsHash: dryRunIssueTermsHash,
+  } =
     await governanceDryRunFixture(manifest);
   fs.writeFileSync(transcriptPath, `${JSON.stringify(transcript, null, 2)}\n`);
   const fileSha256 = (filePath) =>
     crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
   const issueId = `0x${"61".repeat(32)}`;
   const termsHash = `0x${"62".repeat(32)}`;
-  const jobId = `0x${"63".repeat(32)}`;
   const maturityPolicy = {
     configurationStatus: "ACTIVE",
     minimumRecoveryAvailabilitySeconds: 2_592_000,
@@ -924,11 +1236,6 @@ test("maturity readiness is independently collected at the finalized block", asy
         termsHash,
         issueTerms: { issueId, expiresAt: 4_000_000 },
       },
-      recoveryJob: {
-        jobId,
-        allowedStates: [1, 2, 3],
-        allowedMilestoneStates: [1, 2, 3],
-      },
       governanceDryRun: {
         transcriptPath: path.relative(ROOT, transcriptPath),
         transcriptSha256: fileSha256(transcriptPath),
@@ -942,13 +1249,38 @@ test("maturity readiness is independently collected at the finalized block", asy
     },
   };
   const blockHash = `0x${"aa".repeat(32)}`;
-  const readContract = async ({ functionName }) => {
-    if (functionName === "balanceOf" || functionName === "allowance") return 100n;
-    if (functionName === "hashIssue") return termsHash;
+  const readContract = async ({ functionName, args = [] }) => {
+    if (
+      functionName === "balanceOf" ||
+      functionName === "allowance" ||
+      functionName === "minimumBond"
+    )
+      return 100n;
+    if (functionName === "hashIssue") {
+      return args[0]?.issueId?.toLowerCase?.() ===
+        dryRunIssue.issueId.toLowerCase()
+        ? dryRunIssueTermsHash
+        : termsHash;
+    }
     if (functionName === "usage") return [`0x${"00".repeat(32)}`, 0n, 0];
     if (functionName === "transitionApprovedIssueHash") return true;
     if (functionName === "approvedIssueHash") return false;
     if (functionName === "jobs") {
+      if (args[0]?.toLowerCase?.() === dryRunJobId) {
+        return [
+          OBSERVER_ACCOUNTS[0].address,
+          1,
+          7,
+          `0x${"00".repeat(32)}`,
+          `0x${"00".repeat(32)}`,
+          `0x${"00".repeat(32)}`,
+          10n,
+          0n,
+          0,
+          1,
+          1n,
+        ];
+      }
       return [
         maturityPolicy.readinessEvidencePolicy.proposalBond.owner,
         1,
@@ -987,7 +1319,7 @@ test("maturity readiness is independently collected at the finalized block", asy
       ];
     }
     if (functionName === "jobGovernanceEligible") return false;
-    if (functionName === "latestGovernanceEpoch") return 1n;
+    if (functionName === "governanceSnapshotEpoch") return 1n;
     throw new Error(`UNEXPECTED_READ:${functionName}`);
   };
   const readinessClient = {
@@ -1017,13 +1349,27 @@ test("maturity readiness is independently collected at the finalized block", asy
       origin: "https://a.example",
       finalizedBlockNumber: 100,
       finalizedBlockHash: blockHash,
+      chainSnapshot: { governanceSnapshotEpoch: 1 },
     },
     client: readinessClient,
   });
   assert.equal(evidence.proposalBond.balance, "100");
+  assert.equal(evidence.proposalBond.onchainMinimumBond, "100");
   assert.equal(evidence.recoveryIssue.state, "AVAILABLE");
-  assert.equal(evidence.recoveryJob.state, "AVAILABLE");
   assert.equal(evidence.governanceDryRun.passed, true);
+  const reusedTransactionTranscript = structuredClone(transcript);
+  reusedTransactionTranscript.checks.at(-1).transactionHash =
+    reusedTransactionTranscript.checks[0].transactionHash;
+  await assert.rejects(
+    collectGovernanceDryRunChecks({
+      client: readinessClient,
+      deployment: manifest,
+      transcript: reusedTransactionTranscript,
+      checkPolicy,
+      maximumFinalizedBlockNumber: 100,
+    }),
+    /V44_MATURITY_DRY_RUN_TRANSACTION_REUSED/u,
+  );
   const expiredIssuePolicy = structuredClone(maturityPolicy);
   expiredIssuePolicy.readinessEvidencePolicy.recoveryIssue.issueTerms.expiresAt =
     2_000_000;
@@ -1036,37 +1382,84 @@ test("maturity readiness is independently collected at the finalized block", asy
       origin: "https://a.example",
       finalizedBlockNumber: 100,
       finalizedBlockHash: blockHash,
+      chainSnapshot: { governanceSnapshotEpoch: 1 },
     },
     client: readinessClient,
   });
   assert.equal(expiredIssueEvidence.recoveryIssue.state, "UNAVAILABLE");
-  const expiredJobEvidence = await collectMaturityReadinessEvidence({
-    rpcUrl: "https://a.example",
-    deployment: manifest,
-    maturityPolicy,
-    observations: { incidents: [] },
-    trustedProviderSnapshot: {
-      origin: "https://a.example",
-      finalizedBlockNumber: 100,
-      finalizedBlockHash: blockHash,
-    },
-    client: {
-      ...readinessClient,
-      readContract: async (request) => {
-        const value = await readContract(request);
-        if (request.functionName !== "milestones") return value;
-        const expired = [...value];
-        expired[10] = 2_000_000n;
-        return expired;
-      },
-    },
-  });
-  assert.equal(expiredJobEvidence.recoveryJob.state, "UNAVAILABLE");
   assert.equal(
     reconcileMaturityReadinessEvidence([evidence, structuredClone(evidence)])
       .providerCount,
     2,
   );
+  await assert.rejects(
+    collectMaturityReadinessEvidence({
+      rpcUrl: "https://a.example",
+      deployment: manifest,
+      maturityPolicy,
+      observations: { incidents: [] },
+      trustedProviderSnapshot: {
+        origin: "https://a.example",
+        finalizedBlockNumber: 100,
+        finalizedBlockHash: blockHash,
+        chainSnapshot: { governanceSnapshotEpoch: 2 },
+      },
+      client: readinessClient,
+    }),
+    /V44_MATURITY_GOVERNANCE_EPOCH_MISMATCH/u,
+  );
+  await assert.rejects(
+    collectMaturityReadinessEvidence({
+      rpcUrl: "https://a.example",
+      deployment: manifest,
+      maturityPolicy,
+      observations: { incidents: [] },
+      trustedProviderSnapshot: {
+        origin: "https://a.example",
+        finalizedBlockNumber: 100,
+        finalizedBlockHash: blockHash,
+        chainSnapshot: { governanceSnapshotEpoch: 1 },
+      },
+      client: {
+        ...readinessClient,
+        readContract: async (request) =>
+          request.functionName === "minimumBond"
+            ? 101n
+            : readContract(request),
+      },
+    }),
+    /V44_MATURITY_PROPOSAL_BOND_MISMATCH/u,
+  );
+  const conservationCheck = transcript.checks.find(
+    (check) => check.id === "recovery-refund-and-conservation",
+  );
+  const conservationRecord = records.get(conservationCheck.transactionHash);
+  const originalConservationData = conservationRecord.receipt.logs[0].data;
+  conservationRecord.receipt.logs[0].data = encodeAbiParameters(
+    [
+      { type: "uint8" },
+      { type: "uint256" },
+      { type: "uint256" },
+    ],
+    [7, 0n, 2n],
+  );
+  await assert.rejects(
+    collectMaturityReadinessEvidence({
+      rpcUrl: "https://a.example",
+      deployment: manifest,
+      maturityPolicy,
+      observations: { incidents: [] },
+      trustedProviderSnapshot: {
+        origin: "https://a.example",
+        finalizedBlockNumber: 100,
+        finalizedBlockHash: blockHash,
+        chainSnapshot: { governanceSnapshotEpoch: 1 },
+      },
+      client: readinessClient,
+    }),
+    /V44_MATURITY_DRY_RUN_FUND_CONSERVATION_INVALID/u,
+  );
+  conservationRecord.receipt.logs[0].data = originalConservationData;
   const fabricated = {
     ...transcript,
     checks: transcript.checks.map((check) => ({
@@ -1089,6 +1482,7 @@ test("maturity readiness is independently collected at the finalized block", asy
         origin: "https://a.example",
         finalizedBlockNumber: 100,
         finalizedBlockHash: blockHash,
+        chainSnapshot: { governanceSnapshotEpoch: 1 },
       },
       client: readinessClient,
     }),
@@ -1165,13 +1559,14 @@ test("maturity Work Power population is reconstructed from all finalized outcome
         if (functionName === "successfulSettlementCount") return 49n;
         if (functionName === "eligibleAgentCount") return 2n;
         if (functionName === "eligibleGroupCount") return 2n;
-        if (functionName === "latestGovernanceEpoch") return 8n;
+        if (functionName === "governanceSnapshotEpoch") return 7n;
         if (functionName === "operatorGroup") {
           return args[0].toLowerCase() === agents[0]
             ? OBSERVER_GROUPS[0]
             : OBSERVER_GROUPS[1];
         }
         if (functionName === "votingPowerAt") {
+          assert.equal(args[1], 7n);
           return args[0].toLowerCase() === agents[0] ? 10n : 90n;
         }
         throw new Error(`UNEXPECTED_READ:${functionName}`);
@@ -1179,6 +1574,7 @@ test("maturity Work Power population is reconstructed from all finalized outcome
     },
   });
   assert.equal(snapshot.chainSnapshot.populationComplete, true);
+  assert.equal(snapshot.chainSnapshot.governanceSnapshotEpoch, 7);
   assert.equal(snapshot.chainSnapshot.positiveVotingAgentCount, 2);
   assert.equal(snapshot.chainSnapshot.totalWorkPower, "100");
   assert.deepEqual(

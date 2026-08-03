@@ -64,8 +64,27 @@ security and economic reviews required by the release gates.
 
 ### Deployment and evidence
 
+- Policy activation and the one-shot 50th SYSTEM authorization now pass through
+  the exact immutable `AgentPoolV44ThresholdAuthority` deployed in the graph.
+  It has no generic execution or fund-transfer method, requires ordered unique
+  owner signatures, and binds chain, authority address, nonce, deadline,
+  action, anchor, and every publication field.
+- The maturity authorization is published to a purpose-limited one-shot anchor
+  and two pinned RPC operators verify the exact authority call, owner set,
+  threshold, runtime bytecode, event, and finalized block. The publication and
+  signed checkpoint must both precede the authorized `JobCreated` event.
+- Maturity Work Power is reconstructed at the exact onchain
+  `governanceSnapshotEpoch`; a newer, more diverse display epoch cannot be
+  substituted for the epoch the first mature vote consumes.
+- The governance dry run is one causal lifecycle rather than six labels: a
+  unique transaction sequence funds the exact transition bond, proposes and
+  approves one Issue, creates a Job from those same terms, and refunds that
+  same Job while preserving its budget.
+- An approved but unconsumed Issue reserves capacity only until its committed
+  onchain expiry. It then remains in history as terminal without permanently
+  blocking the 50th exposure.
 - The old “full mainnet” rehearsal reused the v4.3 testnet rehearsal. It was
-  replaced by a rehearsal that deploys the same 15-contract graph, constructor
+  replaced by a rehearsal that deploys the same 17-contract graph, constructor
   arguments, one-time wiring, authority removal, and 24-objective bootstrap
   catalog used by the v4.4 mainnet deployment script.
 - Release gates now require exactly seven canonical records. Every approval
@@ -115,13 +134,13 @@ security and economic reviews required by the release gates.
 
 ## Current executable evidence
 
-- Exact mainnet graph rehearsal: 276 transactions, 33 checks, 24 bootstrap
+- Exact mainnet graph rehearsal: 286 transactions, 39 checks, 24 bootstrap
   objectives.
 - Mainnet finance/state rehearsal: 508 transactions, 415 checks.
 - Public-testnet compatibility rehearsal: 731 transactions.
-- Focused v4.4 gate and candidate regression suite: 49 tests.
-- Full repository regression suite: 165 tests, 0 failures.
-- Pinned Slither 0.11.6 baseline check: 14 contracts, with no new High or
+- Focused v4.4 safety, gate, and candidate regression suite: 93 tests.
+- Full repository regression suite: 223 tests, 0 failures.
+- Pinned Slither 0.11.6 baseline check: 17 contracts, with no new High or
   Medium findings beyond the reviewed baseline.
 - The v4.4 public reliability evaluator and append-only intake path are
   executable, but the live v4.4 Base Sepolia campaign is currently blocked

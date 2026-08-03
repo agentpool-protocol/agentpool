@@ -92,7 +92,8 @@
       "maintainerGovernanceUnits": 0,
       "proposalBondRequired": true,
       "recoveryIssueRequired": true,
-      "recoveryJobRequired": true,
+      "recoveryJobRequired": false,
+      "recoveryMode": "UNCONSUMED_RECOVERY_ISSUE",
       "maximumUnresolvedCriticalHigh": 0,
       "governanceDryRunRequired": true,
       "authorizationScope": "SINGLE_50TH_SYSTEM_SETTLEMENT",
@@ -100,18 +101,13 @@
         "proposalBond": {
           "tokenContractKey": "token",
           "owner": null,
-          "spenderContractKey": "issueConsensus",
+          "spenderContractKey": "transitionIssueConsensus",
           "requiredAmountWei": null
         },
         "recoveryIssue": {
           "issueId": null,
           "termsHash": null,
           "issueTerms": null
-        },
-        "recoveryJob": {
-          "jobId": null,
-          "allowedStates": [1, 2, 3],
-          "allowedMilestoneStates": [1, 2, 3]
         },
         "governanceDryRun": {
           "transcriptPath": null,
@@ -121,14 +117,11 @@
           "verifierVersion": "agentpool-v44-governance-dry-run-v2",
           "checkPolicy": [
             { "id": "proposal-bond-funded", "contractKey": "token", "functionName": "approve", "expectedStatus": "success", "requiredEvents": [] },
-            { "id": "issue-proposed", "contractKey": "issueConsensus", "functionName": "propose", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "issueConsensus", "signature": "IssueProposed(uint256,bytes32,address)" }] },
-            { "id": "commit-reveal-completed", "contractKey": "issueConsensus", "functionName": "revealVote", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "issueConsensus", "signature": "VoteRevealed(uint256,address,bool,uint256)" }] },
-            { "id": "issue-finalized", "contractKey": "issueConsensus", "functionName": "finalize", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "systemIssueGate", "signature": "MatureIssueApproved(bytes32)" }] },
+            { "id": "transition-issue-proposed", "contractKey": "transitionIssueConsensus", "functionName": "propose", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "transitionIssueConsensus", "signature": "IssueProposed(uint256,bytes32,address,bytes32)" }] },
+            { "id": "transition-vote-revealed", "contractKey": "transitionIssueConsensus", "functionName": "revealVote", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "transitionIssueConsensus", "signature": "VoteRevealed(uint256,address,bool,bytes32,uint256)" }] },
+            { "id": "transition-issue-finalized", "contractKey": "transitionIssueConsensus", "functionName": "finalize", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "systemIssueGate", "signature": "TransitionIssueApproved(bytes32)" }] },
             { "id": "recovery-job-created", "contractKey": "taskMarket", "functionName": "createSystemJobV2", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)" }] },
-            { "id": "recovery-refund-completed", "contractKey": "taskMarket", "functionName": "refundExpired", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobClosed(bytes32,uint8,uint256,uint256)" }] },
-            { "id": "exposure-cap-preserved", "contractKey": "taskMarket", "functionName": "createSystemJobV2", "expectedStatus": "reverted", "requiredEvents": [] },
-            { "id": "duplicate-settlement-rejected", "contractKey": "taskMarket", "functionName": "resolve", "expectedStatus": "reverted", "requiredEvents": [] },
-            { "id": "fund-conservation-preserved", "contractKey": "taskMarket", "functionName": "refundExpired", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobClosed(bytes32,uint8,uint256,uint256)" }] }
+            { "id": "recovery-refund-and-conservation", "contractKey": "taskMarket", "functionName": "refundExpired", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobClosed(bytes32,uint8,uint256,uint256)" }] }
           ]
         },
         "maintainerAgents": []

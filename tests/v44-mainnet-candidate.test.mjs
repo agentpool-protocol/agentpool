@@ -24,6 +24,7 @@ import {
   loadAndValidateConfig,
   loadAndValidateGates,
   redactBootstrapSecrets,
+  requireThresholdAuthorityConfig,
   sha256File,
 } from "../scripts/lib/v44-mainnet.mjs";
 import {
@@ -39,6 +40,39 @@ import {
 function source(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), "utf8");
 }
+
+test("v4.4 threshold authority config is canonical and rejects one-key control", () => {
+  const owners = [
+    "0x3000000000000000000000000000000000000000",
+    "0x1000000000000000000000000000000000000000",
+    "0x2000000000000000000000000000000000000000",
+  ];
+  const resolved = requireThresholdAuthorityConfig({
+    V44_THRESHOLD_AUTHORITY_OWNERS: owners.join(","),
+    V44_THRESHOLD_AUTHORITY_THRESHOLD: "2",
+  });
+  assert.deepEqual(
+    resolved.owners.map((owner) => owner.toLowerCase()),
+    [...owners].sort().map((owner) => owner.toLowerCase()),
+  );
+  assert.equal(resolved.threshold, 2);
+  assert.throws(
+    () =>
+      requireThresholdAuthorityConfig({
+        V44_THRESHOLD_AUTHORITY_OWNERS: owners.slice(0, 2).join(","),
+        V44_THRESHOLD_AUTHORITY_THRESHOLD: "1",
+      }),
+    /V44_THRESHOLD_AUTHORITY_CONFIG_INVALID/u,
+  );
+  assert.throws(
+    () =>
+      requireThresholdAuthorityConfig({
+        V44_THRESHOLD_AUTHORITY_OWNERS: [owners[0], owners[0]].join(","),
+        V44_THRESHOLD_AUTHORITY_THRESHOLD: "2",
+      }),
+    /V44_THRESHOLD_AUTHORITY_CONFIG_INVALID/u,
+  );
+});
 
 function bootstrapObjectiveCatalog(count = 24) {
   const directory = fs.mkdtempSync(

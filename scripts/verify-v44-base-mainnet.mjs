@@ -240,6 +240,12 @@ const proposalBond = parseEther(
 );
 const deploymentArguments = {
   token: [manifest.deployer],
+  thresholdAuthority: [
+    manifest.thresholdAuthorityOwners,
+    manifest.thresholdAuthorityThreshold,
+  ],
+  policyAnchor: [manifest.contracts.thresholdAuthority],
+  maturityAnchor: [manifest.contracts.thresholdAuthority],
   settlementRouter: [manifest.deployer],
   releaseRegistry: [
     manifest.genesisRelease,
@@ -324,6 +330,7 @@ const deploymentArguments = {
     manifest.contracts.settlementRouter,
     manifest.contracts.systemIssueGate,
     manifest.financeInvariantHash,
+    configEvidence.config.dynamicIssues.maxGovernanceMilestones,
   ],
 };
 
@@ -414,15 +421,44 @@ const anchoredActivationAuthority = await read(
 check(
   "policyAnchor.activationAuthority",
   anchoredActivationAuthority,
-  manifest.policyActivationAuthority,
+  manifest.contracts.thresholdAuthority,
 );
-const activationAuthorityCode = await client.getCode({
-  address: manifest.policyActivationAuthority,
-});
 check(
-  "policyAnchor.activationAuthorityHasCode",
-  Boolean(activationAuthorityCode && activationAuthorityCode !== "0x"),
-  true,
+  "policyAnchor.manifestActivationAuthority",
+  manifest.policyActivationAuthority,
+  manifest.contracts.thresholdAuthority,
+);
+const authorityOwners = await read(
+  "AgentPoolV44ThresholdAuthority",
+  manifest.contracts.thresholdAuthority,
+  "getOwners",
+);
+const authorityThreshold = await read(
+  "AgentPoolV44ThresholdAuthority",
+  manifest.contracts.thresholdAuthority,
+  "getThreshold",
+);
+check(
+  "thresholdAuthority.owners",
+  JSON.stringify(authorityOwners.map((owner) => owner.toLowerCase())),
+  JSON.stringify(
+    manifest.thresholdAuthorityOwners.map((owner) => owner.toLowerCase()),
+  ),
+);
+check(
+  "thresholdAuthority.threshold",
+  Number(authorityThreshold),
+  manifest.thresholdAuthorityThreshold,
+);
+const maturityAuthority = await read(
+  "AgentPoolV44MaturityAnchor",
+  manifest.contracts.maturityAnchor,
+  "AUTHORITY",
+);
+check(
+  "maturityAnchor.authority",
+  maturityAuthority,
+  manifest.contracts.thresholdAuthority,
 );
 check(
   "bootstrapVerifierCodehashMatchesObjectiveVerifier",

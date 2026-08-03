@@ -76,8 +76,16 @@
         "High:arbitrary-send-erc20": 1
       }
     },
+    "AgentPoolV44MaturityAnchor": {
+      "sourceName": "contracts/v44/AgentPoolV44MaturityAnchor.sol",
+      "detectors": {}
+    },
     "AgentPoolV44PolicyAnchor": {
       "sourceName": "contracts/v44/AgentPoolV44PolicyAnchor.sol",
+      "detectors": {}
+    },
+    "AgentPoolV44ThresholdAuthority": {
+      "sourceName": "contracts/v44/AgentPoolV44ThresholdAuthority.sol",
       "detectors": {}
     },
     "AgentPoolV44Token": {

@@ -31,8 +31,8 @@ import {
   loadAndValidateConfig,
   loadAndValidateGates,
   redactBootstrapSecrets,
-  requireAddress,
   requireEnv,
+  requireThresholdAuthorityConfig,
   serializeIssue,
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
@@ -73,9 +73,7 @@ const sourceEvidence = verifyV44ReleaseEvidenceFile(
 );
 const config = configEvidence.config;
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
-const policyActivationAuthority = requireAddress(
-  "V44_POLICY_ACTIVATION_AUTHORITY",
-);
+const thresholdAuthority = requireThresholdAuthorityConfig();
 const releaseInputs = collectReleaseInputs({
   deployerAddress: account.address,
 });
@@ -97,13 +95,6 @@ if (balance < minimumBalance) {
     `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(minimumBalance)}`,
   );
 }
-const activationAuthorityCode = await client.getCode({
-  address: policyActivationAuthority,
-});
-if (!activationAuthorityCode || activationAuthorityCode === "0x") {
-  throw new Error("V44_POLICY_ACTIVATION_AUTHORITY_MUST_BE_CONTRACT");
-}
-
 const existingPartial = fs.existsSync(partialPath)
   ? JSON.parse(fs.readFileSync(partialPath, "utf8"))
   : null;
@@ -115,7 +106,8 @@ const deploymentIdentity = {
   configSha256: configEvidence.configSha256,
   gatesSha256: gateEvidence?.gatesSha256 ?? null,
   deployer: account.address,
-  policyActivationAuthority,
+  thresholdAuthorityOwnersHash: sha256Json(thresholdAuthority.owners),
+  thresholdAuthorityThreshold: thresholdAuthority.threshold,
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
   bootstrapObjectivesSha256: releaseInputs.bootstrap.objectivesSha256,
@@ -458,10 +450,20 @@ const objectiveVerifier = await deploy(
   [],
   "objectiveVerifier",
 );
+const policyActivationAuthority = await deploy(
+  "AgentPoolV44ThresholdAuthority",
+  [thresholdAuthority.owners, thresholdAuthority.threshold],
+  "thresholdAuthority",
+);
 await deploy(
   "AgentPoolV44PolicyAnchor",
   [policyActivationAuthority],
   "policyAnchor",
+);
+await deploy(
+  "AgentPoolV44MaturityAnchor",
+  [policyActivationAuthority],
+  "maturityAnchor",
 );
 const verifierCode = await assertCode(objectiveVerifier, "objectiveVerifier");
 const verifierCodehash = keccak256(verifierCode);
@@ -776,6 +778,8 @@ const commonManifest = {
   bootstrapIdentitySha256: deploymentIdentity.bootstrapIdentitySha256,
   deployer: account.address,
   policyActivationAuthority,
+  thresholdAuthorityOwners: thresholdAuthority.owners,
+  thresholdAuthorityThreshold: thresholdAuthority.threshold,
   deployerHasRuntimeAuthority: false,
   features: {
     runtimeCapabilityPerformance: true,

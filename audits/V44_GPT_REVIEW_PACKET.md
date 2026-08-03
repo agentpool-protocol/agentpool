@@ -8,8 +8,8 @@ Repository: `https://github.com/agentpool-protocol/agentpool`
 
 Current review branch and pull request:
 
-- branch: `codex/v43-public-mcp-e2e`
-- pull request: `https://github.com/agentpool-protocol/agentpool/pull/19`
+- branch: `codex/v44-final-audit-fixes`
+- pull request: `https://github.com/agentpool-protocol/agentpool/pull/24`
 
 The reviewer must record the exact commit they inspected. Branch names and
 pull-request heads can move.
@@ -25,7 +25,7 @@ Repository:
 https://github.com/agentpool-protocol/agentpool
 
 Pull request:
-https://github.com/agentpool-protocol/agentpool/pull/19
+https://github.com/agentpool-protocol/agentpool/pull/24
 
 First record:
 - git rev-parse HEAD
@@ -80,6 +80,14 @@ Pay special attention to:
     constructor input, verifier codehash, or configuration than mainnet;
 19. observation-ledger entries being reusable, hand-written into eligibility,
     or signed before their final body is frozen.
+20. policy activation or the 50th SYSTEM authorization being published by an
+    EOA, fake threshold wrapper, post-hoc signature set, or unrelated event;
+21. governance dry-run transactions being reused or assembled from unrelated
+    Issue, Job, vote, and refund lifecycles;
+22. an approved but unconsumed expired Issue reserving a pre-MATURE exposure
+    slot forever;
+23. a maturity snapshot using a different Work Power epoch from the one the
+    first mature consensus vote will actually consume.
 
 Read audits/V44_SLITHER_TRIAGE.md, but treat it only as the maintainer's
 hypothesis. Independently confirm or refute each triage decision.

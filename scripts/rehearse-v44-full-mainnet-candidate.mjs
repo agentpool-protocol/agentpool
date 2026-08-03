@@ -27,6 +27,7 @@ import {
   toBytes,
   toHex,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import {
   ROOT,
   ZERO_ADDRESS,
@@ -72,6 +73,11 @@ const validators = validatorKeys.map((key, index) => ({
   address: addressFor(key),
   group: keccak256(toBytes(`v44-validator-group-${index}`)),
 }));
+const authoritySigners = [deployerKey, workerKey, validatorKeys[0]]
+  .map((key) => ({ key, address: addressFor(key) }))
+  .sort((left, right) =>
+    left.address.toLowerCase().localeCompare(right.address.toLowerCase()),
+  );
 const workerGroup = keccak256(toBytes("v44-worker-group"));
 const proposerGroup = keccak256(toBytes("v44-proposer-group"));
 const workerRuntime = keccak256(toBytes("v44-worker-runtime"));
@@ -387,9 +393,13 @@ const evolutionConsensus = await deploy("AgentPoolV43EvolutionConsensus", [
 ]);
 const verifier = await deploy("AgentPoolV43HashObjectiveVerifier");
 const policyActivationAuthority = await deploy(
-  "MockV44ActivationAuthority",
+  "AgentPoolV44ThresholdAuthority",
+  [authoritySigners.map((signer) => signer.address), 2],
 );
 const policyAnchor = await deploy("AgentPoolV44PolicyAnchor", [
+  policyActivationAuthority,
+]);
+const maturityAnchor = await deploy("AgentPoolV44MaturityAnchor", [
   policyActivationAuthority,
 ]);
 const policyAnchorArgs = [
@@ -417,18 +427,46 @@ await expectRevert("policyAnchor.directPublicationRejected", () =>
     policyAnchorArgs,
   ),
 );
-await write(
-  "MockV44ActivationAuthority",
+const policyDeadline = blockTimestamp + 3_600n;
+const policyActionHash = await read(
+  "AgentPoolV44ThresholdAuthority",
   policyActivationAuthority,
-  "activate",
+  "policyActionHash",
   [policyAnchor, ...policyAnchorArgs],
+);
+const policyOperationDigest = await read(
+  "AgentPoolV44ThresholdAuthority",
+  policyActivationAuthority,
+  "operationDigest",
+  [policyActionHash, 0n, policyDeadline],
+);
+const policySignatures = await Promise.all(
+  authoritySigners.slice(0, 2).map((signer) =>
+    privateKeyToAccount(bytesToHex(signer.key)).sign({
+      hash: policyOperationDigest,
+    }),
+  ),
+);
+await expectRevert("policyAnchor.singleSignatureRejected", () =>
+  write(
+    "AgentPoolV44ThresholdAuthority",
+    policyActivationAuthority,
+    "executePolicyActivation",
+    [policyAnchor, ...policyAnchorArgs, 0n, policyDeadline, policySignatures.slice(0, 1)],
+  ),
+);
+await write(
+  "AgentPoolV44ThresholdAuthority",
+  policyActivationAuthority,
+  "executePolicyActivation",
+  [policyAnchor, ...policyAnchorArgs, 0n, policyDeadline, policySignatures],
 );
 await expectRevert("policyAnchor.secondActivationRejected", () =>
   write(
-    "MockV44ActivationAuthority",
+    "AgentPoolV44ThresholdAuthority",
     policyActivationAuthority,
-    "activate",
-    [policyAnchor, ...policyAnchorArgs],
+    "executePolicyActivation",
+    [policyAnchor, ...policyAnchorArgs, 0n, policyDeadline, policySignatures],
   ),
 );
 check(
@@ -442,6 +480,51 @@ check(
     ),
   ) > 0,
   true,
+);
+const maturityArgs = [
+  keccak256(toBytes("v44-maturity-authorization")),
+  keccak256(toBytes("v44-maturity-checkpoint")),
+  keccak256(toBytes("v44-50th-exposure-slot")),
+  keccak256(toBytes("v44-maturity-admission")),
+  `0x${sourceCommit}`,
+  keccak256(toBytes("v44-deployment-manifest")),
+];
+await expectRevert("maturityAnchor.directPublicationRejected", () =>
+  write("AgentPoolV44MaturityAnchor", maturityAnchor, "publish", maturityArgs),
+);
+const maturityDeadline = blockTimestamp + 3_600n;
+const maturityActionHash = await read(
+  "AgentPoolV44ThresholdAuthority",
+  policyActivationAuthority,
+  "maturityActionHash",
+  [maturityAnchor, ...maturityArgs],
+);
+const maturityOperationDigest = await read(
+  "AgentPoolV44ThresholdAuthority",
+  policyActivationAuthority,
+  "operationDigest",
+  [maturityActionHash, 1n, maturityDeadline],
+);
+const maturitySignatures = await Promise.all(
+  authoritySigners.slice(0, 2).map((signer) =>
+    privateKeyToAccount(bytesToHex(signer.key)).sign({
+      hash: maturityOperationDigest,
+    }),
+  ),
+);
+await write(
+  "AgentPoolV44ThresholdAuthority",
+  policyActivationAuthority,
+  "executeMaturityPublication",
+  [maturityAnchor, ...maturityArgs, 1n, maturityDeadline, maturitySignatures],
+);
+await expectRevert("maturityAnchor.secondPublicationRejected", () =>
+  write(
+    "AgentPoolV44ThresholdAuthority",
+    policyActivationAuthority,
+    "executeMaturityPublication",
+    [maturityAnchor, ...maturityArgs, 2n, maturityDeadline, maturitySignatures],
+  ),
 );
 const verifierCode = await vm.stateManager.getCode(
   createAddressFromString(verifier),
@@ -1243,7 +1326,9 @@ const report = {
     contributionLedger: ledger,
     proofRegistry,
     evolutionConsensus,
+    thresholdAuthority: policyActivationAuthority,
     policyAnchor,
+    maturityAnchor,
     verifier,
     systemIssueGate,
     transitionConsensus,

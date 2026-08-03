@@ -76,6 +76,8 @@ function governanceProvider(name, value) {
     origin: `https://${name}.example`,
     providerFinalizedHeadNumber: value.finalizedBlockNumber,
     providerFinalizedHeadHash: value.finalizedBlockHash,
+    finalizedBlockTimestampMs:
+      value.finalizedBlockTimestampMs ?? value.finalizedBlockNumber * 1_000,
     exposurePolicy: {
       dynamicMaxCandidates: 1,
       maximumGovernanceMilestones: 1,
@@ -296,6 +298,7 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
   const fiftiethSlotId = exposureSlotId(fiftiethDescriptor);
   const snapshot = {
     successfulSystemSettlements: 49,
+    governanceSnapshotEpoch: 1,
     nonMaintainerVotingAgents: Array.from({ length: 6 }, (_, index) => ({
       agent: `0x${(index + 1).toString(16).padStart(40, "0")}`,
       operatorGroup: `0x${((index % 3) + 1).toString(16).padStart(64, "0")}`,
@@ -305,12 +308,12 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
     maintainerGovernanceUnits: "0",
     proposalBondAvailable: true,
     recoveryIssueAvailable: true,
-    recoveryJobAvailable: true,
     unresolvedCriticalHigh: 0,
     governanceDryRunPassed: true,
   };
   const chainSnapshot = {
     successfulSystemSettlements: 49,
+    governanceSnapshotEpoch: 1,
     eligibleAgentCount: 6,
     eligibleGroupCount: 3,
     populationComplete: true,
@@ -338,6 +341,7 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       owner: `0x${"92".repeat(20)}`,
       spender: `0x${"93".repeat(20)}`,
       requiredAmount: "100",
+      onchainMinimumBond: "100",
       balance: "100",
       allowance: "100",
       blockNumber: 100,
@@ -347,11 +351,6 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       issueId: hash("a"),
       state: "AVAILABLE",
       evidenceHash: hash("b"),
-    },
-    recoveryJob: {
-      jobId: hash("c"),
-      state: "AVAILABLE",
-      evidenceHash: hash("d"),
     },
     governanceDryRun: {
       transcriptHash: hash("e"),
@@ -425,6 +424,17 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
       chainSnapshot: provider.chainSnapshot,
     })),
     trustedReadinessEvidence: readinessEvidence,
+    trustedMaturityPublication: {
+      authorizationId: `0x${authorization.authorizationId}`,
+      precommitCheckpointHash: authorization.precommitCheckpointHash,
+      exposureSlotId: authorization.authorizedExposureSlotId,
+      admissionBundleHash: authorization.admissionBundleHash,
+      evidencePipelineCommit: `0x${authorization.sourceCommit}`,
+      deploymentManifestHash: `0x${authorization.deploymentManifestSha256}`,
+      blockNumber: 99,
+      blockHash: hash("8"),
+      transactionHash: hash("7"),
+    },
     providerOperatorPolicy,
   };
   assert.equal(
@@ -479,6 +489,10 @@ test("the 50th SYSTEM exposure needs a signed chain-derived one-shot authorizati
     () =>
       validateMaturityAuthorization(omittedAuthorization, {
         ...policy,
+        trustedMaturityPublication: {
+          ...policy.trustedMaturityPublication,
+          authorizationId: `0x${omittedAuthorization.authorizationId}`,
+        },
         atMs: 2_500,
         expectedExposureSlotId: fiftiethSlotId,
       }),
@@ -905,6 +919,39 @@ test("unsettled governance exposure is counted before settlement", () => {
         })),
       ),
     /V44_CHAIN_EXPOSURE_LIMIT_EXCEEDED/u,
+  );
+});
+
+test("an approved unconsumed Issue stops reserving capacity after its onchain expiry", () => {
+  const admission = shadowBundle("ADMISSION");
+  const lifecycle = settlementLifecycle(admission, { blockNumber: 100 });
+  const approvedIssueEvents = lifecycle.rawEvents.slice(0, 7);
+  const reconcileAt = (finalizedBlockTimestampMs) =>
+    reconcileGovernanceEventSets({
+      providers: ["a", "b"].map((name) =>
+        governanceProvider(name, {
+          finalizedBlockNumber: 100,
+          finalizedBlockHash: hash("a"),
+          finalizedBlockTimestampMs,
+          rawEvents: approvedIssueEvents,
+          stateReads: [],
+        }),
+      ),
+      localEventIds: [],
+      contracts: governanceContracts,
+      providerOperatorPolicy,
+    });
+  const beforeExpiry = reconcileAt(50_000_000);
+  assert.equal(beforeExpiry.exposureStates.length, 1);
+  assert.equal(
+    beforeExpiry.exposureStates[0].state,
+    SLOT_STATES.RESERVED_FOR_ISSUE,
+  );
+  const afterExpiry = reconcileAt(90_000_000);
+  assert.equal(afterExpiry.exposureStates.length, 1);
+  assert.equal(
+    afterExpiry.exposureStates[0].state,
+    SLOT_STATES.TERMINAL_WITHOUT_SUCCESS,
   );
 });
 

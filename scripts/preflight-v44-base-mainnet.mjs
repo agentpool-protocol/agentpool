@@ -18,8 +18,8 @@ import {
   collectReleaseInputs,
   loadAndValidateConfig,
   loadAndValidateGates,
-  requireAddress,
   requireEnv,
+  requireThresholdAuthorityConfig,
 } from "./lib/v44-mainnet.mjs";
 import {
   requireProfileEnvironment,
@@ -61,9 +61,7 @@ const sourceEvidence = verifyV44ReleaseEvidenceFile(
 );
 const sourceCommit = requireEnv("V44_SOURCE_COMMIT").toLowerCase();
 const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY"));
-const policyActivationAuthority = requireAddress(
-  "V44_POLICY_ACTIVATION_AUTHORITY",
-);
+const thresholdAuthority = requireThresholdAuthorityConfig();
 const releaseInputs = collectReleaseInputs({
   deployerAddress: account.address,
 });
@@ -83,13 +81,6 @@ if (balance < minimumBalance) {
     `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(minimumBalance)}`,
   );
 }
-const activationAuthorityCode = await client.getCode({
-  address: policyActivationAuthority,
-});
-if (!activationAuthorityCode || activationAuthorityCode === "0x") {
-  throw new Error("V44_POLICY_ACTIVATION_AUTHORITY_MUST_BE_CONTRACT");
-}
-
 const bytecode = artifactBytecodeEvidence();
 for (const [key, name] of Object.entries(CONTRACT_TYPES)) {
   const compiled = artifact(name);
@@ -108,7 +99,8 @@ const report = {
   chainId: profile.chainId,
   sourceCommit,
   deployer: account.address,
-  policyActivationAuthority,
+  thresholdAuthorityOwners: thresholdAuthority.owners,
+  thresholdAuthorityThreshold: thresholdAuthority.threshold,
   deployerBalanceEth: formatEther(balance),
   minimumBalanceEth: formatEther(minimumBalance),
   genesisStart: releaseInputs.genesisStart,

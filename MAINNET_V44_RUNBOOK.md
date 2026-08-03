@@ -132,8 +132,8 @@ observer public keys must be pinned in each of the control-domain, checkpoint,
 and maturity-authorization policies. Every key and observation attester must
 also have a policy-fixed controller domain, custody domain, and
 corroboration-evidence hash. Activation changes from
-`PENDING_EXTERNAL_ANCHOR` to `ACTIVE` only after a predeployed threshold Safe
-or equivalent contract executes the one-shot `AgentPoolV44PolicyAnchor`
+`PENDING_EXTERNAL_ANCHOR` to `ACTIVE` only after the graph's immutable,
+purpose-limited threshold authority executes the one-shot `AgentPoolV44PolicyAnchor`
 publication. That event fixes the policy hash, general signer-set hash,
 authority owner-set hash and threshold, authority binding root,
 evidence-pipeline commit, and transparency-log root. The activation block and
@@ -218,12 +218,14 @@ Instead it requires the exact acknowledgement
 `I_UNDERSTAND_THIS_IS_VALUELESS_BASE_SEPOLIA` and refuses any chain except
 84532.
 
-Deploy a 2-of-N Base Sepolia Safe (or another reviewed threshold contract)
-first and set its contract address as `V44_POLICY_ACTIVATION_AUTHORITY`. The
-deployer refuses an EOA or an address without runtime code. This Safe does not
-own protocol funds or upgrade contracts; its only role is to execute the
-single policy activation that begins the observation clock. Any later owner
-or threshold change requires a new PolicyAnchor and a new campaign.
+Provide distinct sorted signer addresses in
+`V44_THRESHOLD_AUTHORITY_OWNERS` and a threshold of at least two in
+`V44_THRESHOLD_AUTHORITY_THRESHOLD`. The deployer creates the exact immutable
+`AgentPoolV44ThresholdAuthority` together with the Policy and Maturity anchors.
+That contract has no generic-call or fund-transfer surface: it can only execute
+domain-separated, nonce-protected threshold publications to those two exact
+anchors. Any later owner or threshold change requires a new graph and a fresh
+campaign.
 
 For the existing local test identities, the setup helper creates the ignored
 environment file and a private 24-objective campaign catalog without copying

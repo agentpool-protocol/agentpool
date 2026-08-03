@@ -55,11 +55,12 @@ old addresses, before its 90-day evidence window can begin.
 
 The maturity snapshot reconstructs the complete positive-Work-Power population
 from all finalized `OutcomeRecorded` events since deployment. A caller cannot
-omit a dominant agent from the signed list. The policy-pinned recovery Issue
-and one-milestone recovery Job must remain executable for at least 30 days
-after the maturity snapshot, and the governance dry run is accepted only when
-its pinned transactions, call targets, function selectors, receipts, and
-required events are independently replayed from finalized RPC state.
+omit a dominant agent from the signed list. The policy-pinned, unconsumed
+recovery Issue must remain executable for at least 30 days after the maturity
+snapshot. Separately, the governance dry run must prove one causally linked
+lifecycle—bond funding, that Issue's proposal and vote, finalization, a Job
+created from the same terms, and conservation on refund—by independently
+replaying its calldata, receipts, events, and state from finalized RPC data.
 
 Public provenance reports the immutable testnet contract source commit and
 the currently deployed interface/build commit separately. The interface is

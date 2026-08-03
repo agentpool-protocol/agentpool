@@ -368,6 +368,48 @@ const FINALIZE_ABI = {
   inputs: [{ name: "proposalId", type: "uint256" }],
   outputs: [],
 };
+const ISSUE_TERMS_COMPONENTS = [
+  { name: "issueId", type: "bytes32" },
+  { name: "bootstrapProposer", type: "address" },
+  { name: "specificationHash", type: "bytes32" },
+  { name: "verifier", type: "address" },
+  { name: "expectedEvidenceHash", type: "bytes32" },
+  { name: "objectiveRoot", type: "bytes32" },
+  { name: "validatorRoot", type: "bytes32" },
+  { name: "candidateBudgetCap", type: "uint128" },
+  { name: "totalBudgetCap", type: "uint128" },
+  { name: "maxCandidates", type: "uint16" },
+  { name: "minimumReveals", type: "uint16" },
+  { name: "passScoreBps", type: "uint16" },
+  { name: "minimumValidatorGroups", type: "uint16" },
+  { name: "funding", type: "uint8" },
+  { name: "expiresAt", type: "uint64" },
+];
+const TRANSITION_PROPOSE_ABI = {
+  type: "function",
+  name: "propose",
+  stateMutability: "nonpayable",
+  inputs: [
+    { name: "issue", type: "tuple", components: ISSUE_TERMS_COMPONENTS },
+    { name: "needEvidenceHash", type: "bytes32" },
+    { name: "bond", type: "uint128" },
+    { name: "commitDeadline", type: "uint64" },
+    { name: "revealDeadline", type: "uint64" },
+  ],
+  outputs: [{ name: "proposalId", type: "uint256" }],
+};
+const MATURE_PROPOSE_ABI = {
+  type: "function",
+  name: "propose",
+  stateMutability: "nonpayable",
+  inputs: [
+    { name: "issue", type: "tuple", components: ISSUE_TERMS_COMPONENTS },
+    { name: "bond", type: "uint128" },
+    { name: "commitDeadline", type: "uint64" },
+    { name: "revealDeadline", type: "uint64" },
+  ],
+  outputs: [{ name: "proposalId", type: "uint256" }],
+};
 const PROOF_REGISTRY_READ_ABI = [
   {
     type: "function",
@@ -856,6 +898,7 @@ export function signControlDomainRegistry(
 function maturityAuthorizationBody(authorization) {
   const body = structuredClone(authorization);
   delete body.authorizationId;
+  delete body.publication;
   delete body.signatures;
   return body;
 }
@@ -923,6 +966,7 @@ export function validateMaturityAuthorization(
     trustedProviderSnapshots = null,
     trustedReadinessEvidence = null,
     providerOperatorPolicy = null,
+    trustedMaturityPublication = null,
     preMatureMaximumSuccessfulSystemSettlements =
       PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS,
     minimumNonMaintainerVotingAgents = 5,
@@ -959,6 +1003,25 @@ export function validateMaturityAuthorization(
   ) {
     throw new Error("V44_MATURITY_AUTHORIZATION_IDENTITY_INVALID");
   }
+  if (
+    trustedMaturityPublication?.authorizationId !==
+      `0x${authorization.authorizationId}` ||
+    trustedMaturityPublication?.precommitCheckpointHash !==
+      authorization.precommitCheckpointHash ||
+    trustedMaturityPublication?.exposureSlotId !==
+      authorization.authorizedExposureSlotId ||
+    trustedMaturityPublication?.admissionBundleHash !==
+      authorization.admissionBundleHash ||
+    trustedMaturityPublication?.evidencePipelineCommit !==
+      `0x${authorization.sourceCommit}` ||
+    trustedMaturityPublication?.deploymentManifestHash !==
+      `0x${authorization.deploymentManifestSha256}` ||
+    !Number.isSafeInteger(trustedMaturityPublication?.blockNumber) ||
+    !HASH_PATTERN.test(trustedMaturityPublication?.blockHash ?? "") ||
+    !HASH_PATTERN.test(trustedMaturityPublication?.transactionHash ?? "")
+  ) {
+    throw new Error("V44_MATURITY_ONCHAIN_PUBLICATION_REQUIRED");
+  }
   const readiness = authorization.readinessEvidence;
   if (
     !readiness ||
@@ -968,6 +1031,8 @@ export function validateMaturityAuthorization(
     !ADDRESS_PATTERN.test(readiness.proposalBond?.owner?.toLowerCase?.() ?? "") ||
     !ADDRESS_PATTERN.test(readiness.proposalBond?.spender?.toLowerCase?.() ?? "") ||
     BigInt(readiness.proposalBond?.requiredAmount ?? -1) < 0n ||
+    BigInt(readiness.proposalBond?.onchainMinimumBond ?? -1) !==
+      BigInt(readiness.proposalBond?.requiredAmount ?? 0) ||
     BigInt(readiness.proposalBond?.balance ?? -1) <
       BigInt(readiness.proposalBond?.requiredAmount ?? 0) ||
     BigInt(readiness.proposalBond?.allowance ?? -1) <
@@ -977,9 +1042,6 @@ export function validateMaturityAuthorization(
     !HASH_PATTERN.test(readiness.recoveryIssue?.issueId ?? "") ||
     readiness.recoveryIssue?.state !== "AVAILABLE" ||
     !HASH_PATTERN.test(readiness.recoveryIssue?.evidenceHash ?? "") ||
-    !HASH_PATTERN.test(readiness.recoveryJob?.jobId ?? "") ||
-    readiness.recoveryJob?.state !== "AVAILABLE" ||
-    !HASH_PATTERN.test(readiness.recoveryJob?.evidenceHash ?? "") ||
     !HASH_PATTERN.test(readiness.governanceDryRun?.transcriptHash ?? "") ||
     typeof readiness.governanceDryRun?.verifierVersion !== "string" ||
     readiness.governanceDryRun.verifierVersion.length < 3 ||
@@ -1101,6 +1163,7 @@ export function validateMaturityAuthorization(
         ) ||
         BigInt(agent.workPower ?? 0) <= 0n,
     ) ||
+    !Number.isSafeInteger(snapshot.governanceSnapshotEpoch) ||
     snapshot.successfulSystemSettlements !==
       preMatureMaximumSuccessfulSystemSettlements
   ) {
@@ -1121,6 +1184,8 @@ export function validateMaturityAuthorization(
   if (
     chainSnapshot?.successfulSystemSettlements !==
       snapshot.successfulSystemSettlements ||
+    chainSnapshot?.governanceSnapshotEpoch !==
+      snapshot.governanceSnapshotEpoch ||
     chainSnapshot?.eligibleAgentCount < minimumNonMaintainerVotingAgents ||
     chainSnapshot?.eligibleGroupCount < minimumOnchainGroups ||
     chainSnapshot?.populationComplete !== true ||
@@ -1131,7 +1196,8 @@ export function validateMaturityAuthorization(
       canonicalTotalWorkPower ||
     chainSnapshot?.populationRoot !== sha256Json(canonicalVotingAgents) ||
     sha256Json(chainSnapshot?.votingAgents ?? null) !==
-      sha256Json(canonicalVotingAgents)
+      sha256Json(canonicalVotingAgents) ||
+    readiness.maintainerWorkPower?.epoch !== snapshot.governanceSnapshotEpoch
   ) {
     throw new Error("V44_MATURITY_CHAIN_METRICS_MISMATCH");
   }
@@ -1204,6 +1270,7 @@ export function validateMaturityAuthorization(
     requiredJobPlanHash: maturityAuthorizationPlanHash(
       authorization.authorizationId,
     ),
+    publication: trustedMaturityPublication,
   };
 }
 
@@ -1694,7 +1761,6 @@ export function encodeV44SettlementLifecycleRawLogs({
   systemIssueGate = `0x${"15".repeat(20)}`,
   transitionIssueConsensus = `0x${"16".repeat(20)}`,
   issueHash,
-  issueTermsHash = `0x${"18".repeat(32)}`,
   jobId,
   milestone,
   roundId,
@@ -1712,6 +1778,29 @@ export function encodeV44SettlementLifecycleRawLogs({
   units = 1n,
   governanceEligible = true,
 }) {
+  const issueTerms = {
+    issueId: issueHash,
+    bootstrapProposer: creator,
+    specificationHash,
+    verifier: `0x${"33".repeat(20)}`,
+    expectedEvidenceHash: `0x${"22".repeat(32)}`,
+    objectiveRoot: `0x${"23".repeat(32)}`,
+    validatorRoot: `0x${"2b".repeat(32)}`,
+    candidateBudgetCap: paid,
+    totalBudgetCap: paid,
+    maxCandidates: 1,
+    minimumReveals: 3,
+    passScoreBps: 8_000,
+    minimumValidatorGroups: 3,
+    funding,
+    expiresAt: BigInt(blockNumber + 86_400),
+  };
+  const resolvedIssueTermsHash = keccak256(
+    encodeAbiParameters(
+      [{ type: "tuple", components: ISSUE_TERMS_COMPONENTS }],
+      [issueTerms],
+    ),
+  );
   const receiptId = systemSettlementReceiptId(jobId, milestone);
   const planHash = admissionBundlePlanHash(admissionBundleHash);
   const resolveInput = encodeFunctionData({
@@ -1728,6 +1817,17 @@ export function encodeV44SettlementLifecycleRawLogs({
     abi: [FINALIZE_ABI],
     functionName: "finalize",
     args: [1n],
+  });
+  const proposalInput = encodeFunctionData({
+    abi: [TRANSITION_PROPOSE_ABI],
+    functionName: "propose",
+    args: [
+      issueTerms,
+      admissionBundleHash,
+      1n,
+      BigInt(blockNumber + 3_600),
+      BigInt(blockNumber + 7_200),
+    ],
   });
   const proposalTransactionHash = `0x${"81".repeat(32)}`;
   const commitTransactionHashes = [
@@ -1764,7 +1864,7 @@ export function encodeV44SettlementLifecycleRawLogs({
       eventName: "IssueProposed",
       args: {
         proposalId: 1n,
-        issueHash: issueTermsHash,
+        issueHash: resolvedIssueTermsHash,
         proposer: creator,
         needEvidenceHash: admissionBundleHash,
       },
@@ -1774,6 +1874,7 @@ export function encodeV44SettlementLifecycleRawLogs({
       logIndex: 0,
       address: transitionIssueConsensus,
       transactionTo: transitionIssueConsensus,
+      transactionInput: proposalInput,
     }),
     ...transitionVoters.map((voter, index) =>
       encodeRawEvent({
@@ -1810,7 +1911,7 @@ export function encodeV44SettlementLifecycleRawLogs({
     encodeRawEvent({
       abi: ISSUE_APPROVED_EVENT("TransitionIssueApproved"),
       eventName: "TransitionIssueApproved",
-      args: { issueHash: issueTermsHash },
+      args: { issueHash: resolvedIssueTermsHash },
       transactionHash: approvalTransactionHash,
       blockHash,
       blockNumber: blockNumber - 4,
@@ -2004,7 +2105,7 @@ export function encodeV44SettlementLifecycleRawLogs({
       },
       governanceEligible,
       issueGateState: {
-        termsHash: issueTermsHash.toLowerCase(),
+        termsHash: resolvedIssueTermsHash.toLowerCase(),
         committedBudget: "0",
         candidates: 0,
         transitionApproved: true,
@@ -2156,6 +2257,32 @@ function decodeActualGovernanceRawLog(rawEvent, contracts) {
         call.args[2].toLowerCase() === event.args.deliveryHash.toLowerCase();
     } catch {
       event.deliverInputValid = false;
+    }
+  }
+  if (
+    definition.type === "TRANSITION_ISSUE_PROPOSED" ||
+    definition.type === "MATURE_ISSUE_PROPOSED"
+  ) {
+    try {
+      const transition = definition.type === "TRANSITION_ISSUE_PROPOSED";
+      const call = decodeFunctionData({
+        abi: [transition ? TRANSITION_PROPOSE_ABI : MATURE_PROPOSE_ABI],
+        data: rawEvent.transactionInput,
+      });
+      event.proposalInputValid =
+        call.functionName === "propose" &&
+        call.args[0].issueId.toLowerCase() !== ZERO_HASH &&
+        keccak256(
+          encodeAbiParameters(
+            [{ type: "tuple", components: ISSUE_TERMS_COMPONENTS }],
+            [call.args[0]],
+          ),
+        ).toLowerCase() === event.args.issueHash.toLowerCase() &&
+        Number(call.args[0].expiresAt) * 1_000 > event.blockTimestampMs;
+      event.issueTerms = jsonSafe(call.args[0]);
+    } catch {
+      event.proposalInputValid = false;
+      event.issueTerms = null;
     }
   }
   if (
@@ -2555,6 +2682,7 @@ export async function collectGovernanceEventSnapshot({
     origin,
     finalizedBlockNumber: resolvedFinalizedBlockNumber,
     finalizedBlockHash: finalizedBlock.hash.toLowerCase(),
+    finalizedBlockTimestampMs: Number(BigInt(finalizedBlock.timestamp)) * 1_000,
     providerFinalizedHeadNumber,
     providerFinalizedHeadHash: providerFinalizedHead.hash.toLowerCase(),
     exposurePolicy,
@@ -2650,6 +2778,7 @@ function approvalEvidence(decodedEvents, issueTermsHash) {
   );
   const minimumVoters = transition ? 2 : 5;
   const valid =
+    proposal.proposalInputValid === true &&
     commits.length >= minimumVoters &&
     reveals.length >= minimumVoters &&
     committedVoters.size === commits.length &&
@@ -2893,7 +3022,12 @@ function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
   return systemEvents.sort((left, right) => left.eventId.localeCompare(right.eventId));
 }
 
-function deriveGovernanceExposureStates(decodedEvents, stateReads, exposurePolicy) {
+function deriveGovernanceExposureStates(
+  decodedEvents,
+  stateReads,
+  exposurePolicy,
+  finalizedBlockTimestampMs,
+) {
   if (
     exposurePolicy?.dynamicMaxCandidates !== 1 ||
     exposurePolicy?.maximumGovernanceMilestones !== 1
@@ -2981,14 +3115,35 @@ function deriveGovernanceExposureStates(decodedEvents, stateReads, exposurePolic
   )) {
     const issueTermsHash = approved.args.issueHash.toLowerCase();
     if (boundIssueTerms.has(issueTermsHash)) continue;
+    const proposal = decodedEvents.find(
+      (event) =>
+        ["TRANSITION_ISSUE_PROPOSED", "MATURE_ISSUE_PROPOSED"].includes(
+          event.type,
+        ) && event.args.issueHash.toLowerCase() === issueTermsHash,
+    );
+    if (
+      proposal?.proposalInputValid !== true ||
+      !Number.isSafeInteger(finalizedBlockTimestampMs)
+    ) {
+      throw new Error("V44_GOVERNANCE_APPROVED_ISSUE_TERMS_INVALID");
+    }
+    const expiresAtMs = Number(proposal.issueTerms.expiresAt) * 1_000;
+    const expired = finalizedBlockTimestampMs >= expiresAtMs;
     exposures.push({
       exposureKey: `issue:${issueTermsHash}`,
       issueHash: issueTermsHash,
       issueTermsHash,
       jobId: null,
       milestone: null,
-      state: SLOT_STATES.RESERVED_FOR_ISSUE,
-      anchors: { approvalEventId: approved.eventId },
+      state: expired
+        ? SLOT_STATES.TERMINAL_WITHOUT_SUCCESS
+        : SLOT_STATES.RESERVED_FOR_ISSUE,
+      anchors: {
+        proposalEventId: proposal.eventId,
+        approvalEventId: approved.eventId,
+        expiresAtMs,
+        terminalReason: expired ? "ISSUE_EXPIRED_UNCONSUMED" : null,
+      },
     });
   }
   return exposures.sort((left, right) =>
@@ -3040,11 +3195,13 @@ export function reconcileGovernanceEventSets({
   if (
     !Number.isSafeInteger(first.finalizedBlockNumber) ||
     !HASH_PATTERN.test(first.finalizedBlockHash ?? "") ||
+    !Number.isSafeInteger(first.finalizedBlockTimestampMs) ||
     providers.some(
       (provider) =>
         provider.finalizedBlockNumber !== first.finalizedBlockNumber ||
         provider.finalizedBlockHash?.toLowerCase() !==
           first.finalizedBlockHash.toLowerCase() ||
+        provider.finalizedBlockTimestampMs !== first.finalizedBlockTimestampMs ||
         !Number.isSafeInteger(provider.providerFinalizedHeadNumber) ||
         provider.providerFinalizedHeadNumber < provider.finalizedBlockNumber ||
         !HASH_PATTERN.test(provider.providerFinalizedHeadHash ?? ""),
@@ -3118,6 +3275,7 @@ export function reconcileGovernanceEventSets({
     normalizedSets[0],
     normalizedStateReads[0],
     providers[0].exposurePolicy,
+    first.finalizedBlockTimestampMs,
   );
   const exposureStateRoot = sha256Json(exposureStates);
   const canonicalRoot = sha256Json(canonicalEvents);
@@ -3879,6 +4037,8 @@ export function validateAutonomyEvidence(
         authorizedEvent.jobCreated.blockNumber ||
       evidence.maturityAuthorization.issuedAtMs >=
         authorizedEvent.jobCreated.blockTimestampMs ||
+      maturityAuthorization.publication.blockNumber >=
+        authorizedEvent.jobCreated.blockNumber ||
       evidence.maturityAuthorization.admissionBundleHash !==
         admissionBundles.find(
           (bundle) => bundle.exposureSlotId === authorizedSlotId,
