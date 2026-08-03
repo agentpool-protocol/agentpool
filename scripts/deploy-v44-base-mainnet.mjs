@@ -512,6 +512,7 @@ const taskMarket = await deploy(
     settlementRouter,
     systemIssueGate,
     financeInvariantHash,
+    config.dynamicIssues.maxGovernanceMilestones,
   ],
   "taskMarket",
 );

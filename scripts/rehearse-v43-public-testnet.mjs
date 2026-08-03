@@ -554,6 +554,7 @@ const market = await deploy("AgentPoolV432TaskMarket", [
   settlementRouter,
   systemIssueGate,
   financeInvariantHash,
+  32,
 ]);
 
 function dynamicIssueFor(

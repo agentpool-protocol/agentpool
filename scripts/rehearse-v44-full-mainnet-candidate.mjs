@@ -465,6 +465,7 @@ const taskMarket = await deploy("AgentPoolV432TaskMarket", [
   settlementRouter,
   systemIssueGate,
   financeInvariantHash,
+  config.dynamicIssues.maxGovernanceMilestones,
 ]);
 
 await write("AgentPoolV44Token", token, "configureMinters", [

@@ -22,6 +22,7 @@
     "issueBudgetCapApool": "30",
     "candidateAdmissionBondApool": "10",
     "maxCandidates": 1,
+    "maxGovernanceMilestones": 1,
     "maxLifetimeSeconds": 604800
   },
   "consensus": {

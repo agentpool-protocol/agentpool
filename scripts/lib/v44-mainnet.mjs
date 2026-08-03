@@ -249,6 +249,11 @@ export function loadAndValidateConfig(
   for (const [label, value, minimum] of [
     ["emission.epochSeconds", config.emission?.epochSeconds, 1],
     ["dynamicIssues.maxCandidates", config.dynamicIssues?.maxCandidates, 1],
+    [
+      "dynamicIssues.maxGovernanceMilestones",
+      config.dynamicIssues?.maxGovernanceMilestones,
+      1,
+    ],
     ["dynamicIssues.maxLifetimeSeconds", config.dynamicIssues?.maxLifetimeSeconds, 1],
     ["bootstrap.maxCandidates", config.bootstrap?.maxCandidates, 1],
     ["bootstrap.minimumReveals", config.bootstrap?.minimumReveals, 3],
@@ -267,6 +272,9 @@ export function loadAndValidateConfig(
   }
   if (config.dynamicIssues.maxCandidates !== 1) {
     throw new Error("V44_PRE_MATURE_DYNAMIC_CANDIDATES_MUST_EQUAL_ONE");
+  }
+  if (config.dynamicIssues.maxGovernanceMilestones !== 1) {
+    throw new Error("V44_PRE_MATURE_GOVERNANCE_MILESTONES_MUST_EQUAL_ONE");
   }
   if (
     BigInt(config.emission.coreLifetimeCapApool) +

@@ -1431,6 +1431,9 @@ export function canonicalDeploymentArguments({
       deployment.contracts.settlementRouter,
       deployment.contracts.systemIssueGate,
       deployment.financeInvariantHash,
+      ...(deployment.contracts.policyAnchor
+        ? [config.dynamicIssues.maxGovernanceMilestones]
+        : []),
     ],
   };
   if (deployment.contracts.policyAnchor) {

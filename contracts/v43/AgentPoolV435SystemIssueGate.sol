@@ -119,7 +119,7 @@ contract AgentPoolV435SystemIssueGate is
             dynamicValidatorRoot_ == bytes32(0) ||
             dynamicCandidateBudgetCap_ == 0 ||
             dynamicIssueBudgetCap_ < dynamicCandidateBudgetCap_ ||
-            dynamicMaxCandidates_ != 1 ||
+            dynamicMaxCandidates_ == 0 ||
             dynamicMaxLifetime_ < 1 days ||
             dynamicCandidateBond_ == 0
         ) revert InvalidTerms();

@@ -46,10 +46,10 @@ import {
 ///         finance kernel but makes system evidence and validator membership
 ///         part of the admitted Issue instead of proposer-selected inputs.
 contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
-    /// @notice Governance-eligible reserve work is deliberately one objective
-    ///         per admission before MATURE. Multi-step plans must use separate
-    ///         Issues so the 49-exposure safety bound is exact on chain.
-    uint32 public constant MAX_GOVERNANCE_MILESTONES = 1;
+    /// @notice Deployment-fixed cap for governance-eligible reserve work.
+    ///         The v4.4 mainnet candidate fixes this to one; legacy v4.3
+    ///         rehearsals retain their historical multi-step limit.
+    uint32 public immutable MAX_GOVERNANCE_MILESTONES;
     using SafeERC20 for IERC20;
 
     struct ValidationPolicy {
@@ -81,7 +81,8 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         IAgentPoolV432ProofRegistry proofRegistry_,
         IAgentPoolV43SettlementRouter settlementRouter_,
         IAgentPoolV435SystemIssueGate systemIssueGate_,
-        bytes32 financeInvariantHash_
+        bytes32 financeInvariantHash_,
+        uint32 maximumGovernanceMilestones_
     )
         AgentPoolV43TaskMarket(
             token_,
@@ -97,8 +98,13 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             financeInvariantHash_
         )
     {
+        if (
+            maximumGovernanceMilestones_ == 0 ||
+            maximumGovernanceMilestones_ > MAX_MILESTONES
+        ) revert InvalidTerms();
         proofRegistryV2 = proofRegistry_;
         systemIssueGateV2 = systemIssueGate_;
+        MAX_GOVERNANCE_MILESTONES = maximumGovernanceMilestones_;
     }
 
     function createExternalJob(
@@ -166,7 +172,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         if (issue.funding != uint8(funding)) revert InvalidTerms();
         if (
             issue.bootstrapProposer == address(0) &&
-            terms.length != MAX_GOVERNANCE_MILESTONES
+            terms.length > MAX_GOVERNANCE_MILESTONES
         ) revert InvalidTerms();
         _validatePlan(terms, policies, dependencies);
         if (objectiveProofs.length != terms.length) revert InvalidTerms();

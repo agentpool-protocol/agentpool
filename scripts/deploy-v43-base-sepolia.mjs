@@ -485,6 +485,7 @@ const taskMarket = await deploy(
     settlementRouter,
     systemIssueGate,
     financeInvariantHash,
+    32,
   ],
   "taskMarket",
 );
