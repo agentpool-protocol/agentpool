@@ -447,6 +447,11 @@ const objectiveVerifier = await deploy(
   [],
   "objectiveVerifier",
 );
+await deploy(
+  "AgentPoolV44PolicyAnchor",
+  [],
+  "policyAnchor",
+);
 const verifierCode = await assertCode(objectiveVerifier, "objectiveVerifier");
 const verifierCodehash = keccak256(verifierCode);
 const bootstrap = buildBootstrapTerms({

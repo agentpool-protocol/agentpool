@@ -76,6 +76,10 @@ function governanceProvider(name, value) {
     origin: `https://${name}.example`,
     providerFinalizedHeadNumber: value.finalizedBlockNumber,
     providerFinalizedHeadHash: value.finalizedBlockHash,
+    exposurePolicy: {
+      dynamicMaxCandidates: 1,
+      maximumGovernanceMilestones: 1,
+    },
     ...value,
   };
 }
@@ -847,6 +851,63 @@ test("unsettled governance exposure is counted before settlement", () => {
   );
 });
 
+test("finalized failed work releases active exposure without deleting history", () => {
+  const ledger = newExposureLedger();
+  const slotId = reserveExposureSlot(ledger, descriptor());
+  transitionExposureSlot(
+    ledger,
+    slotId,
+    SLOT_STATES.BOUND_TO_JOB_MILESTONE,
+    { jobId, milestone: 0 },
+  );
+  transitionExposureSlot(
+    ledger,
+    slotId,
+    SLOT_STATES.TERMINAL_WITHOUT_SUCCESS,
+    { descendantFinalized: true, terminalOutcome: "REFUNDED" },
+  );
+  const result = validateExposureLedgerAgainstChainStates(ledger, [
+    {
+      exposureKey: `${jobId}:0`,
+      issueHash: hash("1"),
+      issueTermsHash: hash("1"),
+      jobId,
+      milestone: 0,
+      state: SLOT_STATES.TERMINAL_WITHOUT_SUCCESS,
+      anchors: {},
+    },
+  ]);
+  assert.equal(result.exposureCount, 0);
+  assert.equal(result.terminalExposureCount, 1);
+});
+
+test("multi-candidate or multi-milestone governance policy fails closed", () => {
+  const admission = shadowBundle("ADMISSION");
+  const lifecycle = settlementLifecycle(admission, { blockNumber: 10 });
+  const providers = ["a", "b"].map((name) =>
+    governanceProvider(name, {
+      finalizedBlockNumber: 10,
+      finalizedBlockHash: hash("a"),
+      exposurePolicy: {
+        dynamicMaxCandidates: 3,
+        maximumGovernanceMilestones: 1,
+      },
+      rawEvents: lifecycle.rawEvents,
+      stateReads: lifecycle.stateReads,
+    }),
+  );
+  assert.throws(
+    () =>
+      reconcileGovernanceEventSets({
+        providers,
+        localEventIds: [`${hash("6")}:1`],
+        contracts: governanceContracts,
+        providerOperatorPolicy,
+      }),
+    /V44_GOVERNANCE_EXPOSURE_POLICY_UNSAFE/u,
+  );
+});
+
 test("two RPCs expose a delivered but unsettled SYSTEM milestone", () => {
   const admission = shadowBundle("ADMISSION");
   const lifecycle = settlementLifecycle(admission, { blockNumber: 10 });
@@ -973,6 +1034,8 @@ test("governance snapshots are collected from raw finalized RPC evidence", async
     ],
   );
   const ethCallResults = [
+    encodeAbiParameters([{ type: "uint16" }], [1]),
+    encodeAbiParameters([{ type: "uint32" }], [1]),
     jobResult,
     milestoneResult,
     encodeAbiParameters([{ type: "bool" }], [true]),

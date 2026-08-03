@@ -132,9 +132,13 @@ observer public keys must be pinned in each of the control-domain, checkpoint,
 and maturity-authorization policies. Every key must also have a policy-fixed
 controller domain, custody domain, and corroboration-evidence hash. Activation
 changes from `PENDING_EXTERNAL_ANCHOR` to `ACTIVE` only after an append-only,
-threshold-signed anchor fixes the policy hash, signer-set hash,
-evidence-pipeline commit, sequence, previous anchor, reference block,
-timestamp, and transparency-log root. Changing a key, threshold, provider
+threshold-signed publication to the ownerless `AgentPoolV44PolicyAnchor`
+contract fixes the policy hash, general signer-set hash, activation signer-set
+hash and threshold, activation key-binding root, evidence-pipeline commit,
+sequence, previous anchor, and transparency-log root. The activation block and
+time come only from the finalized chain event. Two policy-pinned RPC operators
+must independently reproduce the successful transaction, event, emitter,
+runtime code hash, block hash, and timestamp. Changing a key, threshold, provider
 operator, verifier, or trusted policy field requires the next activation
 sequence and restarts the evidence window; placeholder or maintainer keys must
 not be used.
@@ -154,8 +158,11 @@ admission bundle, and signed settlement bundle. A post-hoc journal entry,
 caller-provided nonzero receipt identifier, or offchain aggregate event is not
 evidence.
 
-Before maturity, the exposure ledger is fixed to 49 total SYSTEM exposures.
-The cap counts approved candidates, bound Job milestones, delivered work,
+Before maturity, the exposure ledger is fixed to 49 active SYSTEM exposures.
+Every dynamic Issue is restricted to one candidate and every dynamic SYSTEM
+Job to one milestone, so latent candidates or milestones cannot exceed the
+reserved capacity. The cap counts approved candidates, bound Job milestones,
+delivered work,
 validator-authorized work, and successful settlements; an unsettled 50th Job
 cannot evade it. The full exposure-state root and raw governance-evidence root
 are included in every signed checkpoint. The 50th slot is a one-shot
@@ -169,11 +176,17 @@ finalized. The snapshot must show at least five non-maintainer voting agents,
 three onchain operator groups, positive Work Power for every voter, and at
 least three policy-bound control domains with no domain reaching 30%.
 Proposal-bond balance and allowance, exact recovery Issue and Job identifiers,
-a content-addressed governance dry-run transcript and verifier version, an
+a policy-pinned full recovery Issue tuple, a content-addressed governance
+dry-run transcript and independently executed verifier version, an
 append-only incident-ledger root, and historical maintainer Work Power must
 match independently collected readiness evidence. Caller-supplied booleans
 and claimed control-domain strings are ignored. Neither the ledger file nor a
 Runner may raise the limit itself.
+
+Terminal failed, rejected, expired, and refunded Jobs or milestones are kept
+in the exact local/chain reconciliation history but no longer consume an
+active slot. Only a finalized chain state can release a slot; deleting or
+editing a local ledger row cannot do so.
 
 The default command intentionally writes a blocked report until
 `deployments/84532.v44.json`,

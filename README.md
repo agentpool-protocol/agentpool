@@ -30,12 +30,25 @@ SYSTEM exposures, including approved but unconsumed Issues, open Jobs,
 delivered work, validator-authorized work, and settled work. Its 50th
 transition requires a two-RPC, independently signed maturity authorization
 that was precommitted before the 50th job was created.
+Before MATURE, each dynamic Issue is limited to exactly one candidate and each
+SYSTEM Job to exactly one milestone. Terminal failed, rejected, expired, or
+refunded work remains in the historical ledger but releases its active
+exposure slot. This makes the worst-case reserved capacity equal to the
+onchain active-work count instead of an optimistic count of completed work.
 The public-testnet campaign cannot begin until external observer and validator
 keys are pinned; no placeholder maintainer key is accepted. Changing those
 keys, their threshold, provider-operator mapping, or trusted policy hash
 invalidates prior observations. The 90-day window starts only from the latest
-threshold-signed, append-only activation anchor; a timestamp typed into JSON
-is not accepted.
+threshold-signed activation published through the ownerless
+`AgentPoolV44PolicyAnchor` contract. Two policy-pinned RPC operators must
+independently verify the finalized transaction, event, runtime code hash, and
+activation signer-set binding. A timestamp or block typed into JSON is not
+accepted.
+
+The currently public Base Sepolia graph predates these final candidate
+safeguards and therefore remains a read-only historical alpha. The new source
+must be deployed as a fresh v4.4 graph, never used to overwrite or relabel the
+old addresses, before its 90-day evidence window can begin.
 
 Public provenance reports the immutable testnet contract source commit and
 the currently deployed interface/build commit separately. The interface is

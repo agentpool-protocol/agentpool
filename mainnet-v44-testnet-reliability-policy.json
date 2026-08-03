@@ -56,6 +56,7 @@
     },
     "policyActivation": {
       "configurationStatus": "PENDING_EXTERNAL_ANCHOR",
+      "contractKey": "policyAnchor",
       "authorizedPublicKeys": [],
       "signerBindings": [],
       "threshold": 2,
@@ -90,7 +91,32 @@
       "recoveryJobRequired": true,
       "maximumUnresolvedCriticalHigh": 0,
       "governanceDryRunRequired": true,
-      "authorizationScope": "SINGLE_50TH_SYSTEM_SETTLEMENT"
+      "authorizationScope": "SINGLE_50TH_SYSTEM_SETTLEMENT",
+      "readinessEvidencePolicy": {
+        "proposalBond": {
+          "tokenContractKey": "token",
+          "owner": null,
+          "spenderContractKey": "issueConsensus",
+          "requiredAmountWei": null
+        },
+        "recoveryIssue": {
+          "issueId": null,
+          "termsHash": null,
+          "issueTerms": null
+        },
+        "recoveryJob": {
+          "jobId": null,
+          "allowedStates": [1, 2, 3]
+        },
+        "governanceDryRun": {
+          "transcriptPath": null,
+          "transcriptSha256": null,
+          "verifierPath": "scripts/lib/v44-governance-dry-run.mjs",
+          "verifierSha256": null,
+          "verifierVersion": "agentpool-v44-governance-dry-run-v1"
+        },
+        "maintainerAgents": []
+      }
     },
     "generatedCodeBinding": {
       "sourceCommit": "evidencePipeline.sourceCommit",

@@ -1,0 +1,235 @@
+{
+  "contractName": "AgentPoolV44PolicyAnchor",
+  "sourceName": "contracts/v44/AgentPoolV44PolicyAnchor.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "DuplicateAnchor",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAnchor",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "anchorHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "activationSequence",
+          "type": "uint64"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "policyConfigurationHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "signerSetHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "activationSignerSetHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "activationThreshold",
+          "type": "uint16"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "activationBindingsRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes20",
+          "name": "evidencePipelineCommit",
+          "type": "bytes20"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "previousAnchorHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "transparencyLogRoot",
+          "type": "bytes32"
+        }
+      ],
+      "name": "PolicyActivationAnchored",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "DOMAIN",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "anchoredAtBlock",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "activationSequence",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "policyConfigurationHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "signerSetHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "activationSignerSetHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint16",
+          "name": "activationThreshold",
+          "type": "uint16"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "activationBindingsRoot",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes20",
+          "name": "evidencePipelineCommit",
+          "type": "bytes20"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "previousAnchorHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "transparencyLogRoot",
+          "type": "bytes32"
+        }
+      ],
+      "name": "computeAnchorHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "activationSequence",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "policyConfigurationHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "signerSetHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "activationSignerSetHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint16",
+          "name": "activationThreshold",
+          "type": "uint16"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "activationBindingsRoot",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes20",
+          "name": "evidencePipelineCommit",
+          "type": "bytes20"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "previousAnchorHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "transparencyLogRoot",
+          "type": "bytes32"
+        }
+      ],
+      "name": "publish",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "anchorHash",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523460155761039e908161001a8239f35b5f80fdfe6080806040526004361015610012575f80fd5b5f3560e01c9081630cbeeb9e1461020b5750806352a9674b146101e457806373318e01146100765763c7bca10414610048575f80fd5b3461007257602061006a61005b3661023c565b9796909695919594929461029c565b604051908152f35b5f80fd5b34610072576100843661023c565b91979096956001600160401b038216959394929091861580156101dc575b80156101d4575b80156101cc575b80156101be575b80156101b6575b80156101a4575b801561019c575b61018d5781898b888789888e6100e19861029c565b97885f525f60205260018060401b0360405f20541661017e57602099899661ffff60e0967f8fe6005839b402027d2857f44666e554f64063e6b3f8746696a2c65cd6bdebca988a5f525f8f5260405f2060018060401b03431660018060401b03198254161790556040519788528e880152166040860152606085015260018060601b031916608084015260a083015260c0820152a4604051908152f35b6316dce18160e21b5f5260045ffd5b63080631d560e01b5f5260045ffd5b5081156100cc565b506001600160601b03198a16156100c5565b5085156100be565b50600261ffff8516106100b7565b5084156100b0565b5082156100a9565b5087156100a2565b34610072575f3660031901126100725760206040515f5160206103495f395f51905f528152f35b34610072576020366003190112610072576004355f90815260208181526040909120546001600160401b0316825290f35b610120906003190112610072576004356001600160401b0381168103610072579060243590604435906064359060843561ffff81168103610072579060a4359060c4356001600160601b031981168103610072579060e435906101043590565b9795939096949261ffff926040519860208a019a5f5160206103495f395f51905f528c524660408c01523060608c015260018060401b031660808b015260a08a015260c089015260e08801521661010086015261012085015260018060601b03191661014084015261016083015261018082015261018081526101a0810181811060018060401b038211176103345760405251902090565b634e487b7160e01b5f52604160045260245ffdfed1487b2c349880c918359857fd9cf9f3ce8fe93261d970910f5f705566967270a26469706673582212208f6dd7cc5e428a0ab17c654db7cae9aea3c961d1dec3e86d22ef648f470cb8b664736f6c63430008240033",
+  "deployedBytecode": "0x6080806040526004361015610012575f80fd5b5f3560e01c9081630cbeeb9e1461020b5750806352a9674b146101e457806373318e01146100765763c7bca10414610048575f80fd5b3461007257602061006a61005b3661023c565b9796909695919594929461029c565b604051908152f35b5f80fd5b34610072576100843661023c565b91979096956001600160401b038216959394929091861580156101dc575b80156101d4575b80156101cc575b80156101be575b80156101b6575b80156101a4575b801561019c575b61018d5781898b888789888e6100e19861029c565b97885f525f60205260018060401b0360405f20541661017e57602099899661ffff60e0967f8fe6005839b402027d2857f44666e554f64063e6b3f8746696a2c65cd6bdebca988a5f525f8f5260405f2060018060401b03431660018060401b03198254161790556040519788528e880152166040860152606085015260018060601b031916608084015260a083015260c0820152a4604051908152f35b6316dce18160e21b5f5260045ffd5b63080631d560e01b5f5260045ffd5b5081156100cc565b506001600160601b03198a16156100c5565b5085156100be565b50600261ffff8516106100b7565b5084156100b0565b5082156100a9565b5087156100a2565b34610072575f3660031901126100725760206040515f5160206103495f395f51905f528152f35b34610072576020366003190112610072576004355f90815260208181526040909120546001600160401b0316825290f35b610120906003190112610072576004356001600160401b0381168103610072579060243590604435906064359060843561ffff81168103610072579060a4359060c4356001600160601b031981168103610072579060e435906101043590565b9795939096949261ffff926040519860208a019a5f5160206103495f395f51905f528c524660408c01523060608c015260018060401b031660808b015260a08a015260c089015260e08801521661010086015261012085015260018060601b03191661014084015261016083015261018082015261018081526101a0810181811060018060401b038211176103345760405251902090565b634e487b7160e01b5f52604160045260245ffdfed1487b2c349880c918359857fd9cf9f3ce8fe93261d970910f5f705566967270a26469706673582212208f6dd7cc5e428a0ab17c654db7cae9aea3c961d1dec3e86d22ef648f470cb8b664736f6c63430008240033"
+}

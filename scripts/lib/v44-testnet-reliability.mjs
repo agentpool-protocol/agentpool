@@ -37,6 +37,10 @@ import {
   sha256Json as sha256AutonomyJson,
   validateAutonomyEvidence,
 } from "./v44-autonomy-safety.mjs";
+import {
+  GOVERNANCE_DRY_RUN_VERIFIER_VERSION,
+  verifyGovernanceDryRunTranscript,
+} from "./v44-governance-dry-run.mjs";
 
 export const TESTNET_CHAIN_ID = 84532;
 export const TARGET_CHAIN_ID = 8453;
@@ -56,6 +60,25 @@ const ISO_PATTERN =
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}`;
+const POLICY_ANCHOR_DOMAIN = keccak256(
+  toBytes("AGENTPOOL_V44_POLICY_ACTIVATION_ANCHOR_V1"),
+);
+const POLICY_ACTIVATION_ANCHORED_EVENT = {
+  type: "event",
+  name: "PolicyActivationAnchored",
+  inputs: [
+    { name: "anchorHash", type: "bytes32", indexed: true },
+    { name: "activationSequence", type: "uint64", indexed: true },
+    { name: "policyConfigurationHash", type: "bytes32", indexed: true },
+    { name: "signerSetHash", type: "bytes32", indexed: false },
+    { name: "activationSignerSetHash", type: "bytes32", indexed: false },
+    { name: "activationThreshold", type: "uint16", indexed: false },
+    { name: "activationBindingsRoot", type: "bytes32", indexed: false },
+    { name: "evidencePipelineCommit", type: "bytes20", indexed: false },
+    { name: "previousAnchorHash", type: "bytes32", indexed: false },
+    { name: "transparencyLogRoot", type: "bytes32", indexed: false },
+  ],
+};
 const JOB_STATE = Object.freeze({
   SETTLED: 4,
   REJECTED: 5,
@@ -169,6 +192,7 @@ function validateAutonomyPolicy(autonomy) {
     ...new Set(Object.values(V44_CHAIN_EVENT_SIGNATURES)),
   ].sort();
   const activation = autonomy?.policyActivation;
+  const readiness = maturity?.readinessEvidencePolicy;
   if (
     autonomy?.schema !== "agentpool.v44.autonomy-policy/v1" ||
     exposure?.preMatureMaximumSuccessfulSystemSettlements !== 49 ||
@@ -219,6 +243,7 @@ function validateAutonomyPolicy(autonomy) {
     !["ACTIVE", "PENDING_EXTERNAL_ANCHOR"].includes(
       activation?.configurationStatus,
     ) ||
+    activation?.contractKey !== "policyAnchor" ||
     activation?.restartObservationWindowOnChange !== true ||
     !Array.isArray(activation?.authorizedPublicKeys) ||
     !Array.isArray(activation?.signerBindings) ||
@@ -262,6 +287,37 @@ function validateAutonomyPolicy(autonomy) {
     maturity?.maximumUnresolvedCriticalHigh !== 0 ||
     maturity?.governanceDryRunRequired !== true ||
     maturity?.authorizationScope !== "SINGLE_50TH_SYSTEM_SETTLEMENT" ||
+    Object.hasOwn(maturity ?? {}, "trustedReadinessEvidence") ||
+    readiness?.proposalBond?.tokenContractKey !== "token" ||
+    readiness?.proposalBond?.spenderContractKey !== "issueConsensus" ||
+    JSON.stringify(readiness?.recoveryJob?.allowedStates) !==
+      JSON.stringify([1, 2, 3]) ||
+    readiness?.governanceDryRun?.verifierPath !==
+      "scripts/lib/v44-governance-dry-run.mjs" ||
+    readiness?.governanceDryRun?.verifierVersion !==
+      GOVERNANCE_DRY_RUN_VERIFIER_VERSION ||
+    !Array.isArray(readiness?.maintainerAgents) ||
+    new Set(
+      readiness.maintainerAgents.map((agent) => agent?.toLowerCase?.()),
+    ).size !== readiness.maintainerAgents.length ||
+    readiness.maintainerAgents.some((agent) => !isAddress(agent ?? "")) ||
+    (maturity?.configurationStatus === "ACTIVE" &&
+      (!isAddress(readiness.proposalBond.owner ?? "") ||
+        !/^[0-9]+$/u.test(readiness.proposalBond.requiredAmountWei ?? "") ||
+        BigInt(readiness.proposalBond.requiredAmountWei) <= 0n ||
+        !HASH_PATTERN.test(readiness.recoveryIssue?.issueId ?? "") ||
+        !HASH_PATTERN.test(readiness.recoveryIssue?.termsHash ?? "") ||
+        typeof readiness.recoveryIssue?.issueTerms !== "object" ||
+        readiness.recoveryIssue.issueTerms === null ||
+        !HASH_PATTERN.test(readiness.recoveryJob?.jobId ?? "") ||
+        typeof readiness.governanceDryRun?.transcriptPath !== "string" ||
+        readiness.governanceDryRun.transcriptPath.length < 3 ||
+        !SHA256_PATTERN.test(
+          readiness.governanceDryRun?.transcriptSha256 ?? "",
+        ) ||
+        !SHA256_PATTERN.test(
+          readiness.governanceDryRun?.verifierSha256 ?? "",
+        ))) ||
     binding?.sourceCommit !== "evidencePipeline.sourceCommit" ||
     binding?.deploymentManifestSha256 !== "deployment.manifestSha256" ||
     binding?.configSha256 !== "deployment.configSha256"
@@ -318,6 +374,24 @@ export function autonomySignerSetHash(autonomyPolicy) {
   });
 }
 
+export function activationSignerSetHash(activation) {
+  return sha256Json({
+    authorizedPublicKeys: [...(activation?.authorizedPublicKeys ?? [])].sort(),
+    signerBindings: [...(activation?.signerBindings ?? [])].sort((left, right) =>
+      left.signerKeyId.localeCompare(right.signerKeyId),
+    ),
+    threshold: activation?.threshold ?? null,
+  });
+}
+
+export function activationBindingsRoot(activation) {
+  return sha256Json(
+    [...(activation?.signerBindings ?? [])].sort((left, right) =>
+      left.signerKeyId.localeCompare(right.signerKeyId),
+    ),
+  );
+}
+
 export function autonomyPolicyConfigurationHash(autonomyPolicy) {
   return sha256Json({
     schema: autonomyPolicy?.schema ?? null,
@@ -336,35 +410,82 @@ export function autonomyPolicyConfigurationHash(autonomyPolicy) {
 function activationAnchorBody(anchor) {
   const body = structuredClone(anchor ?? {});
   delete body.anchorHash;
+  delete body.publication;
   delete body.signatures;
   return body;
 }
 
+function asBytes32(value, label) {
+  if (SHA256_PATTERN.test(value ?? "")) return `0x${value}`;
+  if (HASH_PATTERN.test(value ?? "")) return value.toLowerCase();
+  throw new Error(`V44_POLICY_ACTIVATION_${label}_INVALID`);
+}
+
+function computePolicyAnchorHash(anchor) {
+  if (!isAddress(anchor?.policyAnchorAddress ?? "")) {
+    throw new Error("V44_POLICY_ACTIVATION_CONTRACT_INVALID");
+  }
+  return keccak256(
+    encodeAbiParameters(
+      [
+        "bytes32",
+        "uint256",
+        "address",
+        "uint64",
+        "bytes32",
+        "bytes32",
+        "bytes32",
+        "uint16",
+        "bytes32",
+        "bytes20",
+        "bytes32",
+        "bytes32",
+      ].map((type) => ({ type })),
+      [
+        POLICY_ANCHOR_DOMAIN,
+        BigInt(anchor.chainId),
+        getAddress(anchor.policyAnchorAddress),
+        BigInt(anchor.activationSequence),
+        asBytes32(anchor.policyConfigurationHash, "POLICY_HASH"),
+        asBytes32(anchor.signerSetHash, "SIGNER_SET_HASH"),
+        asBytes32(anchor.activationSignerSetHash, "ACTIVATION_SIGNER_HASH"),
+        anchor.activationThreshold,
+        asBytes32(anchor.activationBindingsRoot, "BINDINGS_ROOT"),
+        `0x${anchor.evidencePipelineCommit}`,
+        asBytes32(anchor.previousAnchorHash, "PREVIOUS_HASH"),
+        asBytes32(anchor.transparencyLogRoot, "TRANSPARENCY_ROOT"),
+      ],
+    ),
+  );
+}
+
 export function createPolicyActivationAnchor({
+  policyAnchorAddress,
   policyConfigurationHash,
   signerSetHash,
+  activationSignerSetHash: pinnedActivationSignerSetHash,
+  activationThreshold,
+  activationBindingsRoot: pinnedActivationBindingsRoot,
   evidencePipelineCommit,
   activationSequence,
   previousAnchorHash,
-  anchoredBlock,
-  anchoredBlockHash,
-  anchoredTimestampMs,
   transparencyLogRoot,
 }) {
   const body = {
-    schema: "agentpool.v44.policy-activation-anchor/v1",
+    schema: "agentpool.v44.policy-activation-anchor/v2",
     chainId: TESTNET_CHAIN_ID,
+    policyAnchorAddress: getAddress(policyAnchorAddress).toLowerCase(),
     policyConfigurationHash,
     signerSetHash,
+    activationSignerSetHash: pinnedActivationSignerSetHash,
+    activationThreshold,
+    activationBindingsRoot: pinnedActivationBindingsRoot,
     evidencePipelineCommit,
     activationSequence,
     previousAnchorHash,
-    anchoredBlock,
-    anchoredBlockHash,
-    anchoredTimestampMs,
     transparencyLogRoot,
   };
-  return { ...body, anchorHash: sha256Json(body), signatures: [] };
+  return { ...body, anchorHash: computePolicyAnchorHash(body), signatures: [] };
 }
 
 export function signPolicyActivationAnchor(
@@ -378,7 +499,7 @@ export function signPolicyActivationAnchor(
   });
   return {
     ...anchor,
-    anchorHash: sha256Json(body),
+    anchorHash: computePolicyAnchorHash(body),
     signatures: [
       ...(anchor.signatures ?? []),
       {
@@ -398,6 +519,8 @@ export function validatePolicyActivationAnchor(
     expectedPolicyConfigurationHash = null,
     expectedSignerSetHash = null,
     expectedEvidencePipelineCommit = null,
+    expectedPolicyAnchorAddress = null,
+    trustedPublications = null,
   } = {},
 ) {
   if (activation?.configurationStatus !== "ACTIVE") {
@@ -414,6 +537,14 @@ export function validatePolicyActivationAnchor(
     throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
   }
   validatePinnedSignerPolicy(activation, "autonomyV2.policyActivation");
+  const expectedActivationSignerSetHash = activationSignerSetHash(activation);
+  const expectedActivationBindingsRoot = activationBindingsRoot(activation);
+  const publications = new Map(
+    (trustedPublications ?? []).map((publication) => [
+      publication.anchorHash?.toLowerCase?.(),
+      publication,
+    ]),
+  );
   const bindings = new Map(
     activation.signerBindings.map((binding) => [binding.signerKeyId, binding]),
   );
@@ -422,21 +553,31 @@ export function validatePolicyActivationAnchor(
   let previousTimestampMs = -1;
   for (const [index, anchor] of activation.anchorHistory.entries()) {
     const body = activationAnchorBody(anchor);
+    const publication = publications.get(anchor.anchorHash?.toLowerCase?.());
     if (
-      anchor?.schema !== "agentpool.v44.policy-activation-anchor/v1" ||
+      anchor?.schema !== "agentpool.v44.policy-activation-anchor/v2" ||
       anchor.chainId !== TESTNET_CHAIN_ID ||
+      !isAddress(anchor.policyAnchorAddress ?? "") ||
+      (expectedPolicyAnchorAddress !== null &&
+        anchor.policyAnchorAddress.toLowerCase() !==
+          expectedPolicyAnchorAddress.toLowerCase()) ||
       !SHA256_PATTERN.test(anchor.policyConfigurationHash ?? "") ||
       !SHA256_PATTERN.test(anchor.signerSetHash ?? "") ||
+      anchor.activationSignerSetHash !== expectedActivationSignerSetHash ||
+      anchor.activationThreshold !== activation.threshold ||
+      anchor.activationBindingsRoot !== expectedActivationBindingsRoot ||
       !/^[0-9a-f]{40}$/u.test(anchor.evidencePipelineCommit ?? "") ||
       anchor.activationSequence !== index + 1 ||
       anchor.previousAnchorHash !== previousAnchorHash ||
-      !Number.isSafeInteger(anchor.anchoredBlock) ||
-      anchor.anchoredBlock <= previousBlock ||
-      !HASH_PATTERN.test(anchor.anchoredBlockHash ?? "") ||
-      !Number.isSafeInteger(anchor.anchoredTimestampMs) ||
-      anchor.anchoredTimestampMs <= previousTimestampMs ||
       !HASH_PATTERN.test(anchor.transparencyLogRoot ?? "") ||
-      anchor.anchorHash !== sha256Json(body)
+      anchor.anchorHash !== computePolicyAnchorHash(body) ||
+      !publication ||
+      publication.anchorHash.toLowerCase() !== anchor.anchorHash.toLowerCase() ||
+      publication.activationSequence !== anchor.activationSequence ||
+      publication.blockNumber <= previousBlock ||
+      publication.blockTimestampMs <= previousTimestampMs ||
+      !HASH_PATTERN.test(publication.blockHash ?? "") ||
+      !HASH_PATTERN.test(publication.transactionHash ?? "")
     ) {
       throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
     }
@@ -474,10 +615,11 @@ export function validatePolicyActivationAnchor(
       throw new Error("V44_POLICY_ACTIVATION_SIGNATURE_THRESHOLD");
     }
     previousAnchorHash = anchor.anchorHash;
-    previousBlock = anchor.anchoredBlock;
-    previousTimestampMs = anchor.anchoredTimestampMs;
+    previousBlock = publication.blockNumber;
+    previousTimestampMs = publication.blockTimestampMs;
   }
   const anchor = activation.anchorHistory.at(-1);
+  const publication = publications.get(anchor.anchorHash.toLowerCase());
   if (
     (expectedPolicyConfigurationHash !== null &&
       anchor.policyConfigurationHash !== expectedPolicyConfigurationHash) ||
@@ -488,12 +630,13 @@ export function validatePolicyActivationAnchor(
   ) {
     throw new Error("V44_POLICY_ACTIVATION_ANCHOR_INVALID");
   }
-  return { valid: true, status: "ACTIVE", anchor };
+  return { valid: true, status: "ACTIVE", anchor, publication };
 }
 
 export function autonomyPolicyIdentity(
   autonomyPolicy,
   evidencePipelineCommit = null,
+  { policyAnchorAddress = null, trustedPublications = null } = {},
 ) {
   const activation = validatePolicyActivationAnchor(
     autonomyPolicy?.policyActivation,
@@ -502,22 +645,218 @@ export function autonomyPolicyIdentity(
         autonomyPolicyConfigurationHash(autonomyPolicy),
       expectedSignerSetHash: autonomySignerSetHash(autonomyPolicy),
       expectedEvidencePipelineCommit: evidencePipelineCommit,
+      expectedPolicyAnchorAddress: policyAnchorAddress,
+      trustedPublications,
     },
   );
   return {
     signerSetHash: autonomySignerSetHash(autonomyPolicy),
     activatedAt:
       activation.valid === true
-        ? new Date(activation.anchor.anchoredTimestampMs).toISOString()
+        ? new Date(activation.publication.blockTimestampMs).toISOString()
         : null,
     activatedBlock:
-      activation.valid === true ? activation.anchor.anchoredBlock : null,
+      activation.valid === true ? activation.publication.blockNumber : null,
     activationStatus:
       activation.valid === true ? "ACTIVE" : activation.status,
     activationSequence:
       activation.valid === true ? activation.anchor.activationSequence : null,
     activationAnchorHash:
       activation.valid === true ? activation.anchor.anchorHash : null,
+  };
+}
+
+function canonicalActivationPublication(value) {
+  return {
+    anchorHash: value.anchorHash.toLowerCase(),
+    activationSequence: Number(value.activationSequence),
+    policyConfigurationHash: value.policyConfigurationHash.toLowerCase(),
+    signerSetHash: value.signerSetHash.toLowerCase(),
+    activationSignerSetHash: value.activationSignerSetHash.toLowerCase(),
+    activationThreshold: Number(value.activationThreshold),
+    activationBindingsRoot: value.activationBindingsRoot.toLowerCase(),
+    evidencePipelineCommit: value.evidencePipelineCommit.toLowerCase(),
+    previousAnchorHash: value.previousAnchorHash.toLowerCase(),
+    transparencyLogRoot: value.transparencyLogRoot.toLowerCase(),
+    transactionHash: value.transactionHash.toLowerCase(),
+    logIndex: Number(value.logIndex),
+    blockNumber: Number(value.blockNumber),
+    blockHash: value.blockHash.toLowerCase(),
+    blockTimestampMs: Number(value.blockTimestampMs),
+  };
+}
+
+export async function collectPolicyActivationPublicationSnapshot({
+  rpcUrl,
+  deployment,
+  activation,
+  providerOperatorId,
+  client: suppliedClient = null,
+}) {
+  if (
+    activation?.configurationStatus !== "ACTIVE" ||
+    !isAddress(deployment?.contracts?.policyAnchor ?? "") ||
+    typeof providerOperatorId !== "string" ||
+    providerOperatorId.length < 3
+  ) {
+    throw new Error("V44_POLICY_ACTIVATION_COLLECTION_INPUT_INVALID");
+  }
+  const origin = new URL(rpcUrl).origin;
+  const client =
+    suppliedClient ?? createPublicClient({ transport: http(rpcUrl) });
+  const finalizedHead = await client.getBlock({ blockTag: "finalized" });
+  const policyAnchorAddress = getAddress(deployment.contracts.policyAnchor);
+  const expectedRuntimeHash = keccak256(
+    artifact(CONTRACT_TYPES.policyAnchor).deployedBytecode,
+  );
+  const publications = [];
+  for (const anchor of activation.anchorHistory ?? []) {
+    if (
+      !HASH_PATTERN.test(anchor?.publication?.transactionHash ?? "") ||
+      !Number.isSafeInteger(anchor?.publication?.logIndex) ||
+      anchor.publication.logIndex < 0
+    ) {
+      throw new Error("V44_POLICY_ACTIVATION_PUBLICATION_LOCATOR_INVALID");
+    }
+    const transactionHash = anchor.publication.transactionHash;
+    const [receipt, transaction] = await Promise.all([
+      client.getTransactionReceipt({ hash: transactionHash }),
+      client.getTransaction({ hash: transactionHash }),
+    ]);
+    if (
+      receipt.status !== "success" ||
+      transaction.to?.toLowerCase() !== policyAnchorAddress.toLowerCase() ||
+      receipt.blockNumber > finalizedHead.number
+    ) {
+      throw new Error("V44_POLICY_ACTIVATION_PUBLICATION_INVALID");
+    }
+    const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+    const runtimeCode = await client.getCode({
+      address: policyAnchorAddress,
+      blockNumber: receipt.blockNumber,
+    });
+    if (
+      block.hash?.toLowerCase() !== receipt.blockHash?.toLowerCase() ||
+      !runtimeCode ||
+      keccak256(runtimeCode) !== expectedRuntimeHash
+    ) {
+      throw new Error("V44_POLICY_ACTIVATION_RUNTIME_INVALID");
+    }
+    const log = receipt.logs.find(
+      (candidate) =>
+        candidate.address?.toLowerCase() === policyAnchorAddress.toLowerCase() &&
+        Number(candidate.logIndex) === anchor.publication.logIndex,
+    );
+    if (!log) {
+      throw new Error("V44_POLICY_ACTIVATION_EVENT_MISSING");
+    }
+    let decoded;
+    try {
+      decoded = decodeEventLog({
+        abi: [POLICY_ACTIVATION_ANCHORED_EVENT],
+        eventName: "PolicyActivationAnchored",
+        data: log.data,
+        topics: log.topics,
+        strict: true,
+      });
+    } catch {
+      throw new Error("V44_POLICY_ACTIVATION_EVENT_INVALID");
+    }
+    const publication = canonicalActivationPublication({
+      ...decoded.args,
+      transactionHash,
+      logIndex: anchor.publication.logIndex,
+      blockNumber: receipt.blockNumber,
+      blockHash: receipt.blockHash,
+      blockTimestampMs: Number(block.timestamp) * 1_000,
+    });
+    const expected = canonicalActivationPublication({
+      anchorHash: anchor.anchorHash,
+      activationSequence: anchor.activationSequence,
+      policyConfigurationHash: asBytes32(
+        anchor.policyConfigurationHash,
+        "POLICY_HASH",
+      ),
+      signerSetHash: asBytes32(anchor.signerSetHash, "SIGNER_SET_HASH"),
+      activationSignerSetHash: asBytes32(
+        anchor.activationSignerSetHash,
+        "ACTIVATION_SIGNER_HASH",
+      ),
+      activationThreshold: anchor.activationThreshold,
+      activationBindingsRoot: asBytes32(
+        anchor.activationBindingsRoot,
+        "BINDINGS_ROOT",
+      ),
+      evidencePipelineCommit: `0x${anchor.evidencePipelineCommit}`,
+      previousAnchorHash: anchor.previousAnchorHash,
+      transparencyLogRoot: anchor.transparencyLogRoot,
+      transactionHash,
+      logIndex: anchor.publication.logIndex,
+      blockNumber: receipt.blockNumber,
+      blockHash: receipt.blockHash,
+      blockTimestampMs: Number(block.timestamp) * 1_000,
+    });
+    if (sha256Json(publication) !== sha256Json(expected)) {
+      throw new Error("V44_POLICY_ACTIVATION_EVENT_MISMATCH");
+    }
+    publications.push(publication);
+  }
+  return {
+    identity: providerOperatorId,
+    providerOperatorId,
+    origin,
+    providerFinalizedHeadNumber: Number(finalizedHead.number),
+    providerFinalizedHeadHash: finalizedHead.hash.toLowerCase(),
+    runtimeCodeHash: expectedRuntimeHash,
+    publications,
+  };
+}
+
+export function reconcilePolicyActivationPublicationSnapshots({
+  providers,
+  providerOperatorPolicy,
+}) {
+  if (!Array.isArray(providers) || providers.length < 2) {
+    throw new Error("V44_POLICY_ACTIVATION_TWO_PROVIDERS_REQUIRED");
+  }
+  const pinned = new Map(
+    (providerOperatorPolicy?.providers ?? []).map((provider) => [
+      provider.operatorId,
+      provider,
+    ]),
+  );
+  if (
+    providerOperatorPolicy?.configurationStatus !== "ACTIVE" ||
+    new Set(providers.map((provider) => provider.providerOperatorId)).size < 2 ||
+    new Set(
+      providers.map(
+        (provider) =>
+          pinned.get(provider.providerOperatorId)?.custodyDomainId,
+      ),
+    ).size < 2 ||
+    providers.some((provider) => {
+      const policy = pinned.get(provider.providerOperatorId);
+      return (
+        !policy ||
+        !policy.allowedOrigins.includes(provider.origin) ||
+        provider.identity !== provider.providerOperatorId
+      );
+    })
+  ) {
+    throw new Error("V44_POLICY_ACTIVATION_PROVIDER_INDEPENDENCE_INVALID");
+  }
+  const publicationRoot = sha256Json(providers[0].publications);
+  if (
+    providers.some(
+      (provider) => sha256Json(provider.publications) !== publicationRoot,
+    )
+  ) {
+    throw new Error("V44_POLICY_ACTIVATION_PROVIDER_CONFLICT");
+  }
+  return {
+    publications: providers[0].publications,
+    publicationRoot,
+    providerCount: providers.length,
   };
 }
 
@@ -653,7 +992,13 @@ export function validateTestnetDeployment(deployment, sourceEvidence) {
   ) {
     throw new Error("V44_TESTNET_DEPLOYMENT_SOURCE_INVALID");
   }
-  const contractKeys = Object.keys(CONTRACT_TYPES);
+  const currentContractKeys = Object.keys(CONTRACT_TYPES);
+  const legacyContractKeys = currentContractKeys.filter(
+    (key) => key !== "policyAnchor",
+  );
+  const contractKeys = Object.hasOwn(deployment.contracts ?? {}, "policyAnchor")
+    ? currentContractKeys
+    : legacyContractKeys;
   exactKeys(deployment.contracts, contractKeys, "DEPLOYMENT_CONTRACT");
   exactKeys(
     deployment.deployedCodeHashes,
@@ -675,7 +1020,9 @@ export function validateTestnetDeployment(deployment, sourceEvidence) {
     contractKeys,
     "DEPLOYMENT_ARTIFACT_TYPE",
   );
-  const artifactTypes = [...new Set(Object.values(CONTRACT_TYPES))];
+  const artifactTypes = [
+    ...new Set(contractKeys.map((key) => CONTRACT_TYPES[key])),
+  ];
   exactKeys(
     deployment.artifactCreationBytecodeHashes,
     artifactTypes,
@@ -854,11 +1201,21 @@ export function verifyHistoricalContractSourceEvidenceFile(
 
 export function validateObservations(
   observations,
-  { policy, policySha256, deployment, evidencePipelineCommit },
+  {
+    policy,
+    policySha256,
+    deployment,
+    evidencePipelineCommit,
+    trustedActivationPublications = null,
+  },
 ) {
   const policyIdentity = autonomyPolicyIdentity(
     policy?.autonomyV2,
     evidencePipelineCommit,
+    {
+      policyAnchorAddress: deployment.contracts.policyAnchor,
+      trustedPublications: trustedActivationPublications,
+    },
   );
   if (
     observations?.schema !== OBSERVATION_SCHEMA ||
@@ -1076,9 +1433,12 @@ export function canonicalDeploymentArguments({
       deployment.financeInvariantHash,
     ],
   };
+  if (deployment.contracts.policyAnchor) {
+    argumentsByKey.policyAnchor = [];
+  }
   exactKeys(
     argumentsByKey,
-    Object.keys(CONTRACT_TYPES),
+    Object.keys(deployment.contracts),
     "CANONICAL_DEPLOYMENT_ARGUMENT",
   );
   return argumentsByKey;
@@ -2055,6 +2415,252 @@ export async function collectMaturityProviderSnapshot({
   };
 }
 
+function resolvePinnedEvidencePath(relativePath, label) {
+  const resolved = path.resolve(ROOT, relativePath ?? "");
+  const rootPrefix = `${path.resolve(ROOT)}${path.sep}`.toLowerCase();
+  if (!resolved.toLowerCase().startsWith(rootPrefix)) {
+    throw new Error(`V44_MATURITY_${label}_PATH_INVALID`);
+  }
+  return resolved;
+}
+
+export async function collectMaturityReadinessEvidence({
+  rpcUrl,
+  deployment,
+  maturityPolicy,
+  observations,
+  trustedProviderSnapshot,
+  client: suppliedClient = null,
+}) {
+  const origin = new URL(rpcUrl).origin;
+  if (
+    maturityPolicy?.configurationStatus !== "ACTIVE" ||
+    trustedProviderSnapshot?.origin !== origin ||
+    !Number.isSafeInteger(trustedProviderSnapshot?.finalizedBlockNumber)
+  ) {
+    throw new Error("V44_MATURITY_READINESS_COLLECTION_INPUT_INVALID");
+  }
+  const readinessPolicy = maturityPolicy.readinessEvidencePolicy;
+  const blockNumber = BigInt(trustedProviderSnapshot.finalizedBlockNumber);
+  const client =
+    suppliedClient ?? createPublicClient({ transport: http(rpcUrl) });
+  const [block, finalizedHead] = await Promise.all([
+    client.getBlock({ blockNumber }),
+    client.getBlock({ blockTag: "finalized" }),
+  ]);
+  if (
+    blockNumber > finalizedHead.number ||
+    block.hash?.toLowerCase() !==
+      trustedProviderSnapshot.finalizedBlockHash?.toLowerCase()
+  ) {
+    throw new Error("V44_MATURITY_READINESS_BLOCK_MISMATCH");
+  }
+  const tokenAddress = getAddress(
+    deployment.contracts[readinessPolicy.proposalBond.tokenContractKey],
+  );
+  const bondOwner = getAddress(readinessPolicy.proposalBond.owner);
+  const bondSpender = getAddress(
+    deployment.contracts[readinessPolicy.proposalBond.spenderContractKey],
+  );
+  const requiredAmount = BigInt(
+    readinessPolicy.proposalBond.requiredAmountWei,
+  );
+  const tokenAbi = artifact(CONTRACT_TYPES.token).abi;
+  const gateAbi = artifact(CONTRACT_TYPES.systemIssueGate).abi;
+  const marketAbi = artifact(CONTRACT_TYPES.taskMarket).abi;
+  const ledgerAbi = artifact(CONTRACT_TYPES.contributionLedger).abi;
+  const read = (address, abi, functionName, args = []) =>
+    client.readContract({
+      address,
+      abi,
+      functionName,
+      args,
+      blockNumber,
+    });
+  const issueTerms = readinessPolicy.recoveryIssue.issueTerms;
+  const recoveryIssueId = readinessPolicy.recoveryIssue.issueId;
+  if (issueTerms.issueId?.toLowerCase?.() !== recoveryIssueId.toLowerCase()) {
+    throw new Error("V44_MATURITY_RECOVERY_ISSUE_ID_MISMATCH");
+  }
+  const recoveryJobId = readinessPolicy.recoveryJob.jobId;
+  const maintainerAgents = readinessPolicy.maintainerAgents.map((agent) =>
+    getAddress(agent),
+  );
+  const [
+    balance,
+    allowance,
+    computedIssueHash,
+    issueUsage,
+    transitionApproved,
+    matureApproved,
+    recoveryJob,
+    recoveryJobGovernanceEligible,
+    epoch,
+  ] = await Promise.all([
+    read(tokenAddress, tokenAbi, "balanceOf", [bondOwner]),
+    read(tokenAddress, tokenAbi, "allowance", [bondOwner, bondSpender]),
+    read(
+      deployment.contracts.systemIssueGate,
+      gateAbi,
+      "hashIssue",
+      [issueTerms],
+    ),
+    read(
+      deployment.contracts.systemIssueGate,
+      gateAbi,
+      "usage",
+      [recoveryIssueId],
+    ),
+    read(
+      deployment.contracts.systemIssueGate,
+      gateAbi,
+      "transitionApprovedIssueHash",
+      [readinessPolicy.recoveryIssue.termsHash],
+    ),
+    read(
+      deployment.contracts.systemIssueGate,
+      gateAbi,
+      "approvedIssueHash",
+      [readinessPolicy.recoveryIssue.termsHash],
+    ),
+    read(deployment.contracts.taskMarket, marketAbi, "jobs", [recoveryJobId]),
+    read(
+      deployment.contracts.taskMarket,
+      marketAbi,
+      "jobGovernanceEligible",
+      [recoveryJobId],
+    ),
+    read(
+      deployment.contracts.contributionLedger,
+      ledgerAbi,
+      "latestGovernanceEpoch",
+    ),
+  ]);
+  const usageTermsHash = issueUsage[0].toLowerCase();
+  const usageCandidates = Number(issueUsage[2]);
+  const issueAvailable =
+    computedIssueHash.toLowerCase() ===
+      readinessPolicy.recoveryIssue.termsHash.toLowerCase() &&
+    (transitionApproved === true || matureApproved === true) &&
+    usageCandidates === 0 &&
+    usageTermsHash === ZERO_BYTES32;
+  const recoveryJobState = Number(recoveryJob[2]);
+  const jobAvailable =
+    readinessPolicy.recoveryJob.allowedStates.includes(recoveryJobState) &&
+    recoveryJobGovernanceEligible === false;
+  const maintainerRows = [];
+  for (const agent of maintainerAgents) {
+    const units = await read(
+      deployment.contracts.contributionLedger,
+      ledgerAbi,
+      "votingPowerAt",
+      [agent, epoch, 8],
+    );
+    maintainerRows.push({ agent: agent.toLowerCase(), units: units.toString() });
+  }
+  maintainerRows.sort((left, right) => left.agent.localeCompare(right.agent));
+  const maintainerUnits = maintainerRows.reduce(
+    (sum, row) => sum + BigInt(row.units),
+    0n,
+  );
+  const transcriptPath = resolvePinnedEvidencePath(
+    readinessPolicy.governanceDryRun.transcriptPath,
+    "DRY_RUN_TRANSCRIPT",
+  );
+  const verifierPath = resolvePinnedEvidencePath(
+    readinessPolicy.governanceDryRun.verifierPath,
+    "DRY_RUN_VERIFIER",
+  );
+  if (
+    !fs.existsSync(transcriptPath) ||
+    sha256File(transcriptPath) !==
+      readinessPolicy.governanceDryRun.transcriptSha256 ||
+    sha256File(verifierPath) !==
+      readinessPolicy.governanceDryRun.verifierSha256
+  ) {
+    throw new Error("V44_MATURITY_DRY_RUN_CONTENT_INVALID");
+  }
+  const transcript = readJson(transcriptPath);
+  const dryRun = verifyGovernanceDryRunTranscript(transcript, {
+    deploymentManifestSha256: deployment.manifestSha256,
+    finalizedBlockNumber: Number(blockNumber),
+  });
+  const incidents = observations.incidents ?? [];
+  const unresolvedCriticalHigh = incidents.filter(
+    (incident) =>
+      ["CRITICAL", "HIGH"].includes(incident?.severity) &&
+      incident?.status !== "RESOLVED",
+  ).length;
+  const proposalBond = {
+    token: tokenAddress.toLowerCase(),
+    owner: bondOwner.toLowerCase(),
+    spender: bondSpender.toLowerCase(),
+    requiredAmount: requiredAmount.toString(),
+    balance: balance.toString(),
+    allowance: allowance.toString(),
+    blockNumber: Number(blockNumber),
+  };
+  proposalBond.evidenceHash = sha256AutonomyJson({
+    ...proposalBond,
+    blockHash: block.hash.toLowerCase(),
+  });
+  const recoveryIssue = {
+    issueId: recoveryIssueId.toLowerCase(),
+    state: issueAvailable ? "AVAILABLE" : "UNAVAILABLE",
+    termsHash: computedIssueHash.toLowerCase(),
+  };
+  recoveryIssue.evidenceHash = sha256AutonomyJson({
+    ...recoveryIssue,
+    transitionApproved,
+    matureApproved,
+    usageCandidates,
+    usageTermsHash,
+    blockNumber: Number(blockNumber),
+    blockHash: block.hash.toLowerCase(),
+  });
+  const recoveryJobEvidence = {
+    jobId: recoveryJobId.toLowerCase(),
+    state: jobAvailable ? "AVAILABLE" : "UNAVAILABLE",
+    onchainState: recoveryJobState,
+  };
+  recoveryJobEvidence.evidenceHash = sha256AutonomyJson({
+    ...recoveryJobEvidence,
+    governanceEligible: recoveryJobGovernanceEligible,
+    blockNumber: Number(blockNumber),
+    blockHash: block.hash.toLowerCase(),
+  });
+  return {
+    proposalBond,
+    recoveryIssue,
+    recoveryJob: recoveryJobEvidence,
+    governanceDryRun: {
+      transcriptHash: sha256AutonomyJson(transcript),
+      verifierVersion: dryRun.verifierVersion,
+      passed: dryRun.passed,
+    },
+    incidentLedger: {
+      root: sha256AutonomyJson(incidents),
+      unresolvedCriticalHigh,
+    },
+    maintainerWorkPower: {
+      agentSetRoot: sha256AutonomyJson(maintainerRows),
+      epoch: Number(epoch),
+      units: maintainerUnits.toString(),
+    },
+  };
+}
+
+export function reconcileMaturityReadinessEvidence(evidenceSets) {
+  if (!Array.isArray(evidenceSets) || evidenceSets.length < 2) {
+    throw new Error("V44_MATURITY_READINESS_TWO_PROVIDERS_REQUIRED");
+  }
+  const root = sha256AutonomyJson(evidenceSets[0]);
+  if (evidenceSets.some((evidence) => sha256AutonomyJson(evidence) !== root)) {
+    throw new Error("V44_MATURITY_READINESS_PROVIDER_CONFLICT");
+  }
+  return { evidence: evidenceSets[0], root, providerCount: evidenceSets.length };
+}
+
 export function evaluateReliability({
   policy,
   deployment,
@@ -2069,6 +2675,7 @@ export function evaluateReliability({
   deploymentFileSha256,
   observationsFileSha256,
   sourceEvidenceFileSha256,
+  trustedActivationPublications = null,
 }) {
   const blockers = [];
   const generatedAtMs = Date.parse(generatedAt);
@@ -2080,6 +2687,10 @@ export function evaluateReliability({
   const policyIdentity = autonomyPolicyIdentity(
     policy.autonomyV2,
     evidencePipelineCommit,
+    {
+      policyAnchorAddress: deployment.contracts.policyAnchor,
+      trustedPublications: trustedActivationPublications,
+    },
   );
   const observationDays =
     Number.isFinite(chainStartedAt) && Number.isFinite(chainEndedAt)
@@ -2347,11 +2958,49 @@ export async function buildReliabilityReport({
   );
   const evidencePipelineCommit = currentGitCommit().toLowerCase();
   const observations = readJson(observationsPath);
+  const trustedAutonomyPolicy = policyEvidence.policy.autonomyV2 ?? {};
+  const governanceProviderPolicy =
+    trustedAutonomyPolicy.governanceEventProviderPolicy ?? null;
+  const operatorFor = (url) => {
+    const origin = new URL(url).origin;
+    const provider = governanceProviderPolicy?.providers?.find((candidate) =>
+      candidate.allowedOrigins.includes(origin),
+    );
+    if (!provider) {
+      throw new Error("V44_GOVERNANCE_RPC_OPERATOR_NOT_PINNED");
+    }
+    return provider.operatorId;
+  };
+  let trustedActivationPublications = null;
+  if (
+    trustedAutonomyPolicy.policyActivation?.configurationStatus === "ACTIVE"
+  ) {
+    const activationSnapshots = await Promise.all([
+      collectPolicyActivationPublicationSnapshot({
+        rpcUrl,
+        deployment,
+        activation: trustedAutonomyPolicy.policyActivation,
+        providerOperatorId: operatorFor(rpcUrl),
+      }),
+      collectPolicyActivationPublicationSnapshot({
+        rpcUrl: secondaryRpcUrl,
+        deployment,
+        activation: trustedAutonomyPolicy.policyActivation,
+        providerOperatorId: operatorFor(secondaryRpcUrl),
+      }),
+    ]);
+    trustedActivationPublications =
+      reconcilePolicyActivationPublicationSnapshots({
+        providers: activationSnapshots,
+        providerOperatorPolicy: governanceProviderPolicy,
+      }).publications;
+  }
   validateObservations(observations, {
     policy: policyEvidence.policy,
     policySha256: policyEvidence.policySha256,
     deployment,
     evidencePipelineCommit,
+    trustedActivationPublications,
   });
   const autonomyEvidence =
     observations.autonomyEvidence ?? {
@@ -2378,8 +3027,6 @@ export async function buildReliabilityReport({
     policyEvidence.policy,
     deployment,
   );
-  const trustedAutonomyPolicy =
-    policyEvidence.policy.autonomyV2 ?? {};
   const governancePolicy =
     trustedAutonomyPolicy.governanceEventPolicy;
   const resolvedGovernancePolicy = governancePolicy
@@ -2402,23 +3049,11 @@ export async function buildReliabilityReport({
     : null;
   let governanceEventProviders = [];
   let canonicalVerificationBlock = verificationBlockNumber;
-  const governanceProviderPolicy =
-    trustedAutonomyPolicy.governanceEventProviderPolicy ?? null;
   if (
     Number.isSafeInteger(resolvedGovernancePolicy?.fromBlock) &&
     resolvedGovernancePolicy.fromBlock >= 0 &&
     governanceProviderPolicy?.configurationStatus === "ACTIVE"
   ) {
-    const operatorFor = (url) => {
-      const origin = new URL(url).origin;
-      const provider = governanceProviderPolicy.providers.find((candidate) =>
-        candidate.allowedOrigins.includes(origin),
-      );
-      if (!provider) {
-        throw new Error("V44_GOVERNANCE_RPC_OPERATOR_NOT_PINNED");
-      }
-      return provider.operatorId;
-    };
     const primaryGovernance = await collectGovernanceEventSnapshot({
       rpcUrl,
       providerOperatorId: operatorFor(rpcUrl),
@@ -2460,6 +3095,7 @@ export async function buildReliabilityReport({
     secondary: secondaryRpcEvidence,
   });
   let trustedMaturityProviderSnapshots = null;
+  let trustedReadinessEvidence = null;
   if (autonomyEvidence.maturityAuthorization) {
     trustedMaturityProviderSnapshots = await Promise.all([
       collectMaturityProviderSnapshot({
@@ -2473,6 +3109,25 @@ export async function buildReliabilityReport({
         authorization: autonomyEvidence.maturityAuthorization,
       }),
     ]);
+    const readinessEvidenceSets = await Promise.all([
+      collectMaturityReadinessEvidence({
+        rpcUrl,
+        deployment,
+        maturityPolicy: trustedAutonomyPolicy.maturityAuthorizationPolicy,
+        observations,
+        trustedProviderSnapshot: trustedMaturityProviderSnapshots[0],
+      }),
+      collectMaturityReadinessEvidence({
+        rpcUrl: secondaryRpcUrl,
+        deployment,
+        maturityPolicy: trustedAutonomyPolicy.maturityAuthorizationPolicy,
+        observations,
+        trustedProviderSnapshot: trustedMaturityProviderSnapshots[1],
+      }),
+    ]);
+    trustedReadinessEvidence = reconcileMaturityReadinessEvidence(
+      readinessEvidenceSets,
+    ).evidence;
   }
   const autonomyV2 = validateAutonomyEvidence(
     {
@@ -2494,6 +3149,7 @@ export async function buildReliabilityReport({
             expectedSourceCommit: evidencePipelineCommit,
             expectedDeploymentManifestSha256: deployment.manifestSha256,
             trustedProviderSnapshots: trustedMaturityProviderSnapshots,
+            trustedReadinessEvidence,
             providerOperatorPolicy: governanceProviderPolicy,
           }
         : null,
@@ -2520,6 +3176,7 @@ export async function buildReliabilityReport({
     deploymentFileSha256: sha256File(deploymentPath),
     observationsFileSha256: sha256File(observationsPath),
     sourceEvidenceFileSha256: verifiedSource.fileSha256,
+    trustedActivationPublications,
   });
 }
 

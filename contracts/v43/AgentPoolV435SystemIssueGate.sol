@@ -119,7 +119,7 @@ contract AgentPoolV435SystemIssueGate is
             dynamicValidatorRoot_ == bytes32(0) ||
             dynamicCandidateBudgetCap_ == 0 ||
             dynamicIssueBudgetCap_ < dynamicCandidateBudgetCap_ ||
-            dynamicMaxCandidates_ == 0 ||
+            dynamicMaxCandidates_ != 1 ||
             dynamicMaxLifetime_ < 1 days ||
             dynamicCandidateBond_ == 0
         ) revert InvalidTerms();
@@ -382,7 +382,7 @@ contract AgentPoolV435SystemIssueGate is
             (transition && issue.validatorRoot != dynamicValidatorRoot) ||
             issue.candidateBudgetCap > dynamicCandidateBudgetCap ||
             issue.totalBudgetCap > dynamicIssueBudgetCap ||
-            issue.maxCandidates > dynamicMaxCandidates ||
+            issue.maxCandidates != dynamicMaxCandidates ||
             issue.minimumReveals < MIN_DYNAMIC_REVEALS ||
             issue.minimumValidatorGroups < MIN_DYNAMIC_GROUPS ||
             issue.passScoreBps < MIN_DYNAMIC_PASS_SCORE_BPS ||

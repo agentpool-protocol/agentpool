@@ -21,7 +21,7 @@
     "candidateBudgetCapApool": "10",
     "issueBudgetCapApool": "30",
     "candidateAdmissionBondApool": "10",
-    "maxCandidates": 3,
+    "maxCandidates": 1,
     "maxLifetimeSeconds": 604800
   },
   "consensus": {

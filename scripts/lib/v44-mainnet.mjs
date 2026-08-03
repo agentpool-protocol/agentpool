@@ -62,6 +62,7 @@ export const V44_GATE_EVIDENCE = Object.freeze({
 
 export const CONTRACT_TYPES = Object.freeze({
   token: "AgentPoolV44Token",
+  policyAnchor: "AgentPoolV44PolicyAnchor",
   settlementRouter: "AgentPoolV43SettlementRouter",
   releaseRegistry: "AgentPoolV43ReleaseRegistry",
   capacityRegistry: "AgentPoolV43CapacityRegistry",
@@ -263,6 +264,9 @@ export function loadAndValidateConfig(
   }
   if (config.emission.epochSeconds !== 604_800) {
     throw new Error("V44_EPOCH_DURATION_MUST_BE_ONE_WEEK");
+  }
+  if (config.dynamicIssues.maxCandidates !== 1) {
+    throw new Error("V44_PRE_MATURE_DYNAMIC_CANDIDATES_MUST_EQUAL_ONE");
   }
   if (
     BigInt(config.emission.coreLifetimeCapApool) +

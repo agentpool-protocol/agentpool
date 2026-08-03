@@ -110,6 +110,9 @@ export function v44ReadinessBoundary() {
       reservedWorstCase: 0,
       automaticBootstrapMaximum: 49,
       allUnsettledStatesCountTowardMaximum: true,
+      dynamicCandidatesPerIssue: 1,
+      dynamicMilestonesPerSystemJob: 1,
+      terminalFailuresReleaseActiveCapacityOnlyAfterFinalizedChainState: true,
       exposureStateRootVerified: false,
       admissionShadowBundleRequired: true,
       settlementShadowBundleRequired: true,
@@ -142,7 +145,14 @@ export function v44ReadinessBoundary() {
       "POLICY_ACTIVATION_ANCHOR_NOT_PUBLISHED",
       "INDEPENDENT_RPC_OPERATORS_NOT_PINNED",
       "OBJECTIVE_MATURITY_READINESS_EVIDENCE_NOT_COMPLETE",
+      "CURRENT_TESTNET_GRAPH_PREDATES_POLICY_ANCHOR",
     ],
+    candidateSafeguards: {
+      ownerlessPolicyAnchorImplemented: true,
+      policyAnchorDeployedOnCurrentPublicGraph: false,
+      readinessCollectedFromTwoFinalizedRpcSnapshots: true,
+      currentPublicGraphIsHistoricalReadOnlyAlpha: true,
+    },
   };
 }
 

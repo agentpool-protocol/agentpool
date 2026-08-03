@@ -397,6 +397,13 @@ const PROOF_REGISTRY_READ_ABI = [
 const SYSTEM_ISSUE_GATE_READ_ABI = [
   {
     type: "function",
+    name: "dynamicMaxCandidates",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "maximum", type: "uint16" }],
+  },
+  {
+    type: "function",
     name: "usage",
     stateMutability: "view",
     inputs: [{ name: "issueId", type: "bytes32" }],
@@ -422,6 +429,13 @@ const SYSTEM_ISSUE_GATE_READ_ABI = [
   },
 ];
 const TASK_MARKET_READ_ABI = [
+  {
+    type: "function",
+    name: "MAX_GOVERNANCE_MILESTONES",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "maximum", type: "uint32" }],
+  },
   {
     type: "function",
     name: "jobs",
@@ -2236,6 +2250,46 @@ export async function collectGovernanceEventSnapshot({
     throw new Error("V44_GOVERNANCE_EVIDENCE_BLOCK_INVALID");
   }
   const resolvedFinalizedBlockNumber = evidenceBlockNumber;
+  const readAtEvidenceBlock = async (to, abi, functionName, args = []) =>
+    rpcRequest(
+      rpcUrl,
+      "eth_call",
+      [
+        {
+          to,
+          data: encodeFunctionData({ abi, functionName, args }),
+        },
+        rpcQuantity(resolvedFinalizedBlockNumber),
+      ],
+      fetcher,
+    );
+  const [dynamicMaxCandidatesResult, maximumGovernanceMilestonesResult] =
+    await Promise.all([
+      readAtEvidenceBlock(
+        contractPolicy.systemIssueGate,
+        SYSTEM_ISSUE_GATE_READ_ABI,
+        "dynamicMaxCandidates",
+      ),
+      readAtEvidenceBlock(
+        contractPolicy.taskMarket,
+        TASK_MARKET_READ_ABI,
+        "MAX_GOVERNANCE_MILESTONES",
+      ),
+    ]);
+  const exposurePolicy = {
+    dynamicMaxCandidates: Number(
+      decodeAbiParameters(
+        [{ type: "uint16" }],
+        dynamicMaxCandidatesResult,
+      )[0],
+    ),
+    maximumGovernanceMilestones: Number(
+      decodeAbiParameters(
+        [{ type: "uint32" }],
+        maximumGovernanceMilestonesResult,
+      )[0],
+    ),
+  };
   const logs = await rpcRequest(
     rpcUrl,
     "eth_getLogs",
@@ -2481,6 +2535,7 @@ export async function collectGovernanceEventSnapshot({
     finalizedBlockHash: finalizedBlock.hash.toLowerCase(),
     providerFinalizedHeadNumber,
     providerFinalizedHeadHash: providerFinalizedHead.hash.toLowerCase(),
+    exposurePolicy,
     rawEvents,
     stateReads,
   };
@@ -2816,7 +2871,13 @@ function deriveActualSystemSettlementEvents(decodedEvents, stateReads) {
   return systemEvents.sort((left, right) => left.eventId.localeCompare(right.eventId));
 }
 
-function deriveGovernanceExposureStates(decodedEvents, stateReads) {
+function deriveGovernanceExposureStates(decodedEvents, stateReads, exposurePolicy) {
+  if (
+    exposurePolicy?.dynamicMaxCandidates !== 1 ||
+    exposurePolicy?.maximumGovernanceMilestones !== 1
+  ) {
+    throw new Error("V44_GOVERNANCE_EXPOSURE_POLICY_UNSAFE");
+  }
   const deliveries = uniqueMap(
     decodedEvents.filter((event) => event.type === "MILESTONE_DELIVERED"),
     (event) => lifecycleKey(event.args.jobId, event.args.milestone),
@@ -2865,8 +2926,13 @@ function deriveGovernanceExposureStates(decodedEvents, stateReads) {
       outcomes.has(systemSettlementReceiptId(jobId, milestone)) &&
       Number(state.job?.state) === 4 &&
       Number(state.milestoneState?.state) === 4;
+    const terminalWithoutSuccess =
+      [5, 6, 7].includes(Number(state.job?.state)) ||
+      [5, 6].includes(Number(state.milestoneState?.state));
     const stateName = successfullyConsumed
       ? SLOT_STATES.SUCCESSFULLY_CONSUMED
+      : terminalWithoutSuccess
+        ? SLOT_STATES.TERMINAL_WITHOUT_SUCCESS
       : validatorAuthorized
         ? SLOT_STATES.VALIDATOR_AUTHORIZED
         : delivered !== undefined
@@ -3000,6 +3066,15 @@ export function reconcileGovernanceEventSets({
       ),
     ),
   );
+  const exposurePolicyRoot = sha256Json(providers[0].exposurePolicy ?? null);
+  if (
+    providers.some(
+      (provider) =>
+        sha256Json(provider.exposurePolicy ?? null) !== exposurePolicyRoot,
+    )
+  ) {
+    return { eligible: false, reason: "EVENT_EXPOSURE_POLICY_CONFLICT" };
+  }
   const rawEvidenceRoot = sha256Json({
     events: normalizedSets[0],
     stateReads: normalizedStateReads[0],
@@ -3020,6 +3095,7 @@ export function reconcileGovernanceEventSets({
   const exposureStates = deriveGovernanceExposureStates(
     normalizedSets[0],
     normalizedStateReads[0],
+    providers[0].exposurePolicy,
   );
   const exposureStateRoot = sha256Json(exposureStates);
   const canonicalRoot = sha256Json(canonicalEvents);
@@ -3041,6 +3117,7 @@ export function reconcileGovernanceEventSets({
     canonicalRoot,
     rawEvidenceRoot,
     exposureStateRoot,
+    exposurePolicyRoot,
     exposureStates,
     events: canonicalEvents,
     providerCount: providers.length,
@@ -3178,26 +3255,27 @@ export function validateExposureLedgerAgainstChainStates(
   { maximumExposure = PRE_MATURE_MAXIMUM_SUCCESSFUL_SYSTEM_SETTLEMENTS } = {},
 ) {
   const chainStates = exposureStates ?? [];
+  const activeChainStates = chainStates.filter(
+    (state) => state.state !== SLOT_STATES.TERMINAL_WITHOUT_SUCCESS,
+  );
   if (
     !Number.isSafeInteger(maximumExposure) ||
     maximumExposure < 1 ||
-    chainStates.length > maximumExposure
+    activeChainStates.length > maximumExposure
   ) {
     throw new Error("V44_CHAIN_EXPOSURE_LIMIT_EXCEEDED");
   }
-  const liveSlots = Object.values(ledger?.slots ?? {}).filter(
-    (slot) => slot.state !== SLOT_STATES.TERMINAL_WITHOUT_SUCCESS,
-  );
-  if (liveSlots.length !== chainStates.length) {
+  const allSlots = Object.values(ledger?.slots ?? {});
+  if (allSlots.length !== chainStates.length) {
     throw new Error("V44_CHAIN_EXPOSURE_CARDINALITY_MISMATCH");
   }
   const slotsByLifecycle = new Map(
-    liveSlots
+    allSlots
       .filter((slot) => slot.jobId !== null && slot.milestone !== null)
       .map((slot) => [lifecycleKey(slot.jobId, slot.milestone), slot]),
   );
   const unboundSlotsByIssue = groupedBy(
-    liveSlots.filter((slot) => slot.jobId === null),
+    allSlots.filter((slot) => slot.jobId === null),
     (slot) => slot.issueHash,
   );
   for (const chainState of chainStates) {
@@ -3217,7 +3295,8 @@ export function validateExposureLedgerAgainstChainStates(
   }
   return {
     valid: true,
-    exposureCount: chainStates.length,
+    exposureCount: activeChainStates.length,
+    terminalExposureCount: chainStates.length - activeChainStates.length,
     exposureStateRoot: sha256Json(chainStates),
   };
 }

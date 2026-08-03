@@ -46,6 +46,10 @@ import {
 ///         finance kernel but makes system evidence and validator membership
 ///         part of the admitted Issue instead of proposer-selected inputs.
 contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
+    /// @notice Governance-eligible reserve work is deliberately one objective
+    ///         per admission before MATURE. Multi-step plans must use separate
+    ///         Issues so the 49-exposure safety bound is exact on chain.
+    uint32 public constant MAX_GOVERNANCE_MILESTONES = 1;
     using SafeERC20 for IERC20;
 
     struct ValidationPolicy {
@@ -160,6 +164,10 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             revert Unauthorized();
         }
         if (issue.funding != uint8(funding)) revert InvalidTerms();
+        if (
+            issue.bootstrapProposer == address(0) &&
+            terms.length != MAX_GOVERNANCE_MILESTONES
+        ) revert InvalidTerms();
         _validatePlan(terms, policies, dependencies);
         if (objectiveProofs.length != terms.length) revert InvalidTerms();
         for (uint256 index = 0; index < terms.length; index++) {

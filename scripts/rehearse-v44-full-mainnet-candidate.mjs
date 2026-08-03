@@ -386,6 +386,42 @@ const evolutionConsensus = await deploy("AgentPoolV43EvolutionConsensus", [
   proposalBond,
 ]);
 const verifier = await deploy("AgentPoolV43HashObjectiveVerifier");
+const policyAnchor = await deploy("AgentPoolV44PolicyAnchor");
+const policyAnchorArgs = [
+  1n,
+  keccak256(toBytes("v44-policy-configuration")),
+  keccak256(toBytes("v44-autonomy-signer-set")),
+  keccak256(toBytes("v44-activation-signer-set")),
+  2,
+  keccak256(toBytes("v44-activation-bindings")),
+  `0x${sourceCommit}`,
+  `0x${"00".repeat(32)}`,
+  keccak256(toBytes("v44-transparency-log")),
+];
+const policyAnchorHash = await read(
+  "AgentPoolV44PolicyAnchor",
+  policyAnchor,
+  "computeAnchorHash",
+  policyAnchorArgs,
+);
+await write(
+  "AgentPoolV44PolicyAnchor",
+  policyAnchor,
+  "publish",
+  policyAnchorArgs,
+);
+check(
+  "policy anchor is append-only and chain-timestamped",
+  Number(
+    await read(
+      "AgentPoolV44PolicyAnchor",
+      policyAnchor,
+      "anchoredAtBlock",
+      [policyAnchorHash],
+    ),
+  ) > 0,
+  true,
+);
 const verifierCode = await vm.stateManager.getCode(
   createAddressFromString(verifier),
 );
@@ -1185,6 +1221,7 @@ const report = {
     contributionLedger: ledger,
     proofRegistry,
     evolutionConsensus,
+    policyAnchor,
     verifier,
     systemIssueGate,
     transitionConsensus,
