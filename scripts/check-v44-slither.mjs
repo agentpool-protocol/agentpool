@@ -43,6 +43,15 @@ function detectorProfile(detectors) {
   const profile = {};
   for (const detector of detectors) {
     if (detector.impact !== "High" && detector.impact !== "Medium") continue;
+    // Slither 0.11.6 can still report imported OpenZeppelin internals even
+    // with --exclude-dependencies. Keep the release-gate baseline scoped to
+    // findings that actually touch project-owned Solidity sources.
+    const projectOwned = (detector.elements || []).some((element) => {
+      const relative = element.source_mapping?.filename_relative;
+      return typeof relative === "string" &&
+        relative.replaceAll("\\\\", "/").startsWith("contracts/");
+    });
+    if (!projectOwned) continue;
     const key = `${detector.impact}:${detector.check}`;
     profile[key] = (profile[key] || 0) + 1;
   }

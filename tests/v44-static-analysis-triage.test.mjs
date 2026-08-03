@@ -145,6 +145,7 @@ test("v4.4 static-analysis triage remains explicitly non-authoritative", () => {
   assert.match(checker, /V44_SLITHER_BASELINE_CHANGED/);
   assert.match(checker, /detector\.impact !== "High"/);
   assert.match(checker, /detector\.impact !== "Medium"/);
+  assert.match(checker, /startsWith\("contracts\/"\)/);
   assert.match(workflow, /security-static:/);
   assert.match(workflow, /slither-analyzer==0\.11\.6/);
   assert.match(workflow, /solc-select install 0\.8\.36/);

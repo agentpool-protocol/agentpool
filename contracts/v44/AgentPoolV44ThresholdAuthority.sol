@@ -68,7 +68,7 @@ contract AgentPoolV44ThresholdAuthority {
             owners_.length < threshold_ ||
             owners_.length > type(uint16).max
         ) revert InvalidConfiguration();
-        address previous;
+        address previous = address(0);
         for (uint256 index = 0; index < owners_.length; index++) {
             address owner = owners_[index];
             // Canonical ascending owners make the signer set unambiguous.
@@ -265,7 +265,7 @@ contract AgentPoolV44ThresholdAuthority {
         ) revert InvalidOperation();
         if (signatures.length < _threshold) revert InvalidSignatures();
         digest = operationDigest(actionHash, operationNonce, deadline);
-        address previous;
+        address previous = address(0);
         for (uint256 index = 0; index < signatures.length; index++) {
             address signer = digest.recover(signatures[index]);
             if (!isOwner[signer] || signer <= previous) {
