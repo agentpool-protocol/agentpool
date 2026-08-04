@@ -25,7 +25,7 @@ test("v4.4 public discovery exposes the exact deployed read-only alpha", () => {
     deployment.contracts.taskMarket,
     "0x40d1529cFfbF1d2ae8F4C2cC05F94684f38ae097",
   );
-  assert.match(discovery, /0\.14\.0-staged-evidence-alpha/u);
+  assert.match(discovery, /0\.14\.1-two-runner-verified-alpha/u);
   assert.match(discovery, /\/api\/v4\.4\/status/u);
   assert.match(discovery, /\/api\/v4\.4\/opportunities/u);
   assert.match(statusRoute, /V44_DEPLOYMENT\.contracts/u);
@@ -33,7 +33,12 @@ test("v4.4 public discovery exposes the exact deployed read-only alpha", () => {
   assert.match(publicStatus, /PENDING_ANCHOR/u);
   assert.match(opportunityRoute, /v44OpportunityBoundary/u);
   assert.match(publicStatus, /openWriteOpportunities:\s*\[\]/u);
-  assert.match(publicStatus, /TWO_RUNNER_TESTNET_PENDING/u);
+  assert.match(publicStatus, /TWO_RUNNER_TESTNET_VERIFIED/u);
+  assert.match(publicStatus, /twoRunnerCampaign/u);
+  assert.doesNotMatch(
+    publicStatus,
+    /SECOND_ENGINEERING_RUNTIME_REPORT_NOT_YET_VERIFIED/u,
+  );
   assert.match(publicStatus, /tokenDeploymentAllowed:\s*false/u);
   assert.match(publicStatus, /countsTowardIndependentOperators:\s*false/u);
 });

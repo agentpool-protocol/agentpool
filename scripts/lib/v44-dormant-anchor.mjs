@@ -32,6 +32,7 @@ export function buildDormantAnchorIntent({
   campaign,
   policy,
   artifact,
+  candidateSourceCommit,
   gitTreeId,
   releaseConfigBytes,
   stagingPolicyBytes,
@@ -62,6 +63,14 @@ export function buildDormantAnchorIntent({
     throw new Error("TWO_RUNNER_CAMPAIGN_NOT_ELIGIBLE");
   }
   assertDormantAnchorArtifact(artifact);
+  const resolvedSourceCommit = requireHex(
+    candidateSourceCommit,
+    candidateSourceCommit?.length === 64 ? 64 : 40,
+    "CANDIDATE_SOURCE_COMMIT",
+  );
+  if (campaign.sourceCommit !== resolvedSourceCommit) {
+    throw new Error("CAMPAIGN_SOURCE_COMMIT_MISMATCH");
+  }
   requireHex(gitTreeId, 40, "GIT_TREE_ID");
   const evidenceRoot = requireHex(
     campaign.engineeringEvidenceRoot,
@@ -75,6 +84,7 @@ export function buildDormantAnchorIntent({
     schema: "agentpool.v44.dormant-mainnet-anchor-intent/v1",
     targetChainId: 8453,
     contract: "AgentPoolV44DormantDeploymentAnchor",
+    candidateSourceCommit: resolvedSourceCommit,
     economicSystemDeployed: false,
     tokenDeployed: false,
     emissionEnabled: false,

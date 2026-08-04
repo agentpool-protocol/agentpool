@@ -9,6 +9,7 @@ import deployment from "@/deployments/84532.v44.json";
 import policy from "@/mainnet-v44-testnet-reliability-policy.json";
 import tokenArtifact from "@/artifacts/AgentPoolV44Token.json";
 import deploymentStages from "@/mainnet-v44-deployment-stages.json";
+import twoRunnerCampaign from "@/v44-two-runner-campaign.json";
 
 const RPC_PROVIDERS = [
   {
@@ -33,6 +34,7 @@ const client = createPublicClient({
 export const V44_DEPLOYMENT = deployment;
 export const V44_RELIABILITY_POLICY = policy;
 export const V44_DEPLOYMENT_STAGES = deploymentStages;
+export const V44_TWO_RUNNER_CAMPAIGN = twoRunnerCampaign;
 
 function genesisState(nowSeconds: number) {
   return nowSeconds < deployment.genesisStart
@@ -97,8 +99,14 @@ export function v44ReadinessBoundary() {
     mode: "READ_ONLY_ALPHA",
     publicWriteReady: false,
     deploymentStages: {
-      current: "TWO_RUNNER_TESTNET_PENDING",
+      current: "TWO_RUNNER_TESTNET_VERIFIED",
       engineeringEvidence: {
+        verified: twoRunnerCampaign.eligible,
+        sourceCommit: twoRunnerCampaign.sourceCommit,
+        reportCount: twoRunnerCampaign.reportCount,
+        runtimeFamilies: twoRunnerCampaign.runtimeFamilies,
+        processInstanceCount: twoRunnerCampaign.processInstanceCount,
+        engineeringEvidenceRoot: twoRunnerCampaign.engineeringEvidenceRoot,
         requiredRuntimeFamilies:
           deploymentStages.stages.TWO_RUNNER_TESTNET.minimumRuntimeFamilies,
         sameOperatorAllowed: true,
@@ -108,6 +116,7 @@ export function v44ReadinessBoundary() {
       },
       dormantMainnet: {
         eligibleAfterTwoRunnerEvidence: true,
+        eligibleNow: twoRunnerCampaign.dormantAnchorDeploymentEligible,
         allowedContracts:
           deploymentStages.stages.DORMANT_MAINNET.allowedContracts,
         tokenDeploymentAllowed: false,
@@ -179,7 +188,6 @@ export function v44ReadinessBoundary() {
       "INDEPENDENT_RPC_OPERATORS_NOT_PINNED",
       "OBJECTIVE_MATURITY_READINESS_EVIDENCE_NOT_COMPLETE",
       "CURRENT_TESTNET_GRAPH_PREDATES_POLICY_ANCHOR",
-      "SECOND_ENGINEERING_RUNTIME_REPORT_NOT_YET_VERIFIED",
       "DORMANT_ANCHOR_NOT_DEPLOYED",
       "MATURE_ECONOMY_REQUIRES_SEPARATE_GATED_DEPLOYMENT",
     ],
@@ -188,6 +196,8 @@ export function v44ReadinessBoundary() {
       policyAnchorDeployedOnCurrentPublicGraph: false,
       readinessCollectedFromTwoFinalizedRpcSnapshots: true,
       currentPublicGraphIsHistoricalReadOnlyAlpha: true,
+      twoRunnerEngineeringEvidenceVerified: twoRunnerCampaign.eligible,
+      sameOperatorEvidenceCountsAsIndependence: false,
     },
   };
 }

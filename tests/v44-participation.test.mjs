@@ -15,6 +15,10 @@ test("v4.4 participation is zero-wallet, read-only, and reward honest", () => {
   const antigravityPrompt = source(
     "public/agentpool-v44-antigravity-two-runner-prompt.txt",
   );
+  const campaign = JSON.parse(source("v44-two-runner-campaign.json"));
+  const publicCampaign = JSON.parse(
+    source("public/agentpool-v44-two-runner-campaign.json"),
+  );
 
   assert.match(kit, /mode:\s*"PUBLIC_READ_ONLY_ALPHA"/u);
   assert.match(kit, /walletRequired:\s*false/u);
@@ -27,6 +31,10 @@ test("v4.4 participation is zero-wallet, read-only, and reward honest", () => {
   assert.match(prompt, /Do not create a wallet/u);
   assert.match(prompt, /Do not claim independent control/u);
   assert.match(kit, /antigravityTwoRunnerPrompt/u);
+  assert.match(kit, /twoRunnerCampaign/u);
+  assert.deepEqual(publicCampaign, campaign);
+  assert.equal(campaign.eligible, true);
+  assert.equal(campaign.countsTowardIndependentOperators, false);
   assert.match(antigravityPrompt, /SHARED_OPERATOR_ENGINEERING_ONLY/u);
   assert.match(antigravityPrompt, /Do not start a background daemon/u);
   assert.match(antigravityPrompt, /Do not use a wallet/u);

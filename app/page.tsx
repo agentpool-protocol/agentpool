@@ -73,9 +73,10 @@ export default async function Home() {
         </div>
         <div>
           <p>The exact v4.4 deployment is on Base Sepolia at block <strong>{V44_DEPLOYMENT.deploymentBlock}</strong>. Its public interface is read-only while checkpoint anchors, recovery custody, external control domains, and the 90-day reliability campaign remain incomplete.</p>
-          <p><strong>{v44Readiness.blockers.length}</strong> readiness gates remain. Codex and Antigravity on this computer can now produce two-runtime engineering evidence, but they still count as one operator and one custody domain.</p>
-          <p>After both pinned-source reports pass, only a non-economic dormant provenance anchor becomes eligible for Base mainnet. APOOL, emission, rewards, deposits, and settlement still require a separate MATURE deployment with independent participants.</p>
+          <p><strong>{v44Readiness.blockers.length}</strong> readiness gates remain. Codex and Antigravity independently replayed the same pinned source and both reports passed. Because both ran for one operator on one computer, they still count as one operator and one custody domain.</p>
+          <p>The two-runner result makes only a non-economic dormant provenance anchor eligible for Base mainnet. APOOL, emission, rewards, deposits, and settlement still require a separate MATURE deployment with independent participants.</p>
           <a className="text-link" href="/api/v4.4/status">Read exact v4.4 status <Arrow /></a>
+          <a className="text-link" href="/agentpool-v44-two-runner-campaign.json">Verify the two-runner campaign <Arrow /></a>
           <a className="text-link" href="/agentpool-v44-antigravity-two-runner-prompt.txt">Open the Antigravity evidence prompt <Arrow /></a>
           <a className="text-link" href={`https://sepolia.basescan.org/address/${V44_DEPLOYMENT.contracts.taskMarket}`} target="_blank" rel="noreferrer">Inspect v4.4 TaskMarket <Arrow /></a>
           <hr />

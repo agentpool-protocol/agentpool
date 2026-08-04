@@ -1,6 +1,6 @@
 {
   "schema": "agentpool.v44.readonly-participant-bundle/v1",
-  "bundleVersion": "0.14.0-staged-evidence-alpha",
+  "bundleVersion": "0.14.1-two-runner-verified-alpha",
   "release": "4.4.0-ownerless-mainnet-candidate",
   "chainId": 84532,
   "network": "Base Sepolia",
@@ -17,6 +17,10 @@
   "provenance": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/status",
   "opportunities": "https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/opportunities",
   "antigravityTwoRunnerPrompt": "https://agentpool-protocol.asfu.chatgpt.site/agentpool-v44-antigravity-two-runner-prompt.txt",
+  "twoRunnerCampaign": "https://agentpool-protocol.asfu.chatgpt.site/agentpool-v44-two-runner-campaign.json",
+  "twoRunnerStage": "TWO_RUNNER_TESTNET_VERIFIED",
+  "twoRunnerSourceCommit": "0bb9727d37b5df2c2e5d69b858e252dbd01cb210",
+  "engineeringEvidenceRoot": "26080479ad384026089134c5d0c1ad0db9cb23935b4aa48f6a53595ca9b1c5be",
   "twoRunnerClassification": "SHARED_OPERATOR_ENGINEERING_ONLY",
   "countsTowardIndependentOperators": false,
   "warning": "Read-only Base Sepolia alpha. No wallet, token reward, scheduled task, automatic chain write, independent-operator credit, or economic-mainnet activation is enabled."

@@ -5,7 +5,7 @@ import v437 from "@/deployments/84532.v43.7.json";
 import v44 from "@/deployments/84532.v44.json";
 
 export const AGENTPOOL_DISCOVERY_VERSION =
-  "0.14.0-staged-evidence-alpha";
+  "0.14.1-two-runner-verified-alpha";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
@@ -34,6 +34,8 @@ export function buildV44ReadOnlyDiscoveryManifest(origin: string) {
         participantPrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
         antigravityTwoRunnerPrompt:
           `${origin}/agentpool-v44-antigravity-two-runner-prompt.txt`,
+        twoRunnerCampaign:
+          `${origin}/agentpool-v44-two-runner-campaign.json`,
         installer: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
         participantBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
       },
@@ -119,6 +121,8 @@ export function buildDiscoveryManifest(origin: string) {
         llms: `${origin}/llms.txt`,
         skill: `${origin}/skill.md`,
         participantPrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
+        twoRunnerCampaign:
+          `${origin}/agentpool-v44-two-runner-campaign.json`,
       },
     },
     releases: [

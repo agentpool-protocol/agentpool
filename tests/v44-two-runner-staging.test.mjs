@@ -146,6 +146,7 @@ test("dormant anchor intent accepts engineering evidence without enabling econom
     artifact: JSON.parse(
       source("artifacts/AgentPoolV44DormantDeploymentAnchor.json"),
     ),
+    candidateSourceCommit: "a".repeat(40),
     gitTreeId: "b".repeat(40),
     releaseConfigBytes: Buffer.from(source("mainnet-v44-config.json")),
     stagingPolicyBytes: Buffer.from(
@@ -153,6 +154,7 @@ test("dormant anchor intent accepts engineering evidence without enabling econom
     ),
   });
   assert.equal(intent.targetChainId, 8453);
+  assert.equal(intent.candidateSourceCommit, "a".repeat(40));
   assert.equal(intent.economicSystemDeployed, false);
   assert.equal(intent.tokenDeployed, false);
   assert.equal(intent.emissionEnabled, false);
@@ -162,4 +164,26 @@ test("dormant anchor intent accepts engineering evidence without enabling econom
   assert.equal(intent.laterActivationPossible, false);
   assert.equal(intent.requiresSeparateMatureDeployment, true);
   assert.equal(intent.constructorArgs.length, 4);
+});
+
+test("dormant anchor cannot relabel engineering evidence as another source", () => {
+  const campaign = validateTwoRunnerCampaign(
+    [report("codex", "process-a"), report("antigravity", "process-b")],
+    policy,
+  );
+  assert.throws(
+    () =>
+      buildDormantAnchorIntent({
+        campaign,
+        policy,
+        artifact: JSON.parse(
+          source("artifacts/AgentPoolV44DormantDeploymentAnchor.json"),
+        ),
+        candidateSourceCommit: "c".repeat(40),
+        gitTreeId: "b".repeat(40),
+        releaseConfigBytes: Buffer.from("config"),
+        stagingPolicyBytes: Buffer.from("policy"),
+      }),
+    /CAMPAIGN_SOURCE_COMMIT_MISMATCH/u,
+  );
 });

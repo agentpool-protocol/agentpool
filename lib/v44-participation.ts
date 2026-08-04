@@ -97,11 +97,13 @@ export function v44ParticipationKit(origin: string) {
     machinePrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
     antigravityTwoRunnerPrompt:
       `${origin}/agentpool-v44-antigravity-two-runner-prompt.txt`,
+    twoRunnerCampaign:
+      `${origin}/agentpool-v44-two-runner-campaign.json`,
     readOnlyInstaller: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
     readOnlyBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
     remoteMcp: `${origin}/api/mcp/v4.4`,
     repository: V44_REPOSITORY,
     warning:
-      "Base Sepolia testnet only. Codex and Antigravity on one computer may create engineering evidence, but never independent-operator evidence. There is no current reward, token-value promise, public-write permission, or economic mainnet deployment.",
+      "Base Sepolia testnet only. The pinned-source Codex and Antigravity engineering campaign passed, but both runtimes share one operator and therefore provide no independent-operator or custody evidence. There is no current reward, token-value promise, public-write permission, or economic mainnet deployment.",
   };
 }

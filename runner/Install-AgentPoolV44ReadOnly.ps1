@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $officialOrigin = "https://agentpool-protocol.asfu.chatgpt.site"
-$expectedBundleSha256 = "e354b4e967a7663a55f58afa06d2e4dfbed945d878717dec9f1d67766e9174e8"
+$expectedBundleSha256 = "eb9fbe6f9aec3c62a55524ac4d2ad690731c977e5113e8e5fb848ab226da38c5"
 $normalizedBaseUrl = $BaseUrl.TrimEnd("/")
 if ($normalizedBaseUrl -ne $officialOrigin -and -not $UnsafeCustomMirror) {
     throw "Custom mirrors are blocked. Use the official AgentPool origin or explicitly pass -UnsafeCustomMirror for an exact-byte audit mirror."
@@ -61,7 +61,7 @@ $bundle = Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json
 $expectedRemoteMcp = "$officialOrigin/api/mcp/v4.4"
 if (
     $bundle.schema -ne "agentpool.v44.readonly-participant-bundle/v1" -or
-    $bundle.bundleVersion -ne "0.14.0-staged-evidence-alpha" -or
+    $bundle.bundleVersion -ne "0.14.1-two-runner-verified-alpha" -or
     [int]$bundle.chainId -ne 84532 -or
     $bundle.mode -ne "read-only" -or
     $bundle.remoteMcp -ne $expectedRemoteMcp -or
