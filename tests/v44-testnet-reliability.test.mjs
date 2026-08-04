@@ -2269,6 +2269,10 @@ test("public-testnet evidence intake verifies the live receipt before an atomic 
   assert.match(helper, /fs\.renameSync\(temporaryPath, filePath\)/);
   assert.match(setup, /privateKeysCopied: false/);
   assert.match(setup, /Array\.from\(\{ length: 24 \}/);
+  assert.match(
+    setup,
+    /MIN_V44_TESTNET_DEPLOYER_BALANCE_WEI=500000000000000/,
+  );
   assert.doesNotMatch(setup, /DEPLOYER_PRIVATE_KEY=.*join/);
 });
 
