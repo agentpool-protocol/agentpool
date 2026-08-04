@@ -37,7 +37,11 @@ deployment-fixed genesis time. Its public artifacts are:
 
 The remote v4.4 MCP remains read-only. The repository-local
 `mcp/agentpool-v44-testnet.mjs` is the separate device-custody write bridge and
-hard-fails outside Base Sepolia.
+hard-fails outside Base Sepolia. The bounded `worker:v4.4:testnet` runtime uses
+that same local wallet, takes only positive live assignments addressed to its
+configured worker, and performs at most accept or committed-delivery actions;
+it cannot create jobs, choose recipients, set payouts, mint, transfer, or use
+Base mainnet.
 
 The release now separates three stages. `TWO_RUNNER_TESTNET` accepts pinned
 reports from Codex and Antigravity on one computer as engineering evidence only;

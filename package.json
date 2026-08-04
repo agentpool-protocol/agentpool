@@ -68,6 +68,8 @@
     "contracts:verify:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/verify-v44-base-mainnet.mjs --testnet",
     "mcp:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local mcp/agentpool-v44-testnet.mjs",
     "mcp:v4.4:testnet:self-test": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local mcp/agentpool-v44-testnet.mjs --self-test",
+    "worker:v4.4:testnet:once": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/run-v44-testnet-autonomous-worker.mjs",
+    "worker:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/run-v44-testnet-autonomous-worker.mjs --watch",
     "campaign:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/run-v44-testnet-bootstrap-campaign.mjs",
     "campaign:v4.4:testnet:fund-gas": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/fund-v44-testnet-campaign.mjs",
     "contracts:rehearse:v4.4:mainnet": "node scripts/rehearse-v44-mainnet-candidate.mjs",
