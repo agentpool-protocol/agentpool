@@ -5,7 +5,7 @@ import {
   http,
 } from "viem";
 import { baseSepolia } from "viem/chains";
-import deployment from "@/deployments/84532.v44.json";
+import deployment from "@/deployments/84532.v44.mainnet-candidate-6959d3a.json";
 import policy from "@/mainnet-v44-testnet-reliability-policy.json";
 import tokenArtifact from "@/artifacts/AgentPoolV44Token.json";
 import deploymentStages from "@/mainnet-v44-deployment-stages.json";

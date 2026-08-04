@@ -68,8 +68,9 @@ const proposer = privateKeyToAccount(proposerKey).address;
 const validators = [1, 2, 3].map((index) =>
   requireAddress(`VALIDATOR_${index}`),
 );
+const worker = requireAddress("V44_BOOTSTRAP_WORKER");
 const thresholdAuthority = requireThresholdAuthorityConfig();
-const identities = [deployer, proposer, ...validators].map((address) =>
+const identities = [deployer, proposer, ...validators, worker].map((address) =>
   getAddress(address).toLowerCase(),
 );
 if (new Set(identities).size !== identities.length) {
@@ -173,6 +174,7 @@ const lines = [
   `V44_THRESHOLD_AUTHORITY_THRESHOLD=${thresholdAuthority.threshold}`,
   `V44_GENESIS_TIMESTAMP=${genesisStart}`,
   `V44_BOOTSTRAP_PROPOSER=${proposer}`,
+  `V44_BOOTSTRAP_WORKER=${worker}`,
   ...validators.flatMap((address, index) => [
     `V44_VALIDATOR_${index + 1}=${address}`,
     `V44_VALIDATOR_${index + 1}_GROUP_ID=${groupIds[index]}`,
@@ -204,6 +206,7 @@ process.stdout.write(
       deployer,
       proposer,
       validators,
+      worker,
       thresholdAuthorityOwners: thresholdAuthority.owners,
       thresholdAuthorityThreshold: thresholdAuthority.threshold,
       genesisStart,

@@ -2270,6 +2270,8 @@ test("public-testnet evidence intake verifies the live receipt before an atomic 
   assert.match(setup, /privateKeysCopied: false/);
   assert.match(setup, /Array\.from\(\{ length: 24 \}/);
   assert.match(setup, /requireThresholdAuthorityConfig\(\)/);
+  assert.match(setup, /requireAddress\("V44_BOOTSTRAP_WORKER"\)/);
+  assert.match(setup, /`V44_BOOTSTRAP_WORKER=\$\{worker\}`/);
   assert.doesNotMatch(
     setup,
     /SET_COMMA_SEPARATED_SORTED_SIGNER_ADDRESSES/,

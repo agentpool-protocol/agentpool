@@ -25,15 +25,15 @@ window that rejects emission reservation or settlement before genesis. No
 Base mainnet transaction has been sent and every evidence gate remains
 blocked by default.
 
-An isolated Base Sepolia campaign, `mainnet-candidate-25eb57c`, is now deployed
-from source commit `25eb57c968e18ef608c8e9ea06223baed722d862` as 18 contracts
+The current isolated Base Sepolia campaign, `mainnet-candidate-6959d3a`, is deployed
+from source commit `6959d3acd6cc2ad865d733678f28d81abc432bee` as 18 contracts
 and 28 configuration/deployment transactions. Independent RPC verification
 passed 448 checks. It has zero premint and cannot reserve or emit before its
 deployment-fixed genesis time. Its public artifacts are:
 
-- `deployments/84532.v44.mainnet-candidate-25eb57c.json`
-- `deployments/84532.v44.mainnet-candidate-25eb57c.source-reproducibility.json`
-- `deployments/84532.v44.mainnet-candidate-25eb57c.bootstrap-specifications.json`
+- `deployments/84532.v44.mainnet-candidate-6959d3a.json`
+- `deployments/84532.v44.mainnet-candidate-6959d3a.source-reproducibility.json`
+- `deployments/84532.v44.mainnet-candidate-6959d3a.bootstrap-specifications.json`
 
 The remote v4.4 MCP remains read-only. The repository-local
 `mcp/agentpool-v44-testnet.mjs` is the separate device-custody write bridge and

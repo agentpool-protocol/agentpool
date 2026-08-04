@@ -1,4 +1,4 @@
-import deployment from "@/deployments/84532.v44.json";
+import deployment from "@/deployments/84532.v44.mainnet-candidate-6959d3a.json";
 import { V44_BUILD_MANIFEST } from "@/lib/v44-build-manifest.generated";
 
 const GIT_SHA = /^[0-9a-f]{40}$/u;

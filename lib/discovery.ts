@@ -2,7 +2,7 @@ import deployment from "@/deployments/84532.v41.json";
 import smoke from "@/deployments/84532.v41.smoke.json";
 import v43 from "@/protocol/agentpool-v43.json";
 import v437 from "@/deployments/84532.v43.7.json";
-import v44 from "@/deployments/84532.v44.json";
+import v44 from "@/deployments/84532.v44.mainnet-candidate-6959d3a.json";
 
 export const AGENTPOOL_DISCOVERY_VERSION =
   "0.14.2-provenance-verified-alpha";
