@@ -14,6 +14,7 @@ import {
   activationBindingsRoot,
   activationSignerSetHash,
   blockedReliabilityReport,
+  reliabilityPolicyConfigurationBlockers,
   collectMaturityProviderSnapshot,
   collectMaturityAuthorizationPublicationSnapshot,
   collectMaturityReadinessEvidence,
@@ -2345,4 +2346,27 @@ test("missing public evidence produces a durable blocked report", () => {
     report.criticalInvariants["bootstrap-work-creates-no-work-power"],
     false,
   );
+});
+
+test("a missing observation file still reports every inactive campaign policy", () => {
+  const policy = loadReliabilityPolicy().policy;
+  assert.deepEqual(reliabilityPolicyConfigurationBlockers(policy), [
+    "V44_TESTNET_OBSERVER_CONTROLLERS_NOT_ACTIVE",
+    "V44_TESTNET_GOVERNANCE_RPC_PROVIDERS_NOT_ACTIVE",
+    "V44_TESTNET_POLICY_ACTIVATION_NOT_ACTIVE",
+    "V44_TESTNET_CONTROL_DOMAIN_KEYS_NOT_ACTIVE",
+    "V44_TESTNET_CHECKPOINT_KEYS_NOT_ACTIVE",
+    "V44_TESTNET_MATURITY_KEYS_NOT_ACTIVE",
+  ]);
+  for (const section of [
+    "observerIndependencePolicy",
+    "governanceEventProviderPolicy",
+    "policyActivation",
+    "controlDomainPolicy",
+    "checkpointPolicy",
+    "maturityAuthorizationPolicy",
+  ]) {
+    policy.autonomyV2[section].configurationStatus = "ACTIVE";
+  }
+  assert.deepEqual(reliabilityPolicyConfigurationBlockers(policy), []);
 });

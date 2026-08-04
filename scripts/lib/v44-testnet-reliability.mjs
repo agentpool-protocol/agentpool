@@ -3973,6 +3973,32 @@ export function blockedReliabilityReport({
   };
 }
 
+export function reliabilityPolicyConfigurationBlockers(policy) {
+  const autonomy = policy?.autonomyV2 ?? {};
+  return [
+    [
+      "V44_TESTNET_OBSERVER_CONTROLLERS_NOT_ACTIVE",
+      autonomy.observerIndependencePolicy,
+    ],
+    [
+      "V44_TESTNET_GOVERNANCE_RPC_PROVIDERS_NOT_ACTIVE",
+      autonomy.governanceEventProviderPolicy,
+    ],
+    ["V44_TESTNET_POLICY_ACTIVATION_NOT_ACTIVE", autonomy.policyActivation],
+    [
+      "V44_TESTNET_CONTROL_DOMAIN_KEYS_NOT_ACTIVE",
+      autonomy.controlDomainPolicy,
+    ],
+    ["V44_TESTNET_CHECKPOINT_KEYS_NOT_ACTIVE", autonomy.checkpointPolicy],
+    [
+      "V44_TESTNET_MATURITY_KEYS_NOT_ACTIVE",
+      autonomy.maturityAuthorizationPolicy,
+    ],
+  ]
+    .filter(([, value]) => value?.configurationStatus !== "ACTIVE")
+    .map(([blocker]) => blocker);
+}
+
 export async function buildReliabilityReport({
   policyPath,
   deploymentPath,
@@ -3986,7 +4012,9 @@ export async function buildReliabilityReport({
   expectedCampaignId = null,
 }) {
   const policyEvidence = loadReliabilityPolicy(policyPath);
-  const missing = [];
+  const missing = reliabilityPolicyConfigurationBlockers(
+    policyEvidence.policy,
+  );
   for (const [label, filePath] of [
     ["V44_TESTNET_DEPLOYMENT_MISSING", deploymentPath],
     ["V44_TESTNET_OBSERVATIONS_MISSING", observationsPath],

@@ -36,6 +36,7 @@ import {
 } from "./lib/v44-testnet-reliability.mjs";
 import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
 import { loadBootstrapSpecificationEvidence } from "./lib/v44-bootstrap-specifications.mjs";
+import { validateReliabilityParticipants } from "./lib/v44-reliability-participants.mjs";
 
 const profile = resolveV44ChainProfile({
   ...process.env,
@@ -96,6 +97,30 @@ const bootstrapSpecificationEvidence =
     catalogId: bootstrapCatalogId,
     allowMechanicsOnly: profile.testnetOnly,
   });
+const reliabilityParticipants =
+  profile.testnetOnly && bootstrapSpecificationEvidence.mode === "reliability"
+    ? validateReliabilityParticipants(
+        JSON.parse(
+          fs.readFileSync(
+            path.resolve(
+              ROOT,
+              requireEnv("V44_RELIABILITY_PARTICIPANTS_FILE"),
+            ),
+            "utf8",
+          ),
+        ),
+        {
+          campaignId: profile.campaignId,
+          sourceCommit,
+          thresholdAuthorityOwners: manifest.thresholdAuthorityOwners,
+          thresholdAuthorityThreshold: manifest.thresholdAuthorityThreshold,
+          validators: releaseInputs.bootstrap.validators.map((entry) => ({
+            address: entry.address,
+            groupId: entry.group,
+          })),
+        },
+      )
+    : null;
 if (profile.requireReleaseGates) {
   assertManifestEvidenceClaims({
     manifest,
@@ -235,6 +260,11 @@ check(
   "manifest.bootstrapSpecificationsSha256",
   manifest.bootstrapSpecificationsSha256,
   bootstrapSpecificationEvidence.specificationsSha256 ?? null,
+);
+check(
+  "manifest.reliabilityParticipantsSha256",
+  manifest.reliabilityParticipantsSha256 ?? null,
+  reliabilityParticipants?.manifestSha256 ?? null,
 );
 check(
   "manifest.financeInvariantHash",
