@@ -43,6 +43,7 @@ import {
   verifyGovernanceDryRunTranscript,
 } from "./v44-governance-dry-run.mjs";
 import { resolveV44TestnetCampaignFiles } from "./v44-chain-profile.mjs";
+import { verifyPublishedBootstrapSpecifications } from "./v44-bootstrap-specifications.mjs";
 
 export const TESTNET_CHAIN_ID = 84532;
 export const TARGET_CHAIN_ID = 8453;
@@ -1411,6 +1412,15 @@ export function validateTestnetDeployment(deployment, sourceEvidence) {
     deployment.configSha256 !== sourceEvidence?.configSha256
   ) {
     throw new Error("V44_TESTNET_DEPLOYMENT_SOURCE_INVALID");
+  }
+  if (
+    deployment.campaignId !== null &&
+    deployment.campaignId !== undefined &&
+    (!/^[a-z0-9][a-z0-9-]{0,31}$/u.test(deployment.campaignId) ||
+      deployment.bootstrapObjectiveMode !== "reliability" ||
+      !SHA256_PATTERN.test(deployment.bootstrapSpecificationsSha256 ?? ""))
+  ) {
+    throw new Error("V44_TESTNET_CAMPAIGN_SPECIFICATIONS_INVALID");
   }
   const currentContractKeys = Object.keys(CONTRACT_TYPES);
   const legacyContractKeys = currentContractKeys.filter(
@@ -3719,6 +3729,7 @@ export function evaluateReliability({
   deploymentFileSha256,
   observationsFileSha256,
   sourceEvidenceFileSha256,
+  bootstrapSpecificationsFileSha256,
   trustedActivationPublications = null,
 }) {
   const blockers = [];
@@ -3879,6 +3890,7 @@ export function evaluateReliability({
     deploymentFileSha256,
     observationsFileSha256,
     sourceEvidenceFileSha256,
+    bootstrapSpecificationsFileSha256,
     liveRpcVerified: rpcEvidence?.liveRpcVerified === true,
     autonomyV2,
     observationWindow: {
@@ -3945,6 +3957,7 @@ export function blockedReliabilityReport({
     deploymentFileSha256: null,
     observationsFileSha256: null,
     sourceEvidenceFileSha256: null,
+    bootstrapSpecificationsFileSha256: null,
     liveRpcVerified: false,
     observationWindow: null,
     counts: null,
@@ -3965,6 +3978,7 @@ export async function buildReliabilityReport({
   deploymentPath,
   observationsPath,
   sourceEvidencePath,
+  bootstrapSpecificationsPath,
   rpcUrl,
   secondaryRpcUrl,
   generatedAt = new Date().toISOString(),
@@ -3977,6 +3991,10 @@ export async function buildReliabilityReport({
     ["V44_TESTNET_DEPLOYMENT_MISSING", deploymentPath],
     ["V44_TESTNET_OBSERVATIONS_MISSING", observationsPath],
     ["V44_SOURCE_EVIDENCE_MISSING", sourceEvidencePath],
+    [
+      "V44_BOOTSTRAP_SPECIFICATIONS_MISSING",
+      bootstrapSpecificationsPath,
+    ],
   ]) {
     if (!filePath || !fs.existsSync(filePath)) missing.push(label);
   }
@@ -4009,6 +4027,12 @@ export async function buildReliabilityReport({
     rawDeployment,
     sourceEvidence,
   );
+  const publishedBootstrapSpecifications =
+    verifyPublishedBootstrapSpecifications({
+      filePath: bootstrapSpecificationsPath,
+      deployment,
+      sourceEvidence,
+    });
   const evidencePipelineCommit = currentGitCommit().toLowerCase();
   const observations = readJson(observationsPath);
   const trustedAutonomyPolicy = policyEvidence.policy.autonomyV2 ?? {};
@@ -4269,6 +4293,8 @@ export async function buildReliabilityReport({
     deploymentFileSha256: sha256File(deploymentPath),
     observationsFileSha256: sha256File(observationsPath),
     sourceEvidenceFileSha256: verifiedSource.fileSha256,
+    bootstrapSpecificationsFileSha256:
+      publishedBootstrapSpecifications.fileSha256,
     trustedActivationPublications,
   });
 }
@@ -4322,6 +4348,12 @@ export async function verifyPublicTestnetReliabilityGate({
     env.V44_TESTNET_CONTRACT_SOURCE_EVIDENCE ??
       campaignFiles.sourceEvidencePath,
   );
+  const bootstrapSpecificationsValue =
+    env.V44_TESTNET_BOOTSTRAP_SPECIFICATIONS ??
+    campaignFiles.bootstrapSpecificationsPath;
+  const bootstrapSpecificationsPath = bootstrapSpecificationsValue
+    ? path.resolve(bootstrapSpecificationsValue)
+    : null;
   const rpcUrl = env.AGENTPOOL_V44_TESTNET_RPC_URL?.trim();
   const secondaryRpcUrl =
     env.AGENTPOOL_V44_TESTNET_RPC_URL_2?.trim();
@@ -4330,6 +4362,7 @@ export async function verifyPublicTestnetReliabilityGate({
     deploymentPath,
     observationsPath,
     sourceEvidencePath,
+    bootstrapSpecificationsPath,
     rpcUrl,
     secondaryRpcUrl,
     generatedAt: report.generatedAt,

@@ -250,8 +250,17 @@ every entry must set `mechanicsOnly: false` and
 `eligibleForReliability: true`; the helper refuses generated/random fixtures:
 
 ```powershell
-npm run contracts:setup:v4.4:testnet -- --campaign=mainnet-candidate-1 --objectives=.testnet-v44-real-objectives.local.json
+npm run contracts:objectives:v4.4:testnet -- --campaign=mainnet-candidate-1
+npm run contracts:setup:v4.4:testnet -- --campaign=mainnet-candidate-1 --objectives=.testnet-v44-real-objectives.mainnet-candidate-1.local.json --specifications=outputs/v44-bootstrap-specifications.mainnet-candidate-1.json
 ```
+
+The generator creates 24 reproducible checks over the exact source commit,
+dependency lock, economic configuration, compiler settings, and every deployed
+artifact type. The public specification file contains no delivery answer or
+objective proof. The ignored private catalog contains the committed delivery
+hashes and unpredictable resolver challenges. Setup and deployment recompute
+every specification and delivery commitment from the exact source evidence;
+changing either file fails preflight.
 
 From a clean committed checkout with current source evidence:
 

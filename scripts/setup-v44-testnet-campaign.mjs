@@ -11,6 +11,7 @@ import {
   sha256File,
 } from "./lib/v44-mainnet.mjs";
 import { resolveV44TestnetCampaignFiles } from "./lib/v44-chain-profile.mjs";
+import { validateBootstrapSpecifications } from "./lib/v44-bootstrap-specifications.mjs";
 
 const replace = process.argv.includes("--replace");
 const mechanicsOnly = process.argv.includes("--mechanics-only");
@@ -30,10 +31,14 @@ const campaignFiles = resolveV44TestnetCampaignFiles({
   V44_TESTNET_CAMPAIGN_ID: campaignId,
 });
 const suppliedObjectives = argument("objectives");
+const suppliedSpecifications = argument("specifications");
 if (mechanicsOnly === Boolean(suppliedObjectives)) {
   throw new Error(
     "V44_TESTNET_SETUP_MODE_REQUIRED:choose --mechanics-only or --objectives=<path>",
   );
+}
+if (!mechanicsOnly && !suppliedSpecifications) {
+  throw new Error("V44_TESTNET_SPECIFICATIONS_FILE_REQUIRED");
 }
 const environmentPath = path.join(ROOT, ".env.v44.testnet.local");
 const objectivesPath = path.join(
@@ -74,6 +79,8 @@ const groupIds = [1, 2, 3].map(() => randomBytes32());
 let selectedObjectivesPath;
 let objectiveCount;
 let reliabilityEligible;
+let selectedSpecificationsPath = null;
+let specificationsSha256 = null;
 if (mechanicsOnly) {
   const objectives = Array.from({ length: 24 }, (_, index) => {
     const label = `AgentPool v4.4 bootstrap mechanics objective ${index + 1}`;
@@ -130,6 +137,20 @@ if (mechanicsOnly) {
   }
   objectiveCount = catalog.objectives.length;
   reliabilityEligible = true;
+  selectedSpecificationsPath = path.resolve(ROOT, suppliedSpecifications);
+  const sourceEvidence = JSON.parse(
+    fs.readFileSync(
+      path.join(ROOT, "outputs", "v44-source-reproducibility.json"),
+      "utf8",
+    ),
+  );
+  const specificationEvidence = validateBootstrapSpecifications({
+    specificationsPath: selectedSpecificationsPath,
+    objectiveCatalogPath: selectedObjectivesPath,
+    sourceEvidence,
+    campaignId,
+  });
+  specificationsSha256 = specificationEvidence.specificationsSha256;
 }
 const sourceCommit = currentGitCommit().toLowerCase();
 const genesisStart = Math.floor(Date.now() / 1_000) + 4 * 86_400;
@@ -157,6 +178,13 @@ const lines = [
   `V44_BOOTSTRAP_ISSUE_ID=${randomBytes32()}`,
   `V44_BOOTSTRAP_OBJECTIVES_FILE=${path.relative(ROOT, selectedObjectivesPath)}`,
   `V44_BOOTSTRAP_OBJECTIVES_SHA256=${sha256File(selectedObjectivesPath)}`,
+  `V44_BOOTSTRAP_OBJECTIVE_MODE=${mechanicsOnly ? "mechanics-only" : "reliability"}`,
+  ...(selectedSpecificationsPath
+    ? [
+        `V44_BOOTSTRAP_PUBLIC_SPECIFICATIONS_FILE=${path.relative(ROOT, selectedSpecificationsPath)}`,
+        `V44_BOOTSTRAP_PUBLIC_SPECIFICATIONS_SHA256=${specificationsSha256}`,
+      ]
+    : []),
   `V44_GENESIS_MODULE_HASH=${randomBytes32()}`,
   `V44_GENESIS_MANIFEST_HASH=${randomBytes32()}`,
   "",
@@ -180,6 +208,8 @@ process.stdout.write(
       reliabilityEligible,
       environmentPath,
       objectivesPath: selectedObjectivesPath,
+      specificationsPath: selectedSpecificationsPath,
+      specificationsSha256,
       privateKeysCopied: false,
       next: [
         "npm run evidence:v4.4:source",

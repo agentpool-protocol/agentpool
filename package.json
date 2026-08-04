@@ -62,6 +62,7 @@
     "contracts:verify:v4.4:mainnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.mainnet.local scripts/verify-v44-base-mainnet.mjs",
     "contracts:preflight:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/preflight-v44-base-mainnet.mjs --testnet",
     "contracts:setup:v4.4:testnet": "node --env-file-if-exists=.env.local scripts/setup-v44-testnet-campaign.mjs",
+    "contracts:objectives:v4.4:testnet": "node scripts/generate-v44-bootstrap-verification-objectives.mjs",
     "contracts:deploy:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/deploy-v44-base-mainnet.mjs --testnet",
     "contracts:reconcile:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/reconcile-v44-mainnet-intent.mjs --testnet",
     "contracts:verify:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/verify-v44-base-mainnet.mjs --testnet",

@@ -17,6 +17,7 @@ import {
   validateAutonomyEvidence,
 } from "./v44-autonomy-safety.mjs";
 import { resolveV44TestnetCampaignFiles } from "./v44-chain-profile.mjs";
+import { verifyPublishedBootstrapSpecifications } from "./v44-bootstrap-specifications.mjs";
 
 export const DEFAULT_V44_TESTNET_DEPLOYMENT_PATH = path.join(
   ROOT,
@@ -66,6 +67,9 @@ export function resolveLedgerPaths(env = process.env) {
           : env.V44_SOURCE_EVIDENCE_FILE ??
             campaignFiles.sourceEvidencePath),
     ),
+    bootstrapSpecificationsPath:
+      env.V44_TESTNET_BOOTSTRAP_SPECIFICATIONS ??
+      campaignFiles.bootstrapSpecificationsPath,
     campaignId: campaignFiles.campaignId,
   };
 }
@@ -73,7 +77,7 @@ export function resolveLedgerPaths(env = process.env) {
 export function loadLedgerContext(env = process.env) {
   const paths = resolveLedgerPaths(env);
   for (const [label, filePath] of Object.entries(paths).filter(
-    ([key]) => key !== "campaignId",
+    ([key, value]) => key !== "campaignId" && Boolean(value),
   )) {
     if (!fs.existsSync(filePath)) {
       throw new Error(`V44_TESTNET_FILE_MISSING:${label}:${filePath}`);
@@ -95,6 +99,13 @@ export function loadLedgerContext(env = process.env) {
     rawDeployment,
     sourceEvidence,
   );
+  if (paths.campaignId) {
+    verifyPublishedBootstrapSpecifications({
+      filePath: paths.bootstrapSpecificationsPath,
+      deployment,
+      sourceEvidence,
+    });
+  }
   return {
     ...paths,
     policyEvidence,

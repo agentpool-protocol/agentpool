@@ -45,6 +45,13 @@ export async function generatePublicTestnetReliability({
         : process.env.V44_SOURCE_EVIDENCE_FILE?.trim() ??
           campaignFiles.sourceEvidencePath),
   ),
+  bootstrapSpecificationsPath = (() => {
+    const value =
+      argument("--bootstrap-specifications") ??
+      process.env.V44_TESTNET_BOOTSTRAP_SPECIFICATIONS?.trim() ??
+      campaignFiles.bootstrapSpecificationsPath;
+    return value ? path.resolve(value) : null;
+  })(),
   rpcUrl =
     argument("--rpc-url") ??
     process.env.AGENTPOOL_V44_TESTNET_RPC_URL?.trim() ??
@@ -62,6 +69,7 @@ export async function generatePublicTestnetReliability({
     deploymentPath,
     observationsPath,
     sourceEvidencePath,
+    bootstrapSpecificationsPath,
     rpcUrl,
     secondaryRpcUrl,
     generatedAt,

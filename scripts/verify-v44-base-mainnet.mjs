@@ -35,6 +35,7 @@ import {
   verifyPublicTestnetReliabilityGate,
 } from "./lib/v44-testnet-reliability.mjs";
 import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mjs";
+import { loadBootstrapSpecificationEvidence } from "./lib/v44-bootstrap-specifications.mjs";
 
 const profile = resolveV44ChainProfile({
   ...process.env,
@@ -84,6 +85,17 @@ const releaseInputs = collectReleaseInputs({
   deployerAddress: manifest.deployer,
   allowPastGenesis: true,
 });
+const bootstrapCatalogId = profile.testnetOnly
+  ? profile.campaignId ?? "legacy-testnet"
+  : requireEnv("V44_BOOTSTRAP_CATALOG_ID");
+const bootstrapSpecificationEvidence =
+  loadBootstrapSpecificationEvidence({
+    sourceEvidence: sourceEvidence.evidence,
+    objectivesPath: releaseInputs.bootstrap.objectivesPath,
+    objectives: releaseInputs.bootstrap.objectives,
+    catalogId: bootstrapCatalogId,
+    allowMechanicsOnly: profile.testnetOnly,
+  });
 if (profile.requireReleaseGates) {
   assertManifestEvidenceClaims({
     manifest,
@@ -212,6 +224,17 @@ check(
   "manifest.sourceEvidenceBodySha256",
   manifest.sourceEvidenceBodySha256,
   sourceEvidence.evidence.evidenceSha256,
+);
+check("manifest.bootstrapCatalogId", manifest.bootstrapCatalogId, bootstrapCatalogId);
+check(
+  "manifest.bootstrapObjectiveMode",
+  manifest.bootstrapObjectiveMode,
+  bootstrapSpecificationEvidence.mode,
+);
+check(
+  "manifest.bootstrapSpecificationsSha256",
+  manifest.bootstrapSpecificationsSha256,
+  bootstrapSpecificationEvidence.specificationsSha256 ?? null,
 );
 check(
   "manifest.financeInvariantHash",

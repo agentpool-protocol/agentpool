@@ -44,6 +44,7 @@ import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mj
 import {
   verifyPublicTestnetReliabilityGate,
 } from "./lib/v44-testnet-reliability.mjs";
+import { loadBootstrapSpecificationEvidence } from "./lib/v44-bootstrap-specifications.mjs";
 
 const profile = resolveV44ChainProfile({
   ...process.env,
@@ -59,6 +60,13 @@ if (
   fs.existsSync(profile.historicalSourceEvidencePath)
 ) {
   throw new Error("V44_HISTORICAL_SOURCE_EVIDENCE_ALREADY_EXISTS");
+}
+if (
+  profile.testnetOnly &&
+  profile.historicalBootstrapSpecificationsPath &&
+  fs.existsSync(profile.historicalBootstrapSpecificationsPath)
+) {
+  throw new Error("V44_HISTORICAL_BOOTSTRAP_SPECIFICATIONS_ALREADY_EXISTS");
 }
 
 assertTrackedTreeClean();
@@ -84,6 +92,17 @@ const thresholdAuthority = requireThresholdAuthorityConfig();
 const releaseInputs = collectReleaseInputs({
   deployerAddress: account.address,
 });
+const bootstrapCatalogId = profile.testnetOnly
+  ? profile.campaignId ?? "legacy-testnet"
+  : requireEnv("V44_BOOTSTRAP_CATALOG_ID");
+const bootstrapSpecificationEvidence =
+  loadBootstrapSpecificationEvidence({
+    sourceEvidence: sourceEvidence.evidence,
+    objectivesPath: releaseInputs.bootstrap.objectivesPath,
+    objectives: releaseInputs.bootstrap.objectives,
+    catalogId: bootstrapCatalogId,
+    allowMechanicsOnly: profile.testnetOnly,
+  });
 const { rpcUrl, minimumBalance } = requireProfileEnvironment(profile);
 const transport = http(rpcUrl, { timeout: 60_000, retryCount: 4 });
 const client = createPublicClient({ chain: profile.chain, transport });
@@ -118,6 +137,10 @@ const deploymentIdentity = {
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
   bootstrapObjectivesSha256: releaseInputs.bootstrap.objectivesSha256,
+  bootstrapCatalogId,
+  bootstrapObjectiveMode: bootstrapSpecificationEvidence.mode,
+  bootstrapSpecificationsSha256:
+    bootstrapSpecificationEvidence.specificationsSha256 ?? null,
   bootstrapIdentitySha256: bootstrapIdentitySha256(releaseInputs),
 };
 if (existingPartial) {
@@ -784,6 +807,10 @@ const commonManifest = {
   sourceEvidenceFileSha256: sourceEvidence.fileSha256,
   sourceEvidenceBodySha256: sourceEvidence.evidence.evidenceSha256,
   bootstrapIdentitySha256: deploymentIdentity.bootstrapIdentitySha256,
+  bootstrapCatalogId,
+  bootstrapObjectiveMode: bootstrapSpecificationEvidence.mode,
+  bootstrapSpecificationsSha256:
+    bootstrapSpecificationEvidence.specificationsSha256 ?? null,
   deployer: account.address,
   policyActivationAuthority,
   thresholdAuthorityOwners: thresholdAuthority.owners,
@@ -840,6 +867,16 @@ fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 if (profile.testnetOnly && profile.historicalSourceEvidencePath) {
   fs.copyFileSync(sourceEvidencePath, profile.historicalSourceEvidencePath);
+}
+if (
+  profile.testnetOnly &&
+  bootstrapSpecificationEvidence.specificationsPath &&
+  profile.historicalBootstrapSpecificationsPath
+) {
+  fs.copyFileSync(
+    bootstrapSpecificationEvidence.specificationsPath,
+    profile.historicalBootstrapSpecificationsPath,
+  );
 }
 if (fs.existsSync(partialPath)) fs.rmSync(partialPath);
 

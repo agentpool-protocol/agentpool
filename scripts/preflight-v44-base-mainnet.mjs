@@ -29,6 +29,7 @@ import { verifyV44ReleaseEvidenceFile } from "./generate-v44-release-evidence.mj
 import {
   verifyPublicTestnetReliabilityGate,
 } from "./lib/v44-testnet-reliability.mjs";
+import { loadBootstrapSpecificationEvidence } from "./lib/v44-bootstrap-specifications.mjs";
 
 const profile = resolveV44ChainProfile({
   ...process.env,
@@ -44,6 +45,13 @@ if (
   fs.existsSync(profile.historicalSourceEvidencePath)
 ) {
   throw new Error("V44_HISTORICAL_SOURCE_EVIDENCE_ALREADY_EXISTS");
+}
+if (
+  profile.testnetOnly &&
+  profile.historicalBootstrapSpecificationsPath &&
+  fs.existsSync(profile.historicalBootstrapSpecificationsPath)
+) {
+  throw new Error("V44_HISTORICAL_BOOTSTRAP_SPECIFICATIONS_ALREADY_EXISTS");
 }
 if (fs.existsSync(partialPath)) {
   throw new Error("V44_PARTIAL_DEPLOYMENT_EXISTS_REVIEW_BEFORE_PREFLIGHT");
@@ -72,6 +80,17 @@ const thresholdAuthority = requireThresholdAuthorityConfig();
 const releaseInputs = collectReleaseInputs({
   deployerAddress: account.address,
 });
+const bootstrapCatalogId = profile.testnetOnly
+  ? profile.campaignId ?? "legacy-testnet"
+  : requireEnv("V44_BOOTSTRAP_CATALOG_ID");
+const bootstrapSpecificationEvidence =
+  loadBootstrapSpecificationEvidence({
+    sourceEvidence: sourceEvidence.evidence,
+    objectivesPath: releaseInputs.bootstrap.objectivesPath,
+    objectives: releaseInputs.bootstrap.objectives,
+    catalogId: bootstrapCatalogId,
+    allowMechanicsOnly: profile.testnetOnly,
+  });
 
 const { rpcUrl, minimumBalance } = requireProfileEnvironment(profile);
 const client = createPublicClient({
@@ -115,6 +134,10 @@ const report = {
   bootstrapProposer: releaseInputs.bootstrap.proposer,
   bootstrapObjectives: releaseInputs.bootstrap.objectives.length,
   bootstrapObjectivesSha256: releaseInputs.bootstrap.objectivesSha256,
+  bootstrapCatalogId,
+  bootstrapObjectiveMode: bootstrapSpecificationEvidence.mode,
+  bootstrapSpecificationsSha256:
+    bootstrapSpecificationEvidence.specificationsSha256 ?? null,
   bootstrapIdentitySha256: bootstrapIdentitySha256(releaseInputs),
   validators: releaseInputs.bootstrap.validators.map((entry) => ({
     address: entry.address,

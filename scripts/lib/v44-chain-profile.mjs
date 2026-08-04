@@ -74,6 +74,11 @@ function testnetCampaignProfile(campaignId) {
       "deployments",
       `${deploymentStem}.source-reproducibility.json`,
     ),
+    historicalBootstrapSpecificationsPath: path.join(
+      ROOT,
+      "deployments",
+      `${deploymentStem}.bootstrap-specifications.json`,
+    ),
     verificationPath: path.join(
       ROOT,
       "outputs",
@@ -110,6 +115,8 @@ export function resolveV44TestnetCampaignFiles(env = process.env) {
         : "v44-public-testnet-reliability.json",
     ),
     verificationPath: profile.verificationPath,
+    bootstrapSpecificationsPath:
+      profile.historicalBootstrapSpecificationsPath ?? null,
   });
 }
 
