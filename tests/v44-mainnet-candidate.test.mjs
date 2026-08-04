@@ -38,11 +38,114 @@ import {
   resolveV44ChainProfile,
   resolveV44TestnetCampaignFiles,
 } from "../scripts/lib/v44-chain-profile.mjs";
-import { resolveLedgerPaths } from "../scripts/lib/v44-observation-ledger.mjs";
+import {
+  appendTestnetObservation,
+  resolveLedgerPaths,
+} from "../scripts/lib/v44-observation-ledger.mjs";
 
 function source(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), "utf8");
 }
+
+test("v4.4 observation appends are idempotent only when explicitly requested", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agentpool-v44-observation-"));
+  const observationsPath = path.join(directory, "observations.json");
+  const txHash = `0x${"ab".repeat(32)}`;
+  fs.writeFileSync(
+    observationsPath,
+    `${JSON.stringify({ observations: [{ txHash }] })}\n`,
+    "utf8",
+  );
+  const context = {
+    observationsPath,
+    policyEvidence: {
+      policy: {
+        categories: {
+          BOOTSTRAP_SETTLED: { contractKey: "taskMarket" },
+        },
+      },
+    },
+  };
+  const reused = await appendTestnetObservation({
+    category: "BOOTSTRAP_SETTLED",
+    txHash,
+    rpcUrl: "https://unused.invalid",
+    allowExisting: true,
+    context,
+    validate: () => {},
+  });
+  assert.equal(reused.alreadyRecorded, true);
+  assert.equal(reused.observationCount, 1);
+  await assert.rejects(
+    appendTestnetObservation({
+      category: "BOOTSTRAP_SETTLED",
+      txHash,
+      rpcUrl: "https://unused.invalid",
+      context,
+      validate: () => {},
+    }),
+    /V44_TESTNET_OBSERVATION_TX_REUSED/u,
+  );
+});
+
+test("v4.4 out-of-order observations cannot shrink the evidence window", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agentpool-v44-window-"));
+  const observationsPath = path.join(directory, "observations.json");
+  fs.writeFileSync(
+    observationsPath,
+    `${JSON.stringify({
+      startedAt: "2026-08-01T00:00:00.000Z",
+      endedAt: "2026-08-03T00:00:00.000Z",
+      observations: [],
+      attestations: [{ stale: true }],
+    })}\n`,
+    "utf8",
+  );
+  const context = {
+    observationsPath,
+    deployment: {},
+    evidencePipelineCommit: "a".repeat(40),
+    policyEvidence: {
+      policySha256: "b".repeat(64),
+      policy: {
+        categories: {
+          BOOTSTRAP_SETTLED: {
+            contractKey: "taskMarket",
+            transactionStatus: "success",
+          },
+        },
+      },
+    },
+  };
+  const client = {
+    getChainId: async () => 84532,
+    getTransactionReceipt: async () => ({ blockNumber: 1n }),
+    getBlock: async () => ({ timestamp: 1_754_006_400n }),
+  };
+  await appendTestnetObservation({
+    category: "BOOTSTRAP_SETTLED",
+    txHash: `0x${"cd".repeat(32)}`,
+    rpcUrl: "https://unused.invalid",
+    context,
+    client,
+    collectEvidence: async () => {},
+    validate: () => {},
+  });
+  const next = JSON.parse(fs.readFileSync(observationsPath, "utf8"));
+  assert.equal(next.startedAt, "2025-07-31T23:59:59.999Z");
+  assert.equal(next.endedAt, "2026-08-03T00:00:00.000Z");
+  assert.deepEqual(next.attestations, []);
+});
+
+test("v4.4 bootstrap campaign recovers settled observations from chain logs", () => {
+  const campaign = source("scripts/run-v44-testnet-bootstrap-campaign.mjs");
+  const recorder = source("scripts/record-v44-testnet-observation.mjs");
+  assert.match(campaign, /eventName: "MilestoneSettled"/u);
+  assert.match(campaign, /category: "BOOTSTRAP_SETTLED"/u);
+  assert.match(campaign, /allowExisting: true/u);
+  assert.match(campaign, /syncBootstrapSettlementObservations\(state\)/u);
+  assert.match(recorder, /appendTestnetObservation/u);
+});
 
 test("v4.4 threshold authority config is canonical and rejects one-key control", () => {
   const owners = [

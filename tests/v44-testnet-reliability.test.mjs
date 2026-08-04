@@ -2257,11 +2257,12 @@ test("public-testnet evidence intake verifies the live receipt before an atomic 
   );
   const helper = source("scripts/lib/v44-observation-ledger.mjs");
   const setup = source("scripts/setup-v44-testnet-campaign.mjs");
-  assert.match(recorder, /collectLiveRpcEvidence/);
-  assert.match(recorder, /next\.attestations = \[\]/);
+  assert.match(recorder, /appendTestnetObservation/);
+  assert.match(helper, /collectLiveRpcEvidence/);
+  assert.match(helper, /next\.attestations = \[\]/);
   assert.ok(
-    recorder.indexOf("await collectLiveRpcEvidence") <
-      recorder.lastIndexOf("writeJsonAtomic(context.observationsPath"),
+    helper.indexOf("await collectEvidence") <
+      helper.lastIndexOf("writeJsonAtomic(context.observationsPath"),
   );
   assert.match(incidentRecorder, /next\.attestations = \[\]/);
   assert.match(attester, /observationAttestationMessage/);
