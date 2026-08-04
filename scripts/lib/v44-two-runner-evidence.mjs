@@ -173,3 +173,14 @@ export function loadRunnerReports(directory) {
       JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")),
     );
 }
+
+export function selectRunnerReportsForSource(reports, sourceCommit, release) {
+  const commit = requireGitCommit(sourceCommit, "SELECTED_SOURCE_COMMIT");
+  const selectedRelease = requireString(release, "SELECTED_RELEASE");
+  if (!Array.isArray(reports)) throw new Error("RUNNER_REPORTS_INVALID");
+  return reports.filter(
+    (report) =>
+      String(report?.sourceCommit ?? "").toLowerCase() === commit &&
+      report?.release === selectedRelease,
+  );
+}
