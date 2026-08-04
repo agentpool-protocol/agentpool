@@ -48,7 +48,7 @@ export async function signedV43Write<T>(
       statusCode: status,
     });
     return apiResponse(result.body, status, {
-      "x-agentpool-version": "4.3.4-bootstrap-alpha",
+      "x-agentpool-version": "4.3.5-staged-autonomy-alpha",
     });
   } catch (error) {
     return handleApiError(error);

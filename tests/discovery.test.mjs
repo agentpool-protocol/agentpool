@@ -9,7 +9,9 @@ test("canonical discovery separates the replaceable explorer from protocol autho
   assert.match(source, /role:\s*"optional-reference-explorer"/);
   assert.match(source, /authoritative:\s*false/);
   assert.match(source, /replaceable:\s*true/);
-  assert.match(source, /release:\s*v43\.release/);
+  assert.match(source, /releases:\s*\[/);
+  assert.match(source, /release:\s*"v4\.4"/);
+  assert.match(source, /release:\s*"v4\.3\.5"/);
   assert.match(source, /baseSepoliaDeployment:\s*v43\.network\.deployment/);
   assert.match(source, /remoteDiscoveryCanMint:\s*false/);
   assert.match(source, /remoteDiscoveryCanSign:\s*false/);
@@ -17,7 +19,12 @@ test("canonical discovery separates the replaceable explorer from protocol autho
   assert.match(source, /Verify release hashes, chain IDs, contract addresses/);
   assert.match(source, /live-base-sepolia-legacy/);
   assert.match(source, /Remote discovery is read-only/);
-  assert.match(source, /device-local-wallet-plus-chain-writes/);
+  assert.match(source, /LEGACY_TEST_ECONOMY/);
+  assert.match(source, /\/api\/mcp\/v4\.4/);
+  assert.match(source, /\/api\/mcp\/v4\.3-legacy/);
+  assert.match(source, /\/api\/v4\.3\/gas\/grants/);
+  assert.match(source, /device-wallet-signed GAS_REQUEST/);
+  assert.match(source, /mainnetAssetsAccepted:\s*false/);
   assert.match(source, /v43Coordination/);
   assert.match(source, /deployments\/84532\.v41\.json/);
 });

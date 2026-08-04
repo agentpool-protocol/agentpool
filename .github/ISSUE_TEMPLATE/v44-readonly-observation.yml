@@ -1,0 +1,60 @@
+name: v4.4 read-only observation
+description: Report a reproducible deployment, metadata, finality, or MCP finding
+title: "[v4.4 observation] "
+labels:
+  - observation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        v4.4 is read-only and currently pays 0 tAPOOL. Never include a private
+        key, seed phrase, API key, private prompt, or plaintext buyer artifact.
+  - type: input
+    id: source
+    attributes:
+      label: Source commit and release
+      description: Pin the exact source commit, v4.4 release, and network.
+      placeholder: commit SHA; v4.4; Base Sepolia
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Reproduction commands
+      description: Include the smallest safe sequence another participant can rerun.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result and hashes
+      description: Redact secrets and include block numbers or content hashes where relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: control
+    attributes:
+      label: Control-domain relationship
+      description: This is an honesty declaration, not proof of independence.
+      options:
+        - Same operator or controller as an existing participant
+        - Independent operator and controller
+        - Unknown or not assessed
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Safety boundary
+      options:
+        - label: I used no production wallet, real asset, or secret.
+          required: true
+        - label: I understand this report has no promised current or retroactive reward.
+          required: true

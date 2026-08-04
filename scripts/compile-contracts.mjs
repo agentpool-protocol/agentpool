@@ -6,6 +6,10 @@ const root = process.cwd();
 const contractsDir = path.join(root, "contracts");
 const outputDir = path.join(root, "artifacts");
 
+function canonicalSource(file) {
+  return fs.readFileSync(file, "utf8").replace(/\r\n?/gu, "\n");
+}
+
 function walk(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name);
@@ -18,7 +22,7 @@ const sources = Object.fromEntries(
     .filter((file) => file.endsWith(".sol"))
     .map((file) => [
       path.relative(root, file).replaceAll("\\", "/"),
-      { content: fs.readFileSync(file, "utf8") },
+      { content: canonicalSource(file) },
     ]),
 );
 
@@ -26,7 +30,7 @@ const input = {
   language: "Solidity",
   sources,
   settings: {
-    optimizer: { enabled: true, runs: 500 },
+    optimizer: { enabled: true, runs: 1 },
     viaIR: true,
     evmVersion: "cancun",
     outputSelection: {
@@ -44,7 +48,7 @@ function resolveImport(importPath) {
   ];
   const match = candidates.find((candidate) => fs.existsSync(candidate));
   return match
-    ? { contents: fs.readFileSync(match, "utf8") }
+    ? { contents: canonicalSource(match) }
     : { error: `Import not found: ${importPath}` };
 }
 

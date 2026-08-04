@@ -26,7 +26,8 @@ interface IAgentPoolV43EvolutionSink {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external;
 }
 
@@ -76,6 +77,7 @@ contract AgentPoolV43SettlementRouter is IAgentPoolV43SettlementRouter {
     function recordOutcome(
         bytes32 receiptId,
         address agent,
+        bytes32 capability,
         uint128 units,
         bool successful
     ) external override {
@@ -83,9 +85,52 @@ contract AgentPoolV43SettlementRouter is IAgentPoolV43SettlementRouter {
         // The router is the active source seen by the ledger.
         (bool ok, bytes memory result) = address(ledger).call(
             abi.encodeWithSignature(
-                "recordOutcome(bytes32,address,uint128,bool)",
+                "recordOutcome(bytes32,address,bytes32,uint128,bool)",
                 receiptId,
                 agent,
+                capability,
+                units,
+                successful
+            )
+        );
+        if (!ok) _bubble(result);
+    }
+
+    function recordPerformanceOutcome(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external override {
+        if (msg.sender != market) revert Unauthorized();
+        (bool ok, bytes memory result) = address(ledger).call(
+            abi.encodeWithSignature(
+                "recordPerformance(bytes32,address,bytes32,uint128,bool)",
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            )
+        );
+        if (!ok) _bubble(result);
+    }
+
+    function recordBootstrapOutcome(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external override {
+        if (msg.sender != market) revert Unauthorized();
+        (bool ok, bytes memory result) = address(ledger).call(
+            abi.encodeWithSignature(
+                "recordBootstrapPerformance(bytes32,address,bytes32,uint128,bool)",
+                receiptId,
+                agent,
+                capability,
                 units,
                 successful
             )
@@ -127,10 +172,11 @@ contract AgentPoolV43SettlementRouter is IAgentPoolV43SettlementRouter {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external override {
         if (msg.sender != market) revert Unauthorized();
-        consensus.recordAdoption(proposalId, adopter, receiptId);
+        consensus.recordAdoption(proposalId, adopter, receiptId, releaseId);
     }
 
     function _bubble(bytes memory result) private pure {

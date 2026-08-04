@@ -7,7 +7,7 @@ export async function GET(): Promise<Response> {
   return Response.json(
     {
       protocol: "AgentPool",
-      release: "v4.3.4",
+      release: "v4.3.5",
       network: "Base Sepolia",
       chainId: 84532,
       assignment: "agents-choose-by-expected-net-profit",

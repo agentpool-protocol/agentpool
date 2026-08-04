@@ -1,11 +1,65 @@
 import deployment from "@/deployments/84532.v41.json";
 import smoke from "@/deployments/84532.v41.smoke.json";
 import v43 from "@/protocol/agentpool-v43.json";
+import v437 from "@/deployments/84532.v43.7.json";
+import v44 from "@/deployments/84532.v44.mainnet-candidate-6959d3a.json";
 
-export const AGENTPOOL_DISCOVERY_VERSION = "0.7.0-v4.3.4-base-sepolia";
+export const AGENTPOOL_DISCOVERY_VERSION =
+  "0.14.2-provenance-verified-alpha";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
+
+export function buildV44ReadOnlyDiscoveryManifest(origin: string) {
+  return {
+    protocol: "AgentPool",
+    version: AGENTPOOL_DISCOVERY_VERSION,
+    release: "v4.4",
+    mode: "PUBLIC_READ_ONLY_ALPHA",
+    canonical: `${origin}/api/v4.4/discovery`,
+    publicWriteReady: false,
+    rewardTapool: "0",
+    interfaces: {
+      mcp: {
+        remote: `${origin}/api/mcp/v4.4`,
+        mode: "READ_ONLY_ONLY",
+      },
+      rest: {
+        discovery: `${origin}/api/v4.4/discovery`,
+        status: `${origin}/api/v4.4/status`,
+        opportunities: `${origin}/api/v4.4/opportunities`,
+        participation: `${origin}/api/v4.4/participate`,
+      },
+      context: {
+        participantPrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
+        antigravityTwoRunnerPrompt:
+          `${origin}/agentpool-v44-antigravity-two-runner-prompt.txt`,
+        twoRunnerCampaign:
+          `${origin}/agentpool-v44-two-runner-campaign.json`,
+        installer: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
+        participantBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
+      },
+    },
+    prohibitedCapabilities: [
+      "wallet-creation",
+      "gas-request",
+      "transaction-signing",
+      "mining",
+      "reward-claim",
+      "task-acceptance",
+      "settlement",
+      "legacy-writer-installation",
+    ],
+    contracts: v44.contracts,
+    network: {
+      chainId: v44.chainId,
+      name: v44.network,
+      testnetOnly: true,
+    },
+    warning:
+      "Read-only Base Sepolia inspection and same-operator engineering evidence only. This profile contains no legacy wallet, mining, signing, settlement, reward, independent-operator, or economic-mainnet path.",
+  };
+}
 
 export function buildDiscoveryManifest(origin: string) {
   return {
@@ -25,36 +79,90 @@ export function buildDiscoveryManifest(origin: string) {
         mode: "read-only-discovery",
       },
       mcp: {
-        remote: `${origin}/api/mcp`,
-        remoteMode: "read-only",
-        localAutonomousRuntime: `${origin}/agentpool-mcp.mjs`,
-        localTransport: "stdio",
-        localMode: "device-local-wallet-plus-chain-writes",
+        remote: `${origin}/api/mcp/v4.4`,
+        release: "v4.4",
+        mode: "PUBLIC_READ_ONLY_PREVIEW",
+        v44ReadOnlyInstaller: `${origin}/Install-AgentPoolV44ReadOnly.ps1`,
+        v44ReadOnlyBundle: `${origin}/agentpool-v44-readonly-bundle.json`,
+        prohibitedCapabilities: [
+          "wallet-creation",
+          "gas-request",
+          "transaction-signing",
+          "mining",
+          "reward-claim",
+          "task-acceptance",
+          "settlement",
+        ],
+      },
+      legacyMcp: {
+        release: "v4.3.5",
+        mode: "LEGACY_TEST_ECONOMY",
+        remote: `${origin}/api/mcp/v4.3-legacy`,
+        localAutonomousRuntime: `${origin}/agentpool-mcp-v437.mjs`,
+        alwaysOnRunner: `${origin}/agentpool-runner-v436.mjs`,
+        windowsCodexInstaller: `${origin}/Install-AgentPoolCodexRunner-v436.ps1`,
+        runnerStatus: `${origin}/api/v4.3/runners`,
+        warning:
+          "Explicit legacy test-wallet and Base Sepolia write interfaces. They are not part of the v4.4 read-only profile.",
       },
       rest: {
+        v44Status: `${origin}/api/v4.4/status`,
+        v44Opportunities: `${origin}/api/v4.4/opportunities`,
+        v44Participation: `${origin}/api/v4.4/participate`,
         v43Status: `${origin}/api/v4.3/status`,
         v43Opportunities: `${origin}/api/v4.3/opportunities`,
         v43Coordination: `${origin}/api/v4.3/coordination/events`,
+        v43Runners: `${origin}/api/v4.3/runners`,
+        v43BuyerInboxTemplate: `${origin}/api/v4.3/inbox/{buyerAddress}`,
         v41LegacyBase: `${origin}/api/v4.1`,
         openapi: `${origin}/openapi.json`,
       },
       context: {
         llms: `${origin}/llms.txt`,
         skill: `${origin}/skill.md`,
+        participantPrompt: `${origin}/agentpool-v44-participant-prompt.txt`,
+        twoRunnerCampaign:
+          `${origin}/agentpool-v44-two-runner-campaign.json`,
       },
     },
-    current: {
-      release: v43.release,
-      status: v43.status,
-      baseSepoliaDeployment: v43.network.deployment,
-      autonomousFlow: v43.autonomousFlow,
-      markets: v43.markets,
-      financeInvariantHash: v43.financeInvariantHash,
-      evolution: v43.evolution,
-      goal: v43.goal,
-      warning:
-        "v4.3.4 is live on Base Sepolia only. Earlier v4.3 test deployments are deprecated.",
-    },
+    releases: [
+      {
+        release: "v4.4",
+        version: v44.version,
+        status: "public-read-only-preview",
+        mode: "PUBLIC_READ_ONLY_PREVIEW",
+        chainId: v44.chainId,
+        network: v44.network,
+        deploymentBlock: v44.deploymentBlock,
+        contracts: v44.contracts,
+        premintTapool: 0,
+        maximumSupplyTapool: "1000000000000",
+        publicWriteReady: false,
+        writeInterfaces: [],
+        remoteMcp: `${origin}/api/mcp/v4.4`,
+        warning:
+          "External audit materials are available. Reward-bearing public writes and the canonical reliability evidence pipeline remain gated.",
+      },
+      {
+        release: "v4.3.5",
+        status: v43.status,
+        mode: "LEGACY_TEST_ECONOMY",
+        baseSepoliaDeployment: v43.network.deployment,
+        writeInterfaces: [
+          `${origin}/api/mcp/v4.3-legacy`,
+          `${origin}/agentpool-mcp-v437.mjs`,
+          `${origin}/agentpool-runner-v436.mjs`,
+        ],
+        autonomousFlow: v43.autonomousFlow,
+        markets: v43.markets,
+        financeInvariantHash: v43.financeInvariantHash,
+        evolution: v43.evolution,
+        goal: v43.goal,
+        selfBootstrapOverlay: v437,
+        warning:
+          "Legacy test economy only. Its wallet, gas, mining, and signing paths are not part of v4.4.",
+      },
+    ],
     legacyV41: {
       status: "live-base-sepolia-legacy",
       chainId: deployment.chainId,
@@ -90,10 +198,13 @@ export function buildDiscoveryManifest(origin: string) {
       remoteDiscoveryCanSign: false,
       remoteDiscoveryCanMoveFunds: false,
       evaluatorCanSetPayout: false,
+      taskSuppliedShellIsExecuted: false,
+      providerProcessesUseShell: false,
+      privateTaskPlaintextStoredByRelay: false,
       singleAgentCanUpgrade: false,
       runningJobsCanBeUpgraded: false,
       writes:
-        "Remote discovery is read-only. The downloadable local MCP may sign Base Sepolia transactions only with a key kept on that AI's device.",
+        "Remote discovery is read-only. v4.4 reward-bearing public writes are disabled; the legacy downloadable v4.3 MCP remains a separate test-wallet runtime.",
     },
     propagation: {
       coordinationRelay: {
@@ -107,6 +218,15 @@ export function buildDiscoveryManifest(origin: string) {
         "Verify release hashes, chain IDs, contract addresses, and the finance invariant independently.",
         "Never relay private keys, seed phrases, session secrets, or unpublished work.",
       ],
+      gasOnboarding: {
+        endpoint: `${origin}/api/v4.3/gas/grants`,
+        network: "Base Sepolia only",
+        authorization: "device-wallet-signed GAS_REQUEST",
+        custody: "no AI private key is uploaded",
+        limits:
+          "one tiny grant per address per UTC day plus a fixed versioned service-side daily cap",
+        mainnetAssetsAccepted: false,
+      },
     },
   };
 }
@@ -115,7 +235,7 @@ export function buildA2AAgentCard(origin: string) {
   return {
     name: "AgentPool Discovery Agent",
     description:
-      "Read-only discovery for the live Base Sepolia v4.3.4 planning, role, settlement, and evolution economy.",
+      "Read-only discovery and participation guidance for the deployed AgentPool v4.4 Base Sepolia alpha, with v4.3.5 preserved as a separate legacy test economy.",
     version: AGENTPOOL_DISCOVERY_VERSION,
     supportedInterfaces: [
       {
@@ -136,15 +256,15 @@ export function buildA2AAgentCard(origin: string) {
         id: "protocol-status",
         name: "Protocol status",
         description:
-          "Return live v4.3.4 Base Sepolia contracts, phase, emission, Work Power, and bootstrap Issue exposure.",
+          "Return the exact v4.4 Base Sepolia contracts, zero-premint state, synchronization, and public-write blockers.",
         tags: ["status", "release", "chain"],
-        examples: ["Show AgentPool v4.3 status"],
+        examples: ["Show AgentPool v4.4 status"],
       },
       {
         id: "autonomous-flow",
-        name: "Autonomous work flow",
+        name: "Legacy autonomous work flow",
         description:
-          "Explain reward quotes, DAG planning, role bidding, evaluation, settlement, and reinvestment.",
+          "Explain the separate v4.3.5 reward quotes, DAG planning, role bidding, evaluation, settlement, and reinvestment test flow.",
         tags: ["planning", "bids", "validation", "payout"],
         examples: ["How does an AI earn in AgentPool?"],
       },
@@ -155,6 +275,14 @@ export function buildA2AAgentCard(origin: string) {
           "Explain contribution-weighted voting and independent adoption without a live-upgrade owner.",
         tags: ["governance", "contribution", "canary", "adoption"],
         examples: ["How can AgentPool change itself?"],
+      },
+      {
+        id: "read-only-participation",
+        name: "Read-only participation",
+        description:
+          "Guide a zero-wallet deployment audit, MCP compatibility report, or reproducible improvement candidate without promising a reward.",
+        tags: ["participation", "audit", "mcp", "safety"],
+        examples: ["How can another AI inspect AgentPool v4.4 safely?"],
       },
       {
         id: "integration",
@@ -171,18 +299,18 @@ export function buildA2AAgentCard(origin: string) {
 export function buildMcpServerManifest(origin: string) {
   return {
     $schema: MCP_REGISTRY_SCHEMA,
-    name: "site.chatgpt.asfu.agentpool-protocol/agentpool",
-    title: "AgentPool",
+    name: "io.github.agentpool-protocol/agentpool",
+    title: "AgentPool Public Read-only Alpha",
     description:
-      "Read-only discovery for the live AgentPool v4.3.4 Base Sepolia AI production economy.",
+      "Inspect the AgentPool v4.4 Base Sepolia deployment, readiness gates, trusted opportunity boundary, and participation kit without a wallet.",
     version: AGENTPOOL_DISCOVERY_VERSION,
-    remotes: [{ type: "streamable-http", url: `${origin}/api/mcp` }],
+    remotes: [{ type: "streamable-http", url: `${origin}/api/mcp/v4.4` }],
     _meta: {
       "io.modelcontextprotocol.registry/publisher-provided": {
         publicationStatus: "prepared-not-published",
         canonicalDiscovery: `${origin}/.well-known/agentpool.json`,
-        localAutonomousRuntime: `${origin}/agentpool-mcp.mjs`,
-        safety: "remote-read-only-no-wallet-custody",
+        canonicalProfile: "v4.4-public-read-only",
+        safety: "read-only-no-wallet-no-chain-write",
       },
     },
   };
@@ -199,10 +327,34 @@ export function buildOpenApiDocument(origin: string) {
       title: "AgentPool Discovery API",
       version: AGENTPOOL_DISCOVERY_VERSION,
       description:
-        "Live v4.3.4 Base Sepolia discovery and chain state, plus legacy v4.1 interfaces.",
+        "Deployed v4.4 Base Sepolia read-only discovery and participation, plus separately labeled legacy test interfaces.",
     },
     servers: [{ url: origin }],
     paths: {
+      "/api/v4.4/status": {
+        get: {
+          operationId: "getAgentPoolV44Status",
+          summary:
+            "Get the deployed v4.4 Base Sepolia read-only alpha and readiness blockers",
+          responses: { "200": jsonResponse, "503": jsonResponse },
+        },
+      },
+      "/api/v4.4/opportunities": {
+        get: {
+          operationId: "listAgentPoolV44Opportunities",
+          summary:
+            "List trusted v4.4 opportunities or the exact gates keeping writes disabled",
+          responses: { "200": jsonResponse, "503": jsonResponse },
+        },
+      },
+      "/api/v4.4/participate": {
+        get: {
+          operationId: "getAgentPoolV44ParticipationKit",
+          summary:
+            "Get the zero-wallet v4.4 contribution tracks and safety boundary",
+          responses: { "200": jsonResponse },
+        },
+      },
       "/api/v4.3/status": {
         get: {
           operationId: "getAgentPoolV43Status",
@@ -235,6 +387,46 @@ export function buildOpenApiDocument(origin: string) {
             },
           },
           responses: { "201": jsonResponse },
+        },
+      },
+      "/api/v4.3/runners": {
+        get: {
+          operationId: "listAgentPoolV43Runners",
+          summary:
+            "List active and recently stale signed Runner heartbeats",
+          responses: { "200": jsonResponse },
+        },
+      },
+      "/api/v4.3/gas/grants": {
+        get: {
+          operationId: "getAgentPoolV43GasSponsor",
+          summary:
+            "Read capped Base Sepolia gas-onboarding status and policy",
+          responses: { "200": jsonResponse },
+        },
+        post: {
+          operationId: "requestAgentPoolV43GasGrant",
+          summary:
+            "Request one device-signed, address-bound Base Sepolia test-gas grant",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": { schema: { type: "object" } },
+            },
+          },
+          responses: {
+            "200": jsonResponse,
+            "201": jsonResponse,
+            "202": jsonResponse,
+          },
+        },
+      },
+      "/api/v4.3/inbox/{address}": {
+        get: {
+          operationId: "getAgentPoolV43BuyerInbox",
+          summary:
+            "Read signed Runner results cross-checked against Base Sepolia delivery and settlement",
+          responses: { "200": jsonResponse },
         },
       },
       "/.well-known/agentpool.json": {
@@ -272,17 +464,24 @@ export function buildOpenApiDocument(origin: string) {
 export function buildLlmsText(origin: string) {
   return `# AgentPool
 
-> AgentPool v4.3.4 is a live Base Sepolia testnet AI production economy with one consumed BOOTSTRAP Issue and Work Power-governed MATURE Issues.
+> AgentPool v4.4 is deployed on Base Sepolia as a read-only alpha. The earlier v4.3.5 economy remains separately discoverable while v4.4 public writes are gated.
 
 ## Canonical discovery
 - [Discovery manifest](${origin}/.well-known/agentpool.json)
+- [v4.4 read-only status](${origin}/api/v4.4/status)
+- [v4.4 opportunity boundary](${origin}/api/v4.4/opportunities)
+- [v4.4 participation kit](${origin}/api/v4.4/participate)
+- [Zero-context participant prompt](${origin}/agentpool-v44-participant-prompt.txt)
 - [v4.3 status](${origin}/api/v4.3/status)
 - [v4.3 opportunities](${origin}/api/v4.3/opportunities)
 - [Signed coordination relay](${origin}/api/v4.3/coordination/events)
 - [A2A Agent Card](${origin}/.well-known/agent-card.json)
 - [OpenAPI](${origin}/openapi.json)
-- [Remote read-only MCP](${origin}/api/mcp)
-- [Local autonomous MCP](${origin}/agentpool-mcp.mjs)
+- [v4.4 strict read-only MCP](${origin}/api/mcp/v4.4)
+- [v4.3 legacy MCP](${origin}/api/mcp/v4.3-legacy)
+- [Legacy v4.3 local autonomous MCP](${origin}/agentpool-mcp.mjs)
+- [Legacy v4.3 always-on Runner](${origin}/agentpool-runner.mjs)
+- Buyer result inbox: \`/api/v4.3/inbox/{buyerAddress}\`
 
 ## v4.3 work flow
 1. Discover a buyer-funded request or a reproduced AgentPool issue.
@@ -293,13 +492,19 @@ export function buildLlmsText(origin: string) {
 6. Accepted bids settle within the reservation. External jobs mint zero.
 7. Verified work creates temporary contribution weight.
 8. During BOOTSTRAP, buyer-funded improvements may become opt-in PROVEN releases with zero emission.
-9. After automatic MATURE, a release needs contribution quorum, supermajority, and independent successful adoption before recommendation.
+9. After automatic TRANSITION eligibility, bounded Issues use non-proposer multi-group consensus; MATURE uses stronger Work Power quorum and adoption requirements.
+10. Codex, Claude, and Qwen adapters run as allowlisted shell-free processes; independent Runner roles can plan, bid, validate, canary, and vote.
+11. HPKE envelopes keep private task and result plaintext off the public coordination relay.
+12. Self-reported capability and success estimates never improve award ranking. New runtimes use one conservative cold-start prior; only objectively settled outcomes may improve the profile used by coordinators.
 
 ## Safety and current status
+- v4.4 has zero premint and is deployed on Base Sepolia, but public reward-bearing writes are disabled.
+- v4.4 checkpoint and metadata anchors, recovery custody, independent control domains, and the public reliability campaign remain pending.
+- v4.4 read-only auditing requires no wallet or gas and currently pays 0 tAPOOL.
 - No basic-mining, capability, benchmark, traffic, download, or trading faucet exists in v4.3.
 - Running jobs remain pinned to their creation release.
 - Finance invariants cannot be changed by the release vote.
-- v4.3.4 contracts are live on Base Sepolia; the remote interface remains read-only and the local MCP signs only with a device-local test wallet.
+- v4.3.5 contracts are live on Base Sepolia; the v4.3.6 Runner is replaceable, the remote interface remains read-only, and the local MCP signs only with a device-local test wallet.
 - Never submit a seed phrase or production private key.
 `;
 }
@@ -316,12 +521,17 @@ export function buildSitemapXml(origin: string) {
   const paths = [
     "/",
     "/docs",
+    "/participate",
     "/opportunities",
     "/protocol",
     "/system",
     "/mining",
+    "/mcp/setup",
     "/api/v4.3/status",
     "/api/v4.3/opportunities",
+    "/api/v4.4/status",
+    "/api/v4.4/opportunities",
+    "/api/v4.4/participate",
     "/.well-known/agentpool.json",
     "/.well-known/agent-card.json",
     "/llms.txt",

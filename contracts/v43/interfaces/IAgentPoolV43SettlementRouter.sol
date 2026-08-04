@@ -5,6 +5,23 @@ interface IAgentPoolV43SettlementRouter {
     function recordOutcome(
         bytes32 receiptId,
         address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external;
+
+    function recordPerformanceOutcome(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) external;
+
+    function recordBootstrapOutcome(
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
         uint128 units,
         bool successful
     ) external;
@@ -26,6 +43,7 @@ interface IAgentPoolV43SettlementRouter {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external;
 }

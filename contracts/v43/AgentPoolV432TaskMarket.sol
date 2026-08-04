@@ -38,11 +38,18 @@ import {
 import {
     IAgentPoolV432SystemIssueGate
 } from "./interfaces/IAgentPoolV432SystemIssueGate.sol";
+import {
+    IAgentPoolV435SystemIssueGate
+} from "./interfaces/IAgentPoolV435SystemIssueGate.sol";
 
 /// @notice Security-compatible v4.3.2 settlement market. It keeps the v4.3.1
 ///         finance kernel but makes system evidence and validator membership
 ///         part of the admitted Issue instead of proposer-selected inputs.
 contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
+    /// @notice Deployment-fixed cap for governance-eligible reserve work.
+    ///         The v4.4 mainnet candidate fixes this to one; legacy v4.3
+    ///         rehearsals retain their historical multi-step limit.
+    uint32 public immutable MAX_GOVERNANCE_MILESTONES;
     using SafeERC20 for IERC20;
 
     struct ValidationPolicy {
@@ -50,23 +57,18 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         uint16 minimumOperatorGroups;
     }
 
-    IAgentPoolV432ProofRegistry public immutable proofRegistryV2;
-    IAgentPoolV432SystemIssueGate public immutable systemIssueGateV2;
+    IAgentPoolV432ProofRegistry private immutable proofRegistryV2;
+    IAgentPoolV435SystemIssueGate private immutable systemIssueGateV2;
     mapping(bytes32 => mapping(uint32 => ValidationPolicy))
-        public validationPolicies;
-    mapping(bytes32 => mapping(uint32 => uint32)) public dependencyMasks;
-    mapping(bytes32 => uint32) public settledMasks;
-    mapping(bytes32 => uint32) public activeMilestones;
-    mapping(bytes32 => uint32) public settledMilestoneCount;
-    mapping(bytes32 => bytes32) public systemObjectiveRoots;
+        private validationPolicies;
+    mapping(bytes32 => mapping(uint32 => uint32)) private dependencyMasks;
+    mapping(bytes32 => uint32) private settledMasks;
+    mapping(bytes32 => uint32) private activeMilestones;
+    mapping(bytes32 => uint32) private settledMilestoneCount;
+    mapping(bytes32 => bool) public jobGovernanceEligible;
 
     event SlashReused(bytes32 indexed jobId, uint256 amount);
     event DependencyGraphPinned(bytes32 indexed jobId, uint32 milestoneCount);
-    event RemainingPlanReplaced(
-        bytes32 indexed jobId,
-        bytes32 indexed newPlanHash,
-        uint32 settledMask
-    );
 
     constructor(
         IERC20 token_,
@@ -78,8 +80,9 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         IAgentPoolV43CapacityRegistry capacityRegistry_,
         IAgentPoolV432ProofRegistry proofRegistry_,
         IAgentPoolV43SettlementRouter settlementRouter_,
-        IAgentPoolV432SystemIssueGate systemIssueGate_,
-        bytes32 financeInvariantHash_
+        IAgentPoolV435SystemIssueGate systemIssueGate_,
+        bytes32 financeInvariantHash_,
+        uint32 maximumGovernanceMilestones_
     )
         AgentPoolV43TaskMarket(
             token_,
@@ -95,8 +98,13 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             financeInvariantHash_
         )
     {
+        if (
+            maximumGovernanceMilestones_ == 0 ||
+            maximumGovernanceMilestones_ > MAX_MILESTONES
+        ) revert InvalidTerms();
         proofRegistryV2 = proofRegistry_;
         systemIssueGateV2 = systemIssueGate_;
+        MAX_GOVERNANCE_MILESTONES = maximumGovernanceMilestones_;
     }
 
     function createExternalJob(
@@ -162,12 +170,22 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             revert Unauthorized();
         }
         if (issue.funding != uint8(funding)) revert InvalidTerms();
+        if (
+            issue.bootstrapProposer == address(0) &&
+            terms.length > MAX_GOVERNANCE_MILESTONES
+        ) revert InvalidTerms();
         _validatePlan(terms, policies, dependencies);
         if (objectiveProofs.length != terms.length) revert InvalidTerms();
         for (uint256 index = 0; index < terms.length; index++) {
             MilestoneTerms calldata term = terms[index];
             ValidationPolicy calldata policy = policies[index];
             if (
+                term.verifier != issue.verifier ||
+                term.minimumReveals != issue.minimumReveals ||
+                term.passScoreBps != issue.passScoreBps ||
+                policy.validatorRoot != issue.validatorRoot ||
+                policy.minimumOperatorGroups !=
+                    issue.minimumValidatorGroups ||
                 term.deadline > issue.expiresAt ||
                 !MerkleProof.verifyCalldata(
                     objectiveProofs[index],
@@ -182,24 +200,28 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 ) revert InvalidTerms();
             }
         }
-        systemIssueGateV2.consumeFor(
+        uint128 reservedBudget = _committedBudget(terms);
+        if (reservedBudget > budget) {
+            revert BudgetExceeded();
+        }
+        bool bootstrapAdmitted = systemIssueGateV2.consumeFor(
             issue,
-            budget,
+            reservedBudget,
             msg.sender,
             bootstrapProof
         );
         jobId = _createJob(
             funding,
-            budget,
+            reservedBudget,
             planHash,
             releaseId,
             issue.issueId,
             terms
         );
+        jobGovernanceEligible[jobId] = !bootstrapAdmitted;
         _storePolicies(jobId, policies);
         _storeDependencies(jobId, dependencies);
-        systemObjectiveRoots[jobId] = issue.objectiveRoot;
-        _vault(funding).reserve(jobId, budget);
+        _vault(funding).reserve(jobId, reservedBudget);
     }
 
     function objectiveLeaf(
@@ -211,6 +233,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             term.capability,
             term.specificationHash,
             term.expectedEvidenceHash,
+            term.capacityUnits,
             term.minimumReveals,
             term.passScoreBps,
             term.commitWindow,
@@ -248,81 +271,16 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
     }
 
     function replanRemainingV2(
-        bytes32 jobId,
-        bytes32 newPlanHash,
-        MilestoneTerms[] calldata newTerms,
-        ValidationPolicy[] calldata newPolicies,
-        uint32[] calldata newDependencies,
-        bytes32[][] calldata newObjectiveProofs
-    ) external {
-        Job storage job = jobs[jobId];
-        if (
-            msg.sender != job.creator ||
-            job.state != JobState.BUDGET_HOLD ||
-            activeMilestones[jobId] != 0 ||
-            newPlanHash == bytes32(0) ||
-            newTerms.length != job.milestoneCount
-        ) revert Unauthorized();
-        _validatePlan(newTerms, newPolicies, newDependencies);
-        uint256 committed = job.paid;
-        uint32 settled = settledMasks[jobId];
-        bytes32 objectiveRoot = systemObjectiveRoots[jobId];
-        if (
-            (
-                job.funding == Funding.EXTERNAL &&
-                newObjectiveProofs.length != 0
-            ) ||
-            (
-                job.funding != Funding.EXTERNAL &&
-                newObjectiveProofs.length != newTerms.length
-            )
-        ) revert InvalidTerms();
-        for (uint32 index = 0; index < newTerms.length; index++) {
-            uint32 bit = uint32(1) << index;
-            bytes32 newObjective = objectiveLeaf(
-                newTerms[index],
-                newPolicies[index]
-            );
-            if (
-                objectiveRoot != bytes32(0) &&
-                !MerkleProof.verifyCalldata(
-                    newObjectiveProofs[index],
-                    objectiveRoot,
-                    newObjective
-                )
-            ) revert Unauthorized();
-            for (uint32 prior = 0; prior < index; prior++) {
-                if (
-                    objectiveLeaf(
-                        newTerms[prior],
-                        newPolicies[prior]
-                    ) == newObjective
-                ) revert InvalidTerms();
-            }
-            if ((settled & bit) != 0) {
-                if (
-                    _storedObjectiveLeaf(jobId, index) != newObjective ||
-                    dependencyMasks[jobId][index] !=
-                    newDependencies[index]
-                ) revert InvalidTerms();
-                continue;
-            }
-            Milestone storage current = milestones[jobId][index];
-            if (current.state != MilestoneState.PENDING) {
-                revert InvalidState();
-            }
-            _replaceMilestone(jobId, index, newTerms[index]);
-            validationPolicies[jobId][index] = newPolicies[index];
-            dependencyMasks[jobId][index] = newDependencies[index];
-            committed +=
-                uint256(newTerms[index].allocation) +
-                newTerms[index].keeperFee;
-        }
-        if (committed > job.budget) revert BudgetExceeded();
-        job.planHash = newPlanHash;
-        job.state = JobState.OPEN;
-        emit JobReplanned(jobId, newPlanHash);
-        emit RemainingPlanReplaced(jobId, newPlanHash, settled);
+        bytes32,
+        bytes32,
+        MilestoneTerms[] calldata,
+        ValidationPolicy[] calldata,
+        uint32[] calldata,
+        bytes32[][] calldata
+    ) external pure {
+        // Replanning creates a new continuation job. Existing jobs remain
+        // immutable so prices, workers, proofs, and payout roots cannot change.
+        revert Unauthorized();
     }
 
     function acceptMilestone(
@@ -343,6 +301,9 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
             block.timestamp > milestone.deadline
         ) revert InvalidState();
         if (msg.sender != milestone.worker) revert Unauthorized();
+        if (contributionLedger.operatorGroup(msg.sender) == bytes32(0)) {
+            revert Unauthorized();
+        }
         capacityRegistry.reserve(
             _capacityHoldId(jobId, milestoneIndex),
             msg.sender,
@@ -393,6 +354,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 contributionLedger.operatorGroup(milestone.worker),
                 policy.minimumOperatorGroups
             );
+            milestone.deadline = commitDeadline + milestone.revealWindow;
         }
         emit MilestoneDelivered(
             jobId,
@@ -436,19 +398,31 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 milestone.expectedEvidenceHash,
                 proof
             );
+        // A caller-selected invalid proof must never be able to reject another
+        // agent's delivery. Invalid deterministic evidence is a no-op; a bad
+        // delivery is eventually handled by the validator result or the
+        // permissionless expiry/refund path.
+        if (!passed) revert VerificationFailed();
         if (milestone.minimumReveals != 0) {
             bytes32 roundId = _proofRoundId(jobId, milestoneIndex);
             ValidationPolicy storage policy =
                 validationPolicies[jobId][milestoneIndex];
-            if (
-                !proofRegistryV2.roundReady(roundId) ||
-                proofRegistryV2.revealCount(roundId) <
-                    milestone.minimumReveals ||
-                proofRegistryV2.groupCount(roundId) <
-                    policy.minimumOperatorGroups ||
-                proofRegistryV2.medianScore(roundId) <
-                    milestone.passScoreBps
-            ) passed = false;
+            uint8 proofStatus = proofRegistryV2.resolutionStatus(
+                roundId,
+                milestone.minimumReveals,
+                policy.minimumOperatorGroups,
+                milestone.passScoreBps
+            );
+            if (proofStatus == 1) {
+                _abortJob(
+                    jobId,
+                    milestoneIndex,
+                    MilestoneState.REFUNDED,
+                    JobState.REFUNDED
+                );
+                return;
+            }
+            passed = proofStatus == 3;
         }
         if (!passed) {
             _abortJob(
@@ -480,7 +454,8 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         }
         milestone.state = MilestoneState.SETTLED;
         _releaseWorker(jobId, milestoneIndex, milestone, true);
-        settlementRouter.recordOutcome(
+        _recordVerifiedOutcome(
+            jobId,
             keccak256(
                 abi.encode(
                     "AGENTPOOL_V432_SETTLEMENT",
@@ -489,6 +464,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 )
             ),
             milestone.worker,
+            milestone.capability,
             milestone.capacityUnits,
             true
         );
@@ -503,6 +479,7 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         settledMilestoneCount[jobId]++;
         activeMilestones[jobId]--;
         if (settledMilestoneCount[jobId] == job.milestoneCount) {
+            _releaseIssueAdmission(job);
             _closeSuccessful(jobId, job);
         }
     }
@@ -527,11 +504,33 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 milestone.state != MilestoneState.DELIVERED
             )
         ) revert InvalidState();
+        bool validatorFailure =
+            milestone.state == MilestoneState.DELIVERED &&
+            milestone.minimumReveals != 0;
+        if (validatorFailure) {
+            ValidationPolicy storage policy =
+                validationPolicies[jobId][milestoneIndex];
+            uint8 proofStatus = proofRegistryV2.resolutionStatus(
+                _proofRoundId(jobId, milestoneIndex),
+                milestone.minimumReveals,
+                policy.minimumOperatorGroups,
+                milestone.passScoreBps
+            );
+            if (proofStatus == 2) {
+                _abortJob(
+                    jobId,
+                    milestoneIndex,
+                    MilestoneState.REJECTED,
+                    JobState.REJECTED
+                );
+                return;
+            }
+        }
         _abortJob(
             jobId,
             milestoneIndex,
             MilestoneState.REFUNDED,
-            JobState.EXPIRED
+            validatorFailure ? JobState.REFUNDED : JobState.EXPIRED
         );
     }
 
@@ -590,78 +589,6 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         emit DependencyGraphPinned(jobId, uint32(dependencies.length));
     }
 
-    function _storedObjectiveLeaf(
-        bytes32 jobId,
-        uint32 index
-    ) private view returns (bytes32) {
-        Milestone storage term = milestones[jobId][index];
-        ValidationPolicy storage policy = validationPolicies[jobId][index];
-        return keccak256(bytes.concat(keccak256(abi.encode(
-            term.verifier,
-            term.capability,
-            term.specificationHash,
-            term.expectedEvidenceHash,
-            term.minimumReveals,
-            term.passScoreBps,
-            term.commitWindow,
-            term.revealWindow,
-            policy.validatorRoot,
-            policy.minimumOperatorGroups
-        ))));
-    }
-
-    function _replaceMilestone(
-        bytes32 jobId,
-        uint32 index,
-        MilestoneTerms calldata term
-    ) private {
-        if (
-            term.worker == address(0) ||
-            term.worker == jobs[jobId].creator ||
-            term.verifier == address(0) ||
-            term.verifier.code.length == 0 ||
-            term.capability == bytes32(0) ||
-            term.specificationHash == bytes32(0) ||
-            term.expectedEvidenceHash == bytes32(0) ||
-            term.payoutRoot == bytes32(0) ||
-            term.allocation == 0 ||
-            term.keeperFee == 0 ||
-            term.deadline <= block.timestamp ||
-            term.capacityUnits == 0 ||
-            term.passScoreBps > BPS ||
-            (
-                term.minimumReveals != 0 &&
-                (
-                    term.commitWindow < MIN_PROOF_WINDOW ||
-                    term.revealWindow < MIN_PROOF_WINDOW ||
-                    term.commitWindow > MAX_PROOF_WINDOW ||
-                    term.revealWindow > MAX_PROOF_WINDOW
-                )
-            )
-        ) revert InvalidTerms();
-        milestones[jobId][index] = Milestone({
-            worker: term.worker,
-            verifier: term.verifier,
-            capability: term.capability,
-            specificationHash: term.specificationHash,
-            expectedEvidenceHash: term.expectedEvidenceHash,
-            payoutRoot: term.payoutRoot,
-            deliveryHash: bytes32(0),
-            allocation: term.allocation,
-            workerBond: term.workerBond,
-            keeperFee: term.keeperFee,
-            deadline: term.deadline,
-            capacityUnits: term.capacityUnits,
-            minimumReveals: term.minimumReveals,
-            passScoreBps: term.passScoreBps,
-            commitWindow: term.commitWindow,
-            revealWindow: term.revealWindow,
-            state: MilestoneState.PENDING,
-            candidateAttested: false,
-            adoptionRecorded: false
-        });
-    }
-
     function _abortJob(
         bytes32 jobId,
         uint32 failedIndex,
@@ -675,7 +602,13 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                 current.state == MilestoneState.ACCEPTED ||
                 current.state == MilestoneState.DELIVERED
             ) {
-                _releaseWorker(jobId, index, current, false);
+                _releaseWorker(
+                    jobId,
+                    index,
+                    current,
+                    index != failedIndex ||
+                        finalState == JobState.REFUNDED
+                );
             }
             if (
                 current.state == MilestoneState.PENDING ||
@@ -691,7 +624,8 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
         activeMilestones[jobId] = 0;
         if (failedState == MilestoneState.REJECTED) {
             Milestone storage failed = milestones[jobId][failedIndex];
-            settlementRouter.recordOutcome(
+            _recordVerifiedOutcome(
+                jobId,
                 keccak256(
                     abi.encode(
                         "AGENTPOOL_V432_REJECTION",
@@ -700,11 +634,71 @@ contract AgentPoolV432TaskMarket is AgentPoolV43TaskMarket {
                     )
                 ),
                 failed.worker,
+                failed.capability,
                 failed.capacityUnits,
                 false
             );
         }
+        _releaseIssueAdmission(job);
         _returnRemaining(jobId, job, finalState);
+    }
+
+    function _releaseIssueAdmission(Job storage job) private {
+        if (job.funding != Funding.EXTERNAL) {
+            systemIssueGateV2.releaseFor(
+                job.issueId,
+                job.budget,
+                job.creator
+            );
+        }
+    }
+
+    function _committedBudget(
+        MilestoneTerms[] calldata terms
+    ) private pure returns (uint128) {
+        uint256 committed;
+        for (uint256 index = 0; index < terms.length; index++) {
+            committed +=
+                uint256(terms[index].allocation) +
+                terms[index].keeperFee;
+        }
+        if (committed > type(uint128).max) revert BudgetExceeded();
+        return uint128(committed);
+    }
+
+    function _recordVerifiedOutcome(
+        bytes32 jobId,
+        bytes32 receiptId,
+        address agent,
+        bytes32 capability,
+        uint128 units,
+        bool successful
+    ) private {
+        if (jobs[jobId].funding == Funding.EXTERNAL) {
+            settlementRouter.recordPerformanceOutcome(
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            );
+        } else if (!jobGovernanceEligible[jobId]) {
+            settlementRouter.recordBootstrapOutcome(
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            );
+        } else {
+            settlementRouter.recordOutcome(
+                receiptId,
+                agent,
+                capability,
+                units,
+                successful
+            );
+        }
     }
 
     function _settleSystem(

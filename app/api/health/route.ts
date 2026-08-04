@@ -12,7 +12,7 @@ export async function GET(): Promise<Response> {
       status: "ok",
       network: "base-sepolia",
       chainId: 84532,
-      version: "0.7.0-v4.3.4-base-sepolia",
+      version: "0.9.0-v4.3.6-autonomy-runner",
       versions: {
         v3: {
           status: "legacy-live-base-sepolia",
@@ -33,7 +33,7 @@ export async function GET(): Promise<Response> {
           contracts: V41_DEPLOYMENT.contracts,
         },
         v43: {
-          status: "bootstrap-live-base-sepolia",
+          status: "bootstrap-live-base-sepolia-autonomy-runner",
           maxSupplyApool: "1000000000000",
           premintApool: "0",
           decimals: 18,
@@ -41,6 +41,19 @@ export async function GET(): Promise<Response> {
           basicMining: false,
           finiteBootstrapIssues: true,
           matureIssueWorkPowerConsensus: true,
+          runnerRoles: [
+            "planner",
+            "bidder",
+            "worker",
+            "validator",
+            "watcher",
+            "improver",
+            "canary",
+            "voter",
+          ],
+          executionAdapters: ["codex", "claude", "qwen"],
+          privateTransport:
+            "HPKE-X25519-HKDF-SHA256-CHACHA20POLY1305",
           contracts: V43_DEPLOYMENT.contracts,
         },
       },

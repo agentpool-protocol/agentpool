@@ -1,0 +1,52 @@
+{
+  "schema": "agentpool.mainnet.v44.config/v1",
+  "chainId": 8453,
+  "network": "Base",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "token": {
+    "name": "AgentPool",
+    "symbol": "APOOL",
+    "decimals": 18,
+    "maxSupplyApool": "1000000000000",
+    "premintApool": "0"
+  },
+  "emission": {
+    "epochSeconds": 604800,
+    "coreWeeklyCapApool": "63000",
+    "evolutionWeeklyCapApool": "7000",
+    "coreLifetimeCapApool": "900000000000",
+    "evolutionLifetimeCapApool": "100000000000"
+  },
+  "dynamicIssues": {
+    "candidateBudgetCapApool": "10",
+    "issueBudgetCapApool": "30",
+    "candidateAdmissionBondApool": "10",
+    "maxCandidates": 1,
+    "maxGovernanceMilestones": 1,
+    "maxLifetimeSeconds": 15552000
+  },
+  "consensus": {
+    "proposalBondApool": "10"
+  },
+  "bootstrap": {
+    "candidateBudgetCapApool": "120",
+    "totalBudgetCapApool": "120",
+    "maxCandidates": 1,
+    "minimumReveals": 3,
+    "passScoreBps": 8000,
+    "minimumValidatorGroups": 3,
+    "capacityUnits": 100,
+    "minimumObjectives": 24,
+    "maximumObjectives": 32,
+    "funding": 3,
+    "maximumLifetimeSeconds": 2592000
+  },
+  "invariants": [
+    "max-supply",
+    "external-no-mint",
+    "reservation-cap",
+    "no-owner-withdrawal",
+    "no-evaluator-payout",
+    "receipt-replay"
+  ]
+}

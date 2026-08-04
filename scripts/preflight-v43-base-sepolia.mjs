@@ -25,7 +25,8 @@ const requiredArtifacts = [
   "AgentPoolV432ProofRegistry",
   "AgentPoolV43SettlementRouter",
   "AgentPoolV43HashObjectiveVerifier",
-  "AgentPoolV432SystemIssueGate",
+  "AgentPoolV435SystemIssueGate",
+  "AgentPoolV435TransitionIssueConsensus",
   "AgentPoolV432IssueConsensus",
 ];
 
@@ -56,8 +57,8 @@ if (
 ) {
   throw new Error("V432_BOOTSTRAP_VALIDATORS_NOT_DISTINCT");
 }
-const manifestPath = path.join(root, "deployments", "84532.v43.4.json");
-if (fs.existsSync(manifestPath)) throw new Error("V43_ALREADY_DEPLOYED");
+const manifestPath = path.join(root, "deployments", "84532.v43.5.json");
+if (fs.existsSync(manifestPath)) throw new Error("V435_ALREADY_DEPLOYED");
 
 const artifactHashes = {};
 const runtimeSizes = {};
@@ -97,7 +98,7 @@ if (balance < minimumBalance) {
   );
 }
 
-const partialPath = path.join(root, "deployments", "84532.v43.4.partial.json");
+const partialPath = path.join(root, "deployments", "84532.v43.5.partial.json");
 const partial = fs.existsSync(partialPath)
   ? JSON.parse(fs.readFileSync(partialPath, "utf8"))
   : null;

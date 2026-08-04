@@ -9,6 +9,9 @@ import {
 } from "../AgentPoolV43EvolutionConsensus.sol";
 
 contract MockV43SettlementSource {
+    bytes32 private constant GENERIC_CAPABILITY =
+        keccak256("AGENTPOOL_GENERIC_CAPABILITY");
+
     AgentPoolV43ContributionLedger public ledger;
     AgentPoolV43EvolutionConsensus public consensus;
     bool public configured;
@@ -29,15 +32,27 @@ contract MockV43SettlementSource {
         uint128 units,
         bool successful
     ) external {
-        ledger.recordOutcome(receiptId, agent, units, successful);
+        ledger.recordOutcome(
+            receiptId,
+            agent,
+            GENERIC_CAPABILITY,
+            units,
+            successful
+        );
     }
 
     function adopt(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external {
-        consensus.recordAdoption(proposalId, adopter, receiptId);
+        consensus.recordAdoption(
+            proposalId,
+            adopter,
+            receiptId,
+            releaseId
+        );
     }
 
     function attest(

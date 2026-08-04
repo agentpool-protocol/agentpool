@@ -1,0 +1,50 @@
+{
+  "schema": "agentpool.v44.deployment-stages/v1",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "policy": "Engineering evidence from agents sharing one operator or device may improve software confidence, but it never becomes organizational, custody, validator, or governance independence.",
+  "stages": {
+    "TWO_RUNNER_TESTNET": {
+      "purpose": "Run the same pinned source through two distinct AI runtimes before any mainnet action.",
+      "minimumRunnerReports": 2,
+      "minimumRuntimeFamilies": 2,
+      "minimumProcessInstances": 2,
+      "sameOperatorAllowed": true,
+      "sameDeviceAllowed": true,
+      "countsTowardIndependentOperators": false,
+      "countsTowardIndependentCustody": false,
+      "countsTowardValidatorIndependence": false,
+      "mainnetWritesAllowed": false,
+      "realAssetsAllowed": false
+    },
+    "DORMANT_MAINNET": {
+      "purpose": "Optionally timestamp source and policy provenance without deploying an economic system.",
+      "allowedContracts": [
+        "AgentPoolV44DormantDeploymentAnchor"
+      ],
+      "tokenDeploymentAllowed": false,
+      "emissionAllowed": false,
+      "rewardAllowed": false,
+      "userDepositsAllowed": false,
+      "taskSettlementAllowed": false,
+      "activationTransactionExists": false,
+      "requiresSeparateMatureDeployment": true
+    },
+    "MATURE_MAINNET": {
+      "purpose": "Deploy the immutable token and economic kernels only after independent evidence exists.",
+      "requiredGateFile": "mainnet-v44-gates.json",
+      "minimumContributingAgents": 5,
+      "minimumOperatorGroups": 3,
+      "minimumIndependentObservers": 2,
+      "requiresIndependentCustody": true,
+      "requiresValidatorIndependence": true,
+      "requiresPublicReliabilityCampaign": true,
+      "inheritsEveryExistingMainnetGate": true
+    }
+  },
+  "nonEquivalence": [
+    "Two AI products on one computer are two engineering runtimes, not two independent operators.",
+    "Two wallets controlled by one person are not independent custody domains.",
+    "A dormant provenance anchor is not an APOOL token deployment and cannot later activate one.",
+    "Mature economics require a new deployment that passes every mainnet gate."
+  ]
+}

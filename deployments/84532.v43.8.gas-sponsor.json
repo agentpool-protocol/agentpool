@@ -1,0 +1,15 @@
+{
+  "protocol": "AgentPool",
+  "release": "v4.3.8-gas-onboarding-alpha",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "testnetOnly": true,
+  "sponsorAddress": "0xDBa5a110be6dA4A38156a2640590cf8caEEFC747",
+  "custody": "site-secret-only",
+  "privateKeyPublished": false,
+  "grantTargetEth": "0.000003",
+  "grantsPerAddressPerUtcDay": 1,
+  "globalDailyGrantCountCap": 100,
+  "globalDailyEthCap": "0.0003",
+  "mainnetAllowed": false
+}

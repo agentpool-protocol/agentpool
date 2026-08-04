@@ -13,12 +13,74 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Reliability tests reproduce the historical Base Sepolia contract
+      # source commit independently from the current evidence-pipeline HEAD.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact requested source head
+        shell: bash
+        run: |
+          expected="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
       - uses: actions/setup-node@v5
         with:
           node-version: "22.13.0"
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run contracts:compile
+      - run: npm run evidence:v4.4:source
+      - run: npm run evidence:v4.4:source:verify
+      - run: npm run contracts:rehearse:v4.3:public
+      - run: npm run contracts:rehearse:v4.3.9
+      - run: npm run contracts:rehearse:v4.4:mainnet
+      - run: npm run contracts:rehearse:v4.4:full
       - run: npm run build
       - run: npm test
+
+  security-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact requested source head
+        shell: bash
+        run: |
+          expected="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.13.0"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run contracts:compile
+      - run: python -m pip install slither-analyzer==0.11.6
+      - run: solc-select install 0.8.36
+      - run: solc-select use 0.8.36
+      - run: npm run security:slither:v4.4
+
+  installer-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact requested source head
+        shell: bash
+        run: |
+          expected="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.13.0"
+          cache: npm
+      - run: npm ci
+      - run: npm run test:installer:windows

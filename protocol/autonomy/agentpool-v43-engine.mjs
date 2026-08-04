@@ -37,6 +37,23 @@ function unique(values) {
   return new Set(values).size === values.length;
 }
 
+function verifiedSuccessBps(profile) {
+  return Math.max(
+    1,
+    Math.min(
+      BPS,
+      Math.floor(
+        ((profile.successes + 2) * BPS) /
+          (profile.attempts + 4),
+      ),
+    ),
+  );
+}
+
+function refreshVerifiedPerformance(profile) {
+  profile.verifiedSuccessBps = verifiedSuccessBps(profile);
+}
+
 function assertDag(tasks) {
   const ids = tasks.map((task) => task.id);
   invariant(unique(ids), "DUPLICATE_TASK_ID");
@@ -125,11 +142,11 @@ export class AgentPoolV43Engine {
     for (const profile of capabilities) {
       invariant(profile.track, "INVALID_CAPABILITY");
       profiles[profile.track] = {
-        successLowerBps: clampInteger(
-          profile.successLowerBps,
+        declaredSuccessBps: clampInteger(
+          profile.successLowerBps ?? 5_000,
           1,
           BPS,
-          "INVALID_SUCCESS_LOWER_BOUND",
+          "INVALID_DECLARED_SUCCESS",
         ),
         p95LatencyMs: clampInteger(
           profile.p95LatencyMs,
@@ -145,6 +162,7 @@ export class AgentPoolV43Engine {
         ),
         attempts: 0,
         successes: 0,
+        verifiedSuccessBps: 5_000,
       };
     }
     this.agents.set(id, {
@@ -328,11 +346,12 @@ export class AgentPoolV43Engine {
       .map((plan) => {
         const planner = this.#agent(plan.plannerId);
         const profile = planner.profiles.planning;
+        const success = verifiedSuccessBps(profile);
         const failureRisk = Math.floor(
-          ((BPS - profile.successLowerBps) * plan.totalBid) / BPS,
+          ((BPS - success) * plan.totalBid) / BPS,
         );
         const riskAdjustedCost =
-          Math.ceil((plan.totalBid * BPS) / profile.successLowerBps) +
+          Math.ceil((plan.totalBid * BPS) / success) +
           failureRisk +
           Math.ceil(profile.p95LatencyMs / 1_000);
         return { plan, riskAdjustedCost };
@@ -517,16 +536,37 @@ export class AgentPoolV43Engine {
       const worker = this.#agent(task.allocation.worker.agentId);
       worker.slashCount += 1;
       this.slashPool += task.allocation.worker.bond;
+      for (const evaluation of task.evaluations) {
+        if (!evaluation.objectivePassed) {
+          const validator = this.#agent(evaluation.agentId);
+          validator.successfulWork += 1;
+          validator.profiles.validation.successes += 1;
+        }
+      }
+      for (const bid of participants) {
+        const agent = this.#agent(bid.agentId);
+        const track =
+          bid.role === "WORKER" ? task.capability : "validation";
+        refreshVerifiedPerformance(agent.profiles[track]);
+      }
       task.state = "FAILED";
       opportunity.state = "REPLAN_REQUIRED";
       opportunity.history.push({ event: "TASK_FAILED", taskId, score });
       return { passed: false, score };
     }
+    const worker = this.#agent(task.allocation.worker.agentId);
+    worker.successfulWork += 1;
+    worker.profiles[task.capability].successes += 1;
+    refreshVerifiedPerformance(worker.profiles[task.capability]);
+    for (const evaluation of task.evaluations) {
+      const validator = this.#agent(evaluation.agentId);
+      if (evaluation.objectivePassed) {
+        validator.successfulWork += 1;
+        validator.profiles.validation.successes += 1;
+      }
+      refreshVerifiedPerformance(validator.profiles.validation);
+    }
     for (const bid of participants) {
-      const agent = this.#agent(bid.agentId);
-      agent.successfulWork += 1;
-      const track = bid.role === "WORKER" ? task.capability : "validation";
-      agent.profiles[track].successes += 1;
       opportunity.pendingPayouts.set(
         bid.agentId,
         (opportunity.pendingPayouts.get(bid.agentId) ?? 0) + bid.price,
@@ -895,11 +935,15 @@ export class AgentPoolV43Engine {
           .filter((task) => task.state === "OPEN" && agent.profiles[task.capability])
           .map((task) => {
             const profile = agent.profiles[task.capability];
+            const success = verifiedSuccessBps(profile);
             const expectedPayment = task.maxBudget;
+            const expectedFailureLoss = profile.costFloor;
             const expectedProfit =
-              Math.floor((profile.successLowerBps * expectedPayment) / BPS) -
+              Math.floor((success * expectedPayment) / BPS) -
               profile.costFloor -
-              Math.floor(((BPS - profile.successLowerBps) * task.maxBudget) / BPS);
+              Math.floor(
+                ((BPS - success) * expectedFailureLoss) / BPS,
+              );
             return {
               opportunityId: opportunity.id,
               taskId: task.id,
@@ -1014,11 +1058,14 @@ export class AgentPoolV43Engine {
     return bids
       .map((bid) => {
         const profile = this.#agent(bid.agentId).profiles[track];
-        const failureLoss = Math.floor(((BPS - profile.successLowerBps) * bid.bond) / BPS);
+        const success = verifiedSuccessBps(profile);
+        const failureLoss = Math.floor(
+          ((BPS - success) * bid.bond) / BPS,
+        );
         return {
           ...bid,
           riskAdjustedCost:
-            Math.ceil((bid.price * BPS) / profile.successLowerBps) +
+            Math.ceil((bid.price * BPS) / success) +
             Math.ceil(bid.durationMs / 1_000) +
             failureLoss,
         };

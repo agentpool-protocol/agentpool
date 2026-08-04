@@ -1,0 +1,199 @@
+{
+    "schemaVersion":  1,
+    "scenario":  "zero-context-antigravity-mcp-discovery",
+    "observedAtUtc":  "2026-07-28T12:25:41.3919161Z",
+    "client":  {
+                   "application":  "Antigravity IDE",
+                   "model":  "Gemini 3.5 Flash (Medium)",
+                   "context":  "No AgentPool prior context; MCP-only discovery"
+               },
+    "approvals":  [
+                      {
+                          "action":  "read Antigravity MCP configuration",
+                          "result":  "approved once"
+                      },
+                      {
+                          "action":  "run read-only tools/list bridge",
+                          "result":  "approved once"
+                      }
+                  ],
+    "safety":  {
+                   "repositoryFilesInspected":  false,
+                   "walletConfigured":  false,
+                   "walletCreated":  false,
+                   "transactionSent":  false,
+                   "realAssetsUsed":  false
+               },
+    "calls":  [
+                  "tools/list",
+                  "agentpool_v43_status",
+                  "agentpool_v43_opportunities",
+                  "agentpool_v43_chain_status",
+                  "agentpool_v43_flow",
+                  "agentpool_v43_wallet_status"
+              ],
+    "observed":  {
+                     "release":  "4.3.5-staged-autonomy-alpha",
+                     "chainId":  84532,
+                     "network":  "Base Sepolia",
+                     "phase":  "BOOTSTRAP",
+                     "toolCount":  52,
+                     "openJobCount":  0,
+                     "settledJobCount":  2,
+                     "genericBasicMining":  false,
+                     "externalJobsMintTapool":  false,
+                     "totalSupplyApool":  "120",
+                     "eligibleAgents":  2,
+                     "eligibleGroups":  2,
+                     "stagedAutonomyAvailable":  true
+                 },
+    "verdict":  {
+                    "passed":  true,
+                    "reasons":  [
+                                    "zero-context client discovered the local MCP tool surface",
+                                    "client read live Base Sepolia status and opportunities",
+                                    "client correctly reported no generic basic mining",
+                                    "client correctly reported external jobs mint zero tAPOOL",
+                                    "no wallet creation or transaction occurred"
+                                ]
+                },
+    "raw":  {
+                "status":  {
+                               "release":  "4.3.5-staged-autonomy-alpha",
+                               "settlement":  "local-planning-runtime-plus-base-sepolia-4.3.5-staged-autonomy-alpha",
+                               "baseSepoliaDeployment":  {
+                                                             "token":  "0x00295009f2d419e54254ea566628a2c9e772c92d",
+                                                             "settlementRouter":  "0xbf09073651d972b5c87c36c3d7705cb084d7a4a3",
+                                                             "releaseRegistry":  "0x289370ea0d88ebac631232bcc65ba590b6282eb2",
+                                                             "capacityRegistry":  "0x437c869054da65d94560d1208dac454c800ff3fd",
+                                                             "userEscrow":  "0x5fd5d60a72e0bf40873c2c42340446c46845868e",
+                                                             "coreEpochVault":  "0xcd40098fe73b6220dbb73c42c2e293472399b5b4",
+                                                             "evolutionEpochVault":  "0x1069a41d1d12d4dec3ce80e2bc6d379fa3a565fa",
+                                                             "contributionLedger":  "0x4897693141266cf157bf55c554b2a79b515e5447",
+                                                             "proofRegistry":  "0xadb1ad30f898544c7e7ff1ccb439c2fbbbc07122",
+                                                             "evolutionConsensus":  "0x2a70e753327ce097ee47711abe45019de6449674",
+                                                             "objectiveVerifier":  "0xc3b8a44cce5fcb610967dba90abace03522d4c61",
+                                                             "systemIssueGate":  "0x7abd5181800bc23d4af462a2f578a4dd0916b165",
+                                                             "transitionIssueConsensus":  "0x7ce3a5016a076e1e8bfc974a0c0b954fe09eef6c",
+                                                             "issueConsensus":  "0xf8c4fc9bf81e850d56ec0e86a367130f0886a832",
+                                                             "taskMarket":  "0x4df8b5c12e12887f1b93aa1cb0fc89be0dfa880c"
+                                                         },
+                               "replayedEvents":  0,
+                               "financeInvariantHash":  "0xdf0e07d97ce2ea247e00e5f58ef9042b0fc3ec00a3fdbc1f16bc0ff000ff8dde",
+                               "recommendedRelease":  "agentpool-v4.2",
+                               "agents":  0,
+                               "opportunities":  [
+
+                                                 ],
+                               "releases":  {
+                                                "agentpool-v4.2":  {
+                                                                       "id":  "agentpool-v4.2",
+                                                                       "parent":  null,
+                                                                       "state":  "RECOMMENDED",
+                                                                       "financeInvariantHash":  "0xdf0e07d97ce2ea247e00e5f58ef9042b0fc3ec00a3fdbc1f16bc0ff000ff8dde",
+                                                                       "moduleHash":  "0x2ee11ba8f6b61031171e81c9091d210ccf906b4717f31e52c88c784415d41e85",
+                                                                       "proposalId":  null
+                                                                   }
+                                            },
+                               "balances":  {
+
+                                            },
+                               "slashPool":  0
+                           },
+                "opportunities":  {
+                                      "ranking":  "UNRANKED_ANONYMOUS",
+                                      "registrationRequiredForProfitRanking":  true,
+                                      "opportunities":  [
+
+                                                        ]
+                                  },
+                "chainStatus":  {
+                                    "network":  "Base Sepolia",
+                                    "chainId":  84532,
+                                    "release":  "4.3.5-staged-autonomy-alpha",
+                                    "mcpToolCount":  52,
+                                    "markets":  [
+                                                    "EXTERNAL",
+                                                    "SYSTEM_IMPROVEMENT"
+                                                ],
+                                    "genericBasicMining":  false,
+                                    "externalJobsMintTapool":  false,
+                                    "phase":  "BOOTSTRAP",
+                                    "stagedAutonomyAvailable":  true,
+                                    "blockNumber":  "44736569",
+                                    "contracts":  {
+                                                      "token":  "0x00295009f2d419e54254ea566628a2c9e772c92d",
+                                                      "settlementRouter":  "0xbf09073651d972b5c87c36c3d7705cb084d7a4a3",
+                                                      "releaseRegistry":  "0x289370ea0d88ebac631232bcc65ba590b6282eb2",
+                                                      "capacityRegistry":  "0x437c869054da65d94560d1208dac454c800ff3fd",
+                                                      "userEscrow":  "0x5fd5d60a72e0bf40873c2c42340446c46845868e",
+                                                      "coreEpochVault":  "0xcd40098fe73b6220dbb73c42c2e293472399b5b4",
+                                                      "evolutionEpochVault":  "0x1069a41d1d12d4dec3ce80e2bc6d379fa3a565fa",
+                                                      "contributionLedger":  "0x4897693141266cf157bf55c554b2a79b515e5447",
+                                                      "proofRegistry":  "0xadb1ad30f898544c7e7ff1ccb439c2fbbbc07122",
+                                                      "evolutionConsensus":  "0x2a70e753327ce097ee47711abe45019de6449674",
+                                                      "objectiveVerifier":  "0xc3b8a44cce5fcb610967dba90abace03522d4c61",
+                                                      "systemIssueGate":  "0x7abd5181800bc23d4af462a2f578a4dd0916b165",
+                                                      "transitionIssueConsensus":  "0x7ce3a5016a076e1e8bfc974a0c0b954fe09eef6c",
+                                                      "issueConsensus":  "0xf8c4fc9bf81e850d56ec0e86a367130f0886a832",
+                                                      "taskMarket":  "0x4df8b5c12e12887f1b93aa1cb0fc89be0dfa880c"
+                                                  },
+                                    "totalSupplyApool":  "120",
+                                    "workPower":  {
+                                                      "eligibleAgents":  2,
+                                                      "eligibleGroups":  2,
+                                                      "successfulSettlements":  "2",
+                                                      "activeEpochs":  1
+                                                  },
+                                    "emission":  {
+                                                     "core":  {
+                                                                  "epoch":  "0",
+                                                                  "emittedApool":  "0"
+                                                              },
+                                                     "evolution":  {
+                                                                       "epoch":  "0",
+                                                                       "emittedApool":  "120",
+                                                                       "reservedApool":  "0"
+                                                                   }
+                                                 },
+                                    "recommendedRelease":  "0xf0567d77bf002dccc795a3709b2c4691d030a790df1f249577e4e5db0323165a",
+                                    "bootstrapIssues":  [
+                                                            {
+                                                                "issueId":  "0xd44ada942de35a5e7dca8a6af1b42f2a8b6cbb9f6948ebe2f5cfc87881ccbc68",
+                                                                "bootstrapProposer":  "0x1E149173C0ddb27e4418FdD8E77F94CAdedAaD3e",
+                                                                "specificationHash":  "0x9fd405491d93cfc5eb3d715ea843b64458c835e0e635b663649d1c31aeeeb531",
+                                                                "verifier":  "0xc3b8a44cce5fcb610967dba90abace03522d4c61",
+                                                                "expectedEvidenceHash":  "0xb02065de3e73ab7e00ea7f54603a044d7378546bf3f319400085dd0f32333dba",
+                                                                "objectiveRoot":  "0xd51f7c5b4fa852fca16a4f401d352b2512a3f134571d0cbc29420b2e7da91d2d",
+                                                                "validatorRoot":  "0x0c00bd1d617ab421458333babd6fc1f89bcfa990ac847d0fed97a41a96808d7d",
+                                                                "candidateBudgetCap":  "120000000000000000000",
+                                                                "totalBudgetCap":  "120000000000000000000",
+                                                                "maxCandidates":  1,
+                                                                "minimumReveals":  3,
+                                                                "passScoreBps":  8000,
+                                                                "minimumValidatorGroups":  3,
+                                                                "funding":  3,
+                                                                "expiresAt":  1787834779,
+                                                                "proof":  [
+
+                                                                          ]
+                                                            }
+                                                        ],
+                                    "bootstrapExposure":  {
+                                                              "candidatesUsed":  1,
+                                                              "maximumCandidates":  1,
+                                                              "remainingCandidates":  0,
+                                                              "committedBudgetBaseUnits":  "120000000000000000000"
+                                                          },
+                                    "testnetOnly":  true
+                                },
+                "flow":  {
+                             "work":  "read shared signed opportunities -\u003e publish commit/reveal plans and role bids -\u003e compete on DAG plans -\u003e reserve budget and capacity onchain -\u003e execute/subcontract -\u003e evidence-only evaluation -\u003e deterministic settlement -\u003e update work power -\u003e reinvest",
+                             "evolution":  "buyer-funded or fixed BOOTSTRAP improvement -\u003e objective canary -\u003e opt-in PROVEN release; after verified activity opens TRANSITION -\u003e capped non-proposer Issue consensus; after automatic MATURE -\u003e capped Work Power vote -\u003e independent adoption -\u003e recommended release",
+                             "immutable":  "maximum supply, external-job zero emission, reservation cap, refund path, signature/receipt replay protection, and evaluator inability to set payouts",
+                             "evolvable":  "planners, routers, model adapters, MCP/API adapters, validators, benchmarks, user interfaces, and recommended releases",
+                             "authority":  "No single AI or owner upgrades running jobs. Releases are append-only; each job stays pinned to its creation release.",
+                             "status":  "v4.3.5 exposes BOOTSTRAP, capped TRANSITION, and irreversible MATURE paths. Buyer-funded improvements stay open in every phase; only admitted objective work can emit test tAPOOL."
+                         }
+            }
+}

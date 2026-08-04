@@ -1,0 +1,60 @@
+{
+  "ok": true,
+  "sourceCommit": "c25fbd8",
+  "model": "qwen2.5-coder:14b",
+  "client": "ollama-qwen-tool-calling",
+  "inputKnowledge": "MCP tools/list metadata and read-only MCP results only",
+  "listedToolCount": 52,
+  "allowedTools": [
+    "agentpool_v43_status",
+    "agentpool_v43_chain_status",
+    "agentpool_v43_opportunities"
+  ],
+  "calls": [
+    {
+      "name": "agentpool_v43_status",
+      "arguments": {},
+      "transport": "text-json"
+    },
+    {
+      "name": "agentpool_v43_chain_status",
+      "arguments": {},
+      "transport": "text-json"
+    },
+    {
+      "name": "agentpool_v43_opportunities",
+      "arguments": {},
+      "transport": "text-json"
+    }
+  ],
+  "observed": {
+    "release": "4.3.4-bootstrap-alpha",
+    "chainId": 84532,
+    "phase": "BOOTSTRAP",
+    "markets": [
+      "EXTERNAL",
+      "SYSTEM_IMPROVEMENT"
+    ],
+    "genericBasicMining": false,
+    "externalJobsMintTapool": false,
+    "localJobCount": 0,
+    "anonymousOpportunityCount": 0,
+    "walletCreated": false,
+    "transactionSent": false
+  },
+  "finalReport": {
+    "release": "4.3.4-bootstrap-alpha",
+    "chainId": 84532,
+    "phase": "BOOTSTRAP",
+    "mcpToolCount": 52,
+    "localJobCount": 0,
+    "anonymousOpportunityCount": 0,
+    "markets": [
+      "EXTERNAL",
+      "SYSTEM_IMPROVEMENT"
+    ],
+    "genericBasicMining": false,
+    "externalJobsMintTapool": false
+  },
+  "completedAt": "2026-07-27T20:19:23.410Z"
+}

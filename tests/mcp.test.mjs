@@ -16,14 +16,30 @@ async function source(relativePath) {
   return readFile(path.join(root, relativePath), "utf8");
 }
 
-test("public MCP is standard Streamable HTTP and exposes read-only tools only", async () => {
-  const [route, http, tools, worker] = await Promise.all([
-    source("app/api/mcp/route.ts"),
-    source("lib/mcp-http.ts"),
-    source("lib/mcp-public.ts"),
-    source("worker/index.ts"),
-  ]);
+test("public MCP is standard Streamable HTTP and defaults to strict v4.4 read-only", async () => {
+  const [route, versionedRoute, internalFetch, http, tools, worker] =
+    await Promise.all([
+      source("app/api/mcp/route.ts"),
+      source("app/api/mcp/v4.4/route.ts"),
+      source("lib/mcp-v44-internal-fetch.ts"),
+      source("lib/mcp-http.ts"),
+      source("lib/mcp-v44.ts"),
+      source("worker/index.ts"),
+    ]);
   assert.match(route, /handlePublicMcpRequest/);
+  assert.match(route, /handlePublicMcpRequest\(request, v44InternalFetch\)/);
+  assert.match(
+    versionedRoute,
+    /handlePublicMcpRequest\(request, v44InternalFetch\)/,
+  );
+  for (const path of [
+    "/api/v4.4/discovery",
+    "/api/v4.4/status",
+    "/api/v4.4/opportunities",
+    "/api/v4.4/participate",
+  ]) {
+    assert.match(internalFetch, new RegExp(path.replaceAll(".", "\\.")));
+  }
   assert.match(http, /WebStandardStreamableHTTPServerTransport/);
   assert.match(http, /enableJsonResponse:\s*true/);
   assert.match(http, /requestOrigin !== endpointOrigin/);
@@ -31,20 +47,18 @@ test("public MCP is standard Streamable HTTP and exposes read-only tools only", 
   assert.match(worker, /url\.pathname === "\/api\/mcp"/);
   assert.match(worker, /handlePublicMcpRequest\(/);
   assert.match(worker, /handler\.fetch\(internalRequest, env, ctx\)/);
+  assert.match(http, /createServer:\s*ServerFactory\s*=\s*createV44PublicMcpServer/);
   for (const tool of [
-    "agentpool_protocol_status",
-    "agentpool_list_mining_tracks",
-    "agentpool_list_agents",
-    "agentpool_list_listings",
-    "agentpool_list_jobs",
-    "agentpool_mining_leaderboard",
-    "agentpool_open_beta_guide",
+    "agentpool_v44_discovery",
+    "agentpool_v44_status",
+    "agentpool_v44_opportunities",
+    "agentpool_v44_participation_kit",
   ]) {
     assert.match(tools, new RegExp(`"${tool}"`));
   }
   assert.doesNotMatch(
     tools,
-    /registerTool\(\s*"agentpool_(?:create_test_wallet|start_mining|submit_mining_answer)"/,
+    /registerTool\(\s*"agentpool_(?:create_test_wallet|start_mining|submit_mining_answer|wallet_status)"/,
   );
 });
 
@@ -100,14 +114,22 @@ test("local MCP handshakes over stdio without creating a wallet", async () => {
   }
 });
 
-test("downloadable MCP bundle connects device-local wallets to v4.3.4 Base Sepolia only", async () => {
+test("downloadable MCP bundle connects device-local wallets to v4.3.5 Base Sepolia only", async () => {
   const bundle = await source("public/agentpool-mcp.mjs");
   assert.match(bundle, /agentpool-v43/);
   assert.match(bundle, /agentpool_v43_create_test_wallet/);
+  assert.match(bundle, /agentpool_v43_gas_sponsor_status/);
+  assert.match(bundle, /agentpool_v43_request_test_gas/);
+  assert.match(bundle, /\/api\/v4\.3\/gas\/grants/);
   assert.match(bundle, /agentpool_v43_create_external_job/);
   assert.match(bundle, /agentpool_v43_create_bootstrap_improvement_job/);
   assert.match(bundle, /EVALUATOR_CANNOT_SET_PAYOUT/);
   assert.match(bundle, /device-local-only/);
+  assert.match(bundle, /V43_RELEASE_NOT_USABLE/);
+  assert.match(bundle, /selectedReleaseId/);
+  assert.match(bundle, /V43_CHAIN_READ_REPLICA_LAG/);
+  assert.match(bundle, /attempt\s*<=\s*8/);
+  assert.match(bundle, /V43_INVALID_LOCAL_GAS_FEE_CAP/);
   assert.match(bundle, /Base Sepolia/);
   assert.doesNotMatch(bundle, /baseMainnet|chainId:\s*8453[,}]/);
 });
@@ -135,7 +157,10 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     for (const required of [
       "agentpool_v43_chain_status",
       "agentpool_v43_wallet_status",
+      "agentpool_v43_verified_performance",
       "agentpool_v43_create_test_wallet",
+      "agentpool_v43_gas_sponsor_status",
+      "agentpool_v43_request_test_gas",
       "agentpool_v43_register_onchain",
       "agentpool_v43_create_external_job",
       "agentpool_v43_create_external_dag_onchain",
@@ -154,10 +179,35 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
       "agentpool_v43_reveal_recommendation_vote_onchain",
       "agentpool_v43_finalize_recommendation_onchain",
       "agentpool_v43_record_adoption_onchain",
+      "agentpool_v43_propose_transition_issue_onchain",
+      "agentpool_v43_commit_transition_issue_vote_onchain",
+      "agentpool_v43_reveal_transition_issue_vote_onchain",
+      "agentpool_v43_finalize_transition_issue_onchain",
       "agentpool_v43_propose_system_issue_onchain",
       "agentpool_v43_commit_system_issue_vote_onchain",
       "agentpool_v43_reveal_system_issue_vote_onchain",
       "agentpool_v43_finalize_system_issue_onchain",
+      "agentpool_v43_publish_candidate_artifact",
+      "agentpool_v43_candidate_artifact",
+      "agentpool_v437_self_bootstrap_status",
+      "agentpool_v437_prepare_evidence",
+      "agentpool_v437_self_bootstrap_issue",
+      "agentpool_v437_open_self_improvement",
+      "agentpool_v437_accept_work_bid",
+      "agentpool_v437_complete_work",
+      "agentpool_v437_settle_self_improvement",
+      "agentpool_v439_candidate_reward_status",
+      "agentpool_v439_candidate_reward_issue",
+      "agentpool_v439_open_candidate_reward_issue",
+      "agentpool_v439_prepare_candidate_bid",
+      "agentpool_v439_submit_candidate_bid",
+      "agentpool_v439_award_candidate",
+      "agentpool_v439_deliver_candidate",
+      "agentpool_v439_prepare_validation",
+      "agentpool_v439_commit_validation",
+      "agentpool_v439_reveal_validation",
+      "agentpool_v439_finalize_candidate_reward",
+      "agentpool_v439_expire_candidate_reward",
     ]) {
       assert.ok(names.includes(required), `${required} is missing`);
     }
@@ -168,18 +218,66 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     const payload = JSON.parse(status.content[0].text);
     assert.equal(payload.configured, false);
     assert.equal(payload.network, "Base Sepolia");
-    const chainStatus = await client.callTool({
-      name: "agentpool_v43_chain_status",
+    const chainTool = listed.tools.find(
+      (tool) => tool.name === "agentpool_v43_chain_status",
+    );
+    assert.match(chainTool.title, /Base Sepolia/u);
+    assert.deepEqual(chainTool.inputSchema.properties, {});
+    const mcpSource = await source("mcp/agentpool-v43.mjs");
+    assert.match(mcpSource, /chain:\s*baseSepolia/u);
+    assert.match(mcpSource, /network:\s*"Base Sepolia"/u);
+    assert.match(mcpSource, /chainId:\s*84532/u);
+    assert.match(mcpSource, /markets:\s*\["EXTERNAL", "SYSTEM_IMPROVEMENT"\]/u);
+    assert.match(mcpSource, /genericBasicMining:\s*false/u);
+    assert.match(mcpSource, /externalJobsMintTapool:\s*false/u);
+    const selfBootstrapTool = listed.tools.find(
+      (tool) => tool.name === "agentpool_v437_self_bootstrap_status",
+    );
+    assert.match(selfBootstrapTool.description, /incubation pool/u);
+    assert.match(selfBootstrapTool.description, /creates no Work Power/u);
+    const candidateRewardStatus = await client.callTool({
+      name: "agentpool_v439_candidate_reward_status",
       arguments: {},
     });
-    const chain = JSON.parse(chainStatus.content[0].text);
-    assert.equal(chain.chainId, 84532);
-    assert.equal(chain.network, "Base Sepolia");
-    assert.equal(chain.release, "4.3.4-bootstrap-alpha");
-    assert.equal(
-      chain.contracts.taskMarket,
-      "0xb21869c37d999682d3b7ed051dda968e08878d0a",
+    const candidateReward = JSON.parse(
+      candidateRewardStatus.content[0].text,
     );
+    assert.equal(candidateReward.deployed, false);
+    assert.equal(candidateReward.testnetOnly, true);
+    assert.equal(candidateReward.createsWorkPower, false);
+    assert.equal(candidateReward.canRecommendRelease, false);
+    assert.equal(candidateReward.canMint, false);
+    const anonymousOpportunities = await client.callTool({
+      name: "agentpool_v43_opportunities",
+      arguments: {},
+    });
+    const anonymousPayload = JSON.parse(
+      anonymousOpportunities.content[0].text,
+    );
+    assert.equal(anonymousPayload.ranking, "UNRANKED_ANONYMOUS");
+    assert.equal(
+      anonymousPayload.registrationRequiredForProfitRanking,
+      true,
+    );
+    assert.ok(Array.isArray(anonymousPayload.opportunities));
+    const unknownAgentOpportunities = await client.callTool({
+      name: "agentpool_v43_opportunities",
+      arguments: { agentId: "not-registered" },
+    });
+    const unknownAgentPayload = JSON.parse(
+      unknownAgentOpportunities.content[0].text,
+    );
+    assert.equal(unknownAgentPayload.ok, false);
+    assert.equal(unknownAgentPayload.error.code, "UNKNOWN_AGENT");
+    assert.equal(
+      unknownAgentPayload.error.nextTool,
+      "agentpool_v43_register_agent",
+    );
+    assert.equal(
+      unknownAgentPayload.error.anonymousDiscoveryAvailable,
+      true,
+    );
+    assert.deepEqual(unknownAgentPayload.opportunities, []);
   } finally {
     await client.close();
     const resolved = path.resolve(tempHome);
@@ -187,4 +285,28 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     assert.ok(resolved.startsWith(`${tempRoot}${path.sep}`));
     await rm(resolved, { recursive: true, force: true });
   }
+});
+
+test("public Qwen evidence proves zero-context read-only MCP discovery", async () => {
+  const evidence = JSON.parse(
+    await source("deployments/84532.v43.4.qwen-discovery.json"),
+  );
+  assert.equal(evidence.ok, true);
+  assert.equal(evidence.observed.chainId, 84532);
+  assert.equal(evidence.observed.phase, "BOOTSTRAP");
+  assert.equal(evidence.observed.genericBasicMining, false);
+  assert.equal(evidence.observed.externalJobsMintTapool, false);
+  assert.equal(evidence.observed.walletCreated, false);
+  assert.equal(evidence.observed.transactionSent, false);
+  assert.equal(evidence.finalReport.mcpToolCount, 52);
+  assert.equal(evidence.finalReport.localJobCount, 0);
+  assert.equal(evidence.finalReport.anonymousOpportunityCount, 0);
+  assert.deepEqual(
+    evidence.calls.map(({ name }) => name),
+    [
+      "agentpool_v43_status",
+      "agentpool_v43_chain_status",
+      "agentpool_v43_opportunities",
+    ],
+  );
 });

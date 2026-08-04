@@ -14,6 +14,21 @@ const eventTypes = [
   "VALIDATION_BID",
   "CAPACITY_OFFER",
   "DELIVERY_NOTICE",
+  "JOB_TERMS",
+  "RESULT_AVAILABLE",
+  "SETTLEMENT_RECEIPT",
+  "RUNNER_HEARTBEAT",
+  "AUTONOMY_OPPORTUNITY",
+  "AUTONOMY_PLAN",
+  "AUTONOMY_BID",
+  "AUTONOMY_AWARD",
+  "AUTONOMY_VALIDATION",
+  "IMPROVEMENT_ISSUE",
+  "IMPROVEMENT_CANDIDATE",
+  "CANARY_RESULT",
+  "WORK_POWER_VOTE",
+  "GAS_REQUEST",
+  "GAS_GRANT",
   "WITHDRAWAL_NOTICE",
 ] as const;
 
@@ -78,7 +93,7 @@ export async function GET(request: Request): Promise<Response> {
     );
     return apiResponse({
       protocol: "AgentPool",
-      release: "v4.3.4-bootstrap-alpha",
+      release: "v4.3.5-staged-autonomy-alpha",
       authority: "advisory-replaceable-relay",
       settlementAuthority: "Base Sepolia contracts only",
       appendOnly: true,

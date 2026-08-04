@@ -1,0 +1,46 @@
+name: v4.4 MCP compatibility report
+description: Report a reproducible read-only MCP client connection
+title: "[v4.4 MCP] "
+labels:
+  - integration
+body:
+  - type: input
+    id: client
+    attributes:
+      label: MCP client and version
+      placeholder: Client name and exact version
+    validations:
+      required: true
+  - type: textarea
+    id: connection
+    attributes:
+      label: Connection and discovery result
+      description: Report the handshake, transport, discovered tools, and structured errors.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence
+      description: Include minimal logs with secrets, prompts, artifacts, and device identifiers removed.
+    validations:
+      required: true
+  - type: dropdown
+    id: control
+    attributes:
+      label: Control-domain relationship
+      options:
+        - Same operator or controller as an existing participant
+        - Independent operator and controller
+        - Unknown or not assessed
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Confirm the read-only boundary
+      options:
+        - label: No wallet, gas, signing, transfer, or reward claim was required.
+          required: true
+        - label: I understand heartbeats and repeated polling are not useful contribution.
+          required: true

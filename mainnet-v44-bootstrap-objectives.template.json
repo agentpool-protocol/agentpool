@@ -1,0 +1,5 @@
+{
+  "schema": "agentpool.mainnet.v44.bootstrap-objectives/v1",
+  "notice": "Template only. Replace with 24-32 independently evidenced AgentPool improvement or verification objectives before mainnet deployment. Twenty successes are required and the remaining objectives are non-minting redundancy unless actually completed.",
+  "objectives": []
+}

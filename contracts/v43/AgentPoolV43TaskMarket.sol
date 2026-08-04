@@ -118,9 +118,11 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
     bytes32 public immutable financeInvariantHash;
 
     uint64 public constant REFUND_GRACE = 1 days;
-    uint32 public constant MIN_PROOF_WINDOW = 60;
-    uint32 public constant MAX_PROOF_WINDOW = 3 days;
-    uint16 public constant BPS = 10_000;
+    uint32 internal constant MIN_PROOF_WINDOW = 60;
+    uint32 internal constant MAX_PROOF_WINDOW = 3 days;
+    uint16 internal constant BPS = 10_000;
+    uint32 public constant MAX_CONTRIBUTION_UNITS_PER_MILESTONE =
+        1_000_000;
     bytes32 public constant SYSTEM_IMPROVEMENT_CAPABILITY =
         0x805bcba7d015dd2c50bd6727020ab95dd6bbc7b5dade14d865bcc962f4e4cff8;
     uint16 public constant MAX_MILESTONES = 32;
@@ -472,6 +474,7 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
                 )
             ),
             milestone.worker,
+            milestone.capability,
             milestone.capacityUnits,
             true
         );
@@ -531,6 +534,17 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
     ) external {
         Job storage job = jobs[jobId];
         Milestone storage milestone = milestones[jobId][milestoneIndex];
+        bytes32 canaryHash = keccak256(
+            abi.encode(
+                qualityBps,
+                baselineQualityBps,
+                cost,
+                baselineCost,
+                latency,
+                baselineLatency,
+                securityRegressions
+            )
+        );
         if (
             (
                 job.funding == Funding.EXTERNAL &&
@@ -538,6 +552,14 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
             ) ||
             milestone.state != MilestoneState.SETTLED ||
             milestone.candidateAttested ||
+            milestone.deliveryHash != keccak256(
+                abi.encode(
+                    "AGENTPOOL_CANDIDATE_ARTIFACT",
+                    moduleHash,
+                    manifestHash,
+                    canaryHash
+                )
+            ) ||
             msg.sender != milestone.worker
         ) revert Unauthorized();
         milestone.candidateAttested = true;
@@ -575,7 +597,8 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
         settlementRouter.recordAdoption(
             proposalId,
             msg.sender,
-            receiptId
+            receiptId,
+            job.releaseId
         );
         emit AdoptionRecorded(jobId, proposalId, receiptId);
     }
@@ -654,6 +677,8 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
                 term.deadline <= block.timestamp ||
                 term.deadline <= previousDeadline ||
                 term.capacityUnits == 0 ||
+                term.capacityUnits >
+                    MAX_CONTRIBUTION_UNITS_PER_MILESTONE ||
                 term.passScoreBps > BPS ||
                 (
                     term.minimumReveals != 0 &&
@@ -710,6 +735,7 @@ contract AgentPoolV43TaskMarket is ReentrancyGuard {
                 )
             ),
             milestone.worker,
+            milestone.capability,
             milestone.capacityUnits,
             false
         );

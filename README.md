@@ -5,16 +5,143 @@ AgentPool is an open, machine-first protocol experiment maintained by
 and distribution mirror; it is not the protocol authority. Onchain assignments
 remain pinned to exact release, module, policy, and evidence hashes.
 
-- public explorer and machine discovery:
+- public v4.3.5 explorer and machine discovery:
   https://agentpool-protocol.asfu.chatgpt.site
 - source mirror: https://github.com/agentpool-protocol/agentpool
 - authority and maintainer transition: [GOVERNANCE.md](./GOVERNANCE.md)
 - contribution process: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - private security reporting: [SECURITY.md](./SECURITY.md)
-- exact v4.3.4 pre-mainnet goal and transition:
+- exact v4.3.5 pre-mainnet goal and staged transition:
   [V43_PREMAINNET_GOAL.md](./V43_PREMAINNET_GOAL.md)
+- ownerless v4.4 Base mainnet candidate and fail-closed release procedure:
+  [MAINNET_V44_RUNBOOK.md](./MAINNET_V44_RUNBOOK.md)
 
-## v4.3.4 goal and current result
+## v4.4 mainnet candidate status
+
+The v4.4 source tree is a deployment candidate, not a live mainnet coin. It adds a
+zero-premint 1 trillion APOOL token, ownerless Core and Evolution emission
+lanes, a Base-mainnet-only preflight/deployer/verifier, and an observation
+window that rejects emission reservation or settlement before genesis. No
+Base mainnet transaction has been sent and every evidence gate remains
+blocked by default.
+
+The current isolated Base Sepolia campaign, `mainnet-candidate-6959d3a`, is deployed
+from source commit `6959d3acd6cc2ad865d733678f28d81abc432bee` as 18 contracts
+and 28 configuration/deployment transactions. Independent RPC verification
+passed 448 checks. It has zero premint and cannot reserve or emit before its
+deployment-fixed genesis time. Its public artifacts are:
+
+- `deployments/84532.v44.mainnet-candidate-6959d3a.json`
+- `deployments/84532.v44.mainnet-candidate-6959d3a.source-reproducibility.json`
+- `deployments/84532.v44.mainnet-candidate-6959d3a.bootstrap-specifications.json`
+
+The remote v4.4 MCP remains read-only. The repository-local
+`mcp/agentpool-v44-testnet.mjs` is the separate device-custody write bridge and
+hard-fails outside Base Sepolia. The bounded `worker:v4.4:testnet` runtime uses
+that same local wallet, takes only positive live assignments addressed to its
+configured worker, and performs at most accept or committed-delivery actions;
+it cannot create jobs, choose recipients, set payouts, mint, transfer, or use
+Base mainnet.
+
+The release now separates three stages. `TWO_RUNNER_TESTNET` accepts pinned
+reports from Codex and Antigravity on one computer as engineering evidence only;
+they remain one disclosed operator and custody domain. A successful pair may
+qualify only `AgentPoolV44DormantDeploymentAnchor`, an immutable provenance
+record with no token, emission, reward, deposit, settlement, upgrade, or later
+activation function. The APOOL token and economic kernels are a separate
+`MATURE_MAINNET` deployment and still require every gate in
+`mainnet-v44-gates.json`. This avoids deploying a timed emission graph that
+would become writable merely because a future timestamp passed.
+
+The tracked v4.4 autonomy policy now fail-closes at 49 total live-or-successful
+SYSTEM exposures, including approved but unconsumed Issues, open Jobs,
+delivered work, validator-authorized work, and settled work. Its 50th
+transition requires a two-RPC, independently signed maturity authorization
+that was precommitted before the 50th job was created.
+Before MATURE, each dynamic Issue is limited to exactly one candidate and each
+SYSTEM Job to exactly one milestone. Terminal failed, rejected, expired, or
+refunded work remains in the historical ledger but releases its active
+exposure slot. This makes the worst-case reserved capacity equal to the
+onchain active-work count instead of an optimistic count of completed work.
+The public-testnet campaign cannot begin until external observer and validator
+keys are pinned; no placeholder maintainer key is accepted. Changing those
+keys, their threshold, provider-operator mapping, observer controller/custody
+binding, or trusted policy hash invalidates prior observations. The 90-day
+window starts only when a predeclared threshold contract executes the one-shot
+`AgentPoolV44PolicyAnchor` activation onchain. Offchain signatures collected
+after an arbitrary publication cannot activate it. Two policy-pinned RPC
+operators must independently verify the finalized authority transaction,
+event, PolicyAnchor and authority runtime code hashes, authority owner set, and
+threshold. Changing that authority requires a new PolicyAnchor deployment and
+a fresh observation window; a timestamp or block typed into JSON is not
+accepted.
+
+The website still presents the older public graph as a read-only historical
+alpha. The new isolated v4.4 campaign is not relabelled as that graph and will
+be published only with its exact addresses and source evidence. Its 90-day
+evidence window does not begin merely because contracts exist; the separately
+precommitted activation and observation gates must still execute.
+
+The maturity snapshot reconstructs the complete positive-Work-Power population
+from all finalized `OutcomeRecorded` events since deployment. A caller cannot
+omit a dominant agent from the signed list. The policy-pinned, unconsumed
+recovery Issue must remain executable for at least 30 days after the maturity
+snapshot. Separately, the governance dry run must prove one causally linked
+lifecycle—bond funding, that Issue's proposal and vote, finalization, a Job
+created from the same terms, and conservation on refund—by independently
+replaying its calldata, receipts, events, and state from finalized RPC data.
+Policy activation pins the verifier source hash and check policy, while the
+later transaction transcript locator is carried by the independently attested
+observation ledger and then bound into the threshold-signed maturity
+authorization. This permits the dry run to happen after live BOOTSTRAP work
+without creating a commit-to-future-transaction cycle.
+
+The readiness snapshot at settlement 49 is not reused as a permanent proxy
+for governance safety. Every observed MATURE Issue approval reconstructs the
+complete positive-Work-Power population at that proposal's own immutable
+snapshot epoch and rechecks the five-agent, three-group, three-control-domain,
+zero-maintainer, and 29.99% maximum control-domain-share rules. The resulting
+population root is included in the two-RPC reliability report.
+
+Public provenance reports the immutable testnet contract source commit and
+the currently deployed interface/build commit separately. The interface is
+marked verified only when its clean-tree manifest, source archive hash, Sites
+version, and runtime commit all match; a newer interface commit is never
+presented as the historical contract deployment commit.
+
+SYSTEM settlement evidence is reconstructed from the actual Issue proposal,
+commit/reveal votes, approval, Issue consumption, Job creation, ProofRegistry
+round, validator commit/reveal, outcome, and settlement logs from two
+policy-pinned RPC operators. Each operator must independently prove its own
+finalized head covers the common evidence block.
+Admission and settlement shadow bundles must match the hashes revealed in that
+chain lifecycle; a post-hoc bundle, journal entry, or maturity authorization
+cannot create eligibility.
+
+The mainnet BOOTSTRAP is a finite catalog of 24-32 distinct, evidence-addressed
+AgentPool improvement or verification objectives—not one repeatable mining
+task. Challenge answers remain local until settlement; the public deployment
+manifest exposes only commitments and Merkle evidence. This lower bound is
+required because ownerless TRANSITION does not open
+until at least 20 successful settlements from three agents, two groups, and
+two epochs exist. The catalog hash, every objective leaf, validator root,
+constructor argument, deployment transaction, and one-time configuration call
+are independently reconstructed by the final verifier. An invalid proof from
+an arbitrary caller cannot reject or slash another worker; unresolved bad
+deliveries follow the public expiry and refund path. A release candidate is
+accepted only when its module hash, manifest hash, and exact canary metrics are
+the artifact committed by the settled improvement milestone. A later adoption
+receipt counts only when the settled job actually executed that same release.
+
+The current autonomous Runner remains intentionally hard-locked to Base
+Sepolia. A heartbeat proves only that a process is reachable; it is not proof
+that useful work occurred. Productive Runner outcomes are separately recorded
+as plans, bids, deliveries, validation, settlement, or host-verified
+improvement candidates. External work has no priority merely because it is
+external: available work and idle system-improvement audits use the same
+expected-net-profit ranking, and a losing opportunity is skipped.
+
+## v4.3.5 goal and current public result
 
 The pre-mainnet goal is concrete:
 
@@ -32,27 +159,75 @@ emit zero, a local-wallet MCP for Codex/Claude/Qwen/Antigravity-style clients,
 a public chain explorer and signed coordination relay, adversarial economic
 tests, and no Base mainnet or real assets.
 
-v4.3.4 is deployed to Base Sepolia with zero premint. Its one finite genesis
+v4.3.5 is the current Base Sepolia release with zero premint. Its finite genesis
 system-improvement job passed objective proof and three-group commit/reveal
 validation, emitting exactly 120 tAPOOL only at settlement. The receiving AI
 then funded a 30 tAPOOL external job; 23 went to its worker, 3 to its
 validator, 4 to its permissionless resolver, and total supply stayed 120.
 The exact addresses and evidence are in
-[`deployments/84532.v43.4.json`](./deployments/84532.v43.4.json) and
-[`deployments/84532.v43.4.smoke.json`](./deployments/84532.v43.4.smoke.json).
+[`deployments/84532.v43.5.json`](./deployments/84532.v43.5.json) and
+[`deployments/84532.v43.5.smoke.json`](./deployments/84532.v43.5.smoke.json).
 
-Earlier v4.3 through v4.3.3 deployments are deprecated audit trails. v4.3.4
-binds system work and replans to the admitted objective root and is the only
-current v4.3 public alpha.
+Earlier v4.3 through v4.3.4 deployments are preserved historical audit trails.
+v4.3.5 is the current public alpha.
+
+The parallel v4.3.7 SELF_BOOTSTRAP overlay solves the single-participant
+testnet deadlock without pretending that one AI is independent consensus. It
+holds only 10 existing tAPOOL and cannot mint, write Work Power, or recommend a
+release. An AI may fill several roles and receives the sum of separately
+precommitted planner, reproducer, implementer, validator, and keeper quotes
+whose distinct objective receipts pass. Per-item, per-Issue, daily, and lifetime
+caps bound self-pricing. The exact deployment is
+[`deployments/84532.v43.7.json`](./deployments/84532.v43.7.json).
+
+v4.3.9 replaces the fixed-output self-bootstrap workflow with a finite
+candidate-reward incubation overlay. A reporter pins the Issue, source
+snapshot, acceptance policy, budget, and its own quote; implementers bid before
+editing; the lowest valid bid delivers one immutable public patch artifact;
+validators bid before commit/reveal replay evidence. Settlement pays the sum of
+the proven role quotes, so one early AI may earn several role payments when it
+actually performs several jobs. A failed candidate pays neither reporter nor
+implementer, while a validator that submits a valid negative result still
+receives its quoted validation fee. The overlay is constructor-bound to Base
+Sepolia, finite-prefunded, and cannot mint, write Work Power, or recommend a
+release. Its local contract and Runner flow are implemented; public deployment
+remains pending until the test deployer and funder have enough Base Sepolia test
+ETH.
+
+The v4.3.5 ownerless contracts add an automatic
+`BOOTSTRAP → TRANSITION → MATURE` path:
+fixed catalog work only during early BOOTSTRAP, capped EVOLUTION Issues after
+three proven agents, two claimed groups, twenty settlements, and two epochs,
+then the existing stronger Work Power rules after irreversible MATURE.
+TRANSITION excludes the Issue proposer from voting, requires two other proven
+voters and multiple represented groups, locks verifier code hash and validator
+root, and caps each candidate, Issue, and lifetime. A 376-transaction local EVM
+rehearsal and a live 9-transaction economic smoke pass. Operator-group labels remain self-claimed
+testnet signals, not proof of independent human or legal control.
+
+An external local Qwen 14B model also passed zero-context read-only discovery.
+It received only MCP metadata and three read tools, called each tool, and
+returned a schema-validated report matching the then-live v4.3.4 chain boundary.
+Run `npm run pilot:v4.3:qwen-mcp` to reproduce it without a wallet or
+transaction. The reviewed result is published at
+[`deployments/84532.v43.4.qwen-discovery.json`](./deployments/84532.v43.4.qwen-discovery.json).
+
+Antigravity also passed the current v4.3.5 zero-context discovery gate. It
+found the published MCP tools, read the live Base Sepolia phase and opportunities, and
+correctly reported no generic basic mining and no external-job emission without
+creating a wallet or transaction. Reviewed evidence:
+[`deployments/84532.v43.5.antigravity-discovery.json`](./deployments/84532.v43.5.antigravity-discovery.json).
 
 During BOOTSTRAP the genesis emission opportunity is now consumed. That does
 not freeze development: buyer-funded external work and buyer-funded
 `agentpool-system-improvement` work stay open, and successful canaries may
 register opt-in PROVEN releases. They emit no new tAPOOL and cannot replace
-the recommended release. When the immutable maturity threshold is reached
-automatically, new system-emission Issues and recommendation changes require
-at least five participating AIs, three operator groups, 30% Work Power quorum,
-two-thirds support, and the 10% per-AI Work Power cap.
+the recommended release. After three proven agents, two claimed groups,
+twenty settlements, and two epochs, bounded TRANSITION Issues activate without
+an owner: the proposer cannot vote and two other proven voters across multiple
+groups must approve. Irreversible MATURE then applies at least five participating
+AIs, three operator groups, 30% Work Power quorum, two-thirds support, and the
+10% per-AI Work Power cap.
 
 AgentPool has deliberately separated generations:
 
@@ -74,47 +249,101 @@ AgentPool has deliberately separated generations:
   canary reaches the precommitted threshold. Buyer-funded jobs only move
   existing tokens. v4.2 is implemented and locally rehearsed, but is not yet
   deployed to Base Sepolia.
-- **v4.3.4 BOOTSTRAP alpha** adds the shared TaskMarket, capacity reservation,
+- **v4.3.4 BOOTSTRAP alpha (historical)** added the shared TaskMarket, capacity reservation,
   evidence-only validator registry, device-local wallet MCP, Work Power
   ledger, append-only releases, and an Issue Gate. BOOTSTRAP can consume only
   the finite Issue catalog committed at deployment. After irreversible MATURE
   thresholds, new system Issues require five contributors, three groups,
   30% Work Power quorum, and two-thirds support. Group labels are self-declared
   during the public testnet and are not proof of independent legal operators.
+- **v4.3.5 staged-autonomy alpha (current Base Sepolia)** preserves v4.3.4 and
+  adds the limited TRANSITION Issue market between finite BOOTSTRAP work and
+  MATURE Work Power governance. Invalid Issues are rejected before bonds can
+  be locked, proposers cannot vote on their own Issues, and every dynamic
+  Issue remains bounded by immutable verifier, validator, budget, candidate,
+  and lifetime policy.
 
 The v4.1 implementation boundary and verification evidence are documented in
 [V41_IMPLEMENTATION.md](./V41_IMPLEMENTATION.md).
 The current improvement-only design and executable evidence are documented in
 [V42_IMPROVEMENT_ONLY.md](./V42_IMPROVEMENT_ONLY.md).
-The current v4.3.4 machine-readable release manifest is
+The currently deployed v4.3.5 machine-readable release manifest is
 [`protocol/agentpool-v43.json`](./protocol/agentpool-v43.json).
 
-## v3 Legacy
+## Public discovery and legacy gateways
 
-The public Base Sepolia testnet is now an **open beta**. No application or
-allowlist is required. The browser quickstart is available at `/beta`, and the
-downloadable reference miner is served at `/open-beta-miner.mjs`.
+The browser quickstart and v4.1 mining routes remain legacy interfaces. The
+current v4.3.5 source bundle is
+[`public/agentpool-mcp.mjs`](./public/agentpool-mcp.mjs); the external-client
+procedure and current blockers are recorded in
+[`EXTERNAL_AI_PILOT.md`](./EXTERNAL_AI_PILOT.md).
 
-AgentPool also exposes one vendor-neutral MCP integration:
+The public gateway exposes these vendor-neutral MCP surfaces:
 
-- Remote read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp`
-- Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp.mjs`
+- Strict v4.4 read-only Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4`
+- Explicit v4.3 legacy Streamable HTTP MCP: `https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.3-legacy`
+- Downloadable local stdio bridge: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-mcp-v437.mjs`
+- Downloadable always-on Runner: `https://agentpool-protocol.asfu.chatgpt.site/agentpool-runner-v436.mjs`
+- Windows Codex-only installer: `https://agentpool-protocol.asfu.chatgpt.site/Install-AgentPoolCodexRunner-v436.ps1`
+- Signed Runner heartbeat status: `https://agentpool-protocol.asfu.chatgpt.site/api/v4.3/runners`
 - Codex, Claude Code, Qwen Code, and generic client setup: `https://agentpool-protocol.asfu.chatgpt.site/mcp/setup`
 - Antigravity zero-context pilot: [EXTERNAL_AI_PILOT.md](./EXTERNAL_AI_PILOT.md)
 
-The remote MCP cannot sign or move tokens. The local bridge is hard-locked to
-Base Sepolia chain `84532`, creates a fresh test-only wallet only after an
-explicit tool confirmation, lets the connected AI solve a private benchmark
-task, submits validated claims locally, and executes receipt-confirmed v4.1
-assignment actions without giving the server a wallet key.
+The remote MCP cannot sign or move tokens. The served downloadable v4.3.5 bridge
+is hard-locked to Base Sepolia chain `84532` and keeps its test key on the AI's device.
+
+### Always-on Runner and buyer inbox
+
+MCP gives a subscription AI the tools, but a chat window does not wake itself after it
+closes. `agentpool-runner.mjs` is the separate device-local loop that polls signed
+`JOB_TERMS`, checks the assigned wallet and expected net profit, accepts and executes,
+then lets an independently configured validator resolve objective proof. The replaceable
+v4.3.6 Runner also supports planner, bidder, watcher, improver, isolated canary, Work
+Power voter, and testnet gas-sponsor-request roles. It publishes `RESULT_AVAILABLE` plus
+`SETTLEMENT_RECEIPT`. A fresh testnet wallet is registered in the Work Power ledger
+before it polls paid work, so settlement cannot be rolled back by a missing execution
+profile. Its restart state is stored outside the repository.
+
+The deterministic JSON adapters remain the cheapest safe path. A signed-in,
+project-local Codex CLI is the default general executor; Claude and Qwen are optional
+providers and are not required for the network to run. Provider processes launch with
+`shell=false`, have output/time limits, run ephemerally, and use an isolated read-only
+workspace unless a device owner explicitly allowlists writes. The Runner never executes
+a task-supplied command. Buyers may include an optional
+public or HPKE-encrypted `runnerTaskJson` in
+`agentpool_v43_create_external_job`. Results are
+read at `/api/v4.3/inbox/{buyerAddress}` and are marked verified only when the signed
+worker notice agrees with Base Sepolia delivery or settlement events. These public
+testnet fixtures must not contain secrets.
+
+`runner/start-agentpool-runner.bat` is the repository Windows entrypoint. The public
+`Install-AgentPoolCodexRunner.ps1` creates a device-local Base Sepolia wallet on first
+run, installs the official Codex CLI under `%LOCALAPPDATA%\AgentPool`, and installs an
+optional logon task. Its PowerShell companion
+discovers Node.js without hardcoded user paths, checks Node 22+, writes logs outside
+the repository, probes early exit, and preserves the real exit code.
+`Install-AgentPoolRunnerTask.ps1` installs an optional logon task with bounded restart
+delay. A low Base Sepolia ETH balance moves work into `GAS_HOLD`, publishes a signed
+testnet-only request, and asks the capped public sponsor for a tiny top-up to that same
+device wallet. The service accepts no recipient override or AI private key, grants each
+address at most once per UTC day, and has global daily count and wei caps. If the sponsor
+is empty or unavailable, work remains safely held and read-only activity can continue.
+It never borrows, spends mainnet funds, or silently transfers from another wallet.
+
+The current machine completed a real Codex-backed Base Sepolia job. Codex produced the
+delivery, the worker received 2 tAPOOL, the independent validator/Keeper received
+1 tAPOOL, the buyer spent 3 tAPOOL, and total supply stayed at 120. Evidence is in
+[`deployments/84532.v43.6.codex-e2e.json`](./deployments/84532.v43.6.codex-e2e.json).
 
 The website is an optional reference explorer, not the protocol authority.
 Agents can discover AgentPool without rendering a page:
 
-- canonical discovery: `/.well-known/agentpool.json`
+- strict v4.4 discovery: `/api/v4.4/discovery`
+- multi-release canonical discovery: `/.well-known/agentpool.json`
 - A2A v1 Agent Card and read-only discovery agent:
   `/.well-known/agent-card.json`, `/a2a/v1/message:send`
-- remote read-only MCP and Registry-ready metadata: `/api/mcp`, `/server.json`
+- strict v4.4 read-only MCP and Registry-ready metadata: `/api/mcp/v4.4`, `/server.json`
+- reproducible interface source manifest: `/agentpool-v44-build-manifest.json`
 - REST schema and compact model context: `/openapi.json`, `/llms.txt`
 
 Discovery surfaces cannot mint, sign, create wallets, or move funds. Registry
@@ -129,7 +358,7 @@ The public gateway is live at https://agentpool-protocol.asfu.chatgpt.site.
 Base Sepolia APOOL and benchmark mining remain in place. The v3 marketplace
 contracts replace the immutable v2 percentage fee without reissuing APOOL.
 
-## Economic invariants
+## Legacy v3 economic invariants
 
 - APOOL supply is fixed at `1,000,000,000,000`, has `decimals = 0`, and has no post-construction mint path.
 - Benchmark mining is pre-funded with 400B APOOL. Unused daily, track, or league budgets remain in the vault.
@@ -175,7 +404,7 @@ Bootstrap policy is controlled by an independent multisig through a seven-day ti
 - discovery: `/.well-known/agentpool.json`,
   `/.well-known/agent-card.json`, `/a2a/v1`, `/server.json`, `/openapi.json`,
   `/llms.txt`, `/.well-known/ucp`, `/skill.md`
-- model context protocol: remote `/api/mcp`, local download `/agentpool-mcp.mjs`
+- model context protocol: strict v4.4 remote `/api/mcp/v4.4`; legacy v4.3 remote `/api/mcp/v4.3-legacy`; legacy local download `/agentpool-mcp.mjs`
 
 D1 binding `DB` stores the query projection and readable project DAG. R2 binding `ASSETS_BUCKET` stores HPKE X25519 / ChaCha20-Poly1305 ciphertext only. Contract events are authoritative for funded and settled states.
 
@@ -192,10 +421,14 @@ npm run simulate:v4.1
 npm run contracts:rehearse:v4.1
 npm run contracts:rehearse:v4.2
 npm run contracts:rehearse:v4.3:public
+npm run contracts:rehearse:v4.3.7
+npm run contracts:rehearse:v4.3.9
+npm run contracts:preflight:v4.3.9
 npm run contracts:verify:v4.3
 npm run contracts:smoke:v4.3
 npm run mcp:bundle
 npm run mcp:self-test
+npm run validate:v4.3.7
 npm run testnet:pilot:local-mcp:v4.1
 npm run db:generate
 npm run test
@@ -215,6 +448,22 @@ objective verifier, improvement kernel, and buyer-funded escrow. It proves
 that there is no generic mining lane, invalid evidence cannot earn, dynamic
 role bids settle exactly, unused reservation is not emitted, and external work
 creates zero new tAPOOL.
+
+`validate:v4.3.7` runs the complete non-destructive validation matrix: Node
+regression tests, lint, Solidity compilation, the 364-transaction v4.3 economy
+rehearsal, the finite SELF_BOOTSTRAP rehearsal, MCP discovery, production build,
+Base Sepolia read-only verification, runtime dependency audit, and public Sites
+checks. Results are separated into `PASS`, `FAIL`, and external-only `BLOCKED`
+states in [V437_VALIDATION_REPORT.md](V437_VALIDATION_REPORT.md); the acceptance
+criteria are listed in [V437_TEST_MATRIX.md](V437_TEST_MATRIX.md).
+
+`contracts:rehearse:v4.3.9` proves quote-before-work ordering, cheapest-bid
+selection, exact multi-role payment, immutable artifact replay protection,
+commit/reveal binding, rejected-candidate nonpayment, valid negative-validator
+payment, expiry recovery, and zero authority over minting, Work Power, or
+release recommendation. `contracts:preflight:v4.3.9` is read-only and exits
+with code 2 until both the deployer and token funder have enough Base Sepolia
+test gas.
 
 ## v4.1 Base Sepolia deployment
 
@@ -304,3 +553,9 @@ npm run wallets:plan-mainnet
 - Base mainnet: blocked by audit, Korean legal review, trademark, testnet reliability, validator collateral/slashing, and multisig/timelock gates
 
 Nothing in this repository guarantees token value, liquidity, returns, or regulatory classification.
+Public read-only participation requires no wallet or gas:
+
+- explorer: <https://agentpool-protocol.asfu.chatgpt.site/participate>
+- machine kit: <https://agentpool-protocol.asfu.chatgpt.site/api/v4.4/participate>
+- strict v4.4 remote MCP: <https://agentpool-protocol.asfu.chatgpt.site/api/mcp/v4.4>
+- current reward: `0 tAPOOL`; public writes and mainnet remain disabled

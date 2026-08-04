@@ -11,18 +11,23 @@ async function builtText() {
   return bodies.join("\n");
 }
 
-test("production bundle presents the live v4.3.4 Base Sepolia boundary honestly", async () => {
+test("production bundle presents the v4.4 read-only and legacy v4.3 boundaries honestly", async () => {
   const output = await builtText();
   assert.match(output, /AI agents organize/i);
   assert.match(output, /Work power, not a permanent owner/i);
-  assert.match(output, /The new economy is live on Base Sepolia/i);
+  assert.match(output, /v4\.4 is inspectable, not yet writable/i);
+  assert.match(output, /Join without a wallet/i);
+  assert.match(output, /No reward claim/i);
   assert.match(output, /optional reference explorer/i);
   assert.match(output, /Any AI can discover the rules/i);
   assert.match(output, /no separate basic-mining faucet/i);
   assert.match(output, /Base Sepolia/);
   assert.match(output, /v4\.1.*Legacy Testnet/i);
-  assert.match(output, /v4\.3\.4.*BOOTSTRAP live/i);
-  assert.match(output, /buyer-funded AgentPool improvements remain open/i);
+  assert.match(output, /v4\.3\.5.*staged autonomy live/i);
+  assert.match(output, /Buyer-funded work stays open/i);
+  assert.match(output, /AUTOMATIC MATURITY/i);
+  assert.match(output, /APPEND-ONLY RELEASES/i);
+  assert.match(output, /PERMISSIONLESS REPLAY/i);
   assert.doesNotMatch(output, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
@@ -38,7 +43,7 @@ test("production bundle includes autonomous roles, contribution evolution, and M
   assert.match(output, /Every role bids/i);
   assert.match(output, /AgentPool improves AgentPool/i);
   assert.match(output, /Money rules stay fixed/i);
-  assert.match(output, /Give any AI the same market tools/i);
+  assert.match(output, /Any AI can discover the rules/i);
   assert.match(output, /proof-of-contribution/i);
   assert.match(output, /Local autonomous MCP/i);
   await access(new URL("../public/open-beta-miner.mjs", import.meta.url));

@@ -1,0 +1,51 @@
+{
+  "ok": true,
+  "release": "4.3.5-staged-autonomy-alpha",
+  "runner": "0.9.0-v4.3.6-autonomy-runner",
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "testnetOnly": true,
+  "actualExecutor": "codex",
+  "optionalExecutorsRequired": false,
+  "jobId": "0x4bc6abb3fe9d6432312f5b590b5dce4514465797b948f56b072c14aaf8db45da",
+  "buyer": "0x3769780cbcB91542474D804524C4D718FBF10fb2",
+  "worker": "0xB033F3ffdfa27e9D000A84e0fBc86226e390Ed2e",
+  "validator": "0x43C4eBA160622834440928d20FC7202a644BAcbd",
+  "expectedDelivery": "AGENTPOOL_CODEX_PAID_CODEX-MS4TYGKH",
+  "workerOutcome": [
+    {
+      "status": "delivered",
+      "jobId": "0x4bc6abb3fe9d6432312f5b590b5dce4514465797b948f56b072c14aaf8db45da",
+      "result": "AGENTPOOL_CODEX_PAID_CODEX-MS4TYGKH",
+      "state": {
+        "schema": "agentpool.runner.state/v1",
+        "cursor": 1785253714759,
+        "jobs": {
+          "0x4bc6abb3fe9d6432312f5b590b5dce4514465797b948f56b072c14aaf8db45da": {
+            "stage": "DELIVERED",
+            "acceptTransactionHash": "0x05042b3f61c6128262949ccb37263221a3c74869d738a0f0c5106f16e81ada82",
+            "updatedAt": 1785253714311,
+            "deliverTransactionHash": "0x90c9c4260e19e093bf37f9d3279013d2b148659f585fe41a77c00bce63ec4bbd",
+            "result": "AGENTPOOL_CODEX_PAID_CODEX-MS4TYGKH",
+            "resultEventId": "evt:bf20cc26c5423f9ce855b5948c7fb580ed6158cf353f73fc7aae302ccbc9a421"
+          }
+        },
+        "lastHeartbeatAt": 0
+      }
+    }
+  ],
+  "validatorOutcome": {
+    "role": "VALIDATOR",
+    "status": "settled",
+    "eventId": "evt:574b6c4af22590ac4cba939a66409e540abc7f732745508a1cb48371eda5075a",
+    "transactionHash": "0xc4e4f48a0270bdf8fd9a2c90bff465d32a0e598f0b53275a4e00134f084d7b07"
+  },
+  "workerPaidApool": "2",
+  "validatorAndKeeperPaidApool": "1",
+  "buyerSpentApool": "3",
+  "totalSupplyBeforeApool": "120",
+  "totalSupplyAfterApool": "120",
+  "externalJobEmissionApool": "0",
+  "privateKeysStoredOrExposed": false,
+  "completedAt": "2026-07-28T15:48:58.868Z"
+}

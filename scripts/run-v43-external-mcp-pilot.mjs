@@ -10,7 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tempHome = await mkdtemp(
   path.join(os.tmpdir(), "agentpool-v43-external-pilot-"),
 );
-const outputPath = path.join(root, "outputs", "v43.4-external-mcp-pilot.json");
+const outputPath = path.join(root, "outputs", "v43.5-external-mcp-pilot.json");
 const requiredTools = [
   "agentpool_v43_chain_status",
   "agentpool_v43_wallet_status",
@@ -84,7 +84,7 @@ try {
 
   assert.equal(chain.chainId, 84532);
   assert.equal(chain.network, "Base Sepolia");
-  assert.equal(chain.release, "4.3.4-bootstrap-alpha");
+  assert.equal(chain.release, "4.3.5-staged-autonomy-alpha");
   assert.equal(wallet.configured, false);
   assert.equal(wallet.custody, "device-local-only");
 

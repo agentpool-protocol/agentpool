@@ -1,0 +1,32 @@
+{
+  "schema": "agentpool.v44.two-runner-campaign/v1",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "sourceCommit": "0bb9727d37b5df2c2e5d69b858e252dbd01cb210",
+  "eligible": true,
+  "stage": "TWO_RUNNER_TESTNET",
+  "reportCount": 2,
+  "runtimeFamilies": [
+    "antigravity",
+    "codex"
+  ],
+  "processInstanceCount": 2,
+  "sharedOperatorAllowed": true,
+  "sharedDeviceAllowed": true,
+  "countsTowardIndependentOperators": false,
+  "countsTowardIndependentCustody": false,
+  "dormantAnchorDeploymentEligible": true,
+  "economicMainnetDeploymentEligible": false,
+  "engineeringEvidenceRoot": "26080479ad384026089134c5d0c1ad0db9cb23935b4aa48f6a53595ca9b1c5be",
+  "reports": [
+    {
+      "agentId": "antigravity-be7c79b4-a8e8-4a35-ad24-077a3fd51196",
+      "runtimeFamily": "antigravity",
+      "reportSha256": "89e5ebb93866ea9698e8dc6a405199ae2760e4ab16964ecfe697c0e6e3ce77fb"
+    },
+    {
+      "agentId": "codex-4114c208-556e-46c9-a6c3-81ebb4412bae",
+      "runtimeFamily": "codex",
+      "reportSha256": "e27bb79c58111af81e2072b31a3cf541f6e954a6fa59521875f1792dfd66bb68"
+    }
+  ]
+}

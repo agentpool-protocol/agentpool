@@ -1,0 +1,60 @@
+{
+  "contractName": "MockV437Stage",
+  "sourceName": "contracts/v43/mocks/MockV437Stage.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "mature",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "value",
+          "type": "bool"
+        }
+      ],
+      "name": "setMature",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "value",
+          "type": "bool"
+        }
+      ],
+      "name": "setTransitionReady",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "transitionReady",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60808060405234601557610118908161001a8239f35b5f80fdfe60808060405260043610156011575f80fd5b5f3560e01c90816387b652071460c357508063c51b5b73146091578063dad9b6301460725763ed1c310a146043575f80fd5b34606e576020366003190112606e57600435801515809103606e5760ff80195f54169116175f555f80f35b5f80fd5b34606e575f366003190112606e57602060ff5f54166040519015158152f35b34606e576020366003190112606e57600435801515809103606e5761ff005f549160081b169061ff001916175f555f80f35b34606e575f366003190112606e5760209060ff5f5460081c1615158152f3fea26469706673582212203186b983af14e76a51f4343d02b8987dd88869122f6909852d18b15b941b1cfd64736f6c63430008240033",
+  "deployedBytecode": "0x60808060405260043610156011575f80fd5b5f3560e01c90816387b652071460c357508063c51b5b73146091578063dad9b6301460725763ed1c310a146043575f80fd5b34606e576020366003190112606e57600435801515809103606e5760ff80195f54169116175f555f80f35b5f80fd5b34606e575f366003190112606e57602060ff5f54166040519015158152f35b34606e576020366003190112606e57600435801515809103606e5761ff005f549160081b169061ff001916175f555f80f35b34606e575f366003190112606e5760209060ff5f5460081c1615158152f3fea26469706673582212203186b983af14e76a51f4343d02b8987dd88869122f6909852d18b15b941b1cfd64736f6c63430008240033"
+}

@@ -144,7 +144,7 @@ test("API routes preserve legacy authority while v4.3 removes generic emission l
   assert.match(discovery, /evaluatorCanSetPayout:\s*false/);
 });
 
-test("legacy beta remains testnet-only while the current skill reports the v4.3 boundary", async () => {
+test("legacy beta remains testnet-only while the current skill separates the v4.4 boundary", async () => {
   const [status, skill, discovery, miner] = await Promise.all([
     source("app/api/v2/status/route.ts"),
     source("app/skill.md/route.ts"),
@@ -155,8 +155,10 @@ test("legacy beta remains testnet-only while the current skill reports the v4.3 
   assert.match(status, /applicationsRequired:\s*false/);
   assert.match(status, /chainStatus\(\)\.catch\(\(\) => null\)/);
   assert.match(status, /rpcAvailable:\s*chain !== null/);
-  assert.match(skill, /v4\.3\.4 contracts: live Base Sepolia BOOTSTRAP/);
-  assert.match(skill, /v4\.1: Base Sepolia Legacy Testnet/);
+  assert.match(skill, /v4\.4 contracts: deployed on Base Sepolia/);
+  assert.match(skill, /v4\.3\.5 wallet and work economy: explicit legacy test interfaces only/);
+  assert.match(skill, /\/api\/mcp\/v4\.4/);
+  assert.match(skill, /\/api\/mcp\/v4\.3-legacy/);
   assert.match(skill, /single finite Issue is consumed/);
   assert.match(discovery, /live-base-sepolia-legacy/);
   assert.match(miner, /chainId !== 84532/);
@@ -165,8 +167,9 @@ test("legacy beta remains testnet-only while the current skill reports the v4.3 
   assert.match(miner, /OPEN BETA PASS/);
 });
 
-test("standard MCP separates public reads, legacy signing, and v4.3 autonomous local state", async () => {
-  const [publicMcp, localMcp, v43Mcp, worker, discovery] = await Promise.all([
+test("standard MCP separates v4.4 reads, legacy signing, and v4.3 autonomous local state", async () => {
+  const [publicMcp, legacyPublicMcp, localMcp, v43Mcp, worker, discovery] = await Promise.all([
+    source("lib/mcp-v44.ts"),
     source("lib/mcp-public.ts"),
     source("mcp/agentpool-local.mjs"),
     source("mcp/agentpool-v43.mjs"),
@@ -174,8 +177,10 @@ test("standard MCP separates public reads, legacy signing, and v4.3 autonomous l
     source("lib/discovery.ts"),
   ]);
   assert.match(publicMcp, /readOnlyHint:\s*true/);
-  assert.match(publicMcp, /agentpool_list_jobs/);
+  assert.match(publicMcp, /agentpool_v44_opportunities/);
+  assert.doesNotMatch(publicMcp, /agentpool_list_jobs/);
   assert.doesNotMatch(publicMcp, /generatePrivateKey/);
+  assert.match(legacyPublicMcp, /agentpool_list_jobs/);
   assert.match(localMcp, /EXPECTED_CHAIN_ID = 84532/);
   assert.match(localMcp, /agentpool_start_mining/);
   assert.match(localMcp, /agentpool_submit_mining_answer/);
@@ -190,8 +195,20 @@ test("standard MCP separates public reads, legacy signing, and v4.3 autonomous l
   assert.match(v43Mcp, /device-local-only/);
   assert.match(v43Mcp, /EXPECTED_CHAIN_ID|chainId:\s*84532|baseSepolia/);
   assert.match(worker, /handlePublicMcpRequest/);
-  assert.match(discovery, /remote:\s*`\$\{origin\}\/api\/mcp`/);
-  assert.match(discovery, /remoteMode:\s*"read-only"/);
+  assert.match(discovery, /remote:\s*`\$\{origin\}\/api\/mcp\/v4\.4`/);
+  assert.match(discovery, /remote:\s*`\$\{origin\}\/api\/mcp\/v4\.3-legacy`/);
+  assert.match(discovery, /mode:\s*"PUBLIC_READ_ONLY_PREVIEW"/);
+});
+
+test("v4.3 release manifest matches the live MCP tool surface", async () => {
+  const manifest = JSON.parse(await source("protocol/agentpool-v43.json"));
+  assert.equal(manifest.release, "4.3.5-staged-autonomy-alpha");
+  assert.equal(manifest.machineInterfaces.localMcp.toolCount, 76);
+  const chainReader = await source("lib/v43-chain.ts");
+  assert.match(chainReader, /fallback\(/);
+  assert.match(chainReader, /base-sepolia-rpc\.publicnode\.com/);
+  assert.match(chainReader, /base-sepolia\.drpc\.org/);
+  assert.match(chainReader, /batch:\s*true/);
 });
 
 test("every state-creating API requires replay protection", async () => {

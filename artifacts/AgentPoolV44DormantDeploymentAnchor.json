@@ -1,0 +1,160 @@
+{
+  "contractName": "AgentPoolV44DormantDeploymentAnchor",
+  "sourceName": "contracts/v44/AgentPoolV44DormantDeploymentAnchor.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "sourceTreeHash_",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "releaseConfigHash_",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "stagingPolicyHash_",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "engineeringEvidenceRoot_",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAnchor",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "deploymentCommitment",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "sourceTreeHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "engineeringEvidenceRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "releaseConfigHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "stagingPolicyHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ],
+      "name": "DormantDeploymentAnchored",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "DOMAIN",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "deploymentCommitment",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "engineeringEvidenceRoot",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "releaseConfigHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sourceTreeHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "stagingPolicyHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x610120806040523461015f5760808161038d80380380916100208285610163565b83398101031261015f578051602082015191606060408201519101519282158015610157575b801561014f575b8015610147575b6101385760607fbdb0085b7b1168dda8ca9229a70463fd0b6fc230493322b85e10c6f4772a9b9591846080528060a0528360c0528560e05260405160208101907fe8c3f972dd21ae5e555c07e2a8f6544deecc4111c4d239c3f3d93c23ed21385c825246604082015286848201528260808201528560a08201528760c082015260c081526100e360e082610163565b5190209384610100526040519182526020820152466040820152a46040516101f2908161019b82396080518160b3015260a051816075015260c05181610199015260e0518160ed015261010051816101270152f35b63080631d560e01b5f5260045ffd5b508315610054565b50811561004d565b508015610046565b5f80fd5b601f909101601f19168101906001600160401b0382119082101761018657604052565b634e487b7160e01b5f52604160045260245ffdfe6080806040526004361015610012575f80fd5b5f3560e01c90816328ae96ef146101845750806352a9674b1461014a5780636b7ce48c146101105780636e8c3a25146100d6578063e2ae1a9b1461009c5763fd245dce1461005e575f80fd5b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b5f80fd5b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b34610098575f3660031901126100985760206040517fe8c3f972dd21ae5e555c07e2a8f6544deecc4111c4d239c3f3d93c23ed21385c8152f35b34610098575f366003190112610098576020907f00000000000000000000000000000000000000000000000000000000000000008152f3fea264697066735822122050443be6c8dde1781cbefa8d0fc4458b410122b6b19a79ac6fe6ecf9f5f8f4bb64736f6c63430008240033",
+  "deployedBytecode": "0x6080806040526004361015610012575f80fd5b5f3560e01c90816328ae96ef146101845750806352a9674b1461014a5780636b7ce48c146101105780636e8c3a25146100d6578063e2ae1a9b1461009c5763fd245dce1461005e575f80fd5b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b5f80fd5b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b34610098575f3660031901126100985760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b34610098575f3660031901126100985760206040517fe8c3f972dd21ae5e555c07e2a8f6544deecc4111c4d239c3f3d93c23ed21385c8152f35b34610098575f366003190112610098576020907f00000000000000000000000000000000000000000000000000000000000000008152f3fea264697066735822122050443be6c8dde1781cbefa8d0fc4458b410122b6b19a79ac6fe6ecf9f5f8f4bb64736f6c63430008240033"
+}

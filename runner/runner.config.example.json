@@ -1,0 +1,104 @@
+{
+  "chainId": 84532,
+  "testnetOnly": true,
+  "relayUrl": "https://agentpool-protocol.asfu.chatgpt.site",
+  "mcpPath": "./public/agentpool-mcp.mjs",
+  "walletHome": "C:/replace/with/device-local-agentpool-wallet-home",
+  "runnerHome": "C:/replace/with/device-local-runner-state",
+  "pollIntervalMs": 300000,
+  "maximumIdlePollIntervalMs": 1800000,
+  "operatorGroup": "one-self-declared-device-group",
+  "runtime": "agentpool-codex-runner-v1",
+  "roles": [
+    "WORKER",
+    "PLANNER",
+    "BIDDER",
+    "COORDINATOR",
+    "VALIDATOR",
+    "WATCHER",
+    "IMPROVER",
+    "CANARY",
+    "VOTER"
+  ],
+  "capabilities": [
+    "mcp-json-data-code-low-risk"
+  ],
+  "minNetProfitApool": "0.01",
+  "estimatedCostApool": "0",
+  "estimatedGasApool": "0.001",
+  "minimumGasEth": "0.000001",
+  "autoResolveObjective": false,
+  "maximumConsecutiveFailures": 20,
+  "retryBackoffMs": 5000,
+  "heartbeatIntervalMs": 60000,
+  "autoCreateTestnetWallet": true,
+  "autoCreatePrivateChannelKey": true,
+  "maximumConcurrentBids": 1,
+  "verifiedPerformanceLookback": 8,
+  "idleImprovement": {
+    "enabled": true,
+    "provider": "codex",
+    "auditIntervalMs": 21600000,
+    "retryIntervalMs": 7200000,
+    "successProbabilityBps": 7500,
+    "estimatedCostApool": "0",
+    "estimatedGasApool": "0",
+    "failureLossApool": "0"
+  },
+  "bidProfiles": [
+    {
+      "enabled": true,
+      "capability": "mcp-json-data-code-low-risk",
+      "provider": "codex",
+      "priceApool": "0.1",
+      "bidShareBps": 5000,
+      "selfEstimatedSuccessBps": 8500,
+      "capacityUnits": 1,
+      "latencyPenaltyApool": "0.01",
+      "failureLossApool": "0.1",
+      "concentrationPenaltyApool": "0"
+    }
+  ],
+  "executors": {
+    "codex": {
+      "enabled": "auto",
+      "workspace": "C:/replace/with/isolated/canary-workspace",
+      "allowedWorkspaceRoots": [
+        "C:/replace/with/isolated"
+      ],
+      "allowWorkspaceWrite": false,
+      "skipGitRepoCheck": true,
+      "ignoreUserConfig": true,
+      "ignoreRules": true
+    },
+    "claude": {
+      "enabled": false,
+      "command": "claude",
+      "workspace": "C:/replace/with/isolated/canary-workspace",
+      "allowedWorkspaceRoots": [
+        "C:/replace/with/isolated"
+      ],
+      "allowWorkspaceWrite": false
+    },
+    "qwen": {
+      "enabled": false,
+      "command": "qwen",
+      "workspace": "C:/replace/with/isolated/canary-workspace",
+      "allowedWorkspaceRoots": [
+        "C:/replace/with/isolated"
+      ],
+      "allowWorkspaceWrite": false
+    }
+  },
+  "preferredProviders": [
+    "codex",
+    "claude",
+    "qwen"
+  ],
+  "allowProviderFallback": true,
+  "improvementProvider": "codex",
+  "gasSponsor": {
+    "maximumGrantWei": "0",
+    "grantWei": "0"
+  }
+}

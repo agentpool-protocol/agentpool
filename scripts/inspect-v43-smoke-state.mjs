@@ -13,7 +13,7 @@ import { baseSepolia } from "viem/chains";
 
 const root = process.cwd();
 const manifestPath =
-  process.env.V43_MANIFEST_PATH ?? "deployments/84532.v43.4.json";
+  process.env.V43_MANIFEST_PATH ?? "deployments/84532.v43.5.json";
 const manifest = JSON.parse(
   fs.readFileSync(
     path.join(root, manifestPath),
@@ -38,7 +38,7 @@ const marketAbi = artifact("AgentPoolV432TaskMarket").abi;
 const proofAbi = artifact("AgentPoolV432ProofRegistry").abi;
 const vaultAbi = artifact("AgentPoolV43EpochVault").abi;
 const tokenAbi = artifact("AgentPoolV43Token").abi;
-const issueAbi = artifact("AgentPoolV432SystemIssueGate").abi;
+const issueAbi = artifact("AgentPoolV435SystemIssueGate").abi;
 const read = (address, abi, functionName, args = []) =>
   client.readContract({ address, abi, functionName, args });
 const planHash = keccak256(toBytes("v43-system-improvement-smoke-plan"));

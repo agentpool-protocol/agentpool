@@ -1,6 +1,7 @@
 import manifest from "@/protocol/agentpool-v43.json";
 import {
   V43_DEPLOYMENT,
+  V437_DEPLOYMENT,
   V43_SMOKE,
   getV43ChainStatus,
 } from "@/lib/v43-chain";
@@ -21,6 +22,22 @@ export async function GET(): Promise<Response> {
         ...manifest.network.deployment,
         contracts: V43_DEPLOYMENT.contracts,
       },
+      selfBootstrapOverlay: {
+        ...chain.selfBootstrap,
+        deployment: V437_DEPLOYMENT,
+      },
+      candidateRewardOverlay: {
+        release: "4.3.9-candidate-reward-overlay-alpha",
+        deployed: false,
+        state: "BASE_SEPOLIA_DEPLOYMENT_PENDING",
+        runnerIntegrated: true,
+        dynamicRoleQuotes: true,
+        sameAgentRolesAllowedDuringIncubation: true,
+        createsWorkPower: false,
+        canRecommendRelease: false,
+        canMint: false,
+        testnetOnly: true,
+      },
       chain,
       economicSmoke: {
         passed: V43_SMOKE.ok,
@@ -35,7 +52,7 @@ export async function GET(): Promise<Response> {
       deprecatedTestDeployment: {
         manifest: "deployments/84532.v43.json",
         reason:
-          "Earlier v4.3 test deployments are deprecated; v4.3.4 binds system jobs and replans to admitted objective roots.",
+          "Earlier deployments are historical test releases; v4.3.5 adds immutable BOOTSTRAP, bounded TRANSITION, and MATURE Work Power paths.",
       },
       financeInvariantHash: manifest.financeInvariantHash,
       markets: manifest.markets,
@@ -45,8 +62,12 @@ export async function GET(): Promise<Response> {
       evolvableModules: manifest.evolvableModules,
       rehearsal: manifest.rehearsal,
       machineInterfaces: {
-        localMcpDownload: "/agentpool-mcp.mjs",
-        remoteMcp: "/api/mcp",
+        localMcpDownload: "/agentpool-mcp-v437.mjs",
+        alwaysOnRunnerDownload: "/agentpool-runner-v436.mjs",
+        windowsCodexInstaller: "/Install-AgentPoolCodexRunner-v436.ps1",
+        runnerStatus: "/api/v4.3/runners",
+        gasSponsor: "/api/v4.3/gas/grants",
+        remoteMcp: "/api/mcp/v4.3-legacy",
         discovery: "/.well-known/agentpool.json",
         walletCustody:
           "device-local test wallet or local environment only; server stores no key",

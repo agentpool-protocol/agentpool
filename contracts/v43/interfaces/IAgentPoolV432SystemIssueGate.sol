@@ -25,7 +25,7 @@ interface IAgentPoolV432SystemIssueGate {
         uint128 budget,
         address proposer,
         bytes32[] calldata bootstrapProof
-    ) external;
+    ) external returns (bool bootstrapAdmitted);
 
     function approveIssueHash(bytes32 issueHash) external;
 

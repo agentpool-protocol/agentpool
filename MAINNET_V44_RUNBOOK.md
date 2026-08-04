@@ -1,0 +1,436 @@
+# AgentPool v4.4 Base mainnet candidate
+
+This runbook prepares an ownerless Base mainnet release. It does not authorize
+or perform a mainnet deployment. Base Sepolia v4.3 remains a legacy
+compatibility deployment. The v4.4 reliability campaign uses a separate exact
+v4.4 graph and manifest and never overwrites the legacy addresses.
+
+## Candidate properties
+
+- Token: `AgentPool` / `APOOL`
+- Maximum supply: 1,000,000,000,000 APOOL
+- Decimals: 18
+- Premint: 0
+- Core lane: at most 63,000 APOOL per week and 900 billion lifetime
+- Evolution lane: at most 7,000 APOOL per week and 100 billion lifetime
+- External buyer jobs: existing buyer APOOL only; no emission
+- Dynamic improvement admission: 10 APOOL refundable bond; the bond is
+  returned on a terminal task path, while the Issue's candidate count, budget,
+  and operator-group admission remain lifetime-consumed to prevent replay
+- Administrator, proxy upgrade, emergency withdrawal, and arbitrary mint: none
+- Temporary deployment authorities: removed during one-time wiring and checked
+  again by the independent verifier
+
+The deployer receives no APOOL and has no runtime role after wiring. The
+evidence gates are release checks, not governance powers.
+
+## Build and local proof
+
+Run from a clean, committed checkout:
+
+```powershell
+npm ci
+npm run contracts:compile
+npm run security:slither:v4.4
+npm run evidence:v4.4:source
+npm run evidence:v4.4:source:verify
+npm run evidence:v4.4:testnet
+npm run contracts:rehearse:v4.4:mainnet
+npm run contracts:rehearse:v4.4:full
+npm test
+```
+
+The source-evidence pair binds the exact Git commit and tree, Solidity source
+blob IDs, compiler version and settings, package lock, configuration, finance
+invariant, and creation/runtime bytecode hashes. Verification recomputes the
+whole report and rejects any changed field.
+
+The focused rehearsal proves zero premint, minter isolation, pre-genesis
+closure, weekly and lifetime cap enforcement, reservation release, and
+unauthorized-call rejection. It also runs 128 deterministic stateful
+reserve/partial-settle/release sequences and checks reservation, emission, and
+supply conservation after every case. The full rehearsal deploys the exact
+18-contract mainnet graph and 24-objective bootstrap catalog, clears all
+temporary authorities, and exercises successful emission, buyer-funded work,
+unregistered-worker rejection, and validator no-quorum refund. It must not
+import or substitute the v4.3 testnet graph.
+
+The maintainer Slither pass and its unresolved trust-boundary questions are
+recorded in [audits/V44_SLITHER_TRIAGE.md](./audits/V44_SLITHER_TRIAGE.md).
+It is not an independent audit. Give
+[audits/V44_GPT_REVIEW_PACKET.md](./audits/V44_GPT_REVIEW_PACKET.md) to an
+external GPT or human reviewer so they inspect the exact source and return
+reproducible findings rather than relying on the maintainer's conclusions.
+The already completed maintainer-directed GPT review and the resulting fixes
+are recorded separately in
+[audits/V44_GPT_COLLABORATIVE_REVIEW.md](./audits/V44_GPT_COLLABORATIVE_REVIEW.md);
+that review also does not satisfy the independent-review gate.
+
+## Evidence gates
+
+`mainnet-v44-gates.json` is an intentionally blocked, tracked template. Never
+put approvals into that file: doing so would change the source commit after its
+reproducibility hash was calculated. Copy it to the ignored
+`.mainnet-v44-gates.local.json`, set `V44_GATES_FILE` to that path, and change a
+gate to `approved` only after recording the 64-character SHA-256 digest of the
+actual, non-empty evidence file. Add its path as `evidenceFile` in the local
+gate record. Relative paths are resolved from the local gate file. The digest
+is always the SHA-256 of the complete file bytes, not an internal digest field.
+The same whole-file digest must be supplied independently in
+`.env.v44.mainnet.local`. The loader requires exactly the seven canonical gate
+names, rejects zero digests, and recomputes every referenced file digest.
+
+Required evidence:
+
+1. Reproducible final source, compiler, artifact, and source-commit report.
+2. Independent security review of the exact deployment bytecode and economic
+   invariants.
+3. Public testnet reliability report with no unresolved fund conservation,
+   duplicate payout, cap bypass, or refund-liveness failure.
+4. Evidence that the three bootstrap validators represent distinct operational
+   groups.
+5. Independent review of emission, escrow, reservation, and consensus
+   invariants.
+6. The actual deployer's own legal assessment for the jurisdictions and
+   conduct it introduces. This creates no AgentPool operator or runtime owner.
+7. AgentPool/APOOL name and symbol clearance.
+
+The script refuses deployment if the local gate file is missing, one gate is
+blocked, a digest differs, the tracked worktree is dirty, or
+`V44_SOURCE_COMMIT` is not the current `HEAD`. Because the approval file is
+ignored, approving evidence cannot mutate the source commit it attests.
+
+The public reliability gate is generated by
+`scripts/generate-v44-public-testnet-reliability.mjs` under the tracked
+`mainnet-v44-testnet-reliability-policy.json`. It accepts only an exact v4.4
+Base Sepolia deployment whose Solidity blobs reproduce from its historical
+contract source commit. The tracked campaign-specific
+`deployments/84532.v44.<campaignId>.source-reproducibility.json` preserves that
+immutable deployment proof. The ignored
+`outputs/v44-source-reproducibility.json` is
+regenerated for the current release candidate and must never replace the
+historical proof. The evidence-pipeline commit is recorded separately and must
+remain unchanged for the full observation window. The older v4.3 public
+deployment is compatibility evidence only and can never satisfy this gate.
+Eligibility requires at least 90 days, 180 distinct RPC-verified
+transactions, five contributing agents, three contributing operator groups,
+two independently signed observer attestations, fresh chain indexing, the
+required success/refund/adversarial case counts, and zero unresolved critical
+invariant incidents. Local EVM rehearsals and hand-written JSON can exercise
+the evaluator but `liveRpcVerified=false` always remains blocked.
+
+The canonical report is regenerated at its pinned Base Sepolia block so later
+blocks cannot change its bytes. Mainnet preflight, deployment, and verification
+then separately reject it if the observed chain end is older than 24 hours or
+the latest observation exceeds the configured distance from the current head.
+Reverted cap and Issue-replay observations must reproduce from the prior block
+and pass their exact calldata and pre-state checks; sharing only a custom-error
+selector is not sufficient.
+
+The `autonomyV2` section of the same tracked policy is also part of the
+campaign commitment. Before the 90-day window starts, two or more independent
+observer public keys must be pinned in each of the control-domain, checkpoint,
+and maturity-authorization policies. Every key and observation attester must
+also have a policy-fixed controller domain, custody domain, and
+corroboration-evidence hash. Activation changes from
+`PENDING_EXTERNAL_ANCHOR` to `ACTIVE` only after the graph's immutable,
+purpose-limited threshold authority executes the one-shot `AgentPoolV44PolicyAnchor`
+publication. That event fixes the policy hash, general signer-set hash,
+authority owner-set hash and threshold, authority binding root,
+evidence-pipeline commit, and transparency-log root. The activation block and
+time come only from the finalized authority transaction and event. Two
+policy-pinned RPC operators independently reproduce the authority call, event,
+both runtime code hashes, owner set, threshold, block hash, and timestamp.
+Offchain signatures added after an arbitrary publication are never accepted.
+Changing a key, threshold, provider operator, verifier, or trusted policy field
+requires a new PolicyAnchor contract and a fresh observation window;
+placeholder or maintainer keys must not be used.
+
+Autonomy settlement evidence is reconstructed from events the deployed
+contracts actually emit: Issue proposal, vote commit/reveal, approval and
+closure, Issue consumption, `JobCreated`, ProofRegistry round and evaluator
+commit/reveal, `MilestoneDelivered`, `OutcomeRecorded`, and
+`MilestoneSettled`. Two policy-pinned RPC operators with separate custody
+domains must agree on the same evidence block, raw logs, transaction calldata,
+and historical contract state. Each independently reads its own `finalized`
+head and must prove that head covers the evidence block. The transition
+proposal and Job plan hash must commit to the exact admission bundle; every
+onchain evaluator reveal must commit to the exact settlement bundle. One
+settlement must join exactly one contribution receipt, exposure slot, signed
+admission bundle, and signed settlement bundle. A post-hoc journal entry,
+caller-provided nonzero receipt identifier, or offchain aggregate event is not
+evidence.
+
+Before maturity, the exposure ledger is fixed to 49 active SYSTEM exposures.
+Every dynamic Issue is restricted to one candidate and every dynamic SYSTEM
+Job to one milestone, so latent candidates or milestones cannot exceed the
+reserved capacity. The cap counts approved candidates, bound Job milestones,
+delivered work,
+validator-authorized work, and successful settlements; an unsettled 50th Job
+cannot evade it. The full exposure-state root and raw governance-evidence root
+are included in every signed checkpoint. The 50th slot is a one-shot
+transition and requires an
+independently signed authorization bound to that exact slot, evidence-pipeline
+commit, deployment manifest, admission bundle, and a two-provider historical
+chain snapshot. A signed checkpoint over that authorization must already
+exist at the snapshot block before the 50th `JobCreated`; it cannot be written
+after settlement. Each provider must prove that the snapshot block was
+finalized. The snapshot must show at least five non-maintainer voting agents,
+three onchain operator groups, positive Work Power for every voter, and at
+least three policy-bound control domains with no domain reaching 30%. Each RPC
+reconstructs the complete positive-Work-Power population from every finalized
+`OutcomeRecorded` event since deployment; the authorization cannot supply a
+smaller caller-selected population.
+Proposal-bond balance and allowance, exact recovery Issue and Job identifiers,
+a policy-pinned full recovery Issue tuple, a content-addressed governance
+dry-run transcript and independently executed verifier version, an
+append-only incident-ledger root, and historical maintainer Work Power must
+match independently collected readiness evidence. Caller-supplied booleans
+and claimed control-domain strings are ignored. The recovery Issue and its
+single-milestone Job must still have at least 30 days before expiry at the
+maturity snapshot. Dry-run PASS strings are rejected: the verifier replays the
+pinned transaction destination, decoded function, receipt status, canonical
+block, and required events. Neither the ledger file nor a Runner may raise the
+limit itself.
+
+Terminal failed, rejected, expired, and refunded Jobs or milestones are kept
+in the exact local/chain reconciliation history but no longer consume an
+active slot. Only a finalized chain state can release a slot; deleting or
+editing a local ledger row cannot do so.
+
+The default command intentionally writes a blocked report until the files
+derived from `V44_TESTNET_CAMPAIGN_ID` are present: the isolated deployment
+manifest, historical source evidence, observation ledger, current
+evidence-pipeline commit, and two Base Sepolia RPCs. Only
+`npm run evidence:v4.4:testnet:require-eligible` is suitable for a release
+gate; it exits non-zero whenever one condition is missing.
+
+## Exact v4.4 Base Sepolia campaign
+
+Copy `.env.v44.testnet.example` to `.env.v44.testnet.local`. Testnet uses the
+same contracts, constructor arguments, configuration, finance invariant, and
+source evidence as the mainnet candidate. It does not require the mainnet
+approval gates because the public campaign is itself one of those gates.
+Reliability commands load this local environment file automatically. The
+mainnet environment must also provide the same `V44_TESTNET_CAMPAIGN_ID` and
+both Base Sepolia RPC URLs so every production entrypoint can replay the
+approved public-testnet evidence from that exact campaign.
+Instead it requires the exact acknowledgement
+`I_UNDERSTAND_THIS_IS_VALUELESS_BASE_SEPOLIA` and refuses any chain except
+84532.
+
+Set `V44_TESTNET_CAMPAIGN_ID` to a unique lowercase identifier such as
+`mainnet-candidate-1`. A campaign ID creates isolated manifest, partial-journal,
+historical source-evidence, and verification paths. The legacy
+`deployments/84532.v44.json` graph is never overwritten. Reusing an existing
+campaign ID fails closed before any transaction. After a successful deployment,
+commit both the new deployment manifest and its copied historical
+source-reproducibility file before starting the observation window.
+
+Provide distinct sorted signer addresses in
+`V44_THRESHOLD_AUTHORITY_OWNERS` and a threshold of at least two in
+`V44_THRESHOLD_AUTHORITY_THRESHOLD`. The deployer creates the exact immutable
+`AgentPoolV44ThresholdAuthority` together with the Policy and Maturity anchors.
+That contract has no generic-call or fund-transfer surface: it can only execute
+domain-separated, nonce-protected threshold publications to those two exact
+anchors. Any later owner or threshold change requires a new graph and a fresh
+campaign.
+
+For mechanics-only rehearsal, the setup helper creates the ignored environment
+file and a private 24-objective fixture catalog without copying any private key:
+
+```powershell
+npm run contracts:setup:v4.4:testnet -- --campaign=mainnet-candidate-1 --mechanics-only
+```
+
+Mechanics fixtures are explicitly ineligible for the public reliability gate.
+To start the real observation window, supply a separately reviewed catalog of
+24-32 real AgentPool verification or improvement objectives. The catalog and
+every entry must set `mechanicsOnly: false` and
+`eligibleForReliability: true`; the helper refuses generated/random fixtures:
+
+```powershell
+npm run contracts:objectives:v4.4:testnet -- --campaign=mainnet-candidate-1
+npm run contracts:setup:v4.4:testnet -- --campaign=mainnet-candidate-1 --objectives=.testnet-v44-real-objectives.mainnet-candidate-1.local.json --specifications=outputs/v44-bootstrap-specifications.mainnet-candidate-1.json
+```
+
+The generator creates 24 reproducible checks over the exact source commit,
+dependency lock, economic configuration, compiler settings, and every deployed
+artifact type. The public specification file contains no delivery answer or
+objective proof. The ignored private catalog contains the committed delivery
+hashes and unpredictable resolver challenges. Setup and deployment recompute
+every specification and delivery commitment from the exact source evidence;
+changing either file fails preflight.
+
+From a clean committed checkout with current source evidence:
+
+```powershell
+npm run contracts:preflight:v4.4:testnet
+npm run contracts:deploy:v4.4:testnet
+npm run contracts:verify:v4.4:testnet
+```
+
+The deployer writes `deployments/84532.v44.<campaignId>.json` using schema
+`agentpool.testnet.v44.deployment/v1`. The verifier proves the exact creation
+transactions, current bytecode, one-time wiring, removed authorities, supply
+and emission parameters, bootstrap roots, and objective-verifier codehash.
+An interrupted deployment uses the same pre-broadcast journal and can be
+reconciled without sending another transaction:
+
+```powershell
+$env:V44_RECONCILE_INTENT_KEY = "deploy:token"
+$env:V44_RECONCILE_TX_HASH = "0x..."
+npm run contracts:reconcile:v4.4:testnet
+```
+
+Each campaign transaction is added only after RPC verification of the exact
+destination, function selector, decoded arguments, status or custom revert
+reason, required events, and the category-specific post-state. For example,
+an expired refund cannot be relabeled as a preserved rejection and an
+unrelated reverted call cannot be counted as an Issue-replay defense:
+
+```powershell
+npm run evidence:v4.4:testnet:record -- --category=SYSTEM_SETTLED --tx=0x...
+npm run evidence:v4.4:testnet:incident -- --id=INC-001 --severity=HIGH --status=OPEN --summary="..."
+```
+
+Appending an observation or changing an incident clears all old observer
+signatures. Once a campaign snapshot is frozen, each independent observer
+loads one of the device-local validator keys committed in the deployment
+manifest and runs:
+
+```powershell
+npm run evidence:v4.4:testnet:attest
+npm run evidence:v4.4:testnet:require-eligible
+```
+
+The claimed operator group is not accepted from an environment variable: it
+must match that observer address in the deployment-committed validator
+registry. The final command independently re-reads every transaction and
+deployed contract from Base Sepolia, reconstructs every constructor input,
+re-verifies the exact clean source evidence, and regenerates the entire report.
+All three production entrypoints repeat this live regeneration. Local JSON,
+simulated receipts, unregistered or self-labeled observers, reused transaction
+hashes, fewer than 90 chain-observed days, or an unresolved HIGH/CRITICAL
+incident cannot approve the gate.
+
+## Mainnet inputs
+
+Copy `.env.v44.mainnet.example` to `.env.v44.mainnet.local`. Keep the private
+key only in that ignored local file or an equivalent secret-injection system.
+
+The deployment address, bootstrap proposer, and three validators must be five
+different addresses. Each validator must also carry a different non-zero
+operator-group identifier. The bootstrap issue, module, and manifest are
+content-addressed evidence rather than hardcoded test fixtures.
+
+BOOTSTRAP objectives are supplied in the ignored
+`.mainnet-v44-bootstrap-objectives.local.json` file using
+`mainnet-v44-bootstrap-objectives.template.json` as the schema reference. The
+launch catalog must contain 24-32 distinct AgentPool improvement or
+verification objectives. Each entry pins capability, specification, delivery,
+objective proof, and bounded Work Power units. Set
+`V44_BOOTSTRAP_OBJECTIVES_SHA256` to the exact file digest. Twenty successful
+settlements are required for
+TRANSITION and at least four unused objectives provide bounded recovery
+capacity without minting unless they are actually completed. A changed,
+duplicated, undersized, oversized, or over-capacity catalog fails preflight.
+The single-candidate bootstrap job may contain those independent milestones
+and settle them across at least two epochs with at least three agents and two
+operator groups. There is no administrator bypass if those conditions are not
+met. A system replan may replace only unfinished catalog objectives and may
+not extend their original deadlines; additional time requires a newly admitted
+Issue.
+
+`deliveryHash` and `objectiveProofHex` are challenge answers. Keep the local
+catalog private until the corresponding objective settles. The committed
+deployment manifest contains only their commitments, objective leaves, and
+Merkle paths; it must never publish either answer field. The interrupted
+deployment journal is ignored by Git and is deleted after a successful
+deployment. Every `objectiveProofHex` must contain at least 32 bytes of
+unpredictable challenge evidence so the public commitment cannot be brute
+forced. Completed objective evidence may be published separately after
+settlement for independent replay.
+
+System-improvement evidence also binds the release artifact itself. The
+settled delivery commitment covers the module hash, manifest hash, and all
+canary metrics; the worker cannot attach different performance claims later.
+Recommendation adoption is counted only from a settled job whose pinned
+`releaseId` is the proposed release, so unrelated completed work cannot
+manufacture adoption.
+
+The genesis timestamp must be 72 hours to 30 days in the future. This gives
+independent observers time to verify the deployed bytecode before any emission
+can begin.
+
+The epoch vault enforces that observation window onchain. Before
+`genesisStart`, both emission reservation and settlement revert with
+`EmissionNotStarted`; neither the bootstrap proposer nor the TaskMarket can
+bypass it. Buyer-funded external jobs may exist during the window, but the
+Core and Evolution vaults cannot mint APOOL.
+
+## Explorer provenance publication
+
+Every public Sites build must be stamped before it is packaged. Set
+`AGENTPOOL_INTERFACE_SOURCE_COMMIT` and `AGENTPOOL_SITE_BUILD_COMMIT` to the
+exact pushed commit, `AGENTPOOL_SOURCE_ARCHIVE_SHA256` to that commit's Git
+archive hash, and `AGENTPOOL_SITE_DEPLOYMENT_VERSION` to the next unused Sites
+version. Build and package only after all four values are fixed, then save and
+deploy that exact archive. The runtime environment must contain the same four
+values before deployment.
+
+Sites de-duplicates saved versions by source commit. If the predicted version
+or any provenance value is wrong, do not overwrite or relabel the saved
+version. Correct the runbook or another tracked source file, create and verify
+a new commit, then publish the next version. The live `/api/v4.4/status` is
+accepted only when it reports `REPRODUCIBLE_BUILD_MANIFEST_VERIFIED` and its
+commit, archive hash, build-manifest hash, and Sites version all match the
+release evidence.
+
+## Deployment sequence
+
+```powershell
+npm run contracts:preflight:v4.4:mainnet
+npm run contracts:deploy:v4.4:mainnet
+npm run contracts:verify:v4.4:mainnet
+```
+
+Preflight performs no write. Deployment refuses to overwrite an existing
+manifest and journals the nonce plus exact input hash before every broadcast.
+Interrupted work can only resume with the same deployer, source commit,
+configuration, objective catalog, gates, genesis, and release identity. An
+intent without a known transaction hash stops for manual reconciliation
+instead of risking a duplicate deployment.
+
+If the transaction is visible on BaseScan but the local journal stopped before
+recording its hash, do not edit the journal. Put the exact intent key printed
+by the deployment error and the transaction hash in the current PowerShell
+session, run the reconciliation command, then resume:
+
+```powershell
+$env:V44_RECONCILE_INTENT_KEY = "deploy:token"
+$env:V44_RECONCILE_TX_HASH = "0x..."
+npm run contracts:reconcile:v4.4:mainnet
+npm run contracts:deploy:v4.4:mainnet
+```
+
+The reconciliation command performs no transaction. It accepts the hash only
+when the Base chain, sender, nonce, destination, and exact calldata hash match
+the pre-broadcast journal.
+
+The final verifier checks:
+
+- Base chain ID 8453
+- exact creation transaction, sender, nonce, constructor arguments, current
+  artifact bytecode, contract address, and deployed code at every address
+- exact one-time configuration calldata and sender
+- removal of every temporary authority
+- exact token name, symbol, decimals, supply cap, and two minters
+- exact vault lanes, weekly/lifetime caps, genesis, and TaskMarket
+- total supply equals Core plus Evolution vault emissions
+- external escrow, registries, router, Issue gate, and consensus wiring
+- finance invariant, complete bootstrap objective catalog, and Merkle roots
+- success receipt for every deployment transaction
+
+Do not announce APOOL as live until the independent verification report passes
+against the public Base mainnet RPC and the manifest is committed.

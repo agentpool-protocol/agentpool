@@ -86,7 +86,6 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
 
     uint16 public constant BPS = 10_000;
     uint16 public constant QUORUM_BPS = 3_000;
-    uint16 public constant SUPERMAJORITY_BPS = 6_667;
     uint16 public constant MIN_VOTERS = 5;
     uint16 public constant MIN_GROUPS = 3;
     uint16 public constant MIN_ADOPTIONS = 5;
@@ -253,10 +252,9 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             revealDeadline < commitDeadline + MIN_PHASE_DURATION ||
             adoptionDeadline < revealDeadline + MIN_PHASE_DURATION
         ) revert InvalidTerms();
-        if (
-            sourceActivation &&
-            (proposedSource == address(0) || proposedSource.code.length == 0)
-        ) revert InvalidTerms();
+        if (sourceActivation || proposedSource != address(0)) {
+            revert InvalidTerms();
+        }
         _checkCanary(canary);
         CandidateAttestation storage attestation = candidateAttestations[
             candidateReceiptId
@@ -270,7 +268,7 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
         ) revert InvalidTerms();
         attestation.used = true;
 
-        uint64 snapshotEpoch = ledger.currentEpoch();
+        uint64 snapshotEpoch = ledger.governanceSnapshotEpoch();
         if (
             ledger.votingPowerAt(
                 msg.sender,
@@ -381,11 +379,10 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             revealDeadline < commitDeadline + MIN_PHASE_DURATION ||
             adoptionDeadline < revealDeadline + MIN_PHASE_DURATION
         ) revert InvalidTerms();
-        if (
-            sourceActivation &&
-            (proposedSource == address(0) || proposedSource.code.length == 0)
-        ) revert InvalidTerms();
-        uint64 snapshotEpoch = ledger.currentEpoch();
+        if (sourceActivation || proposedSource != address(0)) {
+            revert InvalidTerms();
+        }
+        uint64 snapshotEpoch = ledger.governanceSnapshotEpoch();
         if (
             ledger.votingPowerAt(
                 msg.sender,
@@ -501,8 +498,7 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             proposal.voterCount >= MIN_VOTERS &&
             proposal.groupCount >= MIN_GROUPS &&
             cast * BPS >= total * QUORUM_BPS &&
-            uint256(proposal.yesWeight) * BPS >=
-            cast * SUPERMAJORITY_BPS;
+            uint256(proposal.yesWeight) * 3 >= cast * 2;
         if (!passes) {
             proposal.state = ProposalState.REJECTED;
             if (!proposal.alreadyProven) {
@@ -530,13 +526,15 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
     function recordAdoption(
         uint256 proposalId,
         address adopter,
-        bytes32 receiptId
+        bytes32 receiptId,
+        bytes32 releaseId
     ) external {
         Proposal storage proposal = proposals[proposalId];
         if (
             proposal.state != ProposalState.ADOPTION ||
             block.timestamp > proposal.adoptionDeadline ||
-            !ledger.isActiveSource(msg.sender)
+            !ledger.isActiveSource(msg.sender) ||
+            proposal.releaseId != releaseId
         ) revert Unauthorized();
         if (
             adopter == address(0) ||
@@ -562,9 +560,6 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             releaseStates[proposal.releaseId] = ReleaseState.RECOMMENDED;
             recommendedRelease = proposal.releaseId;
             releaseRegistry.recommend(proposal.releaseId);
-            if (proposal.sourceActivation) {
-                ledger.setSource(proposal.proposedSource, true);
-            }
             token.safeTransfer(proposal.proposer, proposal.bond);
             emit ReleaseRecommended(proposalId, proposal.releaseId);
         }
@@ -577,9 +572,9 @@ contract AgentPoolV43EvolutionConsensus is ReentrancyGuard {
             block.timestamp <= proposal.adoptionDeadline
         ) revert InvalidState();
         proposal.state = ProposalState.EXPIRED;
-        if (!proposal.alreadyProven) {
-            releaseStates[proposal.releaseId] = ReleaseState.QUARANTINED;
-        }
+        releaseStates[proposal.releaseId] = ReleaseState.QUARANTINED;
+        releaseRegistry.quarantine(proposal.releaseId);
+        emit ReleaseQuarantined(proposal.releaseId);
         uint256 returned = proposal.bond / 2;
         slashPool += proposal.bond - returned;
         token.safeTransfer(proposal.proposer, returned);

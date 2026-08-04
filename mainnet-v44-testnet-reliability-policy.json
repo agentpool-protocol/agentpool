@@ -1,0 +1,304 @@
+{
+  "schema": "agentpool.testnet.v44.reliability-policy/v1",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "observedChainId": 84532,
+  "targetChainId": 8453,
+  "minimumObservationDays": 90,
+  "maximumEvidenceAgeHours": 24,
+  "maximumIndexerLagBlocks": 1200,
+  "minimumVerifiedTransactions": 180,
+  "minimumContributingAgents": 5,
+  "minimumContributingOperatorGroups": 3,
+  "minimumIndependentObservers": 2,
+  "minimumIndependentObserverGroups": 2,
+  "maximumOpenCriticalIncidents": 0,
+  "autonomyV2": {
+    "schema": "agentpool.v44.autonomy-policy/v1",
+    "observerIndependencePolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_CONTROLLERS",
+      "bindings": []
+    },
+    "exposurePolicy": {
+      "preMatureMaximumSuccessfulSystemSettlements": 49,
+      "maturityTransitionSettlement": 50
+    },
+    "governanceEventPolicy": {
+      "fromBlock": "deployment.deploymentBlock",
+      "contractKeys": [
+        "taskMarket",
+        "contributionLedger",
+        "proofRegistry",
+        "systemIssueGate",
+        "transitionIssueConsensus",
+        "issueConsensus"
+      ],
+      "sourceContractKeys": [
+        "settlementRouter"
+      ],
+      "eventSignatures": [
+        "IssueProposed(uint256,bytes32,address,bytes32)",
+        "VoteCommitted(uint256,address,uint256)",
+        "VoteRevealed(uint256,address,bool,bytes32,uint256)",
+        "ProposalClosed(uint256,uint8)",
+        "IssueProposed(uint256,bytes32,address)",
+        "VoteRevealed(uint256,address,bool,uint256)",
+        "TransitionIssueApproved(bytes32)",
+        "MatureIssueApproved(bytes32)",
+        "IssueConsumed(bytes32,bytes32,address,uint256,uint256)",
+        "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)",
+        "MilestoneDelivered(bytes32,uint32,bytes32,bytes32)",
+        "RoundOpened(bytes32,uint64,uint64,bytes32,uint16)",
+        "EvaluationCommitted(bytes32,address,bytes32)",
+        "EvaluationRevealed(bytes32,address,uint16,bytes32)",
+        "MilestoneSettled(bytes32,uint32,uint256,address)",
+        "OutcomeRecorded(address,address,bytes32,uint256,bool)"
+      ]
+    },
+    "governanceEventProviderPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_PROVIDERS",
+      "providers": []
+    },
+    "policyActivation": {
+      "configurationStatus": "PENDING_EXTERNAL_ANCHOR",
+      "contractKey": "policyAnchor",
+      "thresholdAuthority": null,
+      "anchorHistory": [],
+      "restartObservationWindowOnChange": true,
+      "rotationPolicy": "NEW_CONTRACT_AND_WINDOW"
+    },
+    "controlDomainPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_KEYS",
+      "authorizedPublicKeys": [],
+      "signerBindings": [],
+      "threshold": 2
+    },
+    "checkpointPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_KEYS",
+      "authorizedPublicKeys": [],
+      "signerBindings": [],
+      "threshold": 2
+    },
+    "maturityAuthorizationPolicy": {
+      "configurationStatus": "PENDING_EXTERNAL_KEYS",
+      "authorizedPublicKeys": [],
+      "signerBindings": [],
+      "threshold": 2,
+      "agentControlDomainBindings": [],
+      "minimumNonMaintainerVotingAgents": 5,
+      "minimumOnchainGroups": 3,
+      "minimumCorroboratedControlDomains": 3,
+      "maximumControlDomainShareBps": 2999,
+      "minimumRecoveryAvailabilitySeconds": 2592000,
+      "maintainerGovernanceUnits": 0,
+      "proposalBondRequired": true,
+      "recoveryIssueRequired": true,
+      "recoveryJobRequired": false,
+      "recoveryMode": "UNCONSUMED_RECOVERY_ISSUE",
+      "maximumUnresolvedCriticalHigh": 0,
+      "governanceDryRunRequired": true,
+      "authorizationScope": "SINGLE_50TH_SYSTEM_SETTLEMENT",
+      "readinessEvidencePolicy": {
+        "proposalBond": {
+          "tokenContractKey": "token",
+          "owner": null,
+          "spenderContractKey": "transitionIssueConsensus",
+          "requiredAmountWei": null
+        },
+        "recoveryIssue": {
+          "issueId": null,
+          "termsHash": null,
+          "issueTerms": null
+        },
+        "governanceDryRun": {
+          "transcriptPath": null,
+          "transcriptSha256": null,
+          "verifierPath": "scripts/lib/v44-governance-dry-run.mjs",
+          "verifierSha256": null,
+          "verifierVersion": "agentpool-v44-governance-dry-run-v2",
+          "checkPolicy": [
+            { "id": "proposal-bond-funded", "contractKey": "token", "functionName": "approve", "expectedStatus": "success", "requiredEvents": [] },
+            { "id": "transition-issue-proposed", "contractKey": "transitionIssueConsensus", "functionName": "propose", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "transitionIssueConsensus", "signature": "IssueProposed(uint256,bytes32,address,bytes32)" }] },
+            { "id": "transition-vote-revealed", "contractKey": "transitionIssueConsensus", "functionName": "revealVote", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "transitionIssueConsensus", "signature": "VoteRevealed(uint256,address,bool,bytes32,uint256)" }] },
+            { "id": "transition-issue-finalized", "contractKey": "transitionIssueConsensus", "functionName": "finalize", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "systemIssueGate", "signature": "TransitionIssueApproved(bytes32)" }] },
+            { "id": "recovery-job-created", "contractKey": "taskMarket", "functionName": "createSystemJobV2", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobCreated(bytes32,address,uint8,uint256,bytes32,bytes32,bytes32)" }] },
+            { "id": "recovery-refund-and-conservation", "contractKey": "taskMarket", "functionName": "refundExpired", "expectedStatus": "success", "requiredEvents": [{ "contractKey": "taskMarket", "signature": "JobClosed(bytes32,uint8,uint256,uint256)" }] }
+          ]
+        },
+        "maintainerAgents": []
+      }
+    },
+    "generatedCodeBinding": {
+      "sourceCommit": "evidencePipeline.sourceCommit",
+      "deploymentManifestSha256": "deployment.manifestSha256",
+      "configSha256": "deployment.configSha256"
+    }
+  },
+  "categories": {
+    "BOOTSTRAP_SETTLED": {
+      "minimum": 20,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "BOOTSTRAP_SETTLEMENT",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "MilestoneSettled(bytes32,uint32,uint256,address)"
+        },
+        {
+          "contractKey": "contributionLedger",
+          "signature": "PerformanceRecorded(address,address,bytes32,uint256,bool)"
+        }
+      ]
+    },
+    "SYSTEM_SETTLED": {
+      "minimum": 50,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "SYSTEM_SETTLEMENT",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "MilestoneSettled(bytes32,uint32,uint256,address)"
+        },
+        {
+          "contractKey": "contributionLedger",
+          "signature": "OutcomeRecorded(address,address,bytes32,uint256,bool)"
+        }
+      ]
+    },
+    "EXTERNAL_SETTLED": {
+      "minimum": 25,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "EXTERNAL_SETTLEMENT",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "MilestoneSettled(bytes32,uint32,uint256,address)"
+        },
+        {
+          "contractKey": "contributionLedger",
+          "signature": "PerformanceRecorded(address,address,bytes32,uint256,bool)"
+        }
+      ]
+    },
+    "REFUND_COMPLETED": {
+      "minimum": 20,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "refundExpired",
+      "semantic": "JOB_CLOSED_EXPIRED",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "JobClosed(bytes32,uint8,uint256,uint256)"
+        }
+      ]
+    },
+    "NO_QUORUM_REFUND": {
+      "minimum": 10,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "JOB_CLOSED_NO_QUORUM_REFUND",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "JobClosed(bytes32,uint8,uint256,uint256)"
+        }
+      ]
+    },
+    "REJECTION_PRESERVED": {
+      "minimum": 10,
+      "transactionStatus": "success",
+      "contractKey": "taskMarket",
+      "functionName": "refundExpired",
+      "semantic": "JOB_CLOSED_REJECTED",
+      "requiredEvents": [
+        {
+          "contractKey": "taskMarket",
+          "signature": "JobClosed(bytes32,uint8,uint256,uint256)"
+        }
+      ]
+    },
+    "ISSUE_REPLAY_REJECTED": {
+      "minimum": 10,
+      "transactionStatus": "reverted",
+      "contractKey": "taskMarket",
+      "functionName": "createSystemJobV2",
+      "semantic": "FINALIZED_ISSUE_REPLAY",
+      "expectedRevertError": "DuplicateGroup",
+      "errorContractKey": "systemIssueGate",
+      "requiredEvents": []
+    },
+    "DUPLICATE_PAYOUT_REJECTED": {
+      "minimum": 10,
+      "transactionStatus": "reverted",
+      "contractKey": "taskMarket",
+      "functionName": "resolve",
+      "semantic": "DUPLICATE_SETTLEMENT",
+      "expectedRevertError": "InvalidState",
+      "requiredEvents": []
+    },
+    "CAP_BYPASS_REJECTED": {
+      "minimum": 10,
+      "transactionStatus": "reverted",
+      "contractKey": "taskMarket",
+      "functionName": "createSystemJobV2",
+      "semantic": "EMISSION_CAP_EXCEEDED",
+      "expectedRevertError": "BudgetExceeded",
+      "requiredEvents": []
+    },
+    "TRANSITION_ISSUE_APPROVED": {
+      "minimum": 1,
+      "transactionStatus": "success",
+      "contractKey": "transitionIssueConsensus",
+      "functionName": "finalize",
+      "semantic": "TRANSITION_APPROVAL",
+      "requiredEvents": [
+        {
+          "contractKey": "systemIssueGate",
+          "signature": "TransitionIssueApproved(bytes32)"
+        }
+      ]
+    },
+    "MATURE_ISSUE_APPROVED": {
+      "minimum": 1,
+      "transactionStatus": "success",
+      "contractKey": "issueConsensus",
+      "functionName": "finalize",
+      "semantic": "MATURE_APPROVAL",
+      "requiredEvents": [
+        {
+          "contractKey": "systemIssueGate",
+          "signature": "MatureIssueApproved(bytes32)"
+        }
+      ]
+    },
+    "RELEASE_RECOMMENDED": {
+      "minimum": 1,
+      "transactionStatus": "success",
+      "contractKey": "evolutionConsensus",
+      "functionName": "finalizeVote",
+      "semantic": "RELEASE_RECOMMENDATION",
+      "requiredEvents": [
+        {
+          "contractKey": "releaseRegistry",
+          "signature": "ReleaseRecommended(bytes32)"
+        }
+      ]
+    }
+  },
+  "criticalInvariants": [
+    "fund-conservation",
+    "no-duplicate-payout",
+    "weekly-and-lifetime-emission-caps",
+    "refund-liveness",
+    "rejection-cannot-become-refund",
+    "finite-system-issue-admission",
+    "bootstrap-work-creates-no-work-power"
+  ]
+}
