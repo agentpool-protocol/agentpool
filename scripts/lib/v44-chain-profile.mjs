@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { base, baseSepolia } from "viem/chains";
 import { ROOT } from "./v44-mainnet.mjs";
@@ -150,4 +151,61 @@ export function requireProfileEnvironment(profile, env = process.env) {
     throw new Error("V44_MINIMUM_DEPLOYER_BALANCE_INVALID");
   }
   return { rpcUrl, minimumBalance };
+}
+
+export async function requiredDeploymentBalance({
+  profile,
+  client,
+  operatorFloor,
+}) {
+  if (!profile.testnetOnly) {
+    return {
+      requiredBalance: operatorFloor,
+      operatorFloor,
+      referenceCost: null,
+      safetyMultiplier: null,
+      referenceTransactionCount: null,
+    };
+  }
+  const referencePath = path.join(ROOT, "deployments", "84532.v44.json");
+  if (!fs.existsSync(referencePath)) {
+    throw new Error("V44_TESTNET_GAS_REFERENCE_MISSING");
+  }
+  const reference = JSON.parse(fs.readFileSync(referencePath, "utf8"));
+  if (
+    reference.chainId !== 84532 ||
+    !Array.isArray(reference.transactionHashes) ||
+    reference.transactionHashes.length < 20 ||
+    new Set(reference.transactionHashes).size !==
+      reference.transactionHashes.length
+  ) {
+    throw new Error("V44_TESTNET_GAS_REFERENCE_INVALID");
+  }
+  let referenceCost = 0n;
+  for (const hash of reference.transactionHashes) {
+    const receipt = await client.request({
+      method: "eth_getTransactionReceipt",
+      params: [hash],
+    });
+    if (!receipt || receipt.status !== "0x1") {
+      throw new Error("V44_TESTNET_GAS_REFERENCE_RECEIPT_INVALID");
+    }
+    referenceCost +=
+      BigInt(receipt.gasUsed) * BigInt(receipt.effectiveGasPrice) +
+      BigInt(receipt.l1Fee ?? 0);
+  }
+  const safetyMultiplier = 5n;
+  const absoluteFloor = 500_000_000_000_000n;
+  const evidenceFloor = referenceCost * safetyMultiplier;
+  const requiredBalance = [operatorFloor, absoluteFloor, evidenceFloor].reduce(
+    (maximum, value) => (value > maximum ? value : maximum),
+    0n,
+  );
+  return {
+    requiredBalance,
+    operatorFloor,
+    referenceCost,
+    safetyMultiplier,
+    referenceTransactionCount: reference.transactionHashes.length,
+  };
 }

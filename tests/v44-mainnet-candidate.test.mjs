@@ -33,6 +33,7 @@ import {
   verifyV44ReleaseEvidenceFile,
 } from "../scripts/generate-v44-release-evidence.mjs";
 import {
+  requiredDeploymentBalance,
   requireProfileEnvironment,
   resolveV44ChainProfile,
   resolveV44TestnetCampaignFiles,
@@ -853,6 +854,43 @@ test("v4.4 deployment engine defaults to Base mainnet and testnet requires an ex
     source("scripts/reconcile-v44-mainnet-intent.mjs"),
     /state\.schemaVersion !== 3/,
   );
+});
+
+test("testnet deployment balance uses RPC-proven historical cost with a safety floor", async () => {
+  const profile = resolveV44ChainProfile({
+    V44_DEPLOYMENT_PROFILE: "testnet",
+    V44_TESTNET_ONLY_ACK:
+      "I_UNDERSTAND_THIS_IS_VALUELESS_BASE_SEPOLIA",
+    V44_TESTNET_CAMPAIGN_ID: "gas-check",
+  });
+  let requests = 0;
+  const requirement = await requiredDeploymentBalance({
+    profile,
+    client: {
+      async request({ method }) {
+        assert.equal(method, "eth_getTransactionReceipt");
+        requests += 1;
+        return {
+          status: "0x1",
+          gasUsed: "0x64",
+          effectiveGasPrice: "0x0a",
+          l1Fee: "0x32",
+        };
+      },
+    },
+    operatorFloor: 1n,
+  });
+  assert.equal(requests, requirement.referenceTransactionCount);
+  assert.equal(requirement.referenceCost, BigInt(requests) * 1_050n);
+  assert.equal(requirement.safetyMultiplier, 5n);
+  assert.equal(requirement.requiredBalance, 500_000_000_000_000n);
+
+  const mainnetRequirement = await requiredDeploymentBalance({
+    profile: resolveV44ChainProfile({ V44_DEPLOYMENT_PROFILE: "mainnet" }),
+    client: null,
+    operatorFloor: 123n,
+  });
+  assert.equal(mainnetRequirement.requiredBalance, 123n);
 });
 
 test("v4.4 deployment resume rejects tampered transaction provenance", () => {

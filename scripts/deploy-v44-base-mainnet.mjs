@@ -37,6 +37,7 @@ import {
   sha256Json,
 } from "./lib/v44-mainnet.mjs";
 import {
+  requiredDeploymentBalance,
   requireProfileEnvironment,
   resolveV44ChainProfile,
 } from "./lib/v44-chain-profile.mjs";
@@ -116,9 +117,14 @@ if (actualChainId !== profile.chainId) {
   throw new Error(`V44_CHAIN_MISMATCH:${actualChainId}`);
 }
 const balance = await client.getBalance({ address: account.address });
-if (balance < minimumBalance) {
+const balanceRequirement = await requiredDeploymentBalance({
+  profile,
+  client,
+  operatorFloor: minimumBalance,
+});
+if (balance < balanceRequirement.requiredBalance) {
   throw new Error(
-    `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(minimumBalance)}`,
+    `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(balanceRequirement.requiredBalance)}`,
   );
 }
 const existingPartial = fs.existsSync(partialPath)

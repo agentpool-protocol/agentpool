@@ -22,6 +22,7 @@ import {
   requireThresholdAuthorityConfig,
 } from "./lib/v44-mainnet.mjs";
 import {
+  requiredDeploymentBalance,
   requireProfileEnvironment,
   resolveV44ChainProfile,
 } from "./lib/v44-chain-profile.mjs";
@@ -102,9 +103,14 @@ if (actualChainId !== profile.chainId) {
   throw new Error(`V44_CHAIN_MISMATCH:${actualChainId}`);
 }
 const balance = await client.getBalance({ address: account.address });
-if (balance < minimumBalance) {
+const balanceRequirement = await requiredDeploymentBalance({
+  profile,
+  client,
+  operatorFloor: minimumBalance,
+});
+if (balance < balanceRequirement.requiredBalance) {
   throw new Error(
-    `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(minimumBalance)}`,
+    `V44_DEPLOYER_BALANCE_TOO_LOW:${formatEther(balance)}:${formatEther(balanceRequirement.requiredBalance)}`,
   );
 }
 const bytecode = artifactBytecodeEvidence();
@@ -128,7 +134,16 @@ const report = {
   thresholdAuthorityOwners: thresholdAuthority.owners,
   thresholdAuthorityThreshold: thresholdAuthority.threshold,
   deployerBalanceEth: formatEther(balance),
-  minimumBalanceEth: formatEther(minimumBalance),
+  minimumBalanceEth: formatEther(balanceRequirement.requiredBalance),
+  configuredBalanceFloorEth: formatEther(minimumBalance),
+  testnetReferenceDeploymentCostEth:
+    balanceRequirement.referenceCost === null
+      ? null
+      : formatEther(balanceRequirement.referenceCost),
+  testnetReferenceSafetyMultiplier:
+    balanceRequirement.safetyMultiplier === null
+      ? null
+      : balanceRequirement.safetyMultiplier.toString(),
   genesisStart: releaseInputs.genesisStart,
   genesisRelease: releaseInputs.genesisRelease,
   bootstrapProposer: releaseInputs.bootstrap.proposer,
