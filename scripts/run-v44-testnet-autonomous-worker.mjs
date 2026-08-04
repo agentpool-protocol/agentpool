@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseUnits } from "viem";
 import { createV44TestnetParticipant } from "./lib/v44-testnet-participant.mjs";
+import { assertTestnetReliabilityAdmissionReady } from "./lib/v44-observation-ledger.mjs";
 
 const WAITING_FOR_ACCEPT = 1;
 const WAITING_FOR_DELIVERY = 2;
@@ -57,7 +58,18 @@ function objectiveIndexFor(participant, candidate) {
   return index;
 }
 
-export async function runV44WorkerCycle(participant, nowSeconds = null) {
+async function defaultAdmissionCheck() {
+  return assertTestnetReliabilityAdmissionReady({
+    primaryRpcUrl: process.env.AGENTPOOL_V44_TESTNET_RPC_URL?.trim(),
+    secondaryRpcUrl: process.env.AGENTPOOL_V44_TESTNET_RPC_URL_2?.trim(),
+  });
+}
+
+export async function runV44WorkerCycle(
+  participant,
+  nowSeconds = null,
+  admissionCheck = defaultAdmissionCheck,
+) {
   const status = await participant.status();
   const expectedWorker = process.env.V44_BOOTSTRAP_WORKER?.trim();
   if (!participant.account) {
@@ -82,6 +94,16 @@ export async function runV44WorkerCycle(participant, nowSeconds = null) {
   );
   if (!candidate) {
     return { state: "IDLE_NO_PROFITABLE_ACTION", status, opportunityCount: jobs.length };
+  }
+  try {
+    await admissionCheck();
+  } catch (error) {
+    return {
+      state: "WAITING_FOR_RELIABILITY_ADMISSION",
+      status,
+      opportunityCount: jobs.length,
+      reason: error instanceof Error ? error.message : String(error),
+    };
   }
   if (candidate.state === WAITING_FOR_ACCEPT) {
     return {

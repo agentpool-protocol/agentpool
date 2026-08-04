@@ -16,6 +16,7 @@ import {
 import {
   VERSION,
   sha256File,
+  sha256TextFileLf,
 } from "../scripts/lib/v44-mainnet.mjs";
 
 function fixture() {
@@ -86,7 +87,7 @@ function fixture() {
     specificationsPath,
     `${JSON.stringify(specifications, null, 2)}\n`,
   );
-  catalog.publicSpecificationsSha256 = sha256File(specificationsPath);
+  catalog.publicSpecificationsSha256 = sha256TextFileLf(specificationsPath);
   fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
   return {
     directory,
@@ -146,6 +147,47 @@ test("a changed source value cannot reuse a committed bootstrap delivery", () =>
           campaignId: value.campaignId,
         }),
       /V44_BOOTSTRAP_DELIVERY_COMMITMENT_INVALID:0/u,
+    );
+  } finally {
+    fs.rmSync(value.directory, { recursive: true, force: true });
+  }
+});
+
+test("bootstrap specification identity is stable across LF and CRLF checkouts", () => {
+  const value = fixture();
+  try {
+    const lfHash = sha256TextFileLf(value.specificationsPath);
+    const lfRawHash = sha256File(value.specificationsPath);
+    const crlfText = fs
+      .readFileSync(value.specificationsPath, "utf8")
+      .replaceAll("\n", "\r\n");
+    fs.writeFileSync(value.specificationsPath, crlfText);
+    assert.equal(sha256TextFileLf(value.specificationsPath), lfHash);
+    assert.notEqual(sha256File(value.specificationsPath), lfRawHash);
+
+    const verified = validateBootstrapSpecifications({
+      specificationsPath: value.specificationsPath,
+      objectiveCatalogPath: value.catalogPath,
+      sourceEvidence: value.sourceEvidence,
+      campaignId: value.campaignId,
+    });
+    assert.equal(verified.specificationsSha256, lfHash);
+    assert.equal(
+      verifyPublishedBootstrapSpecifications({
+        filePath: value.specificationsPath,
+        deployment: {
+          campaignId: value.campaignId,
+          sourceCommit: value.sourceCommit,
+          bootstrapSpecificationsSha256: lfHash,
+          bootstrap: {
+            objectives: value.catalog.objectives.map((objective) => ({
+              specificationHash: objective.specificationHash,
+            })),
+          },
+        },
+        sourceEvidence: value.sourceEvidence,
+      }).fileSha256,
+      lfHash,
     );
   } finally {
     fs.rmSync(value.directory, { recursive: true, force: true });

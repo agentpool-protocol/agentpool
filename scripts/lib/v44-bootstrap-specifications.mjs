@@ -7,7 +7,7 @@ import {
   VERSION,
   readJson,
   requireEnv,
-  sha256File,
+  sha256TextFileLf,
 } from "./v44-mainnet.mjs";
 
 export const V44_BOOTSTRAP_SPECIFICATIONS_SCHEMA =
@@ -78,7 +78,7 @@ export function validateBootstrapSpecifications({
   }
   const specifications = readJson(resolvedSpecificationsPath);
   const catalog = readJson(resolvedCatalogPath);
-  const specificationsSha256 = sha256File(resolvedSpecificationsPath);
+  const specificationsSha256 = sha256TextFileLf(resolvedSpecificationsPath);
   if (
     specifications.schema !== V44_BOOTSTRAP_SPECIFICATIONS_SCHEMA ||
     specifications.release !== VERSION ||
@@ -217,7 +217,8 @@ export function verifyPublishedBootstrapSpecifications({
     specifications.sourceCommit !== deployment.sourceCommit ||
     specifications.sourceCommit !== sourceEvidence.sourceCommit ||
     specifications.canonicalization !== "sorted-key-json-v1" ||
-    sha256File(resolvedPath) !== deployment.bootstrapSpecificationsSha256 ||
+    sha256TextFileLf(resolvedPath) !==
+      deployment.bootstrapSpecificationsSha256 ||
     !Array.isArray(specifications.objectives) ||
     specifications.objectives.length !== deployment.bootstrap.objectives.length
   ) {
@@ -281,6 +282,6 @@ export function verifyPublishedBootstrapSpecifications({
   return {
     specifications,
     filePath: resolvedPath,
-    fileSha256: sha256File(resolvedPath),
+    fileSha256: sha256TextFileLf(resolvedPath),
   };
 }

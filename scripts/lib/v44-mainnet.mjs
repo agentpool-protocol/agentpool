@@ -96,6 +96,14 @@ export function sha256File(filePath) {
     .digest("hex");
 }
 
+export function sha256TextFileLf(filePath) {
+  const canonicalText = fs
+    .readFileSync(filePath, "utf8")
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\r", "\n");
+  return crypto.createHash("sha256").update(canonicalText).digest("hex");
+}
+
 export function sha256Json(value) {
   return crypto
     .createHash("sha256")

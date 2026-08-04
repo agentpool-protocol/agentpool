@@ -9,8 +9,11 @@ import {
 } from "./v44-mainnet.mjs";
 import {
   autonomyPolicyIdentity,
+  collectPolicyActivationPublicationSnapshot,
   collectLiveRpcEvidence,
   loadReliabilityPolicy,
+  reconcilePolicyActivationPublicationSnapshots,
+  validateAutonomyPolicy,
   validateObservations,
   validateTestnetDeployment,
   verifyHistoricalContractSourceEvidenceFile,
@@ -80,7 +83,10 @@ export function resolveLedgerPaths(env = process.env) {
 export function loadLedgerContext(env = process.env) {
   const paths = resolveLedgerPaths(env);
   for (const [label, filePath] of Object.entries(paths).filter(
-    ([key, value]) => key !== "campaignId" && Boolean(value),
+    ([key, value]) =>
+      key !== "campaignId" &&
+      key !== "observationsPath" &&
+      Boolean(value),
   )) {
     if (!fs.existsSync(filePath)) {
       throw new Error(`V44_TESTNET_FILE_MISSING:${label}:${filePath}`);
@@ -283,6 +289,93 @@ export async function appendTestnetObservation({
     observationCount: next.observations.length,
     attestationsReset: true,
     observationsPath: context.observationsPath,
+  };
+}
+
+export async function assertTestnetReliabilityAdmissionReady({
+  primaryRpcUrl,
+  secondaryRpcUrl,
+  context = loadLedgerContext(),
+} = {}) {
+  if (!primaryRpcUrl || !secondaryRpcUrl) {
+    throw new Error("V44_BOOTSTRAP_ADMISSION_TWO_RPCS_REQUIRED");
+  }
+  if (!fs.existsSync(context.observationsPath)) {
+    throw new Error("V44_BOOTSTRAP_ADMISSION_OBSERVATIONS_MISSING");
+  }
+  const observations = readJson(context.observationsPath);
+  const trustedAutonomyPolicy = context.policyEvidence.policy.autonomyV2 ?? {};
+  const resolvedAutonomyPolicy = {
+    ...trustedAutonomyPolicy,
+    policyActivation:
+      observations.policyActivation ?? trustedAutonomyPolicy.policyActivation,
+  };
+  validateAutonomyPolicy(resolvedAutonomyPolicy);
+  for (const [label, value] of [
+    ["OBSERVERS", resolvedAutonomyPolicy.observerIndependencePolicy],
+    ["PROVIDERS", resolvedAutonomyPolicy.governanceEventProviderPolicy],
+    ["ACTIVATION", resolvedAutonomyPolicy.policyActivation],
+    ["CONTROL_DOMAINS", resolvedAutonomyPolicy.controlDomainPolicy],
+    ["CHECKPOINTS", resolvedAutonomyPolicy.checkpointPolicy],
+    ["MATURITY", resolvedAutonomyPolicy.maturityAuthorizationPolicy],
+  ]) {
+    if (value?.configurationStatus !== "ACTIVE") {
+      throw new Error(`V44_BOOTSTRAP_ADMISSION_${label}_NOT_ACTIVE`);
+    }
+  }
+  const providerPolicy = resolvedAutonomyPolicy.governanceEventProviderPolicy;
+  const operatorFor = (rpcUrl) => {
+    const origin = new URL(rpcUrl).origin;
+    const provider = providerPolicy.providers.find((candidate) =>
+      candidate.allowedOrigins.includes(origin),
+    );
+    if (!provider) {
+      throw new Error("V44_BOOTSTRAP_ADMISSION_RPC_OPERATOR_NOT_PINNED");
+    }
+    return provider.operatorId;
+  };
+  const primaryOperatorId = operatorFor(primaryRpcUrl);
+  const secondaryOperatorId = operatorFor(secondaryRpcUrl);
+  if (primaryOperatorId === secondaryOperatorId) {
+    throw new Error("V44_BOOTSTRAP_ADMISSION_RPC_OPERATORS_NOT_INDEPENDENT");
+  }
+  const activationSnapshots = await Promise.all([
+    collectPolicyActivationPublicationSnapshot({
+      rpcUrl: primaryRpcUrl,
+      deployment: context.deployment,
+      activation: resolvedAutonomyPolicy.policyActivation,
+      providerOperatorId: primaryOperatorId,
+    }),
+    collectPolicyActivationPublicationSnapshot({
+      rpcUrl: secondaryRpcUrl,
+      deployment: context.deployment,
+      activation: resolvedAutonomyPolicy.policyActivation,
+      providerOperatorId: secondaryOperatorId,
+    }),
+  ]);
+  const trustedActivationPublications =
+    reconcilePolicyActivationPublicationSnapshots({
+      providers: activationSnapshots,
+      providerOperatorPolicy: providerPolicy,
+    }).publications;
+  const resolvedPolicy = {
+    ...context.policyEvidence.policy,
+    autonomyV2: resolvedAutonomyPolicy,
+  };
+  validateObservations(observations, {
+    policy: resolvedPolicy,
+    policySha256: context.policyEvidence.policySha256,
+    deployment: context.deployment,
+    evidencePipelineCommit: context.evidencePipelineCommit,
+    trustedActivationPublications,
+  });
+  return {
+    ready: true,
+    primaryOperatorId,
+    secondaryOperatorId,
+    observationCount: observations.observations.length,
+    activationSequence:
+      resolvedAutonomyPolicy.policyActivation.activationSequence,
   };
 }
 
