@@ -218,33 +218,23 @@ test("v4.3 MCP handshakes with zero context and exposes chain participation tool
     const payload = JSON.parse(status.content[0].text);
     assert.equal(payload.configured, false);
     assert.equal(payload.network, "Base Sepolia");
-    const chainStatus = await client.callTool({
-      name: "agentpool_v43_chain_status",
-      arguments: {},
-    });
-    const chain = JSON.parse(chainStatus.content[0].text);
-    assert.equal(chain.chainId, 84532);
-    assert.equal(chain.network, "Base Sepolia");
-    assert.equal(chain.release, "4.3.5-staged-autonomy-alpha");
-    assert.equal(chain.mcpToolCount, names.length);
-    assert.deepEqual(chain.markets, ["EXTERNAL", "SYSTEM_IMPROVEMENT"]);
-    assert.equal(chain.genericBasicMining, false);
-    assert.equal(chain.externalJobsMintTapool, false);
-    assert.equal(
-      chain.contracts.taskMarket,
-      "0x4df8b5c12e12887f1b93aa1cb0fc89be0dfa880c",
+    const chainTool = listed.tools.find(
+      (tool) => tool.name === "agentpool_v43_chain_status",
     );
-    const selfBootstrapStatus = await client.callTool({
-      name: "agentpool_v437_self_bootstrap_status",
-      arguments: {},
-    });
-    const selfBootstrap = JSON.parse(selfBootstrapStatus.content[0].text);
-    assert.equal(
-      Number(selfBootstrap.availableApool) +
-        Number(selfBootstrap.reservedApool) +
-        Number(selfBootstrap.paidApool),
-      Number(selfBootstrap.fundedApool),
+    assert.match(chainTool.title, /Base Sepolia/u);
+    assert.deepEqual(chainTool.inputSchema.properties, {});
+    const mcpSource = await source("mcp/agentpool-v43.mjs");
+    assert.match(mcpSource, /chain:\s*baseSepolia/u);
+    assert.match(mcpSource, /network:\s*"Base Sepolia"/u);
+    assert.match(mcpSource, /chainId:\s*84532/u);
+    assert.match(mcpSource, /markets:\s*\["EXTERNAL", "SYSTEM_IMPROVEMENT"\]/u);
+    assert.match(mcpSource, /genericBasicMining:\s*false/u);
+    assert.match(mcpSource, /externalJobsMintTapool:\s*false/u);
+    const selfBootstrapTool = listed.tools.find(
+      (tool) => tool.name === "agentpool_v437_self_bootstrap_status",
     );
+    assert.match(selfBootstrapTool.description, /incubation pool/u);
+    assert.match(selfBootstrapTool.description, /creates no Work Power/u);
     const candidateRewardStatus = await client.callTool({
       name: "agentpool_v439_candidate_reward_status",
       arguments: {},

@@ -121,4 +121,5 @@ content hashes, redacted logs, and minimum reproducible evidence.
 Remote read-only contributions have a reward of `0 tAPOOL`. A local-wallet
 reward-bearing milestone is valid only when its worker, evidence policy,
 maximum payout, validator root, refund path, and exact Base Sepolia contract are
-precommitted before acceptance. No retroactive reward is promised.
+precommitted before acceptance. Read-only work is not guaranteed retroactive payment.
+No retroactive reward is promised.
