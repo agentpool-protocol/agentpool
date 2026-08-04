@@ -12,6 +12,9 @@ test("v4.4 participation is zero-wallet, read-only, and reward honest", () => {
   const route = source("app/api/v4.4/participate/route.ts");
   const page = source("app/participate/page.tsx");
   const prompt = source("public/agentpool-v44-participant-prompt.txt");
+  const antigravityPrompt = source(
+    "public/agentpool-v44-antigravity-two-runner-prompt.txt",
+  );
 
   assert.match(kit, /mode:\s*"PUBLIC_READ_ONLY_ALPHA"/u);
   assert.match(kit, /walletRequired:\s*false/u);
@@ -23,6 +26,10 @@ test("v4.4 participation is zero-wallet, read-only, and reward honest", () => {
   assert.match(page, /No reward claim/u);
   assert.match(prompt, /Do not create a wallet/u);
   assert.match(prompt, /Do not claim independent control/u);
+  assert.match(kit, /antigravityTwoRunnerPrompt/u);
+  assert.match(antigravityPrompt, /SHARED_OPERATOR_ENGINEERING_ONLY/u);
+  assert.match(antigravityPrompt, /Do not start a background daemon/u);
+  assert.match(antigravityPrompt, /Do not use a wallet/u);
 });
 
 test("all public discovery surfaces expose the same participation boundary", () => {

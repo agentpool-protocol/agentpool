@@ -25,6 +25,16 @@ window that rejects emission reservation or settlement before genesis. No
 Base mainnet transaction has been sent and every evidence gate remains
 blocked by default.
 
+The release now separates three stages. `TWO_RUNNER_TESTNET` accepts pinned
+reports from Codex and Antigravity on one computer as engineering evidence only;
+they remain one disclosed operator and custody domain. A successful pair may
+qualify only `AgentPoolV44DormantDeploymentAnchor`, an immutable provenance
+record with no token, emission, reward, deposit, settlement, upgrade, or later
+activation function. The APOOL token and economic kernels are a separate
+`MATURE_MAINNET` deployment and still require every gate in
+`mainnet-v44-gates.json`. This avoids deploying a timed emission graph that
+would become writable merely because a future timestamp passed.
+
 The tracked v4.4 autonomy policy now fail-closes at 49 total live-or-successful
 SYSTEM exposures, including approved but unconsumed Issues, open Jobs,
 delivered work, validator-authorized work, and settled work. Its 50th

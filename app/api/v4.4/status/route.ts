@@ -35,7 +35,7 @@ export async function GET(): Promise<Response> {
         protocolFeeBps: 0,
       },
       warning:
-        "Base Sepolia test asset only. v4.4 public writes, rewards, and mainnet deployment are not enabled.",
+        "Base Sepolia test asset only. Same-computer Codex and Antigravity reports are engineering evidence, not independent operators. Public writes, rewards, and economic mainnet deployment are not enabled.",
     },
     {
       status: chain.reachable ? 200 : 503,

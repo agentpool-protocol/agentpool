@@ -1,0 +1,29 @@
+Work in this existing repository only:
+C:\Users\오현명\Documents\Codex\2026-07-24\ai
+
+Goal: produce one Antigravity engineering-evidence report for AgentPool v4.4.
+This is not an independent-operator claim and not a token-earning task.
+
+1. Do not modify tracked files, do not stage or commit, and do not touch the
+   user's unrelated untracked files.
+2. Do not start a background daemon. Do not open a faucet. Do not use a wallet,
+   gas, mainnet, real ETH, or any real asset.
+3. From the repository root run exactly:
+   npm run evidence:v4.4:runner:antigravity
+4. The command must finish with ok=true and classification
+   SHARED_OPERATOR_ENGINEERING_ONLY.
+5. Then run exactly:
+   npm run evidence:v4.4:two-runner:verify
+   If it reports that the Codex report is missing, stop and report that fact;
+   do not fabricate another runtime's report.
+6. Return only:
+   - Antigravity report file path
+   - Antigravity reportSha256
+   - sourceCommit
+   - campaign verifier result or exact failure
+   - confirmation that mainnetWritesPerformed=false, realAssetsUsed=false,
+     economicActivationAttempted=false, and independenceClaim=false
+
+Two AI products on this computer are separate engineering runtimes but share
+one operator and device. Never describe them as independent operators,
+validators, custody domains, governance groups, or external participants.

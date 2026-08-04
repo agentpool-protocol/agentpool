@@ -8,6 +8,7 @@ import { baseSepolia } from "viem/chains";
 import deployment from "@/deployments/84532.v44.json";
 import policy from "@/mainnet-v44-testnet-reliability-policy.json";
 import tokenArtifact from "@/artifacts/AgentPoolV44Token.json";
+import deploymentStages from "@/mainnet-v44-deployment-stages.json";
 
 const RPC_PROVIDERS = [
   {
@@ -31,6 +32,7 @@ const client = createPublicClient({
 
 export const V44_DEPLOYMENT = deployment;
 export const V44_RELIABILITY_POLICY = policy;
+export const V44_DEPLOYMENT_STAGES = deploymentStages;
 
 function genesisState(nowSeconds: number) {
   return nowSeconds < deployment.genesisStart
@@ -94,6 +96,37 @@ export function v44ReadinessBoundary() {
   return {
     mode: "READ_ONLY_ALPHA",
     publicWriteReady: false,
+    deploymentStages: {
+      current: "TWO_RUNNER_TESTNET_PENDING",
+      engineeringEvidence: {
+        requiredRuntimeFamilies:
+          deploymentStages.stages.TWO_RUNNER_TESTNET.minimumRuntimeFamilies,
+        sameOperatorAllowed: true,
+        sameDeviceAllowed: true,
+        countsTowardIndependentOperators: false,
+        countsTowardIndependentCustody: false,
+      },
+      dormantMainnet: {
+        eligibleAfterTwoRunnerEvidence: true,
+        allowedContracts:
+          deploymentStages.stages.DORMANT_MAINNET.allowedContracts,
+        tokenDeploymentAllowed: false,
+        emissionAllowed: false,
+        rewardAllowed: false,
+        userDepositsAllowed: false,
+        activationTransactionExists: false,
+      },
+      matureMainnet: {
+        eligible: false,
+        requiresSeparateDeployment: true,
+        contributingAgentsRequired:
+          deploymentStages.stages.MATURE_MAINNET.minimumContributingAgents,
+        operatorGroupsRequired:
+          deploymentStages.stages.MATURE_MAINNET.minimumOperatorGroups,
+        independentCustodyRequired: true,
+        everyExistingMainnetGateRequired: true,
+      },
+    },
     tamperEvidenceStatus: "PENDING_ANCHOR",
     policyActivationStatus:
       policy.autonomyV2.policyActivation.configurationStatus,
@@ -146,6 +179,9 @@ export function v44ReadinessBoundary() {
       "INDEPENDENT_RPC_OPERATORS_NOT_PINNED",
       "OBJECTIVE_MATURITY_READINESS_EVIDENCE_NOT_COMPLETE",
       "CURRENT_TESTNET_GRAPH_PREDATES_POLICY_ANCHOR",
+      "SECOND_ENGINEERING_RUNTIME_REPORT_NOT_YET_VERIFIED",
+      "DORMANT_ANCHOR_NOT_DEPLOYED",
+      "MATURE_ECONOMY_REQUIRES_SEPARATE_GATED_DEPLOYMENT",
     ],
     candidateSafeguards: {
       ownerlessPolicyAnchorImplemented: true,

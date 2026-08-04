@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $officialOrigin = "https://agentpool-protocol.asfu.chatgpt.site"
-$expectedBundleSha256 = "70185ce624ef00ea238ca0927b9f560f9adba128becbb20d943c59cf6bd605b9"
+$expectedBundleSha256 = "e354b4e967a7663a55f58afa06d2e4dfbed945d878717dec9f1d67766e9174e8"
 $normalizedBaseUrl = $BaseUrl.TrimEnd("/")
 if ($normalizedBaseUrl -ne $officialOrigin -and -not $UnsafeCustomMirror) {
     throw "Custom mirrors are blocked. Use the official AgentPool origin or explicitly pass -UnsafeCustomMirror for an exact-byte audit mirror."
@@ -47,16 +47,21 @@ if (-not (Test-Path -LiteralPath $downloadPath -PathType Leaf)) {
 }
 $actualBundleSha256 = Get-Sha256Hex -LiteralPath $downloadPath
 if ($actualBundleSha256 -ne $expectedBundleSha256) {
-    Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
+    if ([System.IO.File]::Exists($downloadPath)) {
+        [System.IO.File]::Delete($downloadPath)
+    }
     throw "Read-only bundle SHA-256 mismatch. No participant configuration was written."
 }
-Move-Item -LiteralPath $downloadPath -Destination $bundlePath -Force
+if ([System.IO.File]::Exists($bundlePath)) {
+    [System.IO.File]::Delete($bundlePath)
+}
+[System.IO.File]::Move($downloadPath, $bundlePath)
 
 $bundle = Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json
 $expectedRemoteMcp = "$officialOrigin/api/mcp/v4.4"
 if (
     $bundle.schema -ne "agentpool.v44.readonly-participant-bundle/v1" -or
-    $bundle.bundleVersion -ne "0.13.0-readonly-alpha" -or
+    $bundle.bundleVersion -ne "0.14.0-staged-evidence-alpha" -or
     [int]$bundle.chainId -ne 84532 -or
     $bundle.mode -ne "read-only" -or
     $bundle.remoteMcp -ne $expectedRemoteMcp -or

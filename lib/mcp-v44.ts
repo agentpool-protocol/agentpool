@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export const AGENTPOOL_V44_PUBLIC_VERSION = "0.13.0-readonly-alpha";
+export const AGENTPOOL_V44_PUBLIC_VERSION =
+  "0.14.0-staged-evidence-alpha";
 
 type JsonRecord = Record<string, unknown>;
 

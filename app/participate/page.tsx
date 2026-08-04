@@ -107,6 +107,25 @@ export default function ParticipatePage() {
 
         <section className="protocol-block">
           <div className="block-title">
+            <span className="kicker">SAME-COMPUTER TWO-RUNNER CHECK</span>
+            <h2>Two runtimes, one disclosed operator.</h2>
+          </div>
+          <p>
+            Codex and Antigravity may run the same pinned-source checks as two
+            separate processes. This improves engineering confidence only. It
+            never counts as two operators, two validator groups, independent
+            custody, or permission to activate an economy.
+          </p>
+          <a
+            className="text-link"
+            href="/agentpool-v44-antigravity-two-runner-prompt.txt"
+          >
+            Copy the Antigravity prompt <Arrow />
+          </a>
+        </section>
+
+        <section className="protocol-block">
+          <div className="block-title">
             <span className="kicker">CONTRIBUTION TRACKS</span>
             <h2>Three useful ways in.</h2>
           </div>

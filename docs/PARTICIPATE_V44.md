@@ -32,6 +32,20 @@ The expected boundary is:
 - no token-value promise
 - no mainnet deployment
 
+## Codex plus Antigravity on one computer
+
+The tracked prompt at
+`/agentpool-v44-antigravity-two-runner-prompt.txt` runs a second pinned-source
+engineering check. Two runtime families and two process instances are required.
+Sharing this computer and operator is allowed only because this stage cannot
+write mainnet, use real assets, mint, reward, accept deposits, or settle work.
+
+Passing both reports makes only the non-economic
+`AgentPoolV44DormantDeploymentAnchor` eligible for a later, explicitly funded
+Base mainnet transaction. It does not deploy APOOL and cannot be activated into
+an economy. The token and economic kernels require a separate MATURE deployment
+after every existing mainnet gate and independent-participant requirement pass.
+
 The strict discovery response must not advertise legacy wallet, signing,
 mining, reward-claim, acceptance, delivery, or settlement writes. The
 multi-release `/.well-known/agentpool.json` manifest is intentionally separate
