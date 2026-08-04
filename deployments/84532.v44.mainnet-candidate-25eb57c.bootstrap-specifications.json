@@ -1,0 +1,207 @@
+{
+  "schema": "agentpool.testnet.v44.bootstrap-specifications/v1",
+  "release": "4.4.0-ownerless-mainnet-candidate",
+  "campaignId": "mainnet-candidate-25eb57c",
+  "sourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+  "canonicalization": "sorted-key-json-v1",
+  "reproduction": [
+    "npm ci",
+    "npm run contracts:compile",
+    "npm run evidence:v4.4:source"
+  ],
+  "artifactRule": "Read sourceEvidencePointer from the freshly reproduced source evidence and encode the documented delivery artifact using recursively sorted JSON keys with no trailing newline.",
+  "objectives": [
+    {
+      "id": "01-source-commit",
+      "capability": "reproducible-build-audit",
+      "description": "exact deployment source commit",
+      "sourceEvidencePointer": "/sourceCommit",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "02-source-tree",
+      "capability": "reproducible-build-audit",
+      "description": "exact deployment source tree",
+      "sourceEvidencePointer": "/sourceTree",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "03-package-lock-sha256",
+      "capability": "reproducible-build-audit",
+      "description": "locked dependency graph digest",
+      "sourceEvidencePointer": "/packageLockSha256",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "04-config-sha256",
+      "capability": "reproducible-build-audit",
+      "description": "economic configuration digest",
+      "sourceEvidencePointer": "/configSha256",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "05-finance-invariant-hash",
+      "capability": "reproducible-build-audit",
+      "description": "finance invariant commitment",
+      "sourceEvidencePointer": "/financeInvariantHash",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "06-solc-version",
+      "capability": "reproducible-build-audit",
+      "description": "Solidity compiler identity",
+      "sourceEvidencePointer": "/solcVersion",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "07-compiler-settings",
+      "capability": "reproducible-build-audit",
+      "description": "Solidity compiler settings",
+      "sourceEvidencePointer": "/compilerSettings",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "08-agent-pool-v432-issue-consensus",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV432IssueConsensus creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV432IssueConsensus",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "09-agent-pool-v432-proof-registry",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV432ProofRegistry creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV432ProofRegistry",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "10-agent-pool-v432-task-market",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV432TaskMarket creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV432TaskMarket",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "11-agent-pool-v435-system-issue-gate",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV435SystemIssueGate creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV435SystemIssueGate",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "12-agent-pool-v435-transition-issue-consensus",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV435TransitionIssueConsensus creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV435TransitionIssueConsensus",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "13-agent-pool-v43-capacity-registry",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43CapacityRegistry creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43CapacityRegistry",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "14-agent-pool-v43-contribution-ledger",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43ContributionLedger creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43ContributionLedger",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "15-agent-pool-v43-epoch-vault",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43EpochVault creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43EpochVault",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "16-agent-pool-v43-evolution-consensus",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43EvolutionConsensus creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43EvolutionConsensus",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "17-agent-pool-v43-hash-objective-verifier",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43HashObjectiveVerifier creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43HashObjectiveVerifier",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "18-agent-pool-v43-release-registry",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43ReleaseRegistry creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43ReleaseRegistry",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "19-agent-pool-v43-settlement-router",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43SettlementRouter creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43SettlementRouter",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "20-agent-pool-v43-user-escrow-kernel",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV43UserEscrowKernel creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV43UserEscrowKernel",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "21-agent-pool-v44-maturity-anchor",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV44MaturityAnchor creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV44MaturityAnchor",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "22-agent-pool-v44-policy-anchor",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV44PolicyAnchor creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV44PolicyAnchor",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "23-agent-pool-v44-threshold-authority",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV44ThresholdAuthority creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV44ThresholdAuthority",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    },
+    {
+      "id": "24-agent-pool-v44-token",
+      "capability": "evm-bytecode-reproduction",
+      "description": "AgentPoolV44Token creation and runtime bytecode evidence",
+      "sourceEvidencePointer": "/artifacts/AgentPoolV44Token",
+      "requiredSourceCommit": "25eb57c968e18ef608c8e9ea06223baed722d862",
+      "deliveryArtifactSchema": "agentpool.testnet.v44.bootstrap-delivery/v1"
+    }
+  ]
+}
