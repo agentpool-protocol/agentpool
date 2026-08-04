@@ -14,6 +14,7 @@ import {
   payoutRoot,
   proofRoundId,
 } from "./lib/v44-testnet-participant.mjs";
+import { appendTestnetObservation } from "./lib/v44-observation-ledger.mjs";
 
 const ROOT = process.cwd();
 const action =
@@ -444,7 +445,51 @@ async function advance(state) {
   return { state: "AWAITING_JOB_CLOSE", jobId: state.jobId };
 }
 
+async function syncBootstrapSettlementObservations(state) {
+  if (!state.jobId) {
+    return { discovered: 0, recorded: 0, alreadyRecorded: 0 };
+  }
+  const logs = await proposer.client.getContractEvents({
+    address: manifest.contracts.taskMarket,
+    abi: proposer.abis.market,
+    eventName: "MilestoneSettled",
+    args: { jobId: state.jobId },
+    fromBlock: BigInt(manifest.deploymentBlock),
+    toBlock: "latest",
+  });
+  const uniqueTransactions = [
+    ...new Set(
+      logs
+        .sort((left, right) => {
+          const blockOrder = Number(left.blockNumber - right.blockNumber);
+          return blockOrder || Number(left.logIndex) - Number(right.logIndex);
+        })
+        .map((entry) => entry.transactionHash?.toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+  let recorded = 0;
+  let alreadyRecorded = 0;
+  for (const txHash of uniqueTransactions) {
+    const result = await appendTestnetObservation({
+      category: "BOOTSTRAP_SETTLED",
+      txHash,
+      recordedBy: `campaign:${manifest.campaignId}`,
+      rpcUrl: requireEnv("AGENTPOOL_V44_TESTNET_RPC_URL"),
+      allowExisting: true,
+    });
+    if (result.alreadyRecorded) alreadyRecorded += 1;
+    else recorded += 1;
+  }
+  return {
+    discovered: uniqueTransactions.length,
+    recorded,
+    alreadyRecorded,
+  };
+}
+
 async function summary(state) {
+  const observationSync = await syncBootstrapSettlementObservations(state);
   const status = await proposer.status();
   const job = state.jobId
     ? await proposer.read(
@@ -464,6 +509,7 @@ async function summary(state) {
     paidTapool: job ? formatUnits(job[7], 18) : "0",
     transactionCount: state.transactions.length,
     worker,
+    observationSync,
   };
 }
 

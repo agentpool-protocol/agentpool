@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createPublicClient, http } from "viem";
+import { baseSepolia } from "viem/chains";
 import {
   ROOT,
   currentGitCommit,
@@ -7,6 +9,7 @@ import {
 } from "./v44-mainnet.mjs";
 import {
   autonomyPolicyIdentity,
+  collectLiveRpcEvidence,
   loadReliabilityPolicy,
   validateObservations,
   validateTestnetDeployment,
@@ -171,6 +174,116 @@ export function writeJsonAtomic(filePath, value) {
     "utf8",
   );
   fs.renameSync(temporaryPath, filePath);
+}
+
+export async function appendTestnetObservation({
+  category,
+  txHash,
+  recordedBy = "permissionless",
+  rpcUrl,
+  allowExisting = false,
+  context = loadLedgerContext(),
+  client = null,
+  collectEvidence = collectLiveRpcEvidence,
+  validate = validateLedger,
+} = {}) {
+  const normalizedTxHash = txHash?.toLowerCase();
+  const rule = context.policyEvidence.policy.categories[category];
+  if (!rule) throw new Error(`V44_TESTNET_CATEGORY_UNKNOWN:${category}`);
+  if (!/^0x[0-9a-f]{64}$/u.test(normalizedTxHash ?? "")) {
+    throw new Error("V44_TESTNET_TX_HASH_INVALID");
+  }
+  if (!rpcUrl) throw new Error("V44_TESTNET_RPC_URL_REQUIRED");
+
+  const existing = fs.existsSync(context.observationsPath)
+    ? readJson(context.observationsPath)
+    : null;
+  if (existing) {
+    validate(existing, {
+      policy: context.policyEvidence.policy,
+      policySha256: context.policyEvidence.policySha256,
+      deployment: context.deployment,
+      evidencePipelineCommit: context.evidencePipelineCommit,
+    });
+  }
+  if (
+    existing?.observations.some(
+      (entry) => entry.txHash.toLowerCase() === normalizedTxHash,
+    )
+  ) {
+    if (!allowExisting) {
+      throw new Error("V44_TESTNET_OBSERVATION_TX_REUSED");
+    }
+    return {
+      alreadyRecorded: true,
+      category,
+      txHash: normalizedTxHash,
+      observationCount: existing.observations.length,
+      observationsPath: context.observationsPath,
+    };
+  }
+
+  const activeClient =
+    client ??
+    createPublicClient({
+      chain: baseSepolia,
+      transport: http(rpcUrl, { timeout: 60_000, retryCount: 3 }),
+    });
+  if ((await activeClient.getChainId()) !== 84532) {
+    throw new Error("V44_TESTNET_RPC_CHAIN_MISMATCH");
+  }
+  const receipt = await activeClient.getTransactionReceipt({
+    hash: normalizedTxHash,
+  });
+  const block = await activeClient.getBlock({ blockNumber: receipt.blockNumber });
+  const blockTime = new Date(Number(block.timestamp) * 1_000);
+  const next = existing
+    ? structuredClone(existing)
+    : newObservationLedger({
+        deployment: context.deployment,
+        policyEvidence: context.policyEvidence,
+        evidencePipelineCommit: context.evidencePipelineCommit,
+        startedAt: new Date(blockTime.getTime() - 1).toISOString(),
+        endedAt: blockTime.toISOString(),
+      });
+  next.observations.push({
+    category,
+    txHash: normalizedTxHash,
+    contractKey: rule.contractKey,
+    expectedStatus: rule.transactionStatus,
+    blockNumber: Number(receipt.blockNumber),
+    recordedBy,
+  });
+  const observedAt = blockTime.toISOString();
+  if (Date.parse(observedAt) < Date.parse(next.startedAt)) {
+    next.startedAt = new Date(blockTime.getTime() - 1).toISOString();
+  }
+  if (Date.parse(observedAt) > Date.parse(next.endedAt)) {
+    next.endedAt = observedAt;
+  }
+  next.attestations = [];
+  validate(next, {
+    policy: context.policyEvidence.policy,
+    policySha256: context.policyEvidence.policySha256,
+    deployment: context.deployment,
+    evidencePipelineCommit: context.evidencePipelineCommit,
+  });
+  await collectEvidence({
+    rpcUrl,
+    deployment: context.deployment,
+    observations: next,
+    policy: context.policyEvidence.policy,
+  });
+  writeJsonAtomic(context.observationsPath, next);
+  return {
+    alreadyRecorded: false,
+    category,
+    txHash: normalizedTxHash,
+    blockNumber: Number(receipt.blockNumber),
+    observationCount: next.observations.length,
+    attestationsReset: true,
+    observationsPath: context.observationsPath,
+  };
 }
 
 export function validateLedger(
