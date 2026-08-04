@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>AgentPool v4.4 Policy Signer</title>
+    <style>
+      :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+      body { max-width: 860px; margin: 40px auto; padding: 0 20px; background: #09100d; color: #e6f3ea; }
+      section { border: 1px solid #345342; border-radius: 12px; padding: 18px; margin: 16px 0; background: #101a15; }
+      button, input { font: inherit; padding: 10px 12px; }
+      button { background: #9cf6b8; color: #07110a; border: 0; border-radius: 8px; cursor: pointer; }
+      button:disabled { opacity: .45; cursor: not-allowed; }
+      pre { white-space: pre-wrap; word-break: break-word; color: #b8d7c2; }
+      .warning { color: #ffd38a; }
+      .ok { color: #9cf6b8; }
+    </style>
+  </head>
+  <body>
+    <h1>AgentPool v4.4 Policy Signer</h1>
+    <p class="warning">Base Sepolia testnet only. This page never asks for a seed phrase or private key and never submits a transaction.</p>
+    <section>
+      <label>1. Select the reviewed activation package JSON<br /><input id="file" type="file" accept="application/json,.json" /></label>
+      <pre id="details">No package loaded.</pre>
+    </section>
+    <section>
+      <button id="connect" disabled>2. Connect wallet</button>
+      <button id="sign" disabled>3. Sign exact policy request</button>
+      <pre id="status">Waiting.</pre>
+    </section>
+    <script>
+      "use strict";
+      const BASE_SEPOLIA_HEX = "0x14a34";
+      const file = document.querySelector("#file");
+      const details = document.querySelector("#details");
+      const status = document.querySelector("#status");
+      const connect = document.querySelector("#connect");
+      const sign = document.querySelector("#sign");
+      let activationPackage = null;
+      let account = null;
+
+      const lower = (value) => String(value).toLowerCase();
+      const fail = (message) => {
+        status.textContent = message;
+        status.className = "warning";
+      };
+
+      file.addEventListener("change", async () => {
+        activationPackage = null;
+        account = null;
+        sign.disabled = true;
+        try {
+          const parsed = JSON.parse(await file.files[0].text());
+          if (
+            parsed.schema !== "agentpool.testnet.v44.policy-activation-package/v1" ||
+            parsed.chainId !== 84532 ||
+            parsed.request?.schema !== "agentpool.testnet.v44.policy-activation-request/v1" ||
+            parsed.request?.chainId !== 84532
+          ) throw new Error("Not a Base Sepolia AgentPool activation package.");
+          if (Date.now() >= Number(parsed.request.deadline) * 1000) {
+            throw new Error("This signing request has expired.");
+          }
+          activationPackage = parsed;
+          details.textContent = [
+            `Campaign: ${parsed.campaignId}`,
+            `Contract source: ${parsed.sourceCommit}`,
+            `Evidence pipeline: ${parsed.evidencePipelineCommit}`,
+            `Participant manifest: ${parsed.participantManifestSha256}`,
+            `Policy package: ${parsed.packageSha256}`,
+            `Request: ${parsed.request.requestSha256}`,
+            `Authority: ${parsed.request.thresholdAuthority}`,
+            `Action: ${parsed.request.actionHash}`,
+            `Deadline: ${new Date(parsed.request.deadline * 1000).toISOString()}`,
+            `Threshold: ${parsed.request.threshold} of ${parsed.request.owners.length}`,
+          ].join("\n");
+          connect.disabled = false;
+          status.textContent = "Package loaded. Compare these hashes with the public review record before signing.";
+          status.className = "";
+        } catch (error) {
+          connect.disabled = true;
+          fail(error.message);
+        }
+      });
+
+      connect.addEventListener("click", async () => {
+        try {
+          if (!window.ethereum) throw new Error("No injected wallet found. Open this file in a browser with MetaMask.");
+          const chainId = await ethereum.request({ method: "eth_chainId" });
+          if (lower(chainId) !== BASE_SEPOLIA_HEX) {
+            await ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: BASE_SEPOLIA_HEX }],
+            });
+          }
+          [account] = await ethereum.request({ method: "eth_requestAccounts" });
+          if (!activationPackage.request.owners.map(lower).includes(lower(account))) {
+            throw new Error(`Connected account ${account} is not an activation owner.`);
+          }
+          sign.disabled = false;
+          status.textContent = `Connected authorized owner: ${account}`;
+          status.className = "ok";
+        } catch (error) {
+          sign.disabled = true;
+          fail(error.message);
+        }
+      });
+
+      sign.addEventListener("click", async () => {
+        try {
+          if (Date.now() >= Number(activationPackage.request.deadline) * 1000) {
+            throw new Error("This signing request has expired.");
+          }
+          const source = activationPackage.request.typedData;
+          const typedData = {
+            domain: source.domain,
+            primaryType: source.primaryType,
+            message: source.message,
+            types: {
+              EIP712Domain: [
+                { name: "name", type: "string" },
+                { name: "version", type: "string" },
+                { name: "chainId", type: "uint256" },
+                { name: "verifyingContract", type: "address" },
+              ],
+              ...source.types,
+            },
+          };
+          const signature = await ethereum.request({
+            method: "eth_signTypedData_v4",
+            params: [account, JSON.stringify(typedData)],
+          });
+          const result = {
+            schema: "agentpool.testnet.v44.policy-activation-signature/v1",
+            requestSha256: activationPackage.request.requestSha256,
+            signer: account,
+            signature,
+          };
+          const blob = new Blob([`${JSON.stringify(result, null, 2)}\n`], { type: "application/json" });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = `agentpool-policy-signature-${account.toLowerCase()}.json`;
+          link.click();
+          URL.revokeObjectURL(link.href);
+          status.textContent = "Signature file downloaded. It contains no private key and cannot authorize any other action.";
+          status.className = "ok";
+        } catch (error) {
+          fail(error.message);
+        }
+      });
+    </script>
+  </body>
+</html>

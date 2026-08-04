@@ -22,6 +22,7 @@ import {
   encodeDeployData,
   encodeFunctionData,
   getAddress,
+  hashTypedData,
   keccak256,
   parseEther,
   toBytes,
@@ -440,11 +441,35 @@ const policyOperationDigest = await read(
   "operationDigest",
   [policyActionHash, 0n, policyDeadline],
 );
+const policyTypedData = {
+  domain: {
+    name: "AgentPoolV44ThresholdAuthority",
+    version: "1",
+    chainId: 8453,
+    verifyingContract: policyActivationAuthority,
+  },
+  types: {
+    ThresholdOperation: [
+      { name: "actionHash", type: "bytes32" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint64" },
+    ],
+  },
+  primaryType: "ThresholdOperation",
+  message: {
+    actionHash: policyActionHash,
+    nonce: 0n,
+    deadline: policyDeadline,
+  },
+};
+check(
+  "threshold authority exposes the standard EIP-712 policy digest",
+  policyOperationDigest,
+  hashTypedData(policyTypedData),
+);
 const policySignatures = await Promise.all(
   authoritySigners.slice(0, 2).map((signer) =>
-    privateKeyToAccount(bytesToHex(signer.key)).sign({
-      hash: policyOperationDigest,
-    }),
+    privateKeyToAccount(bytesToHex(signer.key)).signTypedData(policyTypedData),
   ),
 );
 await expectRevert("policyAnchor.singleSignatureRejected", () =>
@@ -505,11 +530,24 @@ const maturityOperationDigest = await read(
   "operationDigest",
   [maturityActionHash, 1n, maturityDeadline],
 );
+const maturityTypedData = {
+  ...policyTypedData,
+  message: {
+    actionHash: maturityActionHash,
+    nonce: 1n,
+    deadline: maturityDeadline,
+  },
+};
+check(
+  "threshold authority exposes the standard EIP-712 maturity digest",
+  maturityOperationDigest,
+  hashTypedData(maturityTypedData),
+);
 const maturitySignatures = await Promise.all(
   authoritySigners.slice(0, 2).map((signer) =>
-    privateKeyToAccount(bytesToHex(signer.key)).sign({
-      hash: maturityOperationDigest,
-    }),
+    privateKeyToAccount(bytesToHex(signer.key)).signTypedData(
+      maturityTypedData,
+    ),
   ),
 );
 await write(

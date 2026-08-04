@@ -13,7 +13,7 @@ import {
   collectLiveRpcEvidence,
   loadReliabilityPolicy,
   reconcilePolicyActivationPublicationSnapshots,
-  validateAutonomyPolicy,
+  resolveCampaignAutonomyPolicy,
   validateObservations,
   validateTestnetDeployment,
   verifyHistoricalContractSourceEvidenceFile,
@@ -130,11 +130,12 @@ export function newObservationLedger({
   evidencePipelineCommit,
   startedAt,
   endedAt,
+  autonomyPolicy = policyEvidence.policy.autonomyV2,
+  resolvedPolicyIdentity = null,
 }) {
-  const policyIdentity = autonomyPolicyIdentity(
-    policyEvidence.policy.autonomyV2,
-    evidencePipelineCommit,
-  );
+  const policyIdentity =
+    resolvedPolicyIdentity ??
+    autonomyPolicyIdentity(autonomyPolicy, evidencePipelineCommit);
   return {
     schema: "agentpool.testnet.v44.observations/v1",
     observedChainId: 84532,
@@ -163,8 +164,9 @@ export function newObservationLedger({
       governanceEventProviders: [],
       checkpoints: [],
       checkpointPolicy: {
-        authorizedPublicKeys: [],
-        threshold: 2,
+        authorizedPublicKeys:
+          autonomyPolicy.checkpointPolicy?.authorizedPublicKeys ?? [],
+        threshold: autonomyPolicy.checkpointPolicy?.threshold ?? 2,
       },
       anchorStatus: "PENDING_ANCHOR",
     },
@@ -305,12 +307,11 @@ export async function assertTestnetReliabilityAdmissionReady({
   }
   const observations = readJson(context.observationsPath);
   const trustedAutonomyPolicy = context.policyEvidence.policy.autonomyV2 ?? {};
-  const resolvedAutonomyPolicy = {
-    ...trustedAutonomyPolicy,
-    policyActivation:
-      observations.policyActivation ?? trustedAutonomyPolicy.policyActivation,
-  };
-  validateAutonomyPolicy(resolvedAutonomyPolicy);
+  const resolvedAutonomyPolicy = resolveCampaignAutonomyPolicy({
+    trackedAutonomyPolicy: trustedAutonomyPolicy,
+    observations,
+    deployment: context.deployment,
+  });
   for (const [label, value] of [
     ["OBSERVERS", resolvedAutonomyPolicy.observerIndependencePolicy],
     ["PROVIDERS", resolvedAutonomyPolicy.governanceEventProviderPolicy],

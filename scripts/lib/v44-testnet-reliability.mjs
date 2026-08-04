@@ -44,6 +44,10 @@ import {
 } from "./v44-governance-dry-run.mjs";
 import { resolveV44TestnetCampaignFiles } from "./v44-chain-profile.mjs";
 import { verifyPublishedBootstrapSpecifications } from "./v44-bootstrap-specifications.mjs";
+import {
+  validateParticipantPolicyProjection,
+  validateReliabilityParticipants,
+} from "./v44-reliability-participants.mjs";
 
 export const TESTNET_CHAIN_ID = 84532;
 export const TARGET_CHAIN_ID = 8453;
@@ -1392,6 +1396,56 @@ export function loadReliabilityPolicy(
     policyPath: path.resolve(filePath),
     policySha256: sha256File(filePath),
   };
+}
+
+export function resolveCampaignAutonomyPolicy({
+  trackedAutonomyPolicy,
+  observations,
+  deployment,
+}) {
+  if (observations?.autonomyPolicy == null) {
+    const legacyOverlay = {
+      ...trackedAutonomyPolicy,
+      policyActivation:
+        observations?.policyActivation ??
+        trackedAutonomyPolicy.policyActivation,
+    };
+    validateAutonomyPolicy(legacyOverlay);
+    return legacyOverlay;
+  }
+  if (
+    deployment?.reliabilityParticipantsSha256 == null ||
+    observations?.reliabilityParticipants == null
+  ) {
+    throw new Error("V44_CAMPAIGN_POLICY_PARTICIPANTS_MISSING");
+  }
+  const participantResult = validateReliabilityParticipants(
+    observations.reliabilityParticipants,
+    {
+      campaignId: deployment.campaignId,
+      sourceCommit: deployment.sourceCommit,
+      thresholdAuthorityOwners: deployment.thresholdAuthorityOwners,
+      thresholdAuthorityThreshold: deployment.thresholdAuthorityThreshold,
+      validators: deployment.bootstrap.validators.map((validator) => ({
+        address: validator.address,
+        groupId: validator.group,
+      })),
+    },
+  );
+  if (
+    participantResult.manifestSha256 !==
+    deployment.reliabilityParticipantsSha256
+  ) {
+    throw new Error("V44_CAMPAIGN_POLICY_PARTICIPANTS_HASH_MISMATCH");
+  }
+  const candidate = observations.autonomyPolicy;
+  validateAutonomyPolicy(candidate);
+  validateParticipantPolicyProjection({
+    autonomyPolicy: candidate,
+    participantManifest: observations.reliabilityParticipants,
+    deployment,
+  });
+  return candidate;
 }
 
 export function validateTestnetDeployment(deployment, sourceEvidence) {
@@ -4067,16 +4121,15 @@ export async function buildReliabilityReport({
   // Deployment-time activation evidence is intentionally external to the
   // tracked source policy. Keeping transaction locators in the source commit
   // would create an impossible commit -> transaction -> commit cycle.
-  const resolvedAutonomyPolicy = {
-    ...trustedAutonomyPolicy,
-    policyActivation:
-      observations.policyActivation ?? trustedAutonomyPolicy.policyActivation,
-  };
+  const resolvedAutonomyPolicy = resolveCampaignAutonomyPolicy({
+    trackedAutonomyPolicy: trustedAutonomyPolicy,
+    observations,
+    deployment,
+  });
   // The external activation locator is trusted only after the exact resolved
   // policy has passed the same structural and independence checks as the
   // tracked policy. Otherwise an observations file could replace the active
   // threshold authority with an incomplete or single-controller overlay.
-  validateAutonomyPolicy(resolvedAutonomyPolicy);
   const resolvedPolicy = {
     ...policyEvidence.policy,
     autonomyV2: resolvedAutonomyPolicy,
