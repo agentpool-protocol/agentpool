@@ -1,6 +1,6 @@
 {
   "schema": "agentpool.v44.readonly-participant-bundle/v1",
-  "bundleVersion": "0.14.1-two-runner-verified-alpha",
+  "bundleVersion": "0.14.2-provenance-verified-alpha",
   "release": "4.4.0-ownerless-mainnet-candidate",
   "chainId": 84532,
   "network": "Base Sepolia",

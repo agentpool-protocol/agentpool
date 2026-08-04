@@ -5,7 +5,7 @@ import v437 from "@/deployments/84532.v43.7.json";
 import v44 from "@/deployments/84532.v44.json";
 
 export const AGENTPOOL_DISCOVERY_VERSION =
-  "0.14.1-two-runner-verified-alpha";
+  "0.14.2-provenance-verified-alpha";
 
 const MCP_REGISTRY_SCHEMA =
   "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json";
