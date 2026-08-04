@@ -38,6 +38,13 @@ const profile = resolveV44ChainProfile({
 });
 const { manifestPath, partialPath } = profile;
 if (fs.existsSync(manifestPath)) throw new Error("V44_ALREADY_DEPLOYED");
+if (
+  profile.testnetOnly &&
+  profile.historicalSourceEvidencePath &&
+  fs.existsSync(profile.historicalSourceEvidencePath)
+) {
+  throw new Error("V44_HISTORICAL_SOURCE_EVIDENCE_ALREADY_EXISTS");
+}
 if (fs.existsSync(partialPath)) {
   throw new Error("V44_PARTIAL_DEPLOYMENT_EXISTS_REVIEW_BEFORE_PREFLIGHT");
 }

@@ -16,6 +16,7 @@ import {
   newExposureLedger,
   validateAutonomyEvidence,
 } from "./v44-autonomy-safety.mjs";
+import { resolveV44TestnetCampaignFiles } from "./v44-chain-profile.mjs";
 
 export const DEFAULT_V44_TESTNET_DEPLOYMENT_PATH = path.join(
   ROOT,
@@ -46,31 +47,46 @@ export function requiredArgument(name, argv = process.argv.slice(2)) {
 }
 
 export function resolveLedgerPaths(env = process.env) {
+  const campaignFiles = resolveV44TestnetCampaignFiles(env);
   return {
     deploymentPath: path.resolve(
       env.V44_TESTNET_DEPLOYMENT_MANIFEST ??
-        DEFAULT_V44_TESTNET_DEPLOYMENT_PATH,
+        campaignFiles.deploymentPath,
     ),
     observationsPath: path.resolve(
       env.V44_TESTNET_OBSERVATIONS_FILE ??
-        DEFAULT_V44_TESTNET_OBSERVATIONS_PATH,
+        env.V44_TESTNET_OBSERVATIONS ??
+        campaignFiles.observationsPath,
     ),
     sourceEvidencePath: path.resolve(
-      env.V44_SOURCE_EVIDENCE_FILE ??
-        DEFAULT_V44_SOURCE_EVIDENCE_PATH,
+      env.V44_TESTNET_CONTRACT_SOURCE_EVIDENCE ??
+        env.V44_TESTNET_SOURCE_EVIDENCE_FILE ??
+        (campaignFiles.campaignId
+          ? campaignFiles.sourceEvidencePath
+          : env.V44_SOURCE_EVIDENCE_FILE ??
+            campaignFiles.sourceEvidencePath),
     ),
+    campaignId: campaignFiles.campaignId,
   };
 }
 
 export function loadLedgerContext(env = process.env) {
   const paths = resolveLedgerPaths(env);
-  for (const [label, filePath] of Object.entries(paths)) {
+  for (const [label, filePath] of Object.entries(paths).filter(
+    ([key]) => key !== "campaignId",
+  )) {
     if (!fs.existsSync(filePath)) {
       throw new Error(`V44_TESTNET_FILE_MISSING:${label}:${filePath}`);
     }
   }
   const policyEvidence = loadReliabilityPolicy();
   const rawDeployment = readJson(paths.deploymentPath);
+  if (
+    paths.campaignId &&
+    rawDeployment.campaignId !== paths.campaignId
+  ) {
+    throw new Error("V44_TESTNET_CAMPAIGN_MANIFEST_MISMATCH");
+  }
   const sourceEvidence = verifyHistoricalContractSourceEvidenceFile(
     paths.sourceEvidencePath,
     rawDeployment,

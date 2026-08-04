@@ -47,6 +47,72 @@ const TESTNET = Object.freeze({
   testnetOnly: true,
 });
 
+const CAMPAIGN_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/u;
+
+function testnetCampaignProfile(campaignId) {
+  if (!campaignId) return TESTNET;
+  if (!CAMPAIGN_ID_PATTERN.test(campaignId)) {
+    throw new Error("V44_TESTNET_CAMPAIGN_ID_INVALID");
+  }
+  const deploymentStem = `84532.v44.${campaignId}`;
+  return Object.freeze({
+    ...TESTNET,
+    id: `testnet-${campaignId}`,
+    campaignId,
+    manifestPath: path.join(
+      ROOT,
+      "deployments",
+      `${deploymentStem}.json`,
+    ),
+    partialPath: path.join(
+      ROOT,
+      "deployments",
+      `${deploymentStem}.partial.json`,
+    ),
+    historicalSourceEvidencePath: path.join(
+      ROOT,
+      "deployments",
+      `${deploymentStem}.source-reproducibility.json`,
+    ),
+    verificationPath: path.join(
+      ROOT,
+      "outputs",
+      `v44-base-sepolia-verification.${campaignId}.json`,
+    ),
+  });
+}
+
+export function resolveV44TestnetCampaignFiles(env = process.env) {
+  const campaignId = env.V44_TESTNET_CAMPAIGN_ID?.trim() || null;
+  const profile = testnetCampaignProfile(campaignId);
+  return Object.freeze({
+    campaignId,
+    deploymentPath: profile.manifestPath,
+    sourceEvidencePath:
+      profile.historicalSourceEvidencePath ??
+      path.join(
+        ROOT,
+        "deployments",
+        "84532.v44.source-reproducibility.json",
+      ),
+    observationsPath: path.join(
+      ROOT,
+      "outputs",
+      campaignId
+        ? `v44-public-testnet-observations.${campaignId}.json`
+        : "v44-public-testnet-observations.json",
+    ),
+    reliabilityPath: path.join(
+      ROOT,
+      "outputs",
+      campaignId
+        ? `v44-public-testnet-reliability.${campaignId}.json`
+        : "v44-public-testnet-reliability.json",
+    ),
+    verificationPath: profile.verificationPath,
+  });
+}
+
 export function resolveV44ChainProfile(env = process.env) {
   const selected = env.V44_DEPLOYMENT_PROFILE?.trim() || "mainnet";
   if (selected === "mainnet") return MAINNET;
@@ -57,7 +123,9 @@ export function resolveV44ChainProfile(env = process.env) {
     ) {
       throw new Error("V44_TESTNET_ONLY_ACK_REQUIRED");
     }
-    return TESTNET;
+    return testnetCampaignProfile(
+      env.V44_TESTNET_CAMPAIGN_ID?.trim() || null,
+    );
   }
   throw new Error(`V44_DEPLOYMENT_PROFILE_INVALID:${selected}`);
 }

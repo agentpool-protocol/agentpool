@@ -51,7 +51,8 @@ if (
   manifest.schema !== profile.manifestSchema ||
   manifest.chainId !== profile.chainId ||
   manifest.network !== profile.network ||
-  (profile.testnetOnly ? manifest.release : manifest.version) !== VERSION
+  (profile.testnetOnly ? manifest.release : manifest.version) !== VERSION ||
+  (profile.campaignId && manifest.campaignId !== profile.campaignId)
 ) {
   throw new Error("V44_MANIFEST_INVALID");
 }

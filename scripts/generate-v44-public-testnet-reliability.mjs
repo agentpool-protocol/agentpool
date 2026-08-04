@@ -6,6 +6,7 @@ import {
   buildReliabilityReport,
   RELIABILITY_SCHEMA,
 } from "./lib/v44-testnet-reliability.mjs";
+import { resolveV44TestnetCampaignFiles } from "./lib/v44-chain-profile.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -17,6 +18,8 @@ function optionalPath(cliName, envName, fallback) {
   return value ? path.resolve(value) : null;
 }
 
+const campaignFiles = resolveV44TestnetCampaignFiles(process.env);
+
 export async function generatePublicTestnetReliability({
   policyPath = optionalPath(
     "--policy",
@@ -26,17 +29,21 @@ export async function generatePublicTestnetReliability({
   deploymentPath = optionalPath(
     "--deployment",
     "V44_TESTNET_DEPLOYMENT_MANIFEST",
-    path.join(ROOT, "deployments", "84532.v44.json"),
+    campaignFiles.deploymentPath,
   ),
-  observationsPath = optionalPath(
-    "--observations",
-    "V44_TESTNET_OBSERVATIONS",
-    path.join(ROOT, "outputs", "v44-public-testnet-observations.json"),
+  observationsPath = path.resolve(
+    argument("--observations") ??
+      process.env.V44_TESTNET_OBSERVATIONS_FILE?.trim() ??
+      process.env.V44_TESTNET_OBSERVATIONS?.trim() ??
+      campaignFiles.observationsPath,
   ),
-  sourceEvidencePath = optionalPath(
-    "--source-evidence",
-    "V44_SOURCE_EVIDENCE_FILE",
-    path.join(ROOT, "deployments", "84532.v44.source-reproducibility.json"),
+  sourceEvidencePath = path.resolve(
+    argument("--source-evidence") ??
+      process.env.V44_TESTNET_CONTRACT_SOURCE_EVIDENCE?.trim() ??
+      (campaignFiles.campaignId
+        ? campaignFiles.sourceEvidencePath
+        : process.env.V44_SOURCE_EVIDENCE_FILE?.trim() ??
+          campaignFiles.sourceEvidencePath),
   ),
   rpcUrl =
     argument("--rpc-url") ??
@@ -58,6 +65,7 @@ export async function generatePublicTestnetReliability({
     rpcUrl,
     secondaryRpcUrl,
     generatedAt,
+    expectedCampaignId: campaignFiles.campaignId,
   });
 }
 
@@ -67,7 +75,8 @@ if (
 ) {
   const outputPath = path.resolve(
     argument("--output") ??
-      path.join(ROOT, "outputs", "v44-public-testnet-reliability.json"),
+      process.env.V44_TESTNET_RELIABILITY_OUTPUT?.trim() ??
+      campaignFiles.reliabilityPath,
   );
   const report = await generatePublicTestnetReliability();
   if (report.schema !== RELIABILITY_SCHEMA) {

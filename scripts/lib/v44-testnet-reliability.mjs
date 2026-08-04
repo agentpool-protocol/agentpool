@@ -42,6 +42,7 @@ import {
   REQUIRED_GOVERNANCE_DRY_RUN_CHECKS,
   verifyGovernanceDryRunTranscript,
 } from "./v44-governance-dry-run.mjs";
+import { resolveV44TestnetCampaignFiles } from "./v44-chain-profile.mjs";
 
 export const TESTNET_CHAIN_ID = 84532;
 export const TARGET_CHAIN_ID = 8453;
@@ -3968,6 +3969,7 @@ export async function buildReliabilityReport({
   secondaryRpcUrl,
   generatedAt = new Date().toISOString(),
   verificationBlockNumber,
+  expectedCampaignId = null,
 }) {
   const policyEvidence = loadReliabilityPolicy(policyPath);
   const missing = [];
@@ -3992,6 +3994,12 @@ export async function buildReliabilityReport({
 
   assertTrackedTreeClean();
   const rawDeployment = readJson(deploymentPath);
+  if (
+    expectedCampaignId &&
+    rawDeployment.campaignId !== expectedCampaignId
+  ) {
+    throw new Error("V44_TESTNET_CAMPAIGN_MANIFEST_MISMATCH");
+  }
   const verifiedSource = verifyHistoricalContractSourceEvidenceFile(
     sourceEvidencePath,
     rawDeployment,
@@ -4287,6 +4295,7 @@ export async function verifyPublicTestnetReliabilityGate({
     throw new Error("V44_TESTNET_RELIABILITY_POLICY_NOT_CANONICAL");
   }
   const policyEvidence = loadReliabilityPolicy(policyPath);
+  const campaignFiles = resolveV44TestnetCampaignFiles(env);
   const chainEndedAtMs = Date.parse(
     report.observationWindow?.chainEndedAt,
   );
@@ -4302,19 +4311,16 @@ export async function verifyPublicTestnetReliabilityGate({
   }
   const deploymentPath = path.resolve(
     env.V44_TESTNET_DEPLOYMENT_MANIFEST ??
-      path.join(ROOT, "deployments", "84532.v44.json"),
+      campaignFiles.deploymentPath,
   );
   const observationsPath = path.resolve(
-    env.V44_TESTNET_OBSERVATIONS ??
-      path.join(ROOT, "outputs", "v44-public-testnet-observations.json"),
+    env.V44_TESTNET_OBSERVATIONS_FILE ??
+      env.V44_TESTNET_OBSERVATIONS ??
+      campaignFiles.observationsPath,
   );
   const sourceEvidencePath = path.resolve(
     env.V44_TESTNET_CONTRACT_SOURCE_EVIDENCE ??
-      path.join(
-        ROOT,
-        "deployments",
-        "84532.v44.source-reproducibility.json",
-      ),
+      campaignFiles.sourceEvidencePath,
   );
   const rpcUrl = env.AGENTPOOL_V44_TESTNET_RPC_URL?.trim();
   const secondaryRpcUrl =
@@ -4328,6 +4334,7 @@ export async function verifyPublicTestnetReliabilityGate({
     secondaryRpcUrl,
     generatedAt: report.generatedAt,
     verificationBlockNumber: report.chainCursor?.latestBlock,
+    expectedCampaignId: campaignFiles.campaignId,
   });
   if (
     recomputed.eligible !== true ||

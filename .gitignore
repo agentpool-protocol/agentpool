@@ -37,8 +37,10 @@ yarn-error.log*
 /.mainnet-v44-gates.local.json
 /.mainnet-v44-bootstrap-objectives.local.json
 /.testnet-v44-bootstrap-objectives.local.json
+/.testnet-v44-*.local.json
 /deployments/8453.v44.partial.json
 /deployments/84532.v44.partial.json
+/deployments/84532.v44.*.partial.json
 
 # vercel
 .vercel

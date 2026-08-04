@@ -53,6 +53,13 @@ const profile = resolveV44ChainProfile({
 });
 const { manifestPath, partialPath } = profile;
 if (fs.existsSync(manifestPath)) throw new Error("V44_ALREADY_DEPLOYED");
+if (
+  profile.testnetOnly &&
+  profile.historicalSourceEvidencePath &&
+  fs.existsSync(profile.historicalSourceEvidencePath)
+) {
+  throw new Error("V44_HISTORICAL_SOURCE_EVIDENCE_ALREADY_EXISTS");
+}
 
 assertTrackedTreeClean();
 const configEvidence = loadAndValidateConfig();
@@ -768,6 +775,7 @@ const commonManifest = {
   version: VERSION,
   chainId: profile.chainId,
   network: profile.network,
+  campaignId: profile.campaignId ?? null,
   phase: "BOOTSTRAP",
   sourceCommit: releaseInputs.sourceCommit,
   configSha256: configEvidence.configSha256,
@@ -830,6 +838,9 @@ const manifest = profile.testnetOnly
 manifest.manifestSha256 = sha256Json(manifest);
 fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+if (profile.testnetOnly && profile.historicalSourceEvidencePath) {
+  fs.copyFileSync(sourceEvidencePath, profile.historicalSourceEvidencePath);
+}
 if (fs.existsSync(partialPath)) fs.rmSync(partialPath);
 
 process.stdout.write(

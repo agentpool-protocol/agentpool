@@ -35,7 +35,9 @@ import {
 import {
   requireProfileEnvironment,
   resolveV44ChainProfile,
+  resolveV44TestnetCampaignFiles,
 } from "../scripts/lib/v44-chain-profile.mjs";
+import { resolveLedgerPaths } from "../scripts/lib/v44-observation-ledger.mjs";
 
 function source(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), "utf8");
@@ -750,6 +752,66 @@ test("v4.4 deployment engine defaults to Base mainnet and testnet requires an ex
   assert.equal(testnetProfile.chainId, 84532);
   assert.equal(testnetProfile.requireReleaseGates, false);
   assert.equal(testnetProfile.testnetOnly, true);
+  assert.equal(testnetProfile.campaignId, undefined);
+  const isolatedCampaignProfile = resolveV44ChainProfile({
+    V44_DEPLOYMENT_PROFILE: "testnet",
+    V44_TESTNET_ONLY_ACK:
+      "I_UNDERSTAND_THIS_IS_VALUELESS_BASE_SEPOLIA",
+    V44_TESTNET_CAMPAIGN_ID: "mainnet-candidate-1",
+  });
+  assert.equal(isolatedCampaignProfile.id, "testnet-mainnet-candidate-1");
+  assert.equal(
+    path.basename(isolatedCampaignProfile.manifestPath),
+    "84532.v44.mainnet-candidate-1.json",
+  );
+  assert.equal(
+    path.basename(isolatedCampaignProfile.historicalSourceEvidencePath),
+    "84532.v44.mainnet-candidate-1.source-reproducibility.json",
+  );
+  const campaignFiles = resolveV44TestnetCampaignFiles({
+    V44_TESTNET_CAMPAIGN_ID: "mainnet-candidate-1",
+  });
+  assert.equal(
+    path.basename(campaignFiles.observationsPath),
+    "v44-public-testnet-observations.mainnet-candidate-1.json",
+  );
+  assert.equal(
+    path.basename(campaignFiles.reliabilityPath),
+    "v44-public-testnet-reliability.mainnet-candidate-1.json",
+  );
+  const ledgerPaths = resolveLedgerPaths({
+    V44_TESTNET_CAMPAIGN_ID: "mainnet-candidate-1",
+  });
+  assert.equal(ledgerPaths.campaignId, "mainnet-candidate-1");
+  assert.equal(ledgerPaths.deploymentPath, campaignFiles.deploymentPath);
+  assert.equal(ledgerPaths.observationsPath, campaignFiles.observationsPath);
+  assert.equal(
+    ledgerPaths.sourceEvidencePath,
+    campaignFiles.sourceEvidencePath,
+  );
+  const overriddenLedgerPaths = resolveLedgerPaths({
+    V44_TESTNET_CAMPAIGN_ID: "mainnet-candidate-1",
+    V44_TESTNET_OBSERVATIONS: "custom-observations.json",
+    V44_SOURCE_EVIDENCE_FILE: "pre-deploy-source.json",
+  });
+  assert.equal(
+    overriddenLedgerPaths.observationsPath,
+    path.resolve("custom-observations.json"),
+  );
+  assert.equal(
+    overriddenLedgerPaths.sourceEvidencePath,
+    campaignFiles.sourceEvidencePath,
+  );
+  assert.throws(
+    () =>
+      resolveV44ChainProfile({
+        V44_DEPLOYMENT_PROFILE: "testnet",
+        V44_TESTNET_ONLY_ACK:
+          "I_UNDERSTAND_THIS_IS_VALUELESS_BASE_SEPOLIA",
+        V44_TESTNET_CAMPAIGN_ID: "../overwrite",
+      }),
+    /V44_TESTNET_CAMPAIGN_ID_INVALID/u,
+  );
   assert.equal(
     requireProfileEnvironment(testnetProfile, {
       AGENTPOOL_V44_TESTNET_RPC_URL: "https://sepolia.base.org",
