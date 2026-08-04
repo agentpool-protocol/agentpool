@@ -14,7 +14,10 @@ import {
   payoutRoot,
   proofRoundId,
 } from "./lib/v44-testnet-participant.mjs";
-import { appendTestnetObservation } from "./lib/v44-observation-ledger.mjs";
+import {
+  appendTestnetObservation,
+  assertTestnetReliabilityAdmissionReady,
+} from "./lib/v44-observation-ledger.mjs";
 
 const ROOT = process.cwd();
 const action =
@@ -488,8 +491,10 @@ async function syncBootstrapSettlementObservations(state) {
   };
 }
 
-async function summary(state) {
-  const observationSync = await syncBootstrapSettlementObservations(state);
+async function summary(state, { syncObservations = false } = {}) {
+  const observationSync = syncObservations
+    ? await syncBootstrapSettlementObservations(state)
+    : { discovered: 0, recorded: 0, alreadyRecorded: 0 };
   const status = await proposer.status();
   const job = state.jobId
     ? await proposer.read(
@@ -515,12 +520,27 @@ async function summary(state) {
 
 let state = readState(manifest);
 let output;
+const writeAction = ["open", "advance", "run"].includes(action);
+const admission = writeAction
+  ? await assertTestnetReliabilityAdmissionReady({
+      primaryRpcUrl: requireEnv("AGENTPOOL_V44_TESTNET_RPC_URL"),
+      secondaryRpcUrl: requireEnv("AGENTPOOL_V44_TESTNET_RPC_URL_2"),
+    })
+  : null;
 if (action === "prepare") {
   output = { ...(await prepare(state)), ...(await summary(state)) };
 } else if (action === "open") {
-  output = { ...(await open(state)), ...(await summary(state)) };
+  output = {
+    ...(await open(state)),
+    ...(await summary(state, { syncObservations: true })),
+    admission,
+  };
 } else if (action === "advance") {
-  output = { ...(await advance(state)), ...(await summary(state)) };
+  output = {
+    ...(await advance(state)),
+    ...(await summary(state, { syncObservations: true })),
+    admission,
+  };
 } else if (action === "run") {
   await open(state);
   const deadline = Date.now() + Number(process.env.V44_BOOTSTRAP_RUN_TIMEOUT_MS ?? 21_600_000);
@@ -532,7 +552,11 @@ if (action === "prepare") {
     if (next.state === "SETTLED" || next.state === "TERMINAL_FAILURE") break;
     await new Promise((resolve) => setTimeout(resolve, 15_000));
   }
-  output = { outcomes, ...(await summary(state)) };
+  output = {
+    outcomes,
+    ...(await summary(state, { syncObservations: true })),
+    admission,
+  };
 } else {
   output = await summary(state);
 }

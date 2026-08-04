@@ -147,6 +147,27 @@ test("v4.4 bootstrap campaign recovers settled observations from chain logs", ()
   assert.match(recorder, /appendTestnetObservation/u);
 });
 
+test("v4.4 reliability bootstrap cannot start from a timer alone", () => {
+  const campaign = source("scripts/run-v44-testnet-bootstrap-campaign.mjs");
+  const worker = source("scripts/run-v44-testnet-autonomous-worker.mjs");
+  const helper = source("scripts/lib/v44-observation-ledger.mjs");
+  assert.match(campaign, /assertTestnetReliabilityAdmissionReady/u);
+  assert.match(campaign, /const writeAction = \["open", "advance", "run"\]/u);
+  assert.match(worker, /WAITING_FOR_RELIABILITY_ADMISSION/u);
+  for (const requiredStatus of [
+    "OBSERVERS",
+    "PROVIDERS",
+    "ACTIVATION",
+    "CONTROL_DOMAINS",
+    "CHECKPOINTS",
+    "MATURITY",
+  ]) {
+    assert.match(helper, new RegExp(`\\["${requiredStatus}"`, "u"));
+  }
+  assert.match(helper, /collectPolicyActivationPublicationSnapshot/u);
+  assert.match(helper, /RPC_OPERATORS_NOT_INDEPENDENT/u);
+});
+
 test("v4.4 threshold authority config is canonical and rejects one-key control", () => {
   const owners = [
     "0x3000000000000000000000000000000000000000",
