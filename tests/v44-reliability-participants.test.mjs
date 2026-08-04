@@ -41,6 +41,14 @@ function signer(index) {
 }
 
 function validManifest() {
+  const maturityAgentBindings = ["7", "8", "9", "a", "b"].map(
+    (value, index) => ({
+      agent: address(value),
+      controllerDomainId: `agent-controller-${index}`,
+      custodyDomainId: `agent-custody-${index}`,
+      corroborationEvidenceHash: hash((index + 1).toString(16)),
+    }),
+  );
   const signerPolicies = Object.fromEntries(
     ["controlDomain", "checkpoint", "maturity"].map((name, policyIndex) => [
       name,
@@ -86,14 +94,10 @@ function validManifest() {
       },
     ],
     signerPolicies,
-    maturityAgentBindings: ["7", "8", "9", "a", "b"].map(
-      (value, index) => ({
-        agent: address(value),
-        controllerDomainId: `agent-controller-${index}`,
-        custodyDomainId: `agent-custody-${index}`,
-        corroborationEvidenceHash: hash((index + 1).toString(16)),
-      }),
-    ),
+    maturityAgentBindings,
+    maturityReadiness: {
+      proposalBondOwner: maturityAgentBindings[0].agent,
+    },
   };
 }
 

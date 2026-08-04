@@ -160,6 +160,30 @@ npm run participants:v4.4:testnet
 npm run participants:v4.4:testnet -- --input=outputs/v44-reliability-participants.mainnet-candidate-1.local.json
 ```
 
+The manifest also selects one of its five maturity agents as
+`maturityReadiness.proposalBondOwner`. This is not an administrator. It only
+precommits which independently controlled agent must hold and approve the
+immutable proposal bond before maturity.
+
+After a new reliability graph is deployed, activate the reviewed participant
+policy without sharing any owner private key:
+
+```powershell
+npm run policy:v4.4:testnet:prepare
+# Each threshold owner opens public/v44-policy-activation-signer.html in a
+# wallet-enabled browser, reviews the hashes, and downloads one signature JSON.
+npm run policy:v4.4:testnet:submit -- --package=outputs/v44-policy-activation-package.mainnet-candidate-1.local.json --signature=owner-a.json --signature=owner-b.json
+npm run policy:v4.4:testnet:finalize -- --package=outputs/v44-policy-activation-package.mainnet-candidate-1.local.json --receipt=outputs/v44-policy-activation-receipt.mainnet-candidate-1.local.json
+```
+
+The authority signs an EIP-712 `ThresholdOperation`. The static signer never
+asks for a recovery phrase or private key and never sends a transaction. Any
+relayer can submit the sorted threshold signatures, but cannot change the
+policy, participant bindings, nonce, or deadline. Finalization requires both
+policy-pinned RPC operators to report the same finalized activation and starts
+the observation ledger at the actual chain timestamp. Changed, expired,
+duplicate, uncommitted, unfinalized, or single-operator inputs fail closed.
+
 Setting three addresses controlled by one person or organization does not make
 three independent controllers. A campaign deployed before this manifest was
 validated remains engineering evidence only; immutable authority owners cannot

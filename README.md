@@ -85,6 +85,14 @@ controller/custody separation before contracts are deployed. The helper
 command with `--input=...` validates it. Same-person wallets remain one control
 domain regardless of device count.
 
+One declared maturity agent must be selected as the future proposal-bond
+owner. After deployment, `policy:v4.4:testnet:prepare`, the static EIP-712
+signer at `/v44-policy-activation-signer.html`,
+`policy:v4.4:testnet:submit`, and `policy:v4.4:testnet:finalize` convert the
+reviewed public manifest into an onchain threshold-authorized policy and start
+the observation clock at its finalized block timestamp. Owner keys never enter
+the repository or relayer.
+
 The website still presents the older public graph as a read-only historical
 alpha. The new isolated v4.4 campaign is not relabelled as that graph and will
 be published only with its exact addresses and source evidence. Its 90-day

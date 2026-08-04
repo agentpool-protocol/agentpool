@@ -242,6 +242,17 @@ export function inspectReliabilityParticipants(
   ) {
     blockers.push("V44_PARTICIPANTS_MATURITY_AGENTS_NOT_INDEPENDENT");
   }
+  const bondOwner = normalizedAddress(
+    manifest?.maturityReadiness?.proposalBondOwner,
+  );
+  if (
+    bondOwner === null ||
+    !agents.some(
+      (entry) => normalizedAddress(entry?.agent) === bondOwner,
+    )
+  ) {
+    blockers.push("V44_PARTICIPANTS_MATURITY_BOND_OWNER_INVALID");
+  }
 
   return {
     ready: blockers.length === 0,
@@ -257,6 +268,140 @@ export function validateReliabilityParticipants(manifest, expected) {
     throw new Error(`V44_RELIABILITY_PARTICIPANTS_NOT_READY:${result.blockers.join(",")}`);
   }
   return result;
+}
+
+function activeSignerPolicy(policy) {
+  return {
+    configurationStatus: "ACTIVE",
+    authorizedPublicKeys: policy.signers.map((signer) => signer.publicKeyPem),
+    signerBindings: policy.signers.map((signer) => ({
+      signerKeyId: signer.signerKeyId,
+      controllerDomainId: signer.controllerDomainId,
+      custodyDomainId: signer.custodyDomainId,
+      corroborationEvidenceHash: signer.corroborationEvidenceHash,
+    })),
+    threshold: policy.threshold,
+  };
+}
+
+/// Convert an already validated public participant manifest into the exact
+/// dynamic policy fields that are later committed by PolicyAnchor. The
+/// projection deliberately excludes policyActivation and maturity readiness
+/// values because those depend on the newly deployed campaign addresses.
+export function participantPolicyProjection(manifest) {
+  return {
+    observerIndependencePolicy: {
+      configurationStatus: "ACTIVE",
+      bindings: manifest.observers.map((observer) => ({
+        observer: getAddress(observer.address).toLowerCase(),
+        operatorGroup: observer.operatorGroup.toLowerCase(),
+        controllerDomainId: observer.controllerDomainId,
+        custodyDomainId: observer.custodyDomainId,
+        corroborationEvidenceHash: observer.corroborationEvidenceHash,
+      })),
+    },
+    governanceEventProviderPolicy: {
+      configurationStatus: "ACTIVE",
+      providers: manifest.governanceRpcProviders.map((provider) => ({
+        operatorId: provider.operatorId,
+        allowedOrigins: [...provider.allowedOrigins],
+        custodyDomainId: provider.custodyDomainId,
+        corroborationEvidenceHash: provider.corroborationEvidenceHash,
+      })),
+    },
+    controlDomainPolicy: activeSignerPolicy(
+      manifest.signerPolicies.controlDomain,
+    ),
+    checkpointPolicy: activeSignerPolicy(manifest.signerPolicies.checkpoint),
+    maturitySignerPolicy: activeSignerPolicy(manifest.signerPolicies.maturity),
+    maturityAgentBindings: manifest.maturityAgentBindings.map((binding) => ({
+      agent: getAddress(binding.agent).toLowerCase(),
+      controllerDomainId: binding.controllerDomainId,
+      custodyDomainId: binding.custodyDomainId,
+      corroborationEvidenceHash: binding.corroborationEvidenceHash,
+    })),
+    thresholdAuthorityOwnerBindings: manifest.thresholdAuthority.owners.map(
+      (binding) => ({
+        owner: getAddress(binding.address).toLowerCase(),
+        controllerDomainId: binding.controllerDomainId,
+        custodyDomainId: binding.custodyDomainId,
+        corroborationEvidenceHash: binding.corroborationEvidenceHash,
+      }),
+    ),
+  };
+}
+
+export function validateParticipantPolicyProjection({
+  autonomyPolicy,
+  participantManifest,
+  deployment,
+}) {
+  const projection = participantPolicyProjection(participantManifest);
+  const expectedAuthorityOwners = deployment.thresholdAuthorityOwners
+    .map((owner) => getAddress(owner).toLowerCase())
+    .sort();
+  const actualAuthorityOwners = autonomyPolicy.policyActivation
+    .thresholdAuthority.owners.map((owner) => getAddress(owner).toLowerCase())
+    .sort();
+  for (const [label, actual, expected] of [
+    [
+      "OBSERVERS",
+      autonomyPolicy.observerIndependencePolicy,
+      projection.observerIndependencePolicy,
+    ],
+    [
+      "RPC_PROVIDERS",
+      autonomyPolicy.governanceEventProviderPolicy,
+      projection.governanceEventProviderPolicy,
+    ],
+    [
+      "CONTROL_KEYS",
+      autonomyPolicy.controlDomainPolicy,
+      projection.controlDomainPolicy,
+    ],
+    [
+      "CHECKPOINT_KEYS",
+      autonomyPolicy.checkpointPolicy,
+      projection.checkpointPolicy,
+    ],
+    [
+      "MATURITY_KEYS",
+      {
+        configurationStatus:
+          autonomyPolicy.maturityAuthorizationPolicy.configurationStatus,
+        authorizedPublicKeys:
+          autonomyPolicy.maturityAuthorizationPolicy.authorizedPublicKeys,
+        signerBindings:
+          autonomyPolicy.maturityAuthorizationPolicy.signerBindings,
+        threshold: autonomyPolicy.maturityAuthorizationPolicy.threshold,
+      },
+      projection.maturitySignerPolicy,
+    ],
+    [
+      "MATURITY_AGENTS",
+      autonomyPolicy.maturityAuthorizationPolicy.agentControlDomainBindings,
+      projection.maturityAgentBindings,
+    ],
+    [
+      "AUTHORITY_BINDINGS",
+      autonomyPolicy.policyActivation.thresholdAuthority.ownerBindings,
+      projection.thresholdAuthorityOwnerBindings,
+    ],
+  ]) {
+    if (sha256Json(actual) !== sha256Json(expected)) {
+      throw new Error(`V44_CAMPAIGN_POLICY_${label}_MISMATCH`);
+    }
+  }
+  if (
+    autonomyPolicy.policyActivation.thresholdAuthority.address.toLowerCase() !==
+      deployment.contracts.thresholdAuthority.toLowerCase() ||
+    autonomyPolicy.policyActivation.thresholdAuthority.threshold !==
+      deployment.thresholdAuthorityThreshold ||
+    sha256Json(actualAuthorityOwners) !== sha256Json(expectedAuthorityOwners)
+  ) {
+    throw new Error("V44_CAMPAIGN_POLICY_AUTHORITY_MISMATCH");
+  }
+  return projection;
 }
 
 export function reliabilityParticipantTemplate({
@@ -292,5 +437,8 @@ export function reliabilityParticipantTemplate({
       maturity: { threshold: 2, signers: [] },
     },
     maturityAgentBindings: [],
+    maturityReadiness: {
+      proposalBondOwner: null,
+    },
   };
 }

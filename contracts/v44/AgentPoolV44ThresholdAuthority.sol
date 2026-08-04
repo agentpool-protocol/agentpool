@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 interface IAgentPoolV44PolicyAnchorWriter {
     function publish(
@@ -33,9 +33,8 @@ interface IAgentPoolV44MaturityAnchorWriter {
 ///         bootstrap publications. Anyone may relay a signed operation, but
 ///         neither a single owner nor an arbitrary contract caller can execute
 ///         it. Owners, threshold and executable methods cannot be changed.
-contract AgentPoolV44ThresholdAuthority {
+contract AgentPoolV44ThresholdAuthority is EIP712 {
     using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
 
     bytes32 public constant DOMAIN = keccak256(
         "AGENTPOOL_V44_THRESHOLD_AUTHORITY_V1"
@@ -45,6 +44,9 @@ contract AgentPoolV44ThresholdAuthority {
     );
     bytes32 public constant MATURITY_ACTION = keccak256(
         "AGENTPOOL_V44_MATURITY_PUBLICATION"
+    );
+    bytes32 public constant OPERATION_TYPEHASH = keccak256(
+        "ThresholdOperation(bytes32 actionHash,uint256 nonce,uint64 deadline)"
     );
 
     address[] private _owners;
@@ -62,7 +64,10 @@ contract AgentPoolV44ThresholdAuthority {
     error InvalidOperation();
     error InvalidSignatures();
 
-    constructor(address[] memory owners_, uint16 threshold_) {
+    constructor(
+        address[] memory owners_,
+        uint16 threshold_
+    ) EIP712("AgentPoolV44ThresholdAuthority", "1") {
         if (
             threshold_ < 2 ||
             owners_.length < threshold_ ||
@@ -95,16 +100,17 @@ contract AgentPoolV44ThresholdAuthority {
         uint256 operationNonce,
         uint64 deadline
     ) public view returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                DOMAIN,
-                block.chainid,
-                address(this),
-                actionHash,
-                operationNonce,
-                deadline
-            )
-        ).toEthSignedMessageHash();
+        return
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        OPERATION_TYPEHASH,
+                        actionHash,
+                        operationNonce,
+                        deadline
+                    )
+                )
+            );
     }
 
     function policyActionHash(
