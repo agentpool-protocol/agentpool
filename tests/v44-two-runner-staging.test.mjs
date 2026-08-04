@@ -4,10 +4,14 @@ import path from "node:path";
 import test from "node:test";
 import {
   reportSha256,
+  selectRunnerReportsForSource,
   TWO_RUNNER_REPORT_SCHEMA,
   validateRunnerReport,
   validateTwoRunnerCampaign,
 } from "../scripts/lib/v44-two-runner-evidence.mjs";
+import {
+  buildAntigravityRunnerPrompt,
+} from "../scripts/lib/v44-two-runner-prompt.mjs";
 import {
   buildDormantAnchorIntent,
 } from "../scripts/lib/v44-dormant-anchor.mjs";
@@ -71,6 +75,55 @@ test("one runtime cannot forge the two-runner threshold", () => {
         policy,
       ),
     /TWO_RUNNER_RUNTIME_FAMILIES_INSUFFICIENT/u,
+  );
+});
+
+test("current source selection ignores stale runner evidence", () => {
+  const currentCommit = "b".repeat(40);
+  const currentCodex = report("codex", "current-a", {
+    sourceCommit: currentCommit,
+  });
+  currentCodex.reportSha256 = reportSha256(currentCodex);
+  const currentAntigravity = report("antigravity", "current-b", {
+    sourceCommit: currentCommit,
+  });
+  currentAntigravity.reportSha256 = reportSha256(currentAntigravity);
+  const stale = report("antigravity", "stale", {
+    sourceCommit: "a".repeat(40),
+  });
+  stale.reportSha256 = reportSha256(stale);
+
+  const selected = selectRunnerReportsForSource(
+    [stale, currentCodex, currentAntigravity],
+    currentCommit,
+    policy.release,
+  );
+  assert.equal(selected.length, 2);
+  assert.ok(selected.every((entry) => entry.sourceCommit === currentCommit));
+  assert.equal(validateTwoRunnerCampaign(selected, policy).eligible, true);
+});
+
+test("Antigravity resume prompt pins one safe run to an exact commit", () => {
+  const commit = "c".repeat(40);
+  const prompt = buildAntigravityRunnerPrompt({
+    workspacePath: "C:\\workspace\\agentpool",
+    sourceCommit: commit,
+  });
+  assert.match(prompt, /C:\\workspace\\agentpool/u);
+  assert.match(prompt, new RegExp(commit, "u"));
+  assert.equal(
+    prompt.match(/npm\.cmd run evidence:v4\.4:runner:antigravity/gu)?.length,
+    1,
+  );
+  assert.match(prompt, /SHARED_OPERATOR_ENGINEERING_ONLY/u);
+  assert.match(prompt, /메인넷 거래.*금지/u);
+  assert.throws(
+    () =>
+      buildAntigravityRunnerPrompt({
+        workspacePath: "C:\\workspace\\agentpool",
+        sourceCommit: "not-a-commit",
+      }),
+    /SOURCE_COMMIT_INVALID/u,
   );
 });
 

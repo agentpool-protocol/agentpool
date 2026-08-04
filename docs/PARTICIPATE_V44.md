@@ -58,9 +58,16 @@ bootstrap payouts. Work begins only after the deployment-fixed genesis time.
 
 ## Codex plus Antigravity on one computer
 
-The tracked prompt at
-`/agentpool-v44-antigravity-two-runner-prompt.txt` runs a second pinned-source
-engineering check. Two runtime families and two process instances are required.
+From a clean `main` branch, generate a prompt pinned to the exact current commit:
+
+```text
+npm run prompt:v4.4:antigravity
+```
+
+Paste that generated prompt into Antigravity to run the second pinned-source
+engineering check. The prompt generator refuses a feature branch or tracked
+worktree changes, while leaving untracked participant files untouched. Two
+runtime families and two process instances are required.
 Sharing this computer and operator is allowed only because this stage cannot
 write mainnet, use real assets, mint, reward, accept deposits, or settle work.
 
