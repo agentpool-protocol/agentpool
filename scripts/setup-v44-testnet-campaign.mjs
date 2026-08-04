@@ -8,6 +8,7 @@ import {
   currentGitCommit,
   requireAddress,
   requireEnv,
+  requireThresholdAuthorityConfig,
   sha256File,
 } from "./lib/v44-mainnet.mjs";
 import { resolveV44TestnetCampaignFiles } from "./lib/v44-chain-profile.mjs";
@@ -67,6 +68,7 @@ const proposer = privateKeyToAccount(proposerKey).address;
 const validators = [1, 2, 3].map((index) =>
   requireAddress(`VALIDATOR_${index}`),
 );
+const thresholdAuthority = requireThresholdAuthorityConfig();
 const identities = [deployer, proposer, ...validators].map((address) =>
   getAddress(address).toLowerCase(),
 );
@@ -167,8 +169,8 @@ const lines = [
   `V44_TESTNET_CONTRACT_SOURCE_EVIDENCE=${path.relative(ROOT, campaignFiles.sourceEvidencePath)}`,
   `V44_TESTNET_OBSERVATIONS_FILE=${path.relative(ROOT, campaignFiles.observationsPath)}`,
   `V44_TESTNET_RELIABILITY_OUTPUT=${path.relative(ROOT, campaignFiles.reliabilityPath)}`,
-  "V44_THRESHOLD_AUTHORITY_OWNERS=SET_COMMA_SEPARATED_SORTED_SIGNER_ADDRESSES",
-  "V44_THRESHOLD_AUTHORITY_THRESHOLD=2",
+  `V44_THRESHOLD_AUTHORITY_OWNERS=${thresholdAuthority.owners.join(",")}`,
+  `V44_THRESHOLD_AUTHORITY_THRESHOLD=${thresholdAuthority.threshold}`,
   `V44_GENESIS_TIMESTAMP=${genesisStart}`,
   `V44_BOOTSTRAP_PROPOSER=${proposer}`,
   ...validators.flatMap((address, index) => [
@@ -202,6 +204,8 @@ process.stdout.write(
       deployer,
       proposer,
       validators,
+      thresholdAuthorityOwners: thresholdAuthority.owners,
+      thresholdAuthorityThreshold: thresholdAuthority.threshold,
       genesisStart,
       objectiveCount,
       mechanicsOnly,
