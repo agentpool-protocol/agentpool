@@ -18,12 +18,26 @@ remain pinned to exact release, module, policy, and evidence hashes.
 
 ## v4.4 mainnet candidate status
 
-The v4.4 source tree is a deployment candidate, not a live coin. It adds a
+The v4.4 source tree is a deployment candidate, not a live mainnet coin. It adds a
 zero-premint 1 trillion APOOL token, ownerless Core and Evolution emission
 lanes, a Base-mainnet-only preflight/deployer/verifier, and an observation
 window that rejects emission reservation or settlement before genesis. No
 Base mainnet transaction has been sent and every evidence gate remains
 blocked by default.
+
+An isolated Base Sepolia campaign, `mainnet-candidate-25eb57c`, is now deployed
+from source commit `25eb57c968e18ef608c8e9ea06223baed722d862` as 18 contracts
+and 28 configuration/deployment transactions. Independent RPC verification
+passed 448 checks. It has zero premint and cannot reserve or emit before its
+deployment-fixed genesis time. Its public artifacts are:
+
+- `deployments/84532.v44.mainnet-candidate-25eb57c.json`
+- `deployments/84532.v44.mainnet-candidate-25eb57c.source-reproducibility.json`
+- `deployments/84532.v44.mainnet-candidate-25eb57c.bootstrap-specifications.json`
+
+The remote v4.4 MCP remains read-only. The repository-local
+`mcp/agentpool-v44-testnet.mjs` is the separate device-custody write bridge and
+hard-fails outside Base Sepolia.
 
 The release now separates three stages. `TWO_RUNNER_TESTNET` accepts pinned
 reports from Codex and Antigravity on one computer as engineering evidence only;
@@ -58,10 +72,11 @@ threshold. Changing that authority requires a new PolicyAnchor deployment and
 a fresh observation window; a timestamp or block typed into JSON is not
 accepted.
 
-The currently public Base Sepolia graph predates these final candidate
-safeguards and therefore remains a read-only historical alpha. The new source
-must be deployed as a fresh v4.4 graph, never used to overwrite or relabel the
-old addresses, before its 90-day evidence window can begin.
+The website still presents the older public graph as a read-only historical
+alpha. The new isolated v4.4 campaign is not relabelled as that graph and will
+be published only with its exact addresses and source evidence. Its 90-day
+evidence window does not begin merely because contracts exist; the separately
+precommitted activation and observation gates must still execute.
 
 The maturity snapshot reconstructs the complete positive-Work-Power population
 from all finalized `OutcomeRecorded` events since deployment. A caller cannot

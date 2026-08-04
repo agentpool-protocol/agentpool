@@ -127,7 +127,7 @@ export function generateBootstrapVerificationObjectives({
   };
   for (const [index, target] of verificationTargets(sourceEvidence).entries()) {
     const id = objectiveId(target.pointer, index);
-    const specification = {
+    const baseSpecification = {
       id,
       capability: target.pointer.startsWith("/artifacts/")
         ? "evm-bytecode-reproduction"
@@ -148,13 +148,17 @@ export function generateBootstrapVerificationObjectives({
       sourceCommit: sourceEvidence.sourceCommit,
       observed,
     });
+    const specification = {
+      ...baseSpecification,
+      expectedDeliveryHash: bootstrapDeliveryHash(artifact),
+    };
     specifications.objectives.push(specification);
     catalog.objectives.push({
       objectiveId: id,
       sourceEvidencePointer: target.pointer,
       capabilityHash: keccak256(toBytes(specification.capability)),
       specificationHash: bootstrapSpecificationHash(specification),
-      deliveryHash: bootstrapDeliveryHash(artifact),
+      deliveryHash: specification.expectedDeliveryHash,
       objectiveProofHex: `0x${crypto.randomBytes(48).toString("hex")}`,
       capacityUnits: 100,
       mechanicsOnly: false,

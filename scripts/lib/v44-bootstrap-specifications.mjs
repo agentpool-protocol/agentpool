@@ -126,7 +126,12 @@ export function validateBootstrapSpecifications({
       sourceCommit: sourceEvidence.sourceCommit,
       observed,
     });
-    if (objective.deliveryHash !== bootstrapDeliveryHash(artifact)) {
+    const derivedDeliveryHash = bootstrapDeliveryHash(artifact);
+    if (
+      objective.deliveryHash !== derivedDeliveryHash ||
+      (specification.expectedDeliveryHash !== undefined &&
+        specification.expectedDeliveryHash !== derivedDeliveryHash)
+    ) {
       throw new Error(`V44_BOOTSTRAP_DELIVERY_COMMITMENT_INVALID:${index}`);
     }
   }
@@ -222,7 +227,7 @@ export function verifyPublishedBootstrapSpecifications({
   for (let index = 0; index < specifications.objectives.length; index++) {
     const specification = specifications.objectives[index];
     if (
-      Object.keys(specification).sort().join(",") !==
+      ![
         [
           "capability",
           "deliveryArtifactSchema",
@@ -230,7 +235,19 @@ export function verifyPublishedBootstrapSpecifications({
           "id",
           "requiredSourceCommit",
           "sourceEvidencePointer",
-        ].sort().join(",") ||
+        ],
+        [
+          "capability",
+          "deliveryArtifactSchema",
+          "description",
+          "expectedDeliveryHash",
+          "id",
+          "requiredSourceCommit",
+          "sourceEvidencePointer",
+        ],
+      ]
+        .map((keys) => keys.sort().join(","))
+        .includes(Object.keys(specification).sort().join(",")) ||
       ids.has(specification.id) ||
       specification.requiredSourceCommit !== deployment.sourceCommit ||
       specification.deliveryArtifactSchema !== V44_BOOTSTRAP_DELIVERY_SCHEMA ||
@@ -239,8 +256,27 @@ export function verifyPublishedBootstrapSpecifications({
     ) {
       throw new Error(`V44_PUBLISHED_BOOTSTRAP_SPECIFICATION_INVALID:${index}`);
     }
+    const observed = valueAtPointer(
+      sourceEvidence,
+      specification.sourceEvidencePointer,
+    );
+    const derivedDeliveryHash = bootstrapDeliveryHash(
+      bootstrapDeliveryArtifact({
+        campaignId: deployment.campaignId,
+        objectiveId: specification.id,
+        sourceCommit: deployment.sourceCommit,
+        observed,
+      }),
+    );
+    if (
+      specification.expectedDeliveryHash !== undefined &&
+      specification.expectedDeliveryHash !== derivedDeliveryHash
+    ) {
+      throw new Error(
+        `V44_PUBLISHED_BOOTSTRAP_DELIVERY_HASH_INVALID:${index}`,
+      );
+    }
     ids.add(specification.id);
-    valueAtPointer(sourceEvidence, specification.sourceEvidencePointer);
   }
   return {
     specifications,
