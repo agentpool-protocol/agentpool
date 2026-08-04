@@ -76,6 +76,15 @@ threshold. Changing that authority requires a new PolicyAnchor deployment and
 a fresh observation window; a timestamp or block typed into JSON is not
 accepted.
 
+Every new reliability-mode Base Sepolia preflight now requires a local
+`V44_RELIABILITY_PARTICIPANTS_FILE`. The public-only manifest proves that the
+immutable threshold authority, three observers, two RPC operators, three
+Ed25519 signer policies, and at least five maturity agents satisfy the declared
+controller/custody separation before contracts are deployed. The helper
+`npm run participants:v4.4:testnet` creates an incomplete template and the same
+command with `--input=...` validates it. Same-person wallets remain one control
+domain regardless of device count.
+
 The website still presents the older public graph as a read-only historical
 alpha. The new isolated v4.4 campaign is not relabelled as that graph and will
 be published only with its exact addresses and source evidence. Its 90-day

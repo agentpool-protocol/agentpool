@@ -72,6 +72,7 @@
     "worker:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/run-v44-testnet-autonomous-worker.mjs --watch",
     "campaign:v4.4:testnet": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/run-v44-testnet-bootstrap-campaign.mjs",
     "campaign:v4.4:testnet:fund-gas": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.v44.testnet.local scripts/fund-v44-testnet-campaign.mjs",
+    "participants:v4.4:testnet": "node --env-file-if-exists=.env.v44.testnet.local scripts/prepare-v44-reliability-participants.mjs",
     "contracts:rehearse:v4.4:mainnet": "node scripts/rehearse-v44-mainnet-candidate.mjs",
     "contracts:rehearse:v4.4:full": "node scripts/rehearse-v44-full-mainnet-candidate.mjs",
     "evidence:v4.4:source": "node scripts/generate-v44-release-evidence.mjs",

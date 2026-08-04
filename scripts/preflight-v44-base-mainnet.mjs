@@ -31,6 +31,7 @@ import {
   verifyPublicTestnetReliabilityGate,
 } from "./lib/v44-testnet-reliability.mjs";
 import { loadBootstrapSpecificationEvidence } from "./lib/v44-bootstrap-specifications.mjs";
+import { validateReliabilityParticipants } from "./lib/v44-reliability-participants.mjs";
 
 const profile = resolveV44ChainProfile({
   ...process.env,
@@ -92,6 +93,30 @@ const bootstrapSpecificationEvidence =
     catalogId: bootstrapCatalogId,
     allowMechanicsOnly: profile.testnetOnly,
   });
+const reliabilityParticipants =
+  profile.testnetOnly && bootstrapSpecificationEvidence.mode === "reliability"
+    ? validateReliabilityParticipants(
+        JSON.parse(
+          fs.readFileSync(
+            path.resolve(
+              ROOT,
+              requireEnv("V44_RELIABILITY_PARTICIPANTS_FILE"),
+            ),
+            "utf8",
+          ),
+        ),
+        {
+          campaignId: profile.campaignId,
+          sourceCommit,
+          thresholdAuthorityOwners: thresholdAuthority.owners,
+          thresholdAuthorityThreshold: thresholdAuthority.threshold,
+          validators: releaseInputs.bootstrap.validators.map((entry) => ({
+            address: entry.address,
+            groupId: entry.group,
+          })),
+        },
+      )
+    : null;
 
 const { rpcUrl, minimumBalance } = requireProfileEnvironment(profile);
 const client = createPublicClient({
@@ -153,6 +178,8 @@ const report = {
   bootstrapObjectiveMode: bootstrapSpecificationEvidence.mode,
   bootstrapSpecificationsSha256:
     bootstrapSpecificationEvidence.specificationsSha256 ?? null,
+  reliabilityParticipantsSha256:
+    reliabilityParticipants?.manifestSha256 ?? null,
   bootstrapIdentitySha256: bootstrapIdentitySha256(releaseInputs),
   validators: releaseInputs.bootstrap.validators.map((entry) => ({
     address: entry.address,

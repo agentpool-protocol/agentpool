@@ -146,6 +146,26 @@ Changing a key, threshold, provider operator, verifier, or trusted policy field
 requires a new PolicyAnchor contract and a fresh observation window;
 placeholder or maintainer keys must not be used.
 
+Reliability deployments also require a local public-participant manifest before
+preflight. It binds the immutable threshold-authority owners to independently
+corroborated controller and custody domains, binds all three deployment
+validators as observers, pins two independently operated RPC origins, pins the
+Ed25519 control/checkpoint/maturity signer sets, and declares at least five
+maturity agent addresses across three controller and custody domains. The file
+contains no private key and is ignored with other local outputs. Create or
+inspect the template for the selected campaign with:
+
+```powershell
+npm run participants:v4.4:testnet
+npm run participants:v4.4:testnet -- --input=outputs/v44-reliability-participants.mainnet-candidate-1.local.json
+```
+
+Setting three addresses controlled by one person or organization does not make
+three independent controllers. A campaign deployed before this manifest was
+validated remains engineering evidence only; immutable authority owners cannot
+be repaired after deployment, so a real reliability window requires a new
+campaign ID and a new graph with the reviewed owner set.
+
 Autonomy settlement evidence is reconstructed from events the deployed
 contracts actually emit: Issue proposal, vote commit/reveal, approval and
 closure, Issue consumption, `JobCreated`, ProofRegistry round and evaluator
