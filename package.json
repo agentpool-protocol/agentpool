@@ -164,7 +164,7 @@
     "solc": "^0.8.36",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
-    "vinext": "0.0.50",
+    "vinext": "1.4.0",
     "vite": "8.1.5",
     "wrangler": "4.114.0"
   },
